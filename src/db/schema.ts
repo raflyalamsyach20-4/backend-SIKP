@@ -67,6 +67,7 @@ export const teamMembers = pgTable('team_members', {
   id: text('id').primaryKey(),
   teamId: text('team_id').notNull().references(() => teams.id, { onDelete: 'cascade' }),
   userId: text('user_id').notNull().references(() => users.id),
+  role: text('role').notNull().default('ANGGOTA'), // KETUA or ANGGOTA
   invitationStatus: invitationStatusEnum('invitation_status').notNull().default('PENDING'),
   invitedAt: timestamp('invited_at').defaultNow().notNull(),
   respondedAt: timestamp('responded_at'),

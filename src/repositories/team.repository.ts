@@ -10,6 +10,11 @@ export class TeamRepository {
     return result[0] || null;
   }
 
+  async findByCode(code: string) {
+    const result = await this.db.select().from(teams).where(eq(teams.code, code)).limit(1);
+    return result[0] || null;
+  }
+
   async findByLeaderId(leaderId: string) {
     return await this.db.select().from(teams).where(eq(teams.leaderId, leaderId));
   }
@@ -43,6 +48,44 @@ export class TeamRepository {
       .from(teamMembers)
       .where(and(eq(teamMembers.teamId, teamId), eq(teamMembers.userId, userId)))
       .limit(1);
+    return result[0] || null;
+  }
+
+  async findMemberByIdOnly(memberId: string) {
+    const result = await this.db
+      .select()
+      .from(teamMembers)
+      .where(eq(teamMembers.id, memberId))
+      .limit(1);
+    return result[0] || null;
+  }
+
+  async removeMember(memberId: string) {
+    console.log(`[removeMember.repo] 🗑️ Attempting to delete member: ${memberId}`);
+    
+    const result = await this.db
+      .delete(teamMembers)
+      .where(eq(teamMembers.id, memberId))
+      .returning();
+    
+    console.log(`[removeMember.repo] ✅ Delete query executed:`, {
+      deletedCount: result.length,
+      deletedRecord: result[0]
+    });
+    
+    // Verify deletion by querying again
+    const verifyQuery = await this.db
+      .select()
+      .from(teamMembers)
+      .where(eq(teamMembers.id, memberId))
+      .limit(1);
+    
+    if (verifyQuery.length > 0) {
+      console.error(`[removeMember.repo] ❌ CRITICAL: Member still exists after delete!`, verifyQuery[0]);
+    } else {
+      console.log(`[removeMember.repo] ✅ VERIFIED: Member confirmed deleted`);
+    }
+    
     return result[0] || null;
   }
 
