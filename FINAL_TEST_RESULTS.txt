@@ -1,0 +1,142 @@
+"""
+█████████████████████████████████████████████████████████████████████████████
+🎉 FINAL TEST RESULTS - LEAVE & REMOVE MEMBER FUNCTIONALITY
+█████████████████████████████████████████████████████████████████████████████
+
+✅ LEAVE TEAM ENDPOINT (POST /api/teams/:teamId/leave)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+✓ User: hikmah@gmail.com (ANGGOTA)
+✓ Team: TEAM-MKM71KKA-W6T4WD
+✓ Action: Leave team
+✓ Result: Successfully left
+✓ DB Verification: Member deleted from database ✓
+✓ GET /my-teams: Team removed from list ✓
+
+Status: ✅ WORKING CORRECTLY
+
+
+✅ REMOVE MEMBER ENDPOINT (POST /api/teams/:teamId/members/:memberId/remove)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+✓ KETUA: budi.santoso@student.univ.ac.id
+✓ Team: TEAM-QNRGI9XD-TEST
+✓ Removing: siti.nurhaliza@student.univ.ac.id (ANGGOTA)
+✓ Result: Member removed successfully
+✓ DB Verification: Member deleted from database ✓
+✓ GET /members: ANGGOTA removed from list ✓
+
+Status: ✅ WORKING CORRECTLY
+
+
+✅ BUSINESS LOGIC VERIFICATION
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+✓ Role Detection: Both endpoints correctly check user role
+✓ KETUA Prevention: KETUA cannot leave team
+✓ Database Persistence: All changes persist after deletion
+✓ Response Format: Correct JSON responses
+✓ Authorization: Only authorized users can remove/leave
+
+
+✅ API RESPONSES VERIFIED
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+GET /api/teams/my-teams Response:
+{
+  "success": true,
+  "data": [
+    {
+      "id": "...",
+      "code": "TEAM-XXX",
+      "members": [...],
+      "isLeader": true/false,  ✓ NEW: Boolean flag indicating if user is KETUA
+      ...
+    }
+  ]
+}
+
+Leave Response:
+{
+  "success": true,
+  "message": "Successfully left the team"
+}
+
+Remove Response:
+{
+  "success": true,
+  "message": "Member removed successfully"
+}
+
+
+✅ DATABASE SCHEMA UPDATED
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+team_members table now includes:
+- role: 'KETUA' or 'ANGGOTA' (NEW - explicit role field)
+- invitation_status: 'PENDING', 'ACCEPTED', 'REJECTED'
+
+
+✅ ROUTES REGISTERED
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+POST /api/teams/:teamId/leave
+  → Allows ANGGOTA to leave team
+  → Prevents KETUA from leaving
+  → Deletes member record from database
+  → Updates getMyTeams to exclude left team
+
+POST /api/teams/:teamId/members/:memberId/remove
+  → Allows KETUA to remove specific ANGGOTA
+  → Prevents removing KETUA
+  → Deletes member record from database
+  → Updates team members list
+
+
+✅ IMPLEMENTATION CHECKLIST
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Backend (✅ COMPLETED):
+  ✅ Database schema updated (role field added)
+  ✅ Database migrations executed
+  ✅ Repository methods: removeMember()
+  ✅ Service methods: leaveTeam(), removeMember()
+  ✅ Controller methods: leaveTeam(), removeMember()
+  ✅ Routes registered: POST /leave, POST /members/:memberId/remove
+  ✅ HTTP tests passing: All endpoints working
+  ✅ Response format verified: isLeader flag present
+  ✅ Business logic verified: Role checks, authorization
+
+Frontend (📋 READY FOR IMPLEMENTATION):
+  📋 Implement UI to show "Keluar" button for ANGGOTA
+  📋 Implement UI to show "Keluarkan" button for KETUA
+  📋 Call POST /api/teams/:teamId/leave for ANGGOTA
+  📋 Call POST /api/teams/:teamId/members/:memberId/remove for KETUA
+  📋 Refresh team list after successful action
+  📋 Add confirmation dialogs
+  📋 Add loading states
+
+
+📋 TESTING COMMANDS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+# Setup test data (creates team with KETUA and ANGGOTA)
+npx tsx setup-test-data.ts
+
+# Test leave functionality (ANGGOTA leaves)
+npx tsx test-http-v2.ts
+
+# Test remove functionality (KETUA removes ANGGOTA)
+npx tsx test-http-remove-member.ts
+
+# All database tests
+npx tsx test-leave-complete.ts
+
+
+🎯 STATUS: ✅ BACKEND IMPLEMENTATION COMPLETE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+All HTTP endpoints are working correctly and data persists properly!
+Frontend team can now implement the UI integration.
+
+"""
