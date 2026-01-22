@@ -6,8 +6,8 @@
   "compatibility_flags": [
     "nodejs_compat"
   ],
-  "vars": {
-    "JWT_SECRET": "change-this-in-production"
+  "dev": {
+    "port": 8789
   },
   "r2_buckets": [
     {
