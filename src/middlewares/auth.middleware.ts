@@ -1,55 +1,216 @@
 import { Context, Next } from 'hono';
-import { verify } from 'jsonwebtoken';
-import type { JWTPayload, UserRole } from '@/types';
+import { createRemoteJWKSet, jwtVerify, JWTPayload } from 'jose';
 
 export interface AuthContext {
-  user: JWTPayload;
+  userId: string;
+  email: string;
+  name?: string;
+  roles: string[];
+  permissions: string[];
 }
 
-export const authMiddleware = async (c: Context, next: Next) => {
-  try {
-    const authHeader = c.req.header('Authorization');
-    
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      return c.json({ success: false, message: 'Unauthorized: No token provided' }, 401);
-    }
-
-    const token = authHeader.substring(7);
-    const jwtSecret = c.env.JWT_SECRET;
-
-    if (!jwtSecret) {
-      return c.json({ success: false, message: 'Server configuration error' }, 500);
-    }
-
-    const decoded = verify(token, jwtSecret) as JWTPayload;
-    
-    // Store user info in context
-    c.set('user', decoded);
-    
-    await next();
-  } catch (error) {
-    return c.json({ success: false, message: 'Unauthorized: Invalid token' }, 401);
+declare module 'hono' {
+  interface ContextVariableMap {
+    auth: AuthContext;
   }
-};
+}
 
-export const roleMiddleware = (allowedRoles: UserRole[]) => {
+// JWKS cache
+let JWKS: ReturnType<typeof createRemoteJWKSet> | null = null;
+
+function getJWKS(jwksUrl: string) {
+  if (!JWKS) {
+    JWKS = createRemoteJWKSet(new URL(jwksUrl));
+  }
+  return JWKS;
+}
+
+function extractBearerToken(authHeader: string | undefined): string | null {
+  if (!authHeader) return null;
+  const parts = authHeader.split(' ');
+  if (parts.length !== 2 || parts[0] !== 'Bearer') return null;
+  return parts[1];
+}
+
+export function authMiddleware() {
   return async (c: Context, next: Next) => {
-    const user = c.get('user') as JWTPayload;
-    
-    if (!user) {
-      return c.json({ success: false, message: 'Unauthorized' }, 401);
+    const authHeader = c.req.header('Authorization');
+    const token = extractBearerToken(authHeader);
+
+    if (!token) {
+      return c.json({ error: 'Unauthorized', message: 'No token provided' }, 401);
     }
 
-    if (!allowedRoles.includes(user.role)) {
-      return c.json({ success: false, message: 'Forbidden: Insufficient permissions' }, 403);
+    try {
+      const authIssuer = c.env?.AUTH_ISSUER;
+      const authJwksUrl = c.env?.AUTH_JWKS_URL;
+      const authAudience = c.env?.AUTH_AUDIENCE;
+
+      if (!authIssuer || !authJwksUrl || !authAudience) {
+        console.error('Missing auth configuration:', { authIssuer, authJwksUrl, authAudience });
+        return c.json({ error: 'Internal Server Error', message: 'Auth service not configured' }, 500);
+      }
+
+      const jwks = getJWKS(authJwksUrl);
+      const { payload } = await jwtVerify(token, jwks, {
+        issuer: authIssuer,
+        audience: authAudience,
+      });
+
+      // Extract claims from JWT
+      const authContext: AuthContext = {
+        userId: payload.sub as string,
+        email: payload.email as string,
+        name: payload.name as string | undefined,
+        roles: (payload.roles as string[]) || [],
+        permissions: (payload.permissions as string[]) || [],
+      };
+
+      c.set('auth', authContext);
+      await next();
+    } catch (error) {
+      console.error('JWT verification error:', error);
+      return c.json({ 
+        error: 'Unauthorized', 
+        message: error instanceof Error ? error.message : 'Invalid or expired token' 
+      }, 401);
+    }
+  };
+}
+
+export function optionalAuthMiddleware() {
+  return async (c: Context, next: Next) => {
+    const authHeader = c.req.header('Authorization');
+    const token = extractBearerToken(authHeader);
+
+    if (!token) {
+      // No token, continue without auth context
+      await next();
+      return;
+    }
+
+    try {
+      const authIssuer = c.env?.AUTH_ISSUER;
+      const authJwksUrl = c.env?.AUTH_JWKS_URL;
+      const authAudience = c.env?.AUTH_AUDIENCE;
+
+      if (!authIssuer || !authJwksUrl || !authAudience) {
+        // Config missing, continue without auth
+        await next();
+        return;
+      }
+
+      const jwks = getJWKS(authJwksUrl);
+      const { payload } = await jwtVerify(token, jwks, {
+        issuer: authIssuer,
+        audience: authAudience,
+      });
+
+      const authContext: AuthContext = {
+        userId: payload.sub as string,
+        email: payload.email as string,
+        name: payload.name as string | undefined,
+        roles: (payload.roles as string[]) || [],
+        permissions: (payload.permissions as string[]) || [],
+      };
+
+      c.set('auth', authContext);
+    } catch (error) {
+      // Invalid token, continue without auth context
+      console.warn('Optional auth failed:', error);
     }
 
     await next();
   };
-};
+}
 
-// Helper middleware untuk role spesifik
-export const mahasiswaOnly = roleMiddleware(['MAHASISWA']);
-export const adminOnly = roleMiddleware(['ADMIN', 'KAPRODI', 'WAKIL_DEKAN']);
-export const dosenOnly = roleMiddleware(['DOSEN']);
-export const staffOnly = roleMiddleware(['ADMIN', 'KAPRODI', 'WAKIL_DEKAN', 'DOSEN']);
+// Permission-based authorization
+export function requirePermission(...requiredPermissions: string[]) {
+  return async (c: Context, next: Next) => {
+    const auth = c.get('auth');
+    
+    if (!auth) {
+      return c.json({ error: 'Unauthorized', message: 'Authentication required' }, 401);
+    }
+
+    const hasPermission = requiredPermissions.some(permission => 
+      auth.permissions.includes(permission)
+    );
+
+    if (!hasPermission) {
+      return c.json({ 
+        error: 'Forbidden', 
+        message: `Required permissions: ${requiredPermissions.join(' or ')}` 
+      }, 403);
+    }
+
+    await next();
+  };
+}
+
+// Role-based authorization
+export function requireRole(...requiredRoles: string[]) {
+  return async (c: Context, next: Next) => {
+    const auth = c.get('auth');
+    
+    if (!auth) {
+      return c.json({ error: 'Unauthorized', message: 'Authentication required' }, 401);
+    }
+
+    const hasRole = requiredRoles.some(role => auth.roles.includes(role));
+
+    if (!hasRole) {
+      return c.json({ 
+        error: 'Forbidden', 
+        message: `Required roles: ${requiredRoles.join(' or ')}` 
+      }, 403);
+    }
+
+    await next();
+  };
+}
+
+// Combined permission or role check
+export function requirePermissionOrRole(permissions: string[], roles: string[]) {
+  return async (c: Context, next: Next) => {
+    const auth = c.get('auth');
+    
+    if (!auth) {
+      return c.json({ error: 'Unauthorized', message: 'Authentication required' }, 401);
+    }
+
+    const hasPermission = permissions.some(permission => 
+      auth.permissions.includes(permission)
+    );
+    const hasRole = roles.some(role => auth.roles.includes(role));
+
+    if (!hasPermission && !hasRole) {
+      return c.json({ 
+        error: 'Forbidden', 
+        message: 'Insufficient permissions or roles' 
+      }, 403);
+    }
+
+    await next();
+  };
+}
+
+// Helper to check if user is mahasiswa (has mahasiswa role)
+export function requireMahasiswa() {
+  return requireRole('mahasiswa');
+}
+
+// Helper to check if user is admin/staff
+export function requireAdmin() {
+  return requireRole('admin', 'superadmin');
+}
+
+// Helper to check if user is dosen
+export function requireDosen() {
+  return requireRole('dosen');
+}
+
+// Aliases for backwards compatibility with route files
+export const mahasiswaOnly = requireMahasiswa;
+export const adminOnly = requireAdmin;
+export const dosenOnly = requireDosen;

@@ -120,18 +120,22 @@ export class TeamRepository {
       .where(eq(teamMembers.userId, userId));
   }
 
-  // ✅ NEW: Find a specific member record with explicit ownership verification
-  async findMemberById(memberId: string, userId: string) {
+  // ✅ Find a member record by ID (without ownership check - will be verified in service)
+  async findMemberById(memberId: string) {
     const result = await this.db
       .select()
       .from(teamMembers)
-      .where(
-        and(
-          eq(teamMembers.id, memberId),
-          eq(teamMembers.userId, userId)  // ✅ Explicit ownership check
-        )
-      )
+      .where(eq(teamMembers.id, memberId))
       .limit(1);
+    return result[0] || null;
+  }
+
+  // ✅ Remove a member from team
+  async removeMember(memberId: string) {
+    const result = await this.db
+      .delete(teamMembers)
+      .where(eq(teamMembers.id, memberId))
+      .returning();
     return result[0] || null;
   }
 

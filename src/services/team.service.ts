@@ -1,30 +1,26 @@
 import { TeamRepository } from '@/repositories/team.repository';
-import { UserRepository } from '@/repositories/user.repository';
+import { ProfileServiceClient } from '@/utils/profile-service';
 import { generateId, generateTeamCode } from '@/utils/helpers';
 
 export class TeamService {
   constructor(
     private teamRepo: TeamRepository,
-    private userRepo: UserRepository
+    private profileService: ProfileServiceClient
   ) {}
 
-  async createTeam(leaderId: string) {
+  async createTeam(leaderId: string, accessToken: string) {
     console.log(`[createTeam] 🚀 Starting team creation for leaderId=${leaderId}`);
     
     try {
-      // Verify leader exists
-      const leader = await this.userRepo.findById(leaderId);
-      if (!leader) {
-        console.error(`[createTeam] ❌ User not found: ${leaderId}`);
-        throw new Error('User not found');
+      // Verify leader is mahasiswa through Profile Service
+      const profileResponse = await this.profileService.getMahasiswaByAuthUserId(leaderId, accessToken);
+      
+      if (!profileResponse.success || !profileResponse.data) {
+        console.error(`[createTeam] ❌ User is not a mahasiswa or profile not found`);
+        throw new Error('Only students (mahasiswa) can create teams');
       }
 
-      if (leader.role !== 'MAHASISWA') {
-        console.error(`[createTeam] ❌ User is not MAHASISWA: ${leader.role}`);
-        throw new Error('Only students can create teams');
-      }
-
-      console.log(`[createTeam] ✅ User verified: ${leader.nama} (${leader.role})`);
+      console.log(`[createTeam] ✅ User verified: ${profileResponse.data.name} (NIM: ${profileResponse.data.nim})`);
 
       // Check if user already has a team (as leader)
       const existingTeamsAsLeader = await this.teamRepo.findByLeaderId(leaderId);
@@ -61,8 +57,7 @@ export class TeamService {
           userId: leaderId,
           role: 'KETUA', // ✅ CRITICAL: Set role to KETUA for creator
           invitationStatus: 'ACCEPTED',
-          invitedBy: leaderId, // Explicitly mark creator as inviter/leader
-          respondedAt: new Date(),
+          invitedBy: null,
         });
         
         console.log(`[createTeam] ✅ Leader added as member successfully`);
@@ -85,20 +80,25 @@ export class TeamService {
       
     } catch (error: any) {
       console.error(`[createTeam] ❌ Error creating team:`, error);
-      
-      // Re-throw with proper error message
-      throw new Error(
-        error instanceof Error 
-          ? error.message 
-          : 'Failed to create team'
-      );
+      throw new Error(error instanceof Error ? error.message : 'Failed to create team');
     }
   }
 
-  async leaveTeam(teamId: string, userId: string) {
-    console.log(`[leaveTeam] Processing leave: teamId=${teamId}, userId=${userId}`);
+  async leaveTeam(userId: string) {
+    console.log(`[leaveTeam] Processing leave: userId=${userId}`);
     
+    // Find user's team membership
+    const memberships = await this.teamRepo.findMembershipByUserId(userId);
+    const acceptedMembership = memberships.find(m => m.invitationStatus === 'ACCEPTED');
+    
+    if (!acceptedMembership) {
+      console.error(`[leaveTeam] ❌ User not a member of any team: ${userId}`);
+      throw new Error('You are not a member of any team');
+    }
+    
+    const teamId = acceptedMembership.teamId;
     const team = await this.teamRepo.findById(teamId);
+    
     if (!team) {
       console.error(`[leaveTeam] ❌ Team not found: ${teamId}`);
       throw new Error('Team not found');
@@ -112,16 +112,9 @@ export class TeamService {
       throw err;
     }
 
-    // Find member record
-    const member = await this.teamRepo.findMemberByTeamAndUser(teamId, userId);
-    if (!member) {
-      console.error(`[leaveTeam] ❌ Member not found: userId=${userId}, teamId=${teamId}`);
-      throw new Error('You are not a member of this team');
-    }
-
     // Delete member record
-    console.log(`[leaveTeam] Removing member: ${member.id}`);
-    const deletedMember = await this.teamRepo.removeMember(member.id);
+    console.log(`[leaveTeam] Removing member: ${acceptedMembership.id}`);
+    const deletedMember = await this.teamRepo.removeMember(acceptedMembership.id);
     console.log(`[leaveTeam] ✅ Member removed successfully:`, deletedMember);
     
     // Verify deletion
@@ -211,12 +204,10 @@ export class TeamService {
       throw err;
     }
 
-    // Count members affected before deletion
     const members = await this.teamRepo.findMembersByTeamId(teamId);
     const membersAffected = members.length;
     console.log(`[deleteTeam] Found ${membersAffected} members to be affected`);
 
-    // Delete team (team_members will cascade delete)
     console.log(`[deleteTeam] Deleting team and cascade deleting team_members...`);
     const deleted = await this.teamRepo.deleteTeam(teamId);
     console.log(`[deleteTeam] ✅ Team deleted successfully`);
@@ -244,13 +235,11 @@ export class TeamService {
       throw err;
     }
 
-    // Check if team is already FIXED
     if (team.status === 'FIXED') {
       console.warn(`[finalizeTeam] ⚠️ Team already finalized: ${teamId}`);
       throw new Error('Team is already finalized');
     }
 
-    // Get all members and check if at least one accepted member exists
     const members = await this.teamRepo.findMembersByTeamId(teamId);
     const acceptedMembers = members.filter(m => m.invitationStatus === 'ACCEPTED');
     
@@ -261,7 +250,6 @@ export class TeamService {
       throw new Error('At least 1 member must accept the invitation before finalizing');
     }
 
-    // Update team status to FIXED
     console.log(`[finalizeTeam] Updating team status to FIXED...`);
     const updatedTeam = await this.teamRepo.update(teamId, { status: 'FIXED' });
     console.log(`[finalizeTeam] ✅ Team finalized successfully`);
@@ -274,7 +262,7 @@ export class TeamService {
     };
   }
 
-  async inviteMember(teamId: string, leaderId: string, memberNim: string) {
+  async inviteMember(teamId: string, leaderId: string, memberNim: string, accessToken: string) {
     // Verify team exists and user is leader
     const team = await this.teamRepo.findById(teamId);
     if (!team) {
@@ -285,85 +273,63 @@ export class TeamService {
       throw new Error('Only team leader can invite members');
     }
 
-    // ✅ Prevent inviting to FIXED teams
     if (team.status === 'FIXED') {
-      throw new Error('Cannot invite members to a finalized team. Please create a new team if you want to add more members.');
+      throw new Error('Cannot invite members to a finalized team');
     }
 
-    // Find member by NIM
-    const member = await this.userRepo.findByNim(memberNim);
-    if (!member) {
-      throw new Error('User not found');
+    // Find member by NIM from Profile Service
+    const memberProfile = await this.profileService.getMahasiswaByNim(memberNim, accessToken);
+    if (!memberProfile.success || !memberProfile.data) {
+      throw new Error('Mahasiswa with this NIM not found');
     }
 
-    if (member.role !== 'MAHASISWA') {
-      throw new Error('Can only invite students');
-    }
+    const memberId = memberProfile.data.authUserId;
 
-    // Check if already invited to THIS team
-    const existingMember = await this.teamRepo.findMemberByTeamAndUser(teamId, member.id);
+    // Check if member is already in the team
+    const existingMember = await this.teamRepo.findMemberByTeamAndUser(teamId, memberId);
     if (existingMember) {
-      const status = existingMember.invitationStatus;
-
-      if (status === 'PENDING') {
-        throw new Error('User already has a pending invitation to this team');
-      }
-
-      if (status === 'ACCEPTED') {
-        throw new Error('User is already a member of this team');
-      }
-
-      if (status === 'REJECTED') {
-        // Allow re-invite after rejection by removing the old record
-        console.log(`[inviteMember] 🗑️ Removing old REJECTED invitation: memberId=${existingMember.id}`);
-        await this.teamRepo.removeMember(existingMember.id);
+      if (existingMember.invitationStatus === 'PENDING') {
+        throw new Error('Invitation already sent to this member');
+      } else if (existingMember.invitationStatus === 'ACCEPTED') {
+        throw new Error('This member is already in the team');
+      } else if (existingMember.invitationStatus === 'REJECTED') {
+        throw new Error('This member has rejected the invitation');
       }
     }
 
-    // ✅ Allow inviting users who already have other teams
-    // Their old team will be auto-deleted when they accept the invitation
+    // Check if member is already in another team
+    const memberMemberships = await this.teamRepo.findMembershipByUserId(memberId);
+    const acceptedMembership = memberMemberships.find(m => m.invitationStatus === 'ACCEPTED');
+    if (acceptedMembership) {
+      throw new Error('This student is already a member of another team');
+    }
 
-    // ✅ CRITICAL FIX: Add invitation with invitedBy field
-    console.log(`[inviteMember] Creating invitation: teamId=${teamId}, userId=${member.id}, invitedBy=${leaderId}`);
+    // Add member with PENDING status
     const invitation = await this.teamRepo.addMember({
       id: generateId(),
       teamId,
+      userId: memberId,
       userId: member.id,
       role: 'ANGGOTA', // ✅ Set role to ANGGOTA for invited members
       invitationStatus: 'PENDING',
-      invitedBy: leaderId,  // ✅ CRITICAL: Set who invited this user
+      invitedBy: leaderId,
     });
 
-    console.log(`[inviteMember] ✅ Invitation created: ${invitation.id}`);
     return invitation;
   }
 
   async respondToInvitation(memberId: string, userId: string, accept: boolean) {
-    console.log(`[respondToInvitation] 🔍 Processing: memberId=${memberId}, userId=${userId}, accept=${accept}`);
-    
-    // Step 1: Find the member record (without userId filter - to support team leader responding)
-    const memberRecord = await this.teamRepo.findMemberByIdOnly(memberId);
-    
-    if (!memberRecord) {
-      console.error(`[respondToInvitation] ❌ Member record not found: memberId=${memberId}`);
-      const notFoundError: any = new Error('Invitation not found or already responded');
-      notFoundError.statusCode = 404;
-      throw notFoundError;
+    const member = await this.teamRepo.findMemberById(memberId);
+    if (!member) {
+      throw new Error('Invitation not found');
     }
-    
-    console.log(`[respondToInvitation] ✅ Found member record:`, {
-      id: memberRecord.id,
-      userId: memberRecord.userId,
-      teamId: memberRecord.teamId,
-      status: memberRecord.invitationStatus
-    });
 
-    // Step 2: Verify invitation is in PENDING status
-    if (memberRecord.invitationStatus !== 'PENDING') {
-      console.error(`[respondToInvitation] ❌ Invalid status: ${memberRecord.invitationStatus} (expected PENDING)`);
-      const invalidStatusError: any = new Error('Invitation not found or already responded');
-      invalidStatusError.statusCode = 404;
-      throw invalidStatusError;
+    if (member.userId !== userId) {
+      throw new Error('You can only respond to your own invitations');
+    }
+
+    if (member.invitationStatus !== 'PENDING') {
+      throw new Error('Invitation has already been responded to');
     }
 
     // Step 3: Get team info to check if current user is the team leader
@@ -542,7 +508,6 @@ export class TeamService {
           id: team.id,
           code: team.code,
           leaderId: team.leaderId,
-          isLeader: team.leaderId === userId, // ✅ Flag to indicate if current user is leader
           status: team.status,
           members: enrichedMembers.sort((a, b) => {
             // Sort: ACCEPTED first, then PENDING, ordered by time
@@ -555,10 +520,8 @@ export class TeamService {
       })
     );
     
-    // Filter out null values (teams that were not found)
-    const validTeams = teamsWithMembers.filter(t => t !== null);
-    console.log(`[getMyTeams] Returning ${validTeams.length} teams with members`);
-    return validTeams;
+    console.log(`[getMyTeams] Returning ${teamsWithMembers.length} teams with members`);
+    return teamsWithMembers;
   }
 
   async getMyInvitations(userId: string) {
@@ -586,21 +549,6 @@ export class TeamService {
           console.warn(`[getMyInvitations] ⚠️ Team not found for invitation ${inv.id}`);
           return null;
         }
-
-        // ✅ FIX: Get team leader info (name and NIM)
-        const leader = await this.userRepo.findById(team.leaderId);
-        const leaderMahasiswa = leader && leader.role === 'MAHASISWA'
-          ? await this.userRepo.findMahasiswaByUserId(team.leaderId)
-          : null;
-
-        const leaderData = leader ? {
-          id: leader.id,
-          nim: leaderMahasiswa?.nim || 'Unknown',
-          name: leader.nama || 'Unknown',
-          email: leader.email || '',
-        } : null;
-
-        console.log(`[getMyInvitations] ✅ Team leader found: ${leaderData?.name} (${leaderData?.nim})`);
 
         // ✅ CRITICAL FIX: Get inviter info with proper null handling
         let inviterData = null;
@@ -638,21 +586,40 @@ export class TeamService {
             id: team.id,
             code: team.code,
             name: team.code, // Using code as name since teams table doesn't have name
-            leaderName: leaderData?.name || 'Unknown',  // ✅ Add leader name
-            leaderNim: leaderData?.nim || 'Unknown',    // ✅ Add leader NIM
           },
           inviter: inviterData,  // ✅ Will be null if inviter not found, or object with data
         };
       })
     );
 
-    // Filter out null values and sort by invited_at DESC
-    const validInvitations = enrichedInvitations
-      .filter(inv => inv !== null)
-      .sort((a, b) => new Date(b.invitedAt).getTime() - new Date(a.invitedAt).getTime());
-    
-    console.log(`[getMyInvitations] Returning ${validInvitations.length} valid invitations`);
-    return validInvitations;
+    return invitationsWithDetails.filter(inv => inv !== null);
+  }
+
+  async cancelInvitation(memberId: string, leaderId: string) {
+    const member = await this.teamRepo.findMemberById(memberId);
+    if (!member) {
+      throw new Error('Invitation not found');
+    }
+
+    const team = await this.teamRepo.findById(member.teamId);
+    if (!team) {
+      throw new Error('Team not found');
+    }
+
+    if (team.leaderId !== leaderId) {
+      throw new Error('Only team leader can cancel invitations');
+    }
+
+    if (member.invitationStatus !== 'PENDING') {
+      throw new Error('Can only cancel pending invitations');
+    }
+
+    await this.teamRepo.removeMember(memberId);
+
+    return {
+      message: 'Invitation cancelled successfully',
+      memberId,
+    };
   }
 
   async cancelInvitation(memberId: string, leaderId: string) {

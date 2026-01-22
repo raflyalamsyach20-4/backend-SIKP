@@ -2,10 +2,9 @@ import { Context } from 'hono';
 import { TeamService } from '@/services/team.service';
 import { createResponse, handleError } from '@/utils/helpers';
 import { z } from 'zod';
-import type { JWTPayload } from '@/types';
+import type { AuthContext } from '@/middlewares/auth.middleware';
 
 const createTeamSchema = z.object({});
-// Team name tidak diperlukan, otomatis menggunakan nama ketua tim
 
 const inviteMemberSchema = z.object({
   memberNim: z.string().min(1),
@@ -20,11 +19,16 @@ export class TeamController {
 
   createTeam = async (c: Context) => {
     try {
-      const user = c.get('user') as JWTPayload;
+      const auth = c.get('auth') as AuthContext;
+      const token = c.req.header('Authorization')?.replace('Bearer ', '');
       
-      console.log(`[TeamController.createTeam] Request from userId=${user.userId}`);
+      if (!token) {
+        return c.json({ error: 'Unauthorized', message: 'No token provided' }, 401);
+      }
 
-      const team = await this.teamService.createTeam(user.userId);
+      console.log(`[TeamController.createTeam] Request from userId=${auth.userId}`);
+
+      const team = await this.teamService.createTeam(auth.userId, token);
 
       console.log(`[TeamController.createTeam] ✅ Success: ${team.code}`);
       return c.json(createResponse(true, 'Team created successfully', team), 201);
@@ -36,15 +40,21 @@ export class TeamController {
 
   inviteMember = async (c: Context) => {
     try {
-      const user = c.get('user') as JWTPayload;
+      const auth = c.get('auth') as AuthContext;
+      const token = c.req.header('Authorization')?.replace('Bearer ', '');
       const teamId = c.req.param('teamId');
       const body = await c.req.json();
       const validated = inviteMemberSchema.parse(body);
 
+      if (!token) {
+        return c.json({ error: 'Unauthorized', message: 'No token provided' }, 401);
+      }
+
       const invitation = await this.teamService.inviteMember(
         teamId,
-        user.userId,
-        validated.memberNim
+        auth.userId,
+        validated.memberNim,
+        token
       );
 
       return c.json(createResponse(true, 'Invitation sent successfully', invitation), 201);
@@ -55,14 +65,14 @@ export class TeamController {
 
   respondToInvitation = async (c: Context) => {
     try {
-      const user = c.get('user') as JWTPayload;
+      const auth = c.get('auth') as AuthContext;
       const memberId = c.req.param('memberId');
       const body = await c.req.json();
       const validated = respondInvitationSchema.parse(body);
 
       const result = await this.teamService.respondToInvitation(
         memberId,
-        user.userId,
+        auth.userId,
         validated.accept
       );
 
@@ -72,36 +82,34 @@ export class TeamController {
     }
   };
 
-  getTeamMembers = async (c: Context) => {
+  getMyTeam = async (c: Context) => {
     try {
-      const teamId = c.req.param('teamId');
-      const members = await this.teamService.getTeamMembers(teamId);
+      const auth = c.get('auth') as AuthContext;
+      const token = c.req.header('Authorization')?.replace('Bearer ', '');
 
-      return c.json(createResponse(true, 'Team members retrieved', members));
+      if (!token) {
+        return c.json({ error: 'Unauthorized', message: 'No token provided' }, 401);
+      }
+
+      const team = await this.teamService.getMyTeam(auth.userId, token);
+
+      if (!team) {
+        return c.json(createResponse(false, 'You are not a member of any team', null), 404);
+      }
+
+      return c.json(createResponse(true, 'Team retrieved', team));
     } catch (error: any) {
-      return handleError(c, error, 'Failed to get team members');
-    }
-  };
-
-  getMyTeams = async (c: Context) => {
-    try {
-      const user = c.get('user') as JWTPayload;
-      const teams = await this.teamService.getMyTeams(user.userId);
-
-      return c.json(createResponse(true, 'Teams retrieved', teams));
-    } catch (error: any) {
-      return handleError(c, error, 'Failed to get teams');
+      return handleError(c, error, 'Failed to get team');
     }
   };
 
   leaveTeam = async (c: Context) => {
     try {
-      const user = c.get('user') as JWTPayload;
-      const teamId = c.req.param('teamId');
+      const auth = c.get('auth') as AuthContext;
 
-      console.log(`[TeamController.leaveTeam] Request from userId=${user.userId}, teamId=${teamId}`);
+      console.log(`[TeamController.leaveTeam] Request from userId=${auth.userId}`);
 
-      const result = await this.teamService.leaveTeam(teamId, user.userId);
+      const result = await this.teamService.leaveTeam(auth.userId);
 
       console.log(`[TeamController.leaveTeam] ✅ Success: Member left team`);
       return c.json(createResponse(true, 'Successfully left the team', result));
@@ -111,30 +119,12 @@ export class TeamController {
     }
   };
 
-  removeMember = async (c: Context) => {
-    try {
-      const user = c.get('user') as JWTPayload;
-      const teamId = c.req.param('teamId');
-      const memberId = c.req.param('memberId');
-
-      console.log(`[TeamController.removeMember] Request from userId=${user.userId}, teamId=${teamId}, memberId=${memberId}`);
-
-      const result = await this.teamService.removeMember(teamId, memberId, user.userId);
-
-      console.log(`[TeamController.removeMember] ✅ Success: Member removed`);
-      return c.json(createResponse(true, 'Member removed successfully', result));
-    } catch (error: any) {
-      console.error(`[TeamController.removeMember] ❌ Error:`, error);
-      return handleError(c, error, 'Failed to remove member');
-    }
-  };
-
   deleteTeam = async (c: Context) => {
     try {
-      const user = c.get('user') as JWTPayload;
+      const auth = c.get('auth') as AuthContext;
       const teamId = c.req.param('teamId');
 
-      const result = await this.teamService.deleteTeam(teamId, user.userId);
+      const result = await this.teamService.deleteTeam(teamId, auth.userId);
 
       return c.json(createResponse(true, 'Team deleted successfully', result));
     } catch (error: any) {
@@ -144,12 +134,12 @@ export class TeamController {
 
   finalizeTeam = async (c: Context) => {
     try {
-      const user = c.get('user') as JWTPayload;
+      const auth = c.get('auth') as AuthContext;
       const teamId = c.req.param('teamId');
 
-      console.log(`[TeamController.finalizeTeam] Request from userId=${user.userId}, teamId=${teamId}`);
+      console.log(`[TeamController.finalizeTeam] Request from userId=${auth.userId}, teamId=${teamId}`);
 
-      const result = await this.teamService.finalizeTeam(teamId, user.userId);
+      const result = await this.teamService.finalizeTeam(teamId, auth.userId);
 
       console.log(`[TeamController.finalizeTeam] ✅ Success: Team finalized`);
       return c.json(createResponse(true, 'Team finalized successfully', result), 200);
@@ -161,8 +151,14 @@ export class TeamController {
 
   getMyInvitations = async (c: Context) => {
     try {
-      const user = c.get('user') as JWTPayload;
-      const invitations = await this.teamService.getMyInvitations(user.userId);
+      const auth = c.get('auth') as AuthContext;
+      const token = c.req.header('Authorization')?.replace('Bearer ', '');
+
+      if (!token) {
+        return c.json({ error: 'Unauthorized', message: 'No token provided' }, 401);
+      }
+
+      const invitations = await this.teamService.getMyInvitations(auth.userId, token);
 
       return c.json(createResponse(true, 'Invitations retrieved', invitations));
     } catch (error: any) {
@@ -172,35 +168,14 @@ export class TeamController {
 
   cancelInvitation = async (c: Context) => {
     try {
-      const user = c.get('user') as JWTPayload;
-      const memberId = c.req.param('memberId');
+      const auth = c.get('auth') as AuthContext;
+      const invitationId = c.req.param('invitationId');
 
-      console.log(`[TeamController.cancelInvitation] Request from userId=${user.userId}, memberId=${memberId}`);
+      const result = await this.teamService.cancelInvitation(invitationId, auth.userId);
 
-      const result = await this.teamService.cancelInvitation(memberId, user.userId);
-
-      console.log(`[TeamController.cancelInvitation] ✅ Success: Invitation cancelled`);
-      return c.json(createResponse(true, 'Invitation cancelled successfully', result));
+      return c.json(createResponse(true, 'Invitation cancelled', result));
     } catch (error: any) {
-      console.error(`[TeamController.cancelInvitation] ❌ Error:`, error);
       return handleError(c, error, 'Failed to cancel invitation');
-    }
-  };
-
-  joinTeam = async (c: Context) => {
-    try {
-      const user = c.get('user') as JWTPayload;
-      const teamCode = c.req.param('teamCode');
-
-      console.log(`[TeamController.joinTeam] Request from userId=${user.userId}, teamCode=${teamCode}`);
-
-      const result = await this.teamService.joinTeam(teamCode, user.userId);
-
-      console.log(`[TeamController.joinTeam] ✅ Success: Join request created`);
-      return c.json(result, 201);
-    } catch (error: any) {
-      console.error(`[TeamController.joinTeam] ❌ Error:`, error);
-      return handleError(c, error, 'Failed to join team');
     }
   };
 }

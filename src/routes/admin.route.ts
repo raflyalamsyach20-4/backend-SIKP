@@ -6,8 +6,8 @@ export const createAdminRoutes = (adminController: AdminController) => {
   const admin = new Hono();
 
   // Apply auth middleware to all admin routes
-  admin.use('*', authMiddleware);
-  admin.use('*', adminOnly);
+  admin.use('*', authMiddleware());
+  admin.use('*', adminOnly());
 
   admin.get('/submissions', adminController.getAllSubmissions);
   admin.get('/submissions/status/:status', adminController.getSubmissionsByStatus);

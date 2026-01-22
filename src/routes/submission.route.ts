@@ -6,8 +6,8 @@ export const createSubmissionRoutes = (submissionController: SubmissionControlle
   const submission = new Hono();
 
   // Apply auth middleware to all submission routes
-  submission.use('*', authMiddleware);
-  submission.use('*', mahasiswaOnly);
+  submission.use('*', authMiddleware());
+  submission.use('*', mahasiswaOnly());
 
   submission.post('/', submissionController.createSubmission);
   submission.get('/my-submissions', submissionController.getMySubmissions);
