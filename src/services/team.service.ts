@@ -309,7 +309,6 @@ export class TeamService {
       id: generateId(),
       teamId,
       userId: memberId,
-      userId: member.id,
       role: 'ANGGOTA', // ✅ Set role to ANGGOTA for invited members
       invitationStatus: 'PENDING',
       invitedBy: leaderId,
@@ -333,15 +332,15 @@ export class TeamService {
     }
 
     // Step 3: Get team info to check if current user is the team leader
-    const team = await this.teamRepo.findById(memberRecord.teamId);
+    const team = await this.teamRepo.findById(member.teamId);
     if (!team) {
-      console.error(`[respondToInvitation] ❌ Team not found: ${memberRecord.teamId}`);
+      console.error(`[respondToInvitation] ❌ Team not found: ${member.teamId}`);
       throw new Error('Team not found');
     }
 
     // Step 4: Authorization check - TWO VALID CASES:
-    // Case 1: Current user IS the one being invited (userId === memberRecord.userId)
-    const isBeingInvited = memberRecord.userId === userId;
+    // Case 1: Current user IS the one being invited (userId === member.userId)
+    const isBeingInvited = member.userId === userId;
     
     // Case 2: Current user IS the team leader (userId === team.leaderId)
     const isTeamLeader = userId === team.leaderId;
@@ -350,7 +349,7 @@ export class TeamService {
       isBeingInvited,
       isTeamLeader,
       currentUserId: userId,
-      inviteeUserId: memberRecord.userId,
+      inviteeUserId: member.userId,
       teamLeaderId: team.leaderId
     });
 
@@ -361,9 +360,7 @@ export class TeamService {
       throw unauthorizedError;
     }
 
-    console.log(`[respondToInvitation] ✅ Valid authorization: teamId=${memberRecord.teamId}`);
-
-    console.log(`[respondToInvitation] ✅ Valid authorization: teamId=${memberRecord.teamId}`);
+    console.log(`[respondToInvitation] ✅ Valid authorization: teamId=${member.teamId}`);
 
     const status = accept ? 'ACCEPTED' : 'REJECTED';
     
@@ -392,7 +389,7 @@ export class TeamService {
     
     // Step 6: Update member status
     console.log(`[respondToInvitation] Updating member status to ${status}...`);
-    const updatedMember = await this.teamRepo.updateMemberStatus(memberRecord.id, status);
+    const updatedMember = await this.teamRepo.updateMemberStatus(member.id, status);
     console.log(`[respondToInvitation] ✅ Status updated to ${status}`);
 
     // ✅ REMOVED auto-FIXED logic - team stays PENDING until manually changed
@@ -402,7 +399,7 @@ export class TeamService {
     return { success: true, status, member: updatedMember };
   }
 
-  async getTeamMembers(teamId: string) {
+  async getTeamMembers(teamId: string, accessToken: string) {
     // Ensure team exists
     const team = await this.teamRepo.findById(teamId);
     if (!team) {
@@ -413,30 +410,47 @@ export class TeamService {
 
     const members = await this.teamRepo.findMembersByTeamId(teamId);
 
-    // Enrich members with user data
+    // Enrich members with profile data from Profile Service
     const enrichedMembers = await Promise.all(
       members.map(async (member) => {
-        const memberUser = await this.userRepo.findById(member.userId);
-        const mahasiswaData = memberUser?.role === 'MAHASISWA'
-          ? await this.userRepo.findMahasiswaByUserId(member.userId)
-          : null;
-
-        return {
-          id: member.id,
-          teamId: member.teamId,
-          userId: member.userId,
-          role: member.role, // ✅ Use role from database
-          status: member.invitationStatus,
-          invitedBy: member.invitedBy,
-          invitedAt: member.invitedAt,
-          respondedAt: member.respondedAt,
-          user: {
-            id: memberUser?.id || '',
-            nim: mahasiswaData?.nim || '',
-            name: memberUser?.nama || '',
-            email: memberUser?.email || '',
-          },
-        };
+        try {
+          const profileResponse = await this.profileService.getMahasiswaByAuthUserId(member.userId, accessToken);
+          
+          return {
+            id: member.id,
+            teamId: member.teamId,
+            userId: member.userId,
+            role: member.role,
+            status: member.invitationStatus,
+            invitedBy: member.invitedBy,
+            invitedAt: member.invitedAt,
+            respondedAt: member.respondedAt,
+            user: {
+              id: profileResponse.data?.authUserId || member.userId,
+              nim: profileResponse.data?.nim || '',
+              name: profileResponse.data?.name || '',
+              email: profileResponse.data?.email || '',
+            },
+          };
+        } catch (error) {
+          console.error(`[getTeamMembers] Error fetching profile for userId=${member.userId}:`, error);
+          return {
+            id: member.id,
+            teamId: member.teamId,
+            userId: member.userId,
+            role: member.role,
+            status: member.invitationStatus,
+            invitedBy: member.invitedBy,
+            invitedAt: member.invitedAt,
+            respondedAt: member.respondedAt,
+            user: {
+              id: member.userId,
+              nim: '',
+              name: '',
+              email: '',
+            },
+          };
+        }
       })
     );
 
@@ -449,7 +463,7 @@ export class TeamService {
     });
   }
 
-  async getMyTeams(userId: string) {
+  async getMyTeams(userId: string, accessToken: string) {
     console.log(`[getMyTeams] Fetching teams for userId=${userId}`);
     
     // Get all memberships for this user
@@ -477,30 +491,47 @@ export class TeamService {
         // Get all members of this team (ALL statuses)
         const members = await this.teamRepo.findMembersByTeamId(team.id);
         
-        // Enrich members with user data
+        // Enrich members with profile data from Profile Service
         const enrichedMembers = await Promise.all(
           members.map(async (member) => {
-            const memberUser = await this.userRepo.findById(member.userId);
-            const mahasiswaData = memberUser?.role === 'MAHASISWA' 
-              ? await this.userRepo.findMahasiswaByUserId(member.userId) 
-              : null;
-            
-            return {
-              id: member.id,
-              teamId: member.teamId,
-              userId: member.userId,
-              role: member.role, // ✅ Use role from database
-              status: member.invitationStatus,
-              invitedBy: member.invitedBy,
-              invitedAt: member.invitedAt,
-              respondedAt: member.respondedAt,
-              user: {
-                id: memberUser?.id || '',
-                nim: mahasiswaData?.nim || '',
-                name: memberUser?.nama || '',
-                email: memberUser?.email || '',
-              },
-            };
+            try {
+              const profileResponse = await this.profileService.getMahasiswaByAuthUserId(member.userId, accessToken);
+              
+              return {
+                id: member.id,
+                teamId: member.teamId,
+                userId: member.userId,
+                role: member.role,
+                status: member.invitationStatus,
+                invitedBy: member.invitedBy,
+                invitedAt: member.invitedAt,
+                respondedAt: member.respondedAt,
+                user: {
+                  id: profileResponse.data?.authUserId || member.userId,
+                  nim: profileResponse.data?.nim || '',
+                  name: profileResponse.data?.name || '',
+                  email: profileResponse.data?.email || '',
+                },
+              };
+            } catch (error) {
+              console.error(`[getMyTeams] Error fetching profile for userId=${member.userId}:`, error);
+              return {
+                id: member.id,
+                teamId: member.teamId,
+                userId: member.userId,
+                role: member.role,
+                status: member.invitationStatus,
+                invitedBy: member.invitedBy,
+                invitedAt: member.invitedAt,
+                respondedAt: member.respondedAt,
+                user: {
+                  id: member.userId,
+                  nim: '',
+                  name: '',
+                  email: '',
+                },
+              };
+            }
           })
         );
         
@@ -524,7 +555,87 @@ export class TeamService {
     return teamsWithMembers;
   }
 
-  async getMyInvitations(userId: string) {
+  async getMyTeam(userId: string, accessToken: string) {
+    console.log(`[getMyTeam] Fetching team for userId=${userId}`);
+    
+    // Get user's accepted membership
+    const userMemberships = await this.teamRepo.findMembershipByUserId(userId);
+    const acceptedMembership = userMemberships.find(m => m.invitationStatus === 'ACCEPTED');
+    
+    if (!acceptedMembership) {
+      console.log(`[getMyTeam] No active team for user`);
+      return null;
+    }
+    
+    // Get team details
+    const team = await this.teamRepo.findById(acceptedMembership.teamId);
+    if (!team) {
+      console.warn(`[getMyTeam] ⚠️ Team not found: ${acceptedMembership.teamId}`);
+      return null;
+    }
+    
+    // Get all members of this team
+    const members = await this.teamRepo.findMembersByTeamId(team.id);
+    
+    // Enrich members with profile data from Profile Service
+    const enrichedMembers = await Promise.all(
+      members.map(async (member) => {
+        try {
+          const profileResponse = await this.profileService.getMahasiswaByAuthUserId(member.userId, accessToken);
+          
+          return {
+            id: member.id,
+            teamId: member.teamId,
+            userId: member.userId,
+            role: member.role,
+            status: member.invitationStatus,
+            invitedBy: member.invitedBy,
+            invitedAt: member.invitedAt,
+            respondedAt: member.respondedAt,
+            user: {
+              id: profileResponse.data?.authUserId || member.userId,
+              nim: profileResponse.data?.nim || '',
+              name: profileResponse.data?.name || '',
+              email: profileResponse.data?.email || '',
+            },
+          };
+        } catch (error) {
+          console.error(`[getMyTeam] Error fetching profile for userId=${member.userId}:`, error);
+          return {
+            id: member.id,
+            teamId: member.teamId,
+            userId: member.userId,
+            role: member.role,
+            status: member.invitationStatus,
+            invitedBy: member.invitedBy,
+            invitedAt: member.invitedAt,
+            respondedAt: member.respondedAt,
+            user: {
+              id: member.userId,
+              nim: '',
+              name: '',
+              email: '',
+            },
+          };
+        }
+      })
+    );
+    
+    return {
+      id: team.id,
+      code: team.code,
+      leaderId: team.leaderId,
+      status: team.status,
+      members: enrichedMembers.sort((a, b) => {
+        if (a.status !== b.status) {
+          return a.status === 'ACCEPTED' ? -1 : 1;
+        }
+        return new Date(b.invitedAt).getTime() - new Date(a.invitedAt).getTime();
+      }),
+    };
+  }
+
+  async getMyInvitations(userId: string, accessToken: string) {
     console.log(`[getMyInvitations] Fetching invitations for userId=${userId}`);
     
     // ✅ Get ALL invitations (not just PENDING), frontend will filter
@@ -550,25 +661,24 @@ export class TeamService {
           return null;
         }
 
-        // ✅ CRITICAL FIX: Get inviter info with proper null handling
+        // ✅ Get inviter info from Profile Service
         let inviterData = null;
         if (inv.invitedBy) {
-          const inviter = await this.userRepo.findById(inv.invitedBy);
-          if (inviter) {
-            const inviterMahasiswa = inviter.role === 'MAHASISWA'
-              ? await this.userRepo.findMahasiswaByUserId(inv.invitedBy)
-              : null;
-            
-            inviterData = {
-              id: inviter.id,
-              nim: inviterMahasiswa?.nim || '',
-              name: inviter.nama || 'Unknown User',  // ✅ Fallback to 'Unknown User' if nama is null
-              email: inviter.email || '',
-            };
-            
-            console.log(`[getMyInvitations] ✅ Inviter found: ${inviterData.name} (${inviterData.nim})`);
-          } else {
-            console.warn(`[getMyInvitations] ⚠️ Inviter user not found: ${inv.invitedBy}`);
+          try {
+            const inviterResponse = await this.profileService.getMahasiswaByAuthUserId(inv.invitedBy, accessToken);
+            if (inviterResponse.success && inviterResponse.data) {
+              inviterData = {
+                id: inviterResponse.data.authUserId,
+                nim: inviterResponse.data.nim,
+                name: inviterResponse.data.name,
+                email: inviterResponse.data.email || '',
+              };
+              console.log(`[getMyInvitations] ✅ Inviter found: ${inviterData.name} (${inviterData.nim})`);
+            } else {
+              console.warn(`[getMyInvitations] ⚠️ Inviter profile not found for userId=${inv.invitedBy}`);
+            }
+          } catch (error) {
+            console.error(`[getMyInvitations] Error fetching inviter profile for userId=${inv.invitedBy}:`, error);
           }
         } else {
           console.warn(`[getMyInvitations] ⚠️ No invitedBy field for invitation ${inv.id}`);
@@ -592,34 +702,7 @@ export class TeamService {
       })
     );
 
-    return invitationsWithDetails.filter(inv => inv !== null);
-  }
-
-  async cancelInvitation(memberId: string, leaderId: string) {
-    const member = await this.teamRepo.findMemberById(memberId);
-    if (!member) {
-      throw new Error('Invitation not found');
-    }
-
-    const team = await this.teamRepo.findById(member.teamId);
-    if (!team) {
-      throw new Error('Team not found');
-    }
-
-    if (team.leaderId !== leaderId) {
-      throw new Error('Only team leader can cancel invitations');
-    }
-
-    if (member.invitationStatus !== 'PENDING') {
-      throw new Error('Can only cancel pending invitations');
-    }
-
-    await this.teamRepo.removeMember(memberId);
-
-    return {
-      message: 'Invitation cancelled successfully',
-      memberId,
-    };
+    return enrichedInvitations.filter((inv): inv is NonNullable<typeof inv> => inv !== null);
   }
 
   async cancelInvitation(memberId: string, leaderId: string) {
@@ -711,7 +794,7 @@ export class TeamService {
     };
   }
 
-  async joinTeam(teamCode: string, userId: string) {
+  async joinTeam(teamCode: string, userId: string, accessToken: string) {
     console.log(`[joinTeam] 🚀 Processing join request: teamCode=${teamCode}, userId=${userId}`);
     
     try {
@@ -727,16 +810,7 @@ export class TeamService {
 
       console.log(`[joinTeam] ✅ Team found: ${team.id} (${team.code})`);
 
-      // ✅ CHECK 2: Verify user exists
-      const user = await this.userRepo.findById(userId);
-      if (!user) {
-        console.error(`[joinTeam] ❌ User not found: ${userId}`);
-        throw new Error('User not found');
-      }
-
-      console.log(`[joinTeam] ✅ User verified: ${user.nama}`);
-
-      // ✅ CHECK 3: User cannot be team leader
+      // ✅ CHECK 2: User cannot be team leader (user is already authenticated)
       if (team.leaderId === userId) {
         console.error(`[joinTeam] ❌ User is the team leader, cannot join own team`);
         const err: any = new Error('Anda adalah ketua tim ini. Tidak dapat mengirim permintaan bergabung pada tim sendiri');
@@ -807,9 +881,6 @@ export class TeamService {
       }
       console.log(`[joinTeam] ✅ VERIFICATION: Member record confirmed in database`);
 
-      const teamLeader = await this.userRepo.findById(team.leaderId);
-      const leaderMahasiswa = teamLeader ? await this.userRepo.findMahasiswaByUserId(team.leaderId) : null;
-
       return {
         success: true,
         message: 'Permintaan bergabung dengan tim berhasil dikirim',
@@ -823,8 +894,6 @@ export class TeamService {
           team: {
             id: team.id,
             code: team.code,
-            leaderName: teamLeader?.nama || 'Unknown',
-            leaderNim: leaderMahasiswa?.nim || 'Unknown',
           },
         },
       };

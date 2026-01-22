@@ -130,15 +130,6 @@ export class TeamRepository {
     return result[0] || null;
   }
 
-  // ✅ Remove a member from team
-  async removeMember(memberId: string) {
-    const result = await this.db
-      .delete(teamMembers)
-      .where(eq(teamMembers.id, memberId))
-      .returning();
-    return result[0] || null;
-  }
-
   // ✅ NEW: Get all teams where user is an ACCEPTED member (not just leader)
   async findTeamsByMemberId(userId: string) {
     // Get team IDs where user is ACCEPTED member
