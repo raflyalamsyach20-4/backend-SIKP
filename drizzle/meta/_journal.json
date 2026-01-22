@@ -1,54 +1,12 @@
 {
-  "version": "5",
-  "dialect": "pg",
+  "version": "7",
+  "dialect": "postgresql",
   "entries": [
     {
       "idx": 0,
-      "version": "5",
-      "when": 1768315675460,
-      "tag": "0000_nervous_lionheart",
-      "breakpoints": true
-    },
-    {
-      "idx": 1,
-      "version": "5",
-      "when": 1768315990524,
-      "tag": "0001_dizzy_maddog",
-      "breakpoints": true
-    },
-    {
-      "idx": 2,
-      "version": "5",
-      "when": 1768400000000,
-      "tag": "0002_clean_users_table",
-      "breakpoints": true
-    },
-    {
-      "idx": 3,
-      "version": "5",
-      "when": 1768396051523,
-      "tag": "0003_free_blonde_phantom",
-      "breakpoints": true
-    },
-    {
-      "idx": 4,
-      "version": "5",
-      "when": 1768410000000,
-      "tag": "0004_update_teams_schema",
-      "breakpoints": true
-    },
-    {
-      "idx": 5,
-      "version": "5",
-      "when": 1768420000000,
-      "tag": "0005_cleanup_teams_columns",
-      "breakpoints": true
-    },
-    {
-      "idx": 6,
-      "version": "5",
-      "when": 1768570887801,
-      "tag": "0006_black_hulk",
+      "version": "7",
+      "when": 1769098274938,
+      "tag": "0000_reinit_schema",
       "breakpoints": true
     }
   ]

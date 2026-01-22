@@ -1,126 +1,10 @@
 {
-  "id": "f986eb86-c336-42c1-a332-ee826c163212",
+  "id": "7e11ceb0-42ce-4f20-b106-09988f094e8e",
   "prevId": "00000000-0000-0000-0000-000000000000",
-  "version": "5",
-  "dialect": "pg",
+  "version": "7",
+  "dialect": "postgresql",
   "tables": {
-    "admin": {
-      "name": "admin",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "nip": {
-          "name": "nip",
-          "type": "varchar(30)",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "position": {
-          "name": "position",
-          "type": "varchar(100)",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "fakultas": {
-          "name": "fakultas",
-          "type": "varchar(100)",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "prodi": {
-          "name": "prodi",
-          "type": "varchar(100)",
-          "primaryKey": false,
-          "notNull": false
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {
-        "admin_id_users_id_fk": {
-          "name": "admin_id_users_id_fk",
-          "tableFrom": "admin",
-          "tableTo": "users",
-          "columnsFrom": [
-            "id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {}
-    },
-    "dosen": {
-      "name": "dosen",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "nip": {
-          "name": "nip",
-          "type": "varchar(30)",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "jabatan": {
-          "name": "jabatan",
-          "type": "varchar(100)",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "fakultas": {
-          "name": "fakultas",
-          "type": "varchar(100)",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "prodi": {
-          "name": "prodi",
-          "type": "varchar(100)",
-          "primaryKey": false,
-          "notNull": false
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {
-        "dosen_id_users_id_fk": {
-          "name": "dosen_id_users_id_fk",
-          "tableFrom": "dosen",
-          "tableTo": "users",
-          "columnsFrom": [
-            "id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {
-        "dosen_nip_unique": {
-          "name": "dosen_nip_unique",
-          "nullsNotDistinct": false,
-          "columns": [
-            "nip"
-          ]
-        }
-      }
-    },
-    "generated_letters": {
+    "public.generated_letters": {
       "name": "generated_letters",
       "schema": "",
       "columns": {
@@ -193,20 +77,7 @@
           "columnsTo": [
             "id"
           ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "generated_letters_generated_by_users_id_fk": {
-          "name": "generated_letters_generated_by_users_id_fk",
-          "tableFrom": "generated_letters",
-          "tableTo": "users",
-          "columnsFrom": [
-            "generated_by"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
+          "onDelete": "cascade",
           "onUpdate": "no action"
         }
       },
@@ -219,125 +90,12 @@
             "letter_number"
           ]
         }
-      }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
     },
-    "mahasiswa": {
-      "name": "mahasiswa",
-      "schema": "",
-      "columns": {
-        "nim": {
-          "name": "nim",
-          "type": "varchar(20)",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "fakultas": {
-          "name": "fakultas",
-          "type": "varchar(100)",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "prodi": {
-          "name": "prodi",
-          "type": "varchar(100)",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "semester": {
-          "name": "semester",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "angkatan": {
-          "name": "angkatan",
-          "type": "varchar(10)",
-          "primaryKey": false,
-          "notNull": false
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {
-        "mahasiswa_id_users_id_fk": {
-          "name": "mahasiswa_id_users_id_fk",
-          "tableFrom": "mahasiswa",
-          "tableTo": "users",
-          "columnsFrom": [
-            "id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {
-        "mahasiswa_id_unique": {
-          "name": "mahasiswa_id_unique",
-          "nullsNotDistinct": false,
-          "columns": [
-            "id"
-          ]
-        }
-      }
-    },
-    "pembimbing_lapangan": {
-      "name": "pembimbing_lapangan",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "company_name": {
-          "name": "company_name",
-          "type": "varchar(255)",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "position": {
-          "name": "position",
-          "type": "varchar(100)",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "company_address": {
-          "name": "company_address",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {
-        "pembimbing_lapangan_id_users_id_fk": {
-          "name": "pembimbing_lapangan_id_users_id_fk",
-          "tableFrom": "pembimbing_lapangan",
-          "tableTo": "users",
-          "columnsFrom": [
-            "id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {}
-    },
-    "submission_documents": {
+    "public.submission_documents": {
       "name": "submission_documents",
       "schema": "",
       "columns": {
@@ -386,6 +144,7 @@
         "document_type": {
           "name": "document_type",
           "type": "document_type",
+          "typeSchema": "public",
           "primaryKey": false,
           "notNull": true
         },
@@ -417,25 +176,15 @@
           ],
           "onDelete": "cascade",
           "onUpdate": "no action"
-        },
-        "submission_documents_uploaded_by_users_id_fk": {
-          "name": "submission_documents_uploaded_by_users_id_fk",
-          "tableFrom": "submission_documents",
-          "tableTo": "users",
-          "columnsFrom": [
-            "uploaded_by"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {},
-      "uniqueConstraints": {}
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
     },
-    "submissions": {
+    "public.submissions": {
       "name": "submissions",
       "schema": "",
       "columns": {
@@ -508,6 +257,7 @@
         "status": {
           "name": "status",
           "type": "submission_status",
+          "typeSchema": "public",
           "primaryKey": false,
           "notNull": true,
           "default": "'DRAFT'"
@@ -563,27 +313,17 @@
           "columnsTo": [
             "id"
           ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "submissions_approved_by_users_id_fk": {
-          "name": "submissions_approved_by_users_id_fk",
-          "tableFrom": "submissions",
-          "tableTo": "users",
-          "columnsFrom": [
-            "approved_by"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
+          "onDelete": "cascade",
           "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {},
-      "uniqueConstraints": {}
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
     },
-    "team_members": {
+    "public.team_members": {
       "name": "team_members",
       "schema": "",
       "columns": {
@@ -608,6 +348,7 @@
         "invitation_status": {
           "name": "invitation_status",
           "type": "invitation_status",
+          "typeSchema": "public",
           "primaryKey": false,
           "notNull": true,
           "default": "'PENDING'"
@@ -625,19 +366,11 @@
           "primaryKey": false,
           "notNull": false
         },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp",
+        "invited_by": {
+          "name": "invited_by",
+          "type": "text",
           "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
+          "notNull": false
         }
       },
       "indexes": {},
@@ -654,25 +387,15 @@
           ],
           "onDelete": "cascade",
           "onUpdate": "no action"
-        },
-        "team_members_user_id_users_id_fk": {
-          "name": "team_members_user_id_users_id_fk",
-          "tableFrom": "team_members",
-          "tableTo": "users",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {},
-      "uniqueConstraints": {}
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
     },
-    "teams": {
+    "public.teams": {
       "name": "teams",
       "schema": "",
       "columns": {
@@ -682,9 +405,9 @@
           "primaryKey": true,
           "notNull": true
         },
-        "name": {
-          "name": "name",
-          "type": "varchar(255)",
+        "code": {
+          "name": "code",
+          "type": "varchar(50)",
           "primaryKey": false,
           "notNull": true
         },
@@ -697,161 +420,74 @@
         "status": {
           "name": "status",
           "type": "team_status",
+          "typeSchema": "public",
           "primaryKey": false,
           "notNull": true,
           "default": "'PENDING'"
-        },
-        "description": {
-          "name": "description",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {
-        "teams_leader_id_users_id_fk": {
-          "name": "teams_leader_id_users_id_fk",
-          "tableFrom": "teams",
-          "tableTo": "users",
-          "columnsFrom": [
-            "leader_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {}
-    },
-    "users": {
-      "name": "users",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "nama": {
-          "name": "nama",
-          "type": "varchar(255)",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "email": {
-          "name": "email",
-          "type": "varchar(255)",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "password": {
-          "name": "password",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "role": {
-          "name": "role",
-          "type": "role",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'MAHASISWA'"
-        },
-        "phone": {
-          "name": "phone",
-          "type": "varchar(20)",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "is_active": {
-          "name": "is_active",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true,
-          "default": true
         }
       },
       "indexes": {},
       "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {
-        "users_email_unique": {
-          "name": "users_email_unique",
+        "teams_code_unique": {
+          "name": "teams_code_unique",
           "nullsNotDistinct": false,
           "columns": [
-            "email"
+            "code"
           ]
         }
-      }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
     }
   },
   "enums": {
-    "document_type": {
+    "public.document_type": {
       "name": "document_type",
-      "values": {
-        "KTP": "KTP",
-        "TRANSKRIP": "TRANSKRIP",
-        "KRS": "KRS",
-        "PROPOSAL": "PROPOSAL",
-        "OTHER": "OTHER"
-      }
+      "schema": "public",
+      "values": [
+        "KTP",
+        "TRANSKRIP",
+        "KRS",
+        "PROPOSAL",
+        "OTHER"
+      ]
     },
-    "invitation_status": {
+    "public.invitation_status": {
       "name": "invitation_status",
-      "values": {
-        "PENDING": "PENDING",
-        "ACCEPTED": "ACCEPTED",
-        "REJECTED": "REJECTED"
-      }
+      "schema": "public",
+      "values": [
+        "PENDING",
+        "ACCEPTED",
+        "REJECTED"
+      ]
     },
-    "role": {
-      "name": "role",
-      "values": {
-        "MAHASISWA": "MAHASISWA",
-        "ADMIN": "ADMIN",
-        "DOSEN": "DOSEN",
-        "KAPRODI": "KAPRODI",
-        "WAKIL_DEKAN": "WAKIL_DEKAN",
-        "PEMBIMBING_LAPANGAN": "PEMBIMBING_LAPANGAN"
-      }
-    },
-    "submission_status": {
+    "public.submission_status": {
       "name": "submission_status",
-      "values": {
-        "DRAFT": "DRAFT",
-        "MENUNGGU": "MENUNGGU",
-        "DITOLAK": "DITOLAK",
-        "DITERIMA": "DITERIMA"
-      }
+      "schema": "public",
+      "values": [
+        "DRAFT",
+        "MENUNGGU",
+        "DITOLAK",
+        "DITERIMA"
+      ]
     },
-    "team_status": {
+    "public.team_status": {
       "name": "team_status",
-      "values": {
-        "PENDING": "PENDING",
-        "FIXED": "FIXED"
-      }
+      "schema": "public",
+      "values": [
+        "PENDING",
+        "FIXED"
+      ]
     }
   },
   "schemas": {},
+  "sequences": {},
+  "roles": {},
+  "policies": {},
+  "views": {},
   "_meta": {
     "columns": {},
     "schemas": {},

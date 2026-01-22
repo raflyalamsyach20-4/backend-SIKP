@@ -16,6 +16,11 @@ export const teams = pgTable('teams', {
   status: teamStatusEnum('status').notNull().default('PENDING'),
 });
 
+export const teamsRelations = relations(teams, ({ many }) => ({
+  members: many(teamMembers),
+  submissions: many(submissions),
+}));
+
 // Team Members Table (includes invitations)
 // userId now references userId from Auth Service (stored as text)
 export const teamMembers = pgTable('team_members', {
@@ -28,6 +33,13 @@ export const teamMembers = pgTable('team_members', {
   respondedAt: timestamp('responded_at'),
   invitedBy: text('invited_by'), // Auth Service user ID who sent the invitation
 });
+
+export const teamMembersRelations = relations(teamMembers, ({ one }) => ({
+  team: one(teams, {
+    fields: [teamMembers.teamId],
+    references: [teams.id],
+  }),
+}));
 
 // Submissions Table
 // approvedBy now references userId from Auth Service
@@ -52,6 +64,15 @@ export const submissions = pgTable('submissions', {
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 });
 
+export const submissionsRelations = relations(submissions, ({ one, many }) => ({
+  team: one(teams, {
+    fields: [submissions.teamId],
+    references: [teams.id],
+  }),
+  documents: many(submissionDocuments),
+  letters: many(generatedLetters),
+}));
+
 // Submission Documents Table
 // uploadedBy now references userId from Auth Service
 export const submissionDocuments = pgTable('submission_documents', {
@@ -67,6 +88,13 @@ export const submissionDocuments = pgTable('submission_documents', {
   createdAt: timestamp('created_at').defaultNow().notNull(),
 });
 
+export const submissionDocumentsRelations = relations(submissionDocuments, ({ one }) => ({
+  submission: one(submissions, {
+    fields: [submissionDocuments.submissionId],
+    references: [submissions.id],
+  }),
+}));
+
 // Generated Letters Table
 // generatedBy now references userId from Auth Service
 export const generatedLetters = pgTable('generated_letters', {
@@ -80,35 +108,6 @@ export const generatedLetters = pgTable('generated_letters', {
   generatedAt: timestamp('generated_at').defaultNow().notNull(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 });
-
-// Relations
-export const teamsRelations = relations(teams, ({ many }) => ({
-  members: many(teamMembers),
-  submissions: many(submissions),
-}));
-
-export const teamMembersRelations = relations(teamMembers, ({ one }) => ({
-  team: one(teams, {
-    fields: [teamMembers.teamId],
-    references: [teams.id],
-  }),
-}));
-
-export const submissionsRelations = relations(submissions, ({ one, many }) => ({
-  team: one(teams, {
-    fields: [submissions.teamId],
-    references: [teams.id],
-  }),
-  documents: many(submissionDocuments),
-  letters: many(generatedLetters),
-}));
-
-export const submissionDocumentsRelations = relations(submissionDocuments, ({ one }) => ({
-  submission: one(submissions, {
-    fields: [submissionDocuments.submissionId],
-    references: [submissions.id],
-  }),
-}));
 
 export const generatedLettersRelations = relations(generatedLetters, ({ one }) => ({
   submission: one(submissions, {
