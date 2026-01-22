@@ -304,13 +304,19 @@ export class TeamService {
     const existingMember = await this.teamRepo.findMemberByTeamAndUser(teamId, member.id);
     if (existingMember) {
       const status = existingMember.invitationStatus;
-      
+
       if (status === 'PENDING') {
         throw new Error('User already has a pending invitation to this team');
-      } else if (status === 'ACCEPTED') {
+      }
+
+      if (status === 'ACCEPTED') {
         throw new Error('User is already a member of this team');
-      } else if (status === 'REJECTED') {
-        throw new Error('User has previously rejected invitation to this team');
+      }
+
+      if (status === 'REJECTED') {
+        // Allow re-invite after rejection by removing the old record
+        console.log(`[inviteMember] 🗑️ Removing old REJECTED invitation: memberId=${existingMember.id}`);
+        await this.teamRepo.removeMember(existingMember.id);
       }
     }
 
