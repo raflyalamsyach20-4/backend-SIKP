@@ -1,13 +1,29 @@
 {
   "info": {
-    "name": "Backend SIKP API",
-    "description": "Collection untuk testing Backend Sistem Informasi Kerja Praktik",
-    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+    "name": "Backend SIKP API (SSO Integrated)",
+    "description": "Collection untuk testing Backend SIKP dengan SSO UNSRI Integration",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "version": "2.0.0"
   },
   "variable": [
     {
-      "key": "baseUrl",
+      "key": "authServiceUrl",
       "value": "http://localhost:8787",
+      "type": "string"
+    },
+    {
+      "key": "profileServiceUrl",
+      "value": "http://localhost:8788",
+      "type": "string"
+    },
+    {
+      "key": "backendSikpUrl",
+      "value": "http://localhost:8789",
+      "type": "string"
+    },
+    {
+      "key": "accessToken",
+      "value": "",
       "type": "string"
     },
     {
@@ -31,7 +47,7 @@
       "type": "string"
     },
     {
-      "key": "memberId",
+      "key": "invitationId",
       "value": "",
       "type": "string"
     },
@@ -43,28 +59,40 @@
   ],
   "item": [
     {
-      "name": "Health Check",
+      "name": "0. Health Check",
       "item": [
         {
-          "name": "Root Health Check",
+          "name": "Auth Service Health",
           "request": {
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/",
-              "host": ["{{baseUrl}}"],
-              "path": [""]
+              "raw": "{{authServiceUrl}}/health",
+              "host": ["{{authServiceUrl}}"],
+              "path": ["health"]
             }
           }
         },
         {
-          "name": "Health Endpoint",
+          "name": "Profile Service Health",
           "request": {
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/health",
-              "host": ["{{baseUrl}}"],
+              "raw": "{{profileServiceUrl}}/health",
+              "host": ["{{profileServiceUrl}}"],
+              "path": ["health"]
+            }
+          }
+        },
+        {
+          "name": "Backend SIKP Health",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{backendSikpUrl}}/health",
+              "host": ["{{backendSikpUrl}}"],
               "path": ["health"]
             }
           }
@@ -72,7 +100,7 @@
       ]
     },
     {
-      "name": "1. Authentication",
+      "name": "1. Auth Service - Register & Login",
       "item": [
         {
           "name": "Register Mahasiswa 1 (Leader)",
@@ -82,9 +110,7 @@
               "script": {
                 "exec": [
                   "if (pm.response.code === 201) {",
-                  "    var jsonData = pm.response.json();",
-                  "    pm.collectionVariables.set('mahasiswaToken', jsonData.data.token);",
-                  "    pm.environment.set('mahasiswaToken', jsonData.data.token);",
+                  "    console.log('Mahasiswa 1 registered successfully');",
                   "}"
                 ]
               }
@@ -100,11 +126,11 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"nim\": \"2021001\",\n  \"name\": \"Budi Santoso\",\n  \"email\": \"budi.santoso@student.univ.ac.id\",\n  \"password\": \"password123\"\n}"
+              "raw": "{\n  \"email\": \"mahasiswa1@student.unsri.ac.id\",\n  \"password\": \"Password123!\",\n  \"role\": \"mahasiswa\",\n  \"nim\": \"09021182025001\"\n}"
             },
             "url": {
-              "raw": "{{baseUrl}}/api/auth/register",
-              "host": ["{{baseUrl}}"],
+              "raw": "{{authServiceUrl}}/api/auth/register",
+              "host": ["{{authServiceUrl}}"],
               "path": ["api", "auth", "register"]
             }
           }
@@ -117,9 +143,7 @@
               "script": {
                 "exec": [
                   "if (pm.response.code === 201) {",
-                  "    var jsonData = pm.response.json();",
-                  "    pm.collectionVariables.set('mahasiswa2Token', jsonData.data.token);",
-                  "    pm.environment.set('mahasiswa2Token', jsonData.data.token);",
+                  "    console.log('Mahasiswa 2 registered successfully');",
                   "}"
                 ]
               }
@@ -135,11 +159,11 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"nim\": \"2021002\",\n  \"name\": \"Siti Nurhaliza\",\n  \"email\": \"siti.nurhaliza@student.univ.ac.id\",\n  \"password\": \"password123\"\n}"
+              "raw": "{\n  \"email\": \"mahasiswa2@student.unsri.ac.id\",\n  \"password\": \"Password123!\",\n  \"role\": \"mahasiswa\",\n  \"nim\": \"09021182025002\"\n}"
             },
             "url": {
-              "raw": "{{baseUrl}}/api/auth/register",
-              "host": ["{{baseUrl}}"],
+              "raw": "{{authServiceUrl}}/api/auth/register",
+              "host": ["{{authServiceUrl}}"],
               "path": ["api", "auth", "register"]
             }
           }
@@ -152,9 +176,7 @@
               "script": {
                 "exec": [
                   "if (pm.response.code === 201) {",
-                  "    var jsonData = pm.response.json();",
-                  "    pm.collectionVariables.set('adminToken', jsonData.data.token);",
-                  "    pm.environment.set('adminToken', jsonData.data.token);",
+                  "    console.log('Admin registered successfully');",
                   "}"
                 ]
               }
@@ -170,11 +192,11 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"nim\": \"ADMIN001\",\n  \"name\": \"Dr. Andi Wijaya\",\n  \"email\": \"andi.wijaya@univ.ac.id\",\n  \"password\": \"admin123\",\n  \"role\": \"ADMIN\"\n}"
+              "raw": "{\n  \"email\": \"admin@unsri.ac.id\",\n  \"password\": \"Admin123!\",\n  \"role\": \"admin\",\n  \"nip\": \"199001012020121001\"\n}"
             },
             "url": {
-              "raw": "{{baseUrl}}/api/auth/register",
-              "host": ["{{baseUrl}}"],
+              "raw": "{{authServiceUrl}}/api/auth/register",
+              "host": ["{{authServiceUrl}}"],
               "path": ["api", "auth", "register"]
             }
           }
@@ -188,7 +210,9 @@
                 "exec": [
                   "if (pm.response.code === 200) {",
                   "    var jsonData = pm.response.json();",
-                  "    pm.collectionVariables.set('mahasiswaToken', jsonData.data.token);",
+                  "    pm.collectionVariables.set('mahasiswaToken', jsonData.data.access_token);",
+                  "    pm.collectionVariables.set('accessToken', jsonData.data.access_token);",
+                  "    console.log('Mahasiswa 1 token saved');",
                   "}"
                 ]
               }
@@ -204,17 +228,92 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"nim\": \"2021001\",\n  \"password\": \"password123\"\n}"
+              "raw": "{\n  \"email\": \"mahasiswa1@student.unsri.ac.id\",\n  \"password\": \"Password123!\"\n}"
             },
             "url": {
-              "raw": "{{baseUrl}}/api/auth/login",
-              "host": ["{{baseUrl}}"],
+              "raw": "{{authServiceUrl}}/api/auth/login",
+              "host": ["{{authServiceUrl}}"],
               "path": ["api", "auth", "login"]
             }
           }
         },
         {
-          "name": "Get My Profile",
+          "name": "Login Mahasiswa 2",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.collectionVariables.set('mahasiswa2Token', jsonData.data.access_token);",
+                  "    console.log('Mahasiswa 2 token saved');",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"mahasiswa2@student.unsri.ac.id\",\n  \"password\": \"Password123!\"\n}"
+            },
+            "url": {
+              "raw": "{{authServiceUrl}}/api/auth/login",
+              "host": ["{{authServiceUrl}}"],
+              "path": ["api", "auth", "login"]
+            }
+          }
+        },
+        {
+          "name": "Login Admin",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.collectionVariables.set('adminToken', jsonData.data.access_token);",
+                  "    console.log('Admin token saved');",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"admin@unsri.ac.id\",\n  \"password\": \"Admin123!\"\n}"
+            },
+            "url": {
+              "raw": "{{authServiceUrl}}/api/auth/login",
+              "host": ["{{authServiceUrl}}"],
+              "path": ["api", "auth", "login"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. Backend SIKP - User Info",
+      "item": [
+        {
+          "name": "Get My Info (Mahasiswa)",
           "request": {
             "method": "GET",
             "header": [
@@ -224,8 +323,8 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/api/auth/me",
-              "host": ["{{baseUrl}}"],
+              "raw": "{{backendSikpUrl}}/api/auth/me",
+              "host": ["{{backendSikpUrl}}"],
               "path": ["api", "auth", "me"]
             }
           }
@@ -233,7 +332,7 @@
       ]
     },
     {
-      "name": "2. Team Management",
+      "name": "3. Team Management",
       "item": [
         {
           "name": "Create Team (Leader)",
@@ -245,6 +344,8 @@
                   "if (pm.response.code === 201) {",
                   "    var jsonData = pm.response.json();",
                   "    pm.collectionVariables.set('teamId', jsonData.data.id);",
+                  "    console.log('Team created with ID:', jsonData.data.id);",
+                  "    console.log('Team code:', jsonData.data.code);",
                   "}"
                 ]
               }
@@ -264,17 +365,17 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"name\": \"Tim KP PT. Tech Indonesia 2024\"\n}"
+              "raw": ""
             },
             "url": {
-              "raw": "{{baseUrl}}/api/teams",
-              "host": ["{{baseUrl}}"],
+              "raw": "{{backendSikpUrl}}/api/teams",
+              "host": ["{{backendSikpUrl}}"],
               "path": ["api", "teams"]
             }
           }
         },
         {
-          "name": "Get My Teams",
+          "name": "Get My Team",
           "request": {
             "method": "GET",
             "header": [
@@ -284,14 +385,14 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/api/teams/my-teams",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "teams", "my-teams"]
+              "raw": "{{backendSikpUrl}}/api/teams/my-team",
+              "host": ["{{backendSikpUrl}}"],
+              "path": ["api", "teams", "my-team"]
             }
           }
         },
         {
-          "name": "Invite Member",
+          "name": "Invite Member (by NIM)",
           "event": [
             {
               "listen": "test",
@@ -299,7 +400,8 @@
                 "exec": [
                   "if (pm.response.code === 201) {",
                   "    var jsonData = pm.response.json();",
-                  "    pm.collectionVariables.set('memberId', jsonData.data.id);",
+                  "    pm.collectionVariables.set('invitationId', jsonData.data.id);",
+                  "    console.log('Invitation sent with ID:', jsonData.data.id);",
                   "}"
                 ]
               }
@@ -319,36 +421,36 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"memberNim\": \"2021002\"\n}"
+              "raw": "{\n  \"memberNim\": \"09021182025002\"\n}"
             },
             "url": {
-              "raw": "{{baseUrl}}/api/teams/{{teamId}}/invite",
-              "host": ["{{baseUrl}}"],
+              "raw": "{{backendSikpUrl}}/api/teams/{{teamId}}/invite",
+              "host": ["{{backendSikpUrl}}"],
               "path": ["api", "teams", "{{teamId}}", "invite"]
             }
           }
         },
         {
-          "name": "Get Team Members",
+          "name": "Get My Invitations (Member)",
           "request": {
             "method": "GET",
             "header": [
               {
                 "key": "Authorization",
-                "value": "Bearer {{mahasiswaToken}}"
+                "value": "Bearer {{mahasiswa2Token}}"
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/api/teams/{{teamId}}/members",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "teams", "{{teamId}}", "members"]
+              "raw": "{{backendSikpUrl}}/api/teams/my-invitations",
+              "host": ["{{backendSikpUrl}}"],
+              "path": ["api", "teams", "my-invitations"]
             }
           }
         },
         {
-          "name": "Accept Invitation (Member)",
+          "name": "Accept Invitation",
           "request": {
-            "method": "POST",
+            "method": "PATCH",
             "header": [
               {
                 "key": "Authorization",
@@ -361,19 +463,61 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"accept\": true\n}"
+              "raw": "{\n  \"action\": \"ACCEPT\"\n}"
             },
             "url": {
-              "raw": "{{baseUrl}}/api/teams/invitations/{{memberId}}/respond",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "teams", "invitations", "{{memberId}}", "respond"]
+              "raw": "{{backendSikpUrl}}/api/teams/members/{{invitationId}}/respond",
+              "host": ["{{backendSikpUrl}}"],
+              "path": ["api", "teams", "members", "{{invitationId}}", "respond"]
             }
           }
         },
         {
-          "name": "Check Team Status (should be FIXED)",
+          "name": "Reject Invitation",
           "request": {
-            "method": "GET",
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{mahasiswa2Token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"action\": \"REJECT\"\n}"
+            },
+            "url": {
+              "raw": "{{backendSikpUrl}}/api/teams/members/{{invitationId}}/respond",
+              "host": ["{{backendSikpUrl}}"],
+              "path": ["api", "teams", "members", "{{invitationId}}", "respond"]
+            }
+          }
+        },
+        {
+          "name": "Leave Team",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{mahasiswa2Token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{backendSikpUrl}}/api/teams/leave",
+              "host": ["{{backendSikpUrl}}"],
+              "path": ["api", "teams", "leave"]
+            }
+          }
+        },
+        {
+          "name": "Cancel Invitation (Leader)",
+          "request": {
+            "method": "DELETE",
             "header": [
               {
                 "key": "Authorization",
@@ -381,19 +525,19 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/api/teams/{{teamId}}/members",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "teams", "{{teamId}}", "members"]
+              "raw": "{{backendSikpUrl}}/api/teams/invitations/{{invitationId}}/cancel",
+              "host": ["{{backendSikpUrl}}"],
+              "path": ["api", "teams", "invitations", "{{invitationId}}", "cancel"]
             }
           }
         }
       ]
     },
     {
-      "name": "3. Submission Management",
+      "name": "4. Submission Management",
       "item": [
         {
-          "name": "Create Submission (DRAFT)",
+          "name": "Create Submission",
           "event": [
             {
               "listen": "test",
@@ -402,6 +546,7 @@
                   "if (pm.response.code === 201) {",
                   "    var jsonData = pm.response.json();",
                   "    pm.collectionVariables.set('submissionId', jsonData.data.id);",
+                  "    console.log('Submission created with ID:', jsonData.data.id);",
                   "}"
                 ]
               }
@@ -421,152 +566,12 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"teamId\": \"{{teamId}}\"\n}"
+              "raw": "{\n  \"companyName\": \"PT Telkom Indonesia\",\n  \"companyAddress\": \"Jl. Jend. Sudirman No. 1, Palembang\",\n  \"companyPhone\": \"0711-123456\",\n  \"companyEmail\": \"hrd@telkom.co.id\",\n  \"companySupervisor\": \"Budi Santoso\",\n  \"position\": \"Software Engineer Intern\",\n  \"startDate\": \"2026-02-01\",\n  \"endDate\": \"2026-05-01\",\n  \"description\": \"Kerja praktik di divisi IT Development\"\n}"
             },
             "url": {
-              "raw": "{{baseUrl}}/api/submissions",
-              "host": ["{{baseUrl}}"],
+              "raw": "{{backendSikpUrl}}/api/submissions",
+              "host": ["{{backendSikpUrl}}"],
               "path": ["api", "submissions"]
-            }
-          }
-        },
-        {
-          "name": "Update Submission Data",
-          "request": {
-            "method": "PATCH",
-            "header": [
-              {
-                "key": "Authorization",
-                "value": "Bearer {{mahasiswaToken}}"
-              },
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"companyName\": \"PT. Technology Indonesia\",\n  \"companyAddress\": \"Jl. Sudirman No. 123, Jakarta Pusat, DKI Jakarta 10220\",\n  \"companyPhone\": \"021-12345678\",\n  \"companyEmail\": \"hr@techindonesia.com\",\n  \"companySupervisor\": \"Bapak Agus Setiawan\",\n  \"position\": \"Backend Developer Intern\",\n  \"startDate\": \"2024-03-01\",\n  \"endDate\": \"2024-06-01\",\n  \"description\": \"Kerja praktik di divisi pengembangan backend, fokus pada REST API development\"\n}"
-            },
-            "url": {
-              "raw": "{{baseUrl}}/api/submissions/{{submissionId}}",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "submissions", "{{submissionId}}"]
-            }
-          }
-        },
-        {
-          "name": "Get Submission Detail",
-          "request": {
-            "method": "GET",
-            "header": [
-              {
-                "key": "Authorization",
-                "value": "Bearer {{mahasiswaToken}}"
-              }
-            ],
-            "url": {
-              "raw": "{{baseUrl}}/api/submissions/{{submissionId}}",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "submissions", "{{submissionId}}"]
-            }
-          }
-        },
-        {
-          "name": "Upload Document - KTP",
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Authorization",
-                "value": "Bearer {{mahasiswaToken}}"
-              }
-            ],
-            "body": {
-              "mode": "formdata",
-              "formdata": [
-                {
-                  "key": "file",
-                  "type": "file",
-                  "src": ""
-                },
-                {
-                  "key": "documentType",
-                  "value": "KTP",
-                  "type": "text"
-                }
-              ]
-            },
-            "url": {
-              "raw": "{{baseUrl}}/api/submissions/{{submissionId}}/documents",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "submissions", "{{submissionId}}", "documents"]
-            }
-          }
-        },
-        {
-          "name": "Upload Document - TRANSKRIP",
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Authorization",
-                "value": "Bearer {{mahasiswaToken}}"
-              }
-            ],
-            "body": {
-              "mode": "formdata",
-              "formdata": [
-                {
-                  "key": "file",
-                  "type": "file",
-                  "src": ""
-                },
-                {
-                  "key": "documentType",
-                  "value": "TRANSKRIP",
-                  "type": "text"
-                }
-              ]
-            },
-            "url": {
-              "raw": "{{baseUrl}}/api/submissions/{{submissionId}}/documents",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "submissions", "{{submissionId}}", "documents"]
-            }
-          }
-        },
-        {
-          "name": "Get Documents List",
-          "request": {
-            "method": "GET",
-            "header": [
-              {
-                "key": "Authorization",
-                "value": "Bearer {{mahasiswaToken}}"
-              }
-            ],
-            "url": {
-              "raw": "{{baseUrl}}/api/submissions/{{submissionId}}/documents",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "submissions", "{{submissionId}}", "documents"]
-            }
-          }
-        },
-        {
-          "name": "Submit for Review (MENUNGGU)",
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Authorization",
-                "value": "Bearer {{mahasiswaToken}}"
-              }
-            ],
-            "url": {
-              "raw": "{{baseUrl}}/api/submissions/{{submissionId}}/submit",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "submissions", "{{submissionId}}", "submit"]
             }
           }
         },
@@ -581,16 +586,75 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/api/submissions/my-submissions",
-              "host": ["{{baseUrl}}"],
+              "raw": "{{backendSikpUrl}}/api/submissions/my-submissions",
+              "host": ["{{backendSikpUrl}}"],
               "path": ["api", "submissions", "my-submissions"]
+            }
+          }
+        },
+        {
+          "name": "Get Submission by ID",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{mahasiswaToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{backendSikpUrl}}/api/submissions/{{submissionId}}",
+              "host": ["{{backendSikpUrl}}"],
+              "path": ["api", "submissions", "{{submissionId}}"]
+            }
+          }
+        },
+        {
+          "name": "Update Submission",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{mahasiswaToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"companyPhone\": \"0711-999888\",\n  \"description\": \"Kerja praktik di divisi IT Development - Updated\"\n}"
+            },
+            "url": {
+              "raw": "{{backendSikpUrl}}/api/submissions/{{submissionId}}",
+              "host": ["{{backendSikpUrl}}"],
+              "path": ["api", "submissions", "{{submissionId}}"]
+            }
+          }
+        },
+        {
+          "name": "Submit for Review",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{mahasiswaToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{backendSikpUrl}}/api/submissions/{{submissionId}}/submit",
+              "host": ["{{backendSikpUrl}}"],
+              "path": ["api", "submissions", "{{submissionId}}", "submit"]
             }
           }
         }
       ]
     },
     {
-      "name": "4. Admin - Review & Approval",
+      "name": "5. Admin - Review & Approval",
       "item": [
         {
           "name": "Get All Submissions",
@@ -603,14 +667,14 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/api/admin/submissions",
-              "host": ["{{baseUrl}}"],
+              "raw": "{{backendSikpUrl}}/api/admin/submissions",
+              "host": ["{{backendSikpUrl}}"],
               "path": ["api", "admin", "submissions"]
             }
           }
         },
         {
-          "name": "Get Pending Submissions",
+          "name": "Get Submissions by Status",
           "request": {
             "method": "GET",
             "header": [
@@ -620,14 +684,14 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/api/admin/submissions/status/MENUNGGU",
-              "host": ["{{baseUrl}}"],
+              "raw": "{{backendSikpUrl}}/api/admin/submissions/status/MENUNGGU",
+              "host": ["{{backendSikpUrl}}"],
               "path": ["api", "admin", "submissions", "status", "MENUNGGU"]
             }
           }
         },
         {
-          "name": "Get Submission Detail (Admin)",
+          "name": "Get Submission Detail",
           "request": {
             "method": "GET",
             "header": [
@@ -637,33 +701,25 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/api/admin/submissions/{{submissionId}}",
-              "host": ["{{baseUrl}}"],
+              "raw": "{{backendSikpUrl}}/api/admin/submissions/{{submissionId}}",
+              "host": ["{{backendSikpUrl}}"],
               "path": ["api", "admin", "submissions", "{{submissionId}}"]
             }
           }
         },
         {
-          "name": "Approve Submission (+ Auto Generate Letter)",
+          "name": "Approve Submission",
           "request": {
             "method": "POST",
             "header": [
               {
                 "key": "Authorization",
                 "value": "Bearer {{adminToken}}"
-              },
-              {
-                "key": "Content-Type",
-                "value": "application/json"
               }
             ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"autoGenerateLetter\": true\n}"
-            },
             "url": {
-              "raw": "{{baseUrl}}/api/admin/submissions/{{submissionId}}/approve",
-              "host": ["{{baseUrl}}"],
+              "raw": "{{backendSikpUrl}}/api/admin/submissions/{{submissionId}}/approve",
+              "host": ["{{backendSikpUrl}}"],
               "path": ["api", "admin", "submissions", "{{submissionId}}", "approve"]
             }
           }
@@ -684,36 +740,28 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"reason\": \"Dokumen tidak lengkap. Mohon upload KRS dan Proposal.\"\n}"
+              "raw": "{\n  \"rejectionReason\": \"Data perusahaan tidak lengkap, mohon dilengkapi\"\n}"
             },
             "url": {
-              "raw": "{{baseUrl}}/api/admin/submissions/{{submissionId}}/reject",
-              "host": ["{{baseUrl}}"],
+              "raw": "{{backendSikpUrl}}/api/admin/submissions/{{submissionId}}/reject",
+              "host": ["{{backendSikpUrl}}"],
               "path": ["api", "admin", "submissions", "{{submissionId}}", "reject"]
             }
           }
         },
         {
-          "name": "Generate Letter Manually",
+          "name": "Generate Letter",
           "request": {
             "method": "POST",
             "header": [
               {
                 "key": "Authorization",
                 "value": "Bearer {{adminToken}}"
-              },
-              {
-                "key": "Content-Type",
-                "value": "application/json"
               }
             ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"format\": \"pdf\"\n}"
-            },
             "url": {
-              "raw": "{{baseUrl}}/api/admin/submissions/{{submissionId}}/generate-letter",
-              "host": ["{{baseUrl}}"],
+              "raw": "{{backendSikpUrl}}/api/admin/submissions/{{submissionId}}/generate-letter",
+              "host": ["{{backendSikpUrl}}"],
               "path": ["api", "admin", "submissions", "{{submissionId}}", "generate-letter"]
             }
           }
@@ -729,8 +777,8 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/api/admin/statistics",
-              "host": ["{{baseUrl}}"],
+              "raw": "{{backendSikpUrl}}/api/admin/statistics",
+              "host": ["{{backendSikpUrl}}"],
               "path": ["api", "admin", "statistics"]
             }
           }

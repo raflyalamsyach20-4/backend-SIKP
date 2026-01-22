@@ -65,40 +65,32 @@ app.get('/health', (c) => {
   });
 });
 
-// Initialize services for all API routes
-app.use('/api/*', async (c, next) => {
-  // Initialize database
+// Helper function to create services
+function createServices(c: any) {
   const db = createDbClient(c.env.DATABASE_URL);
-
-  // Initialize repositories
   const teamRepo = new TeamRepository(db);
   const submissionRepo = new SubmissionRepository(db);
-
-  // Initialize Profile Service Client
   const profileService = new ProfileServiceClient(c.env.PROFILE_SERVICE_URL);
-
-  // Initialize services
   const teamService = new TeamService(teamRepo, profileService);
   const storageService = new StorageService(c.env.R2_BUCKET);
   const letterService = new LetterService(submissionRepo, storageService);
   const submissionService = new SubmissionService(submissionRepo, teamRepo, storageService);
   const adminService = new AdminService(submissionRepo, letterService);
 
-  // Store services in context for use in route handlers
-  c.set('profileService', profileService as any);
-  c.set('teamService', teamService as any);
-  c.set('submissionService', submissionService as any);
-  c.set('adminService', adminService as any);
-
-  await next();
-});
+  return {
+    profileService,
+    teamService,
+    submissionService,
+    adminService,
+  };
+}
 
 // ============ AUTH ROUTES ============
 const authRoutes = new Hono<{ Bindings: Bindings }>();
 
 // Get current user info (with profiles from Profile Service)
 authRoutes.get('/me', authMiddleware(), async (c) => {
-  const profileService = c.get('profileService') as ProfileServiceClient;
+  const { profileService } = createServices(c);
   const controller = new AuthController(profileService);
   return controller.me(c);
 });
@@ -113,65 +105,51 @@ teamRoutes.use('*', authMiddleware());
 
 // Create team (mahasiswa only)
 teamRoutes.post('/', requireMahasiswa(), async (c) => {
-  const teamService = c.get('teamService') as TeamService;
+  const { teamService } = createServices(c);
   const controller = new TeamController(teamService);
   return controller.createTeam(c);
 });
 
 // Get my team
 teamRoutes.get('/my-team', async (c) => {
-  const teamService = c.get('teamService') as TeamService;
+  const { teamService } = createServices(c);
   const controller = new TeamController(teamService);
   return controller.getMyTeam(c);
 });
 
 // Get my invitations
 teamRoutes.get('/my-invitations', async (c) => {
-  const teamService = c.get('teamService') as TeamService;
+  const { teamService } = createServices(c);
   const controller = new TeamController(teamService);
   return controller.getMyInvitations(c);
 });
 
 // Invite member (leader only, validated in service)
 teamRoutes.post('/:teamId/invite', async (c) => {
-  const teamService = c.get('teamService') as TeamService;
+  const { teamService } = createServices(c);
   const controller = new TeamController(teamService);
   return controller.inviteMember(c);
 });
 
 // Respond to invitation
 teamRoutes.patch('/members/:memberId/respond', async (c) => {
-  const teamService = c.get('teamService') as TeamService;
+  const { teamService } = createServices(c);
   const controller = new TeamController(teamService);
   return controller.respondToInvitation(c);
 });
 
 // Cancel invitation (leader only)
-teamRoutes.delete('/members/:memberId/cancel', async (c) => {
-  const teamService = c.get('teamService') as TeamService;
+teamRoutes.delete('/invitations/:invitationId/cancel', async (c) => {
+  const { teamService } = createServices(c);
   const controller = new TeamController(teamService);
   return controller.cancelInvitation(c);
 });
 
 // Leave team
-teamRoutes.post('/:teamId/leave', async (c) => {
-  const teamService = c.get('teamService') as TeamService;
+teamRoutes.delete('/leave', async (c) => {
+  const { teamService } = createServices(c);
   const controller = new TeamController(teamService);
   return controller.leaveTeam(c);
-});
-
-// Finalize team (leader only)
-teamRoutes.post('/:teamId/finalize', async (c) => {
-  const teamService = c.get('teamService') as TeamService;
-  const controller = new TeamController(teamService);
-  return controller.finalizeTeam(c);
-});
-
-// Delete team (leader only)
-teamRoutes.delete('/:teamId', async (c) => {
-  const teamService = c.get('teamService') as TeamService;
-  const controller = new TeamController(teamService);
-  return controller.deleteTeam(c);
 });
 
 app.route('/api/teams', teamRoutes);
@@ -184,21 +162,21 @@ submissionRoutes.use('*', authMiddleware());
 
 // Create/update submission (mahasiswa only, team leader)
 submissionRoutes.post('/', requireMahasiswa(), async (c) => {
-  const submissionService = c.get('submissionService') as SubmissionService;
+  const { submissionService } = createServices(c);
   const controller = new SubmissionController(submissionService);
   return controller.createSubmission(c);
 });
 
 // Get my submission
-submissionRoutes.get('/my-submission', requireMahasiswa(), async (c) => {
-  const submissionService = c.get('submissionService') as SubmissionService;
+submissionRoutes.get('/my-submissions', requireMahasiswa(), async (c) => {
+  const { submissionService } = createServices(c);
   const controller = new SubmissionController(submissionService);
   return controller.getMySubmissions(c);
 });
 
 // Upload document
 submissionRoutes.post('/:submissionId/documents', requireMahasiswa(), async (c) => {
-  const submissionService = c.get('submissionService') as SubmissionService;
+  const { submissionService } = createServices(c);
   const controller = new SubmissionController(submissionService);
   return controller.uploadDocument(c);
 });
@@ -214,35 +192,35 @@ adminRoutes.use('*', requireAdmin());
 
 // List all submissions
 adminRoutes.get('/submissions', async (c) => {
-  const adminService = c.get('adminService') as AdminService;
+  const { adminService } = createServices(c);
   const controller = new AdminController(adminService);
   return controller.getAllSubmissions(c);
 });
 
 // Get submission detail
 adminRoutes.get('/submissions/:submissionId', async (c) => {
-  const adminService = c.get('adminService') as AdminService;
+  const { adminService } = createServices(c);
   const controller = new AdminController(adminService);
-  return controller.getSubmission(c);
+  return controller.getSubmissionById(c);
 });
 
 // Approve submission
 adminRoutes.post('/submissions/:submissionId/approve', async (c) => {
-  const adminService = c.get('adminService') as AdminService;
+  const { adminService } = createServices(c);
   const controller = new AdminController(adminService);
   return controller.approveSubmission(c);
 });
 
 // Reject submission
 adminRoutes.post('/submissions/:submissionId/reject', async (c) => {
-  const adminService = c.get('adminService') as AdminService;
+  const { adminService } = createServices(c);
   const controller = new AdminController(adminService);
   return controller.rejectSubmission(c);
 });
 
 // Generate letter
 adminRoutes.post('/submissions/:submissionId/generate-letter', async (c) => {
-  const adminService = c.get('adminService') as AdminService;
+  const { adminService } = createServices(c);
   const controller = new AdminController(adminService);
   return controller.generateLetter(c);
 });
