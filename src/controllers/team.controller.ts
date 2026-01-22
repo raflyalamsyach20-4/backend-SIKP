@@ -94,6 +94,41 @@ export class TeamController {
     }
   };
 
+  leaveTeam = async (c: Context) => {
+    try {
+      const user = c.get('user') as JWTPayload;
+      const teamId = c.req.param('teamId');
+
+      console.log(`[TeamController.leaveTeam] Request from userId=${user.userId}, teamId=${teamId}`);
+
+      const result = await this.teamService.leaveTeam(teamId, user.userId);
+
+      console.log(`[TeamController.leaveTeam] ✅ Success: Member left team`);
+      return c.json(createResponse(true, 'Successfully left the team', result));
+    } catch (error: any) {
+      console.error(`[TeamController.leaveTeam] ❌ Error:`, error);
+      return handleError(c, error, 'Failed to leave team');
+    }
+  };
+
+  removeMember = async (c: Context) => {
+    try {
+      const user = c.get('user') as JWTPayload;
+      const teamId = c.req.param('teamId');
+      const memberId = c.req.param('memberId');
+
+      console.log(`[TeamController.removeMember] Request from userId=${user.userId}, teamId=${teamId}, memberId=${memberId}`);
+
+      const result = await this.teamService.removeMember(teamId, memberId, user.userId);
+
+      console.log(`[TeamController.removeMember] ✅ Success: Member removed`);
+      return c.json(createResponse(true, 'Member removed successfully', result));
+    } catch (error: any) {
+      console.error(`[TeamController.removeMember] ❌ Error:`, error);
+      return handleError(c, error, 'Failed to remove member');
+    }
+  };
+
   deleteTeam = async (c: Context) => {
     try {
       const user = c.get('user') as JWTPayload;
@@ -132,6 +167,40 @@ export class TeamController {
       return c.json(createResponse(true, 'Invitations retrieved', invitations));
     } catch (error: any) {
       return handleError(c, error, 'Failed to get invitations');
+    }
+  };
+
+  cancelInvitation = async (c: Context) => {
+    try {
+      const user = c.get('user') as JWTPayload;
+      const memberId = c.req.param('memberId');
+
+      console.log(`[TeamController.cancelInvitation] Request from userId=${user.userId}, memberId=${memberId}`);
+
+      const result = await this.teamService.cancelInvitation(memberId, user.userId);
+
+      console.log(`[TeamController.cancelInvitation] ✅ Success: Invitation cancelled`);
+      return c.json(createResponse(true, 'Invitation cancelled successfully', result));
+    } catch (error: any) {
+      console.error(`[TeamController.cancelInvitation] ❌ Error:`, error);
+      return handleError(c, error, 'Failed to cancel invitation');
+    }
+  };
+
+  joinTeam = async (c: Context) => {
+    try {
+      const user = c.get('user') as JWTPayload;
+      const teamCode = c.req.param('teamCode');
+
+      console.log(`[TeamController.joinTeam] Request from userId=${user.userId}, teamCode=${teamCode}`);
+
+      const result = await this.teamService.joinTeam(teamCode, user.userId);
+
+      console.log(`[TeamController.joinTeam] ✅ Success: Join request created`);
+      return c.json(result, 201);
+    } catch (error: any) {
+      console.error(`[TeamController.joinTeam] ❌ Error:`, error);
+      return handleError(c, error, 'Failed to join team');
     }
   };
 }

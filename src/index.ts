@@ -168,7 +168,11 @@ app.route('/api/teams', (() => {
   route.get('/my-invitations', async (c) => getController(c).getMyInvitations(c));
   route.post('/:teamId/invite', async (c) => getController(c).inviteMember(c));
   route.post('/invitations/:memberId/respond', async (c) => getController(c).respondToInvitation(c));
+  route.post('/invitations/:memberId/cancel', async (c) => getController(c).cancelInvitation(c));
+  route.post('/:teamCode/join', async (c) => getController(c).joinTeam(c));
   route.get('/:teamId/members', async (c) => getController(c).getTeamMembers(c));
+  route.post('/:teamId/leave', async (c) => getController(c).leaveTeam(c));
+  route.post('/:teamId/members/:memberId/remove', async (c) => getController(c).removeMember(c));
   route.post('/:teamId/delete', async (c) => getController(c).deleteTeam(c));
 
   return route;
