@@ -52,12 +52,9 @@ export interface PembimbingLapangan {
 
 export interface Team {
   id: string;
-  name: string;
+  code: string;
   leaderId: string;
   status: TeamStatus;
-  description: string | null;
-  createdAt: Date;
-  updatedAt: Date;
 }
 
 export interface TeamMember {
@@ -67,8 +64,6 @@ export interface TeamMember {
   invitationStatus: InvitationStatus;
   invitedAt: Date;
   respondedAt: Date | null;
-  createdAt: Date;
-  updatedAt: Date;
 }
 
 export interface Submission {

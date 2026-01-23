@@ -1,4 +1,4 @@
-import { eq } from 'drizzle-orm';
+import { eq, or, ilike, sql } from 'drizzle-orm';
 import type { DbClient } from '@/db';
 import { users, mahasiswa, admin, dosen, pembimbingLapangan } from '@/db/schema';
 
@@ -122,5 +122,57 @@ export class UserRepository {
     }
 
     return { user, profile };
+  }
+
+  // Find mahasiswa user by NIM (joins users + mahasiswa)
+  async findByNim(nim: string) {
+    const result = await this.db
+      .select({
+        id: users.id,
+        nama: users.nama,
+        email: users.email,
+        role: users.role,
+        phone: users.phone,
+        isActive: users.isActive,
+        nim: mahasiswa.nim,
+        prodi: mahasiswa.prodi,
+        fakultas: mahasiswa.fakultas,
+        semester: mahasiswa.semester,
+        angkatan: mahasiswa.angkatan,
+      })
+      .from(users)
+      .innerJoin(mahasiswa, eq(users.id, mahasiswa.id))
+      .where(eq(mahasiswa.nim, nim))
+      .limit(1);
+
+    return result[0] || null;
+  }
+
+  // Search mahasiswa by nama, nim, or email
+  async searchMahasiswa(query: string) {
+    const searchPattern = `%${query}%`;
+    
+    const result = await this.db
+      .select({
+        id: users.id,
+        name: users.nama,
+        nim: mahasiswa.nim,
+        email: users.email,
+        prodi: mahasiswa.prodi,
+        fakultas: mahasiswa.fakultas,
+      })
+      .from(users)
+      .innerJoin(mahasiswa, eq(users.id, mahasiswa.id))
+      .where(
+        or(
+          ilike(users.nama, searchPattern),
+          ilike(mahasiswa.nim, searchPattern),
+          ilike(users.email, searchPattern)
+        )
+      )
+      .orderBy(users.nama, mahasiswa.nim)
+      .limit(50);
+    
+    return result;
   }
 }

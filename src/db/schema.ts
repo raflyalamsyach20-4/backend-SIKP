@@ -57,12 +57,9 @@ export const pembimbingLapangan = pgTable('pembimbing_lapangan', {
 // Teams Table
 export const teams = pgTable('teams', {
   id: text('id').primaryKey(),
-  name: varchar('name', { length: 255 }).notNull(),
+  code: varchar('code', { length: 50 }).notNull().unique(),
   leaderId: text('leader_id').notNull().references(() => users.id),
   status: teamStatusEnum('status').notNull().default('PENDING'),
-  description: text('description'),
-  createdAt: timestamp('created_at').defaultNow().notNull(),
-  updatedAt: timestamp('updated_at').defaultNow().notNull(),
 });
 
 // Team Members Table (includes invitations)
@@ -70,17 +67,17 @@ export const teamMembers = pgTable('team_members', {
   id: text('id').primaryKey(),
   teamId: text('team_id').notNull().references(() => teams.id, { onDelete: 'cascade' }),
   userId: text('user_id').notNull().references(() => users.id),
+  role: text('role').notNull().default('ANGGOTA'), // KETUA or ANGGOTA
   invitationStatus: invitationStatusEnum('invitation_status').notNull().default('PENDING'),
   invitedAt: timestamp('invited_at').defaultNow().notNull(),
   respondedAt: timestamp('responded_at'),
-  createdAt: timestamp('created_at').defaultNow().notNull(),
-  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  invitedBy: text('invited_by').references(() => users.id), // User who sent the invitation
 });
 
 // Submissions Table
 export const submissions = pgTable('submissions', {
   id: text('id').primaryKey(),
-  teamId: text('team_id').notNull().references(() => teams.id),
+  teamId: text('team_id').notNull().references(() => teams.id, { onDelete: 'cascade' }),
   companyName: varchar('company_name', { length: 255 }).notNull(),
   companyAddress: text('company_address').notNull(),
   companyPhone: varchar('company_phone', { length: 50 }),
@@ -116,7 +113,7 @@ export const submissionDocuments = pgTable('submission_documents', {
 // Generated Letters Table
 export const generatedLetters = pgTable('generated_letters', {
   id: text('id').primaryKey(),
-  submissionId: text('submission_id').notNull().references(() => submissions.id),
+  submissionId: text('submission_id').notNull().references(() => submissions.id, { onDelete: 'cascade' }),
   letterNumber: varchar('letter_number', { length: 100 }).notNull().unique(),
   fileName: varchar('file_name', { length: 255 }).notNull(),
   fileUrl: text('file_url').notNull(),

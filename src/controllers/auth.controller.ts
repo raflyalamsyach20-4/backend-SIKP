@@ -1,5 +1,6 @@
 import { Context } from 'hono';
 import { AuthService } from '@/services/auth.service';
+import { UserRepository } from '@/repositories/user.repository';
 import { createResponse, handleError } from '@/utils/helpers';
 import { z } from 'zod';
 
@@ -43,7 +44,10 @@ const loginSchema = z.object({
 });
 
 export class AuthController {
-  constructor(private authService: AuthService) {}
+  constructor(
+    private authService: AuthService,
+    private userRepository: UserRepository
+  ) {}
 
   registerMahasiswa = async (c: Context) => {
     try {
@@ -103,6 +107,26 @@ export class AuthController {
       return c.json(createResponse(true, 'User retrieved', user));
     } catch (error: any) {
       return handleError(c, error, 'Failed to get user');
+    }
+  };
+
+  searchMahasiswa = async (c: Context) => {
+    try {
+      const query = c.req.query('q');
+      
+      if (!query) {
+        return c.json(createResponse(false, 'Search query cannot be empty'), 400);
+      }
+
+      if (query.length < 2) {
+        return c.json(createResponse(false, 'Search query must be at least 2 characters'), 400);
+      }
+
+      const results = await this.userRepository.searchMahasiswa(query);
+      
+      return c.json(createResponse(true, 'Mahasiswa search results', results));
+    } catch (error: any) {
+      return handleError(c, error, 'Failed to search mahasiswa');
     }
   };
 }

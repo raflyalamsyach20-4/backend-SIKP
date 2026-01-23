@@ -26,6 +26,13 @@ export const generateId = (): string => {
   return `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 };
 
+export const generateTeamCode = (): string => {
+  const prefix = 'TEAM';
+  const timestamp = Date.now().toString(36).toUpperCase();
+  const random = Math.random().toString(36).substr(2, 6).toUpperCase();
+  return `${prefix}-${timestamp}-${random}`;
+};
+
 export const formatDate = (date: Date): string => {
   return date.toISOString().split('T')[0];
 };

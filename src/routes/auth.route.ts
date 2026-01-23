@@ -13,3 +13,11 @@ export const createAuthRoutes = (authController: AuthController) => {
 
   return auth;
 };
+
+export const createMahasiswaRoutes = (authController: AuthController) => {
+  const mahasiswa = new Hono();
+
+  mahasiswa.get('/search', authMiddleware, authController.searchMahasiswa);
+
+  return mahasiswa;
+};

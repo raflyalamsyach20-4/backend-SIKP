@@ -79,14 +79,18 @@ app.use('/api/*', async (c, next) => {
   const submissionService = new SubmissionService(submissionRepo, teamRepo, storageService);
   const adminService = new AdminService(submissionRepo, letterService);
 
-  // Store services in context
+  // Store services and repositories in context
   c.set('authService', authService);
   c.set('teamService', teamService);
   c.set('submissionService', submissionService);
   c.set('adminService', adminService);
+  c.set('userRepo', userRepo);
 
   await next();
 });
+
+// Import middlewares
+import { authMiddleware, mahasiswaOnly, adminOnly } from '@/middlewares/auth.middleware';
 
 // Mount routes
 app.route('/api/auth', (() => {
@@ -94,32 +98,54 @@ app.route('/api/auth', (() => {
   
   route.post('/register/mahasiswa', async (c) => {
     const authService = c.get('authService') as AuthService;
-    const controller = new AuthController(authService);
+    const userRepo = c.get('userRepo') as UserRepository;
+    const controller = new AuthController(authService, userRepo);
     return controller.registerMahasiswa(c);
   });
 
   route.post('/register/admin', async (c) => {
     const authService = c.get('authService') as AuthService;
-    const controller = new AuthController(authService);
+    const userRepo = c.get('userRepo') as UserRepository;
+    const controller = new AuthController(authService, userRepo);
     return controller.registerAdmin(c);
   });
 
   route.post('/register/dosen', async (c) => {
     const authService = c.get('authService') as AuthService;
-    const controller = new AuthController(authService);
+    const userRepo = c.get('userRepo') as UserRepository;
+    const controller = new AuthController(authService, userRepo);
     return controller.registerDosen(c);
   });
 
   route.post('/login', async (c) => {
     const authService = c.get('authService') as AuthService;
-    const controller = new AuthController(authService);
+    const userRepo = c.get('userRepo') as UserRepository;
+    const controller = new AuthController(authService, userRepo);
     return controller.login(c);
   });
 
-  route.get('/me', async (c) => {
+  // Protected route - requires authentication
+  route.get('/me', authMiddleware, async (c) => {
     const authService = c.get('authService') as AuthService;
-    const controller = new AuthController(authService);
+    const userRepo = c.get('userRepo') as UserRepository;
+    const controller = new AuthController(authService, userRepo);
     return controller.me(c);
+  });
+
+  return route;
+})());
+
+app.route('/api/mahasiswa', (() => {
+  const route = new Hono<{ Bindings: Bindings }>();
+  
+  // Apply auth middleware to all mahasiswa routes
+  route.use('*', authMiddleware);
+  
+  route.get('/search', async (c) => {
+    const authService = c.get('authService') as AuthService;
+    const userRepo = c.get('userRepo') as UserRepository;
+    const controller = new AuthController(authService, userRepo);
+    return controller.searchMahasiswa(c);
   });
 
   return route;
@@ -128,6 +154,10 @@ app.route('/api/auth', (() => {
 app.route('/api/teams', (() => {
   const route = new Hono<{ Bindings: Bindings }>();
   
+  // Apply auth middleware to all team routes
+  route.use('*', authMiddleware);
+  route.use('*', mahasiswaOnly);
+  
   const getController = (c: any) => {
     const teamService = c.get('teamService') as TeamService;
     return new TeamController(teamService);
@@ -135,15 +165,25 @@ app.route('/api/teams', (() => {
 
   route.post('/', async (c) => getController(c).createTeam(c));
   route.get('/my-teams', async (c) => getController(c).getMyTeams(c));
+  route.get('/my-invitations', async (c) => getController(c).getMyInvitations(c));
   route.post('/:teamId/invite', async (c) => getController(c).inviteMember(c));
   route.post('/invitations/:memberId/respond', async (c) => getController(c).respondToInvitation(c));
+  route.post('/invitations/:memberId/cancel', async (c) => getController(c).cancelInvitation(c));
+  route.post('/:teamCode/join', async (c) => getController(c).joinTeam(c));
   route.get('/:teamId/members', async (c) => getController(c).getTeamMembers(c));
+  route.post('/:teamId/leave', async (c) => getController(c).leaveTeam(c));
+  route.post('/:teamId/members/:memberId/remove', async (c) => getController(c).removeMember(c));
+  route.post('/:teamId/delete', async (c) => getController(c).deleteTeam(c));
 
   return route;
 })());
 
 app.route('/api/submissions', (() => {
   const route = new Hono<{ Bindings: Bindings }>();
+  
+  // Apply auth middleware to all submission routes
+  route.use('*', authMiddleware);
+  route.use('*', mahasiswaOnly);
   
   const getController = (c: any) => {
     const submissionService = c.get('submissionService') as SubmissionService;
@@ -163,6 +203,10 @@ app.route('/api/submissions', (() => {
 
 app.route('/api/admin', (() => {
   const route = new Hono<{ Bindings: Bindings }>();
+  
+  // Apply auth middleware to all admin routes
+  route.use('*', authMiddleware);
+  route.use('*', adminOnly);
   
   const getController = (c: any) => {
     const adminService = c.get('adminService') as AdminService;
