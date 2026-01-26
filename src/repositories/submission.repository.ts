@@ -1,4 +1,4 @@
-import { eq } from 'drizzle-orm';
+import { asc, eq } from 'drizzle-orm';
 import type { DbClient } from '@/db';
 import { submissions, submissionDocuments, generatedLetters } from '@/db/schema';
 
@@ -18,7 +18,7 @@ export class SubmissionRepository {
     return await this.db.select().from(submissions);
   }
 
-  async findByStatus(status: 'DRAFT' | 'MENUNGGU' | 'DITOLAK' | 'DITERIMA') {
+  async findByStatus(status: 'DRAFT' | 'PENDING_REVIEW' | 'REJECTED' | 'APPROVED') {
     return await this.db.select().from(submissions).where(eq(submissions.status, status));
   }
 
@@ -42,7 +42,11 @@ export class SubmissionRepository {
   }
 
   async findDocumentsBySubmissionId(submissionId: string) {
-    return await this.db.select().from(submissionDocuments).where(eq(submissionDocuments.submissionId, submissionId));
+    return await this.db
+      .select()
+      .from(submissionDocuments)
+      .where(eq(submissionDocuments.submissionId, submissionId))
+      .orderBy(asc(submissionDocuments.documentType), asc(submissionDocuments.createdAt));
   }
 
   async findDocumentById(id: string) {

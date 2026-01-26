@@ -30,7 +30,7 @@ export class AdminController {
 
   getSubmissionsByStatus = async (c: Context) => {
     try {
-      const status = c.req.param('status') as 'DRAFT' | 'MENUNGGU' | 'DITOLAK' | 'DITERIMA';
+      const status = c.req.param('status') as 'DRAFT' | 'PENDING_REVIEW' | 'REJECTED' | 'APPROVED';
       const submissions = await this.adminService.getSubmissionsByStatus(status);
       return c.json(createResponse(true, 'Submissions retrieved', submissions));
     } catch (error: any) {

@@ -152,10 +152,16 @@ export class TeamController {
       const result = await this.teamService.finalizeTeam(teamId, user.userId);
 
       console.log(`[TeamController.finalizeTeam] ✅ Success: Team finalized`);
-      return c.json(createResponse(true, 'Team finalized successfully', result), 200);
+      return c.json(createResponse(true, 'Tim berhasil difinalisasi', result), 200);
     } catch (error: any) {
       console.error(`[TeamController.finalizeTeam] ❌ Error:`, error);
-      return handleError(c, error, 'Failed to finalize team');
+      
+      // Return appropriate status code from error
+      const statusCode = error.statusCode || 500;
+      return c.json(
+        createResponse(false, error.message || 'Failed to finalize team', null),
+        statusCode
+      );
     }
   };
 

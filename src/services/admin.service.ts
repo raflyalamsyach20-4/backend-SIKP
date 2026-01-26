@@ -11,7 +11,7 @@ export class AdminService {
     return await this.submissionRepo.findAll();
   }
 
-  async getSubmissionsByStatus(status: 'DRAFT' | 'MENUNGGU' | 'DITOLAK' | 'DITERIMA') {
+  async getSubmissionsByStatus(status: 'DRAFT' | 'PENDING_REVIEW' | 'REJECTED' | 'APPROVED') {
     return await this.submissionRepo.findByStatus(status);
   }
 
@@ -40,12 +40,12 @@ export class AdminService {
       throw new Error('Submission not found');
     }
 
-    if (submission.status !== 'MENUNGGU') {
+    if (submission.status !== 'PENDING_REVIEW') {
       throw new Error('Can only approve pending submissions');
     }
 
     const updated = await this.submissionRepo.update(submissionId, {
-      status: 'DITERIMA',
+      status: 'APPROVED',
       approvedBy: adminId,
       approvedAt: new Date(),
     });
@@ -64,7 +64,7 @@ export class AdminService {
       throw new Error('Submission not found');
     }
 
-    if (submission.status !== 'MENUNGGU') {
+    if (submission.status !== 'PENDING_REVIEW') {
       throw new Error('Can only reject pending submissions');
     }
 
@@ -73,7 +73,7 @@ export class AdminService {
     }
 
     return await this.submissionRepo.update(submissionId, {
-      status: 'DITOLAK',
+      status: 'REJECTED',
       rejectionReason: reason,
       approvedBy: adminId,
       approvedAt: new Date(),
@@ -94,9 +94,9 @@ export class AdminService {
     return {
       total: allSubmissions.length,
       draft: allSubmissions.filter(s => s.status === 'DRAFT').length,
-      pending: allSubmissions.filter(s => s.status === 'MENUNGGU').length,
-      approved: allSubmissions.filter(s => s.status === 'DITERIMA').length,
-      rejected: allSubmissions.filter(s => s.status === 'DITOLAK').length,
+      pending: allSubmissions.filter(s => s.status === 'PENDING_REVIEW').length,
+      approved: allSubmissions.filter(s => s.status === 'APPROVED').length,
+      rejected: allSubmissions.filter(s => s.status === 'REJECTED').length,
     };
   }
 }
