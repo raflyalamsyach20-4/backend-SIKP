@@ -14,6 +14,7 @@ import { TeamService } from '@/services/team.service';
 import { SubmissionService } from '@/services/submission.service';
 import { AdminService } from '@/services/admin.service';
 import { StorageService } from '@/services/storage.service';
+import { MockR2Bucket } from '@/services/mock-r2-bucket';
 import { LetterService } from '@/services/letter.service';
 
 // Controllers
@@ -32,6 +33,8 @@ type Bindings = {
   DATABASE_URL: string;
   JWT_SECRET: string;
   R2_BUCKET: R2Bucket;
+  R2_DOMAIN: string;
+  R2_BUCKET_NAME: string;
 };
 
 const app = new Hono<{ Bindings: Bindings }>();
@@ -74,7 +77,17 @@ app.use('/api/*', async (c, next) => {
   // Initialize services
   const authService = new AuthService(userRepo, c.env.JWT_SECRET);
   const teamService = new TeamService(teamRepo, userRepo);
-  const storageService = new StorageService(c.env.R2_BUCKET);
+  
+  // ✅ Require real R2 bucket binding in production; only allow mock when explicitly enabled
+  const useMockR2Env = (c.env as any).USE_MOCK_R2;
+  const useMockR2 = useMockR2Env === true || useMockR2Env === 'true';
+  const r2BucketOrMock = useMockR2 ? new MockR2Bucket('document-sikp-mi') : c.env.R2_BUCKET;
+
+  const storageService = new StorageService(
+    r2BucketOrMock as any,
+    c.env.R2_DOMAIN as string,
+    c.env.R2_BUCKET_NAME as string
+  );
   const letterService = new LetterService(submissionRepo, storageService);
   const submissionService = new SubmissionService(submissionRepo, teamRepo, storageService);
   const adminService = new AdminService(submissionRepo, letterService);
@@ -171,6 +184,7 @@ app.route('/api/teams', (() => {
   route.post('/invitations/:memberId/cancel', async (c) => getController(c).cancelInvitation(c));
   route.post('/:teamCode/join', async (c) => getController(c).joinTeam(c));
   route.get('/:teamId/members', async (c) => getController(c).getTeamMembers(c));
+  route.post('/:teamId/finalize', async (c) => getController(c).finalizeTeam(c));
   route.post('/:teamId/leave', async (c) => getController(c).leaveTeam(c));
   route.post('/:teamId/members/:memberId/remove', async (c) => getController(c).removeMember(c));
   route.post('/:teamId/delete', async (c) => getController(c).deleteTeam(c));

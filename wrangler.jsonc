@@ -1,38 +1,41 @@
 {
-  "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "backend-sikp",
-  "main": "src/index.ts",
-  "compatibility_date": "2026-01-12",
-  "compatibility_flags": [
-    "nodejs_compat"
-  ],
-  "vars": {
-    "JWT_SECRET": "change-this-in-production"
-  },
-  "r2_buckets": [
-    {
-      "binding": "R2_BUCKET",
-      "bucket_name": "sikp-documents"
-    }
-  ]
-  // "kv_namespaces": [
-  //   {
-  //     "binding": "MY_KV_NAMESPACE",
-  //     "id": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
-  //   }
-  // ],
-  // "d1_databases": [
-  //   {
-  //     "binding": "MY_DB",
-  //     "database_name": "my-database",
-  //     "database_id": ""
-  //   }
-  // ],
-  // "ai": {
-  //   "binding": "AI"
-  // },
-  // "observability": {
-  //   "enabled": true,
-  //   "head_sampling_rate": 1
-  // }
+	"$schema": "node_modules/wrangler/config-schema.json",
+	"name": "backend-sikp",
+	"main": "src/index.ts",
+	"compatibility_date": "2026-01-12",
+	"compatibility_flags": [
+		"nodejs_compat"
+	],
+	"vars": {
+		"JWT_SECRET": "change-this-in-production",
+		"R2_DOMAIN": "https://pub-34d108a4414048589cfe3d01fa4b5ed2.r2.dev",
+		"R2_BUCKET_NAME": "document-sikp-mi",
+		"USE_MOCK_R2": "false"
+	},
+	"r2_buckets": [
+		{
+			"binding": "R2_BUCKET",
+			"bucket_name": "document-sikp-mi"
+		}
+	]
+	// "kv_namespaces": [
+	//   {
+	//     "binding": "MY_KV_NAMESPACE",
+	//     "id": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+	//   }
+	// ],
+	// "d1_databases": [
+	//   {
+	//     "binding": "MY_DB",
+	//     "database_name": "my-database",
+	//     "database_id": ""
+	//   }
+	// ],
+	// "ai": {
+	//   "binding": "AI"
+	// },
+	// "observability": {
+	//   "enabled": true,
+	//   "head_sampling_rate": 1
+	// }
 }

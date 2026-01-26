@@ -10,7 +10,19 @@ export class SubmissionService {
     private storageService?: StorageService
   ) {}
 
-  async createSubmission(teamId: string, userId: string) {
+  async createSubmission(
+    teamId: string, 
+    userId: string,
+    data: {
+      letterPurpose: string;
+      companyName: string;
+      companyAddress: string;
+      division: string;
+      companySupervisor: string;
+      startDate: Date;
+      endDate: Date;
+    }
+  ) {
     // Verify team exists and is FIXED
     const team = await this.teamRepo.findById(teamId);
     if (!team) {
@@ -21,18 +33,22 @@ export class SubmissionService {
       throw new Error('Team must be fixed before creating submission');
     }
 
-    // Verify user is team member
-    const member = await this.teamRepo.findMemberByTeamAndUser(teamId, userId);
-    if (!member || member.invitationStatus !== 'ACCEPTED') {
-      throw new Error('User is not a member of this team');
+    // Verify user is team leader
+    if (team.leaderId !== userId) {
+      throw new Error('Only team leader can create submission');
     }
 
-    // Create draft submission
+    // Create draft submission with all data
     const submission = await this.submissionRepo.create({
       id: generateId(),
       teamId,
-      companyName: '',
-      companyAddress: '',
+      letterPurpose: data.letterPurpose,
+      companyName: data.companyName,
+      companyAddress: data.companyAddress,
+      division: data.division,
+      companySupervisor: data.companySupervisor,
+      startDate: data.startDate,
+      endDate: data.endDate,
       status: 'DRAFT',
     });
 
@@ -40,15 +56,13 @@ export class SubmissionService {
   }
 
   async updateSubmission(submissionId: string, userId: string, data: {
+    letterPurpose?: string;
     companyName?: string;
     companyAddress?: string;
-    companyPhone?: string;
-    companyEmail?: string;
+    division?: string;
     companySupervisor?: string;
-    position?: string;
     startDate?: Date;
     endDate?: Date;
-    description?: string;
   }) {
     const submission = await this.submissionRepo.findById(submissionId);
     if (!submission) {
@@ -59,10 +73,10 @@ export class SubmissionService {
       throw new Error('Can only update draft submissions');
     }
 
-    // Verify user is team member
-    const member = await this.teamRepo.findMemberByTeamAndUser(submission.teamId, userId);
-    if (!member || member.invitationStatus !== 'ACCEPTED') {
-      throw new Error('User is not a member of this team');
+    // Verify user is team leader
+    const team = await this.teamRepo.findById(submission.teamId);
+    if (!team || team.leaderId !== userId) {
+      throw new Error('Only team leader can update submission');
     }
 
     return await this.submissionRepo.update(submissionId, data);
@@ -78,26 +92,27 @@ export class SubmissionService {
       throw new Error('Submission already submitted');
     }
 
-    // Validate required fields
-    if (!submission.companyName || !submission.companyAddress) {
-      throw new Error('Company name and address are required');
+    // Verify user is team leader
+    const team = await this.teamRepo.findById(submission.teamId);
+    if (!team || team.leaderId !== userId) {
+      throw new Error('Only team leader can submit');
     }
 
-    // Verify user is team member
-    const member = await this.teamRepo.findMemberByTeamAndUser(submission.teamId, userId);
-    if (!member || member.invitationStatus !== 'ACCEPTED') {
-      throw new Error('User is not a member of this team');
+    // Validate required fields
+    if (!submission.letterPurpose || !submission.companyName || !submission.companyAddress || 
+        !submission.division || !submission.companySupervisor || !submission.startDate || !submission.endDate) {
+      throw new Error('All submission fields are required');
     }
 
     return await this.submissionRepo.update(submissionId, { 
-      status: 'MENUNGGU',
+      status: 'PENDING_REVIEW',
       submittedAt: new Date()
     });
   }
 
   async getMySubmissions(userId: string) {
-    // Get user's teams
-    const teams = await this.teamRepo.findByLeaderId(userId);
+    // ✅ Get ALL teams where user is an ACCEPTED member (not just leader)
+    const teams = await this.teamRepo.findTeamsByMemberId(userId);
     const teamIds = teams.map(t => t.id);
 
     // Get submissions for those teams
@@ -112,19 +127,51 @@ export class SubmissionService {
 
   async uploadDocument(
     submissionId: string, 
-    userId: string,
+    uploadedByUserId: string,
+    memberUserId: string,
     file: File,
-    documentType: 'KTP' | 'TRANSKRIP' | 'KRS' | 'PROPOSAL' | 'OTHER'
+    documentType: 'PROPOSAL_KETUA' | 'SURAT_KESEDIAAN' | 'FORM_PERMOHONAN' | 'KRS_SEMESTER_4' | 'DAFTAR_KUMPULAN_NILAI' | 'BUKTI_PEMBAYARAN_UKT',
+    authUserId: string
   ) {
     const submission = await this.submissionRepo.findById(submissionId);
     if (!submission) {
-      throw new Error('Submission not found');
+      const notFound: any = new Error('Submission not found');
+      notFound.statusCode = 404;
+      throw notFound;
     }
 
-    // Verify user is team member
-    const member = await this.teamRepo.findMemberByTeamAndUser(submission.teamId, userId);
+    if (submission.status !== 'DRAFT') {
+      throw new Error('Can only upload documents for draft submissions');
+    }
+
+    // ✅ Requester must be an ACCEPTED member of the team
+    const requesterMembership = await this.teamRepo.findMemberByTeamAndUser(submission.teamId, authUserId);
+    if (!requesterMembership || requesterMembership.invitationStatus !== 'ACCEPTED') {
+      const unauthorized: any = new Error('Unauthorized - not team member');
+      unauthorized.statusCode = 403;
+      throw unauthorized;
+    }
+
+    // Verify member exists in team
+    const member = await this.teamRepo.findMemberByTeamAndUser(submission.teamId, memberUserId);
     if (!member || member.invitationStatus !== 'ACCEPTED') {
-      throw new Error('User is not a member of this team');
+      const invalidMember: any = new Error('User is not a member of this team');
+      invalidMember.statusCode = 403;
+      throw invalidMember;
+    }
+
+    // ✅ Ensure uploadedByUserId is set (fallback to authenticated user if not provided)
+    let finalUploadedByUserId = uploadedByUserId || authUserId;
+    if (!finalUploadedByUserId) {
+      throw new Error('uploadedByUserId is required');
+    }
+
+    // ✅ Uploader must also be an ACCEPTED member of the team
+    const uploaderMembership = await this.teamRepo.findMemberByTeamAndUser(submission.teamId, finalUploadedByUserId);
+    if (!uploaderMembership || uploaderMembership.invitationStatus !== 'ACCEPTED') {
+      const unauthorizedUploader: any = new Error('Unauthorized - uploader is not team member');
+      unauthorizedUploader.statusCode = 403;
+      throw unauthorizedUploader;
     }
 
     if (!this.storageService) {
@@ -137,7 +184,7 @@ export class SubmissionService {
       throw new Error('Invalid file type. Only PDF and DOCX are allowed');
     }
 
-    const maxSizeMB = 5;
+    const maxSizeMB = 10;
     if (!this.storageService.validateFileSize(file.size, maxSizeMB)) {
       throw new Error(`File size exceeds ${maxSizeMB}MB limit`);
     }
@@ -146,26 +193,82 @@ export class SubmissionService {
     const uniqueFileName = this.storageService.generateUniqueFileName(file.name);
     const { url, key } = await this.storageService.uploadFile(file, uniqueFileName, 'documents');
 
-    // Save to database
+    // ✅ Sanitize fileType: trim MIME type to base type (remove charset and other params)
+    let sanitizedFileType = file.type || 'application/octet-stream';
+    if (sanitizedFileType.includes(';')) {
+      sanitizedFileType = sanitizedFileType.split(';')[0].trim();
+    }
+
+    // Save to database - handles unique constraint per member
     return await this.submissionRepo.addDocument({
       id: generateId(),
       submissionId,
+      documentType,
+      memberUserId,
+      uploadedByUserId: finalUploadedByUserId,
       fileName: key,
       originalName: file.name,
-      fileType: file.type,
+      fileType: sanitizedFileType,
       fileSize: file.size,
       fileUrl: url,
-      documentType,
-      uploadedBy: userId,
     });
   }
 
-  async getDocuments(submissionId: string) {
+  async getDocuments(submissionId: string, userId: string) {
+    const submission = await this.submissionRepo.findById(submissionId);
+    if (!submission) {
+      const notFound: any = new Error('Submission not found');
+      notFound.statusCode = 404;
+      throw notFound;
+    }
+
+    const membership = await this.teamRepo.findMemberByTeamAndUser(submission.teamId, userId);
+    if (!membership || membership.invitationStatus !== 'ACCEPTED') {
+      const unauthorized: any = new Error('Unauthorized - not team member');
+      unauthorized.statusCode = 403;
+      throw unauthorized;
+    }
+
     return await this.submissionRepo.findDocumentsBySubmissionId(submissionId);
   }
 
   async getSubmissionById(submissionId: string) {
     return await this.submissionRepo.findById(submissionId);
+  }
+
+  async approveSubmission(submissionId: string, approvedByUserId: string) {
+    const submission = await this.submissionRepo.findById(submissionId);
+    if (!submission) {
+      throw new Error('Submission not found');
+    }
+
+    if (submission.status !== 'PENDING_REVIEW') {
+      throw new Error('Only pending submissions can be approved');
+    }
+
+    return await this.submissionRepo.update(submissionId, {
+      status: 'APPROVED',
+      approvedBy: approvedByUserId,
+      approvedAt: new Date(),
+    });
+  }
+
+  async rejectSubmission(submissionId: string, approvedByUserId: string, rejectionReason: string) {
+    const submission = await this.submissionRepo.findById(submissionId);
+    if (!submission) {
+      throw new Error('Submission not found');
+    }
+
+    if (submission.status !== 'PENDING_REVIEW') {
+      throw new Error('Only pending submissions can be rejected');
+    }
+
+    return await this.submissionRepo.update(submissionId, {
+      status: 'REJECTED',
+      rejectionReason,
+      approvedBy: approvedByUserId,
+      approvedAt: new Date(),
+    });
   }
 }
 
