@@ -63,6 +63,25 @@
       "item": [
         {
           "name": "Auth Service Health",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Auth Service is running', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Response has correct structure', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('status');",
+                  "});",
+                  "",
+                  "console.log('✅ Auth Service health check passed');"
+                ]
+              }
+            }
+          ],
           "request": {
             "method": "GET",
             "header": [],
@@ -75,6 +94,25 @@
         },
         {
           "name": "Profile Service Health",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Profile Service is running', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Response has correct structure', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('status');",
+                  "});",
+                  "",
+                  "console.log('✅ Profile Service health check passed');"
+                ]
+              }
+            }
+          ],
           "request": {
             "method": "GET",
             "header": [],
@@ -87,6 +125,32 @@
         },
         {
           "name": "Backend SIKP Health",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Backend SIKP is running', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Response has correct structure', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('status');",
+                  "    pm.expect(jsonData.status).to.eql('healthy');",
+                  "});",
+                  "",
+                  "pm.test('SSO is enabled', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('ssoEnabled');",
+                  "    pm.expect(jsonData.ssoEnabled).to.be.true;",
+                  "});",
+                  "",
+                  "console.log('✅ Backend SIKP health check passed');"
+                ]
+              }
+            }
+          ],
           "request": {
             "method": "GET",
             "header": [],
@@ -109,8 +173,27 @@
               "listen": "test",
               "script": {
                 "exec": [
+                  "pm.test('Registration successful', function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([201, 409]);",
+                  "});",
+                  "",
                   "if (pm.response.code === 201) {",
-                  "    console.log('Mahasiswa 1 registered successfully');",
+                  "    pm.test('Response has success true', function () {",
+                  "        const jsonData = pm.response.json();",
+                  "        pm.expect(jsonData.success).to.be.true;",
+                  "    });",
+                  "    ",
+                  "    pm.test('User data is present', function () {",
+                  "        const jsonData = pm.response.json();",
+                  "        pm.expect(jsonData.data).to.have.property('user');",
+                  "        pm.expect(jsonData.data.user).to.have.property('id');",
+                  "        pm.expect(jsonData.data.user).to.have.property('email');",
+                  "        pm.expect(jsonData.data.user.email).to.eql('mahasiswa1@student.unsri.ac.id');",
+                  "    });",
+                  "    ",
+                  "    console.log('✅ Mahasiswa 1 registered successfully');",
+                  "} else if (pm.response.code === 409) {",
+                  "    console.log('⚠️ Mahasiswa 1 already exists (409)');",
                   "}"
                 ]
               }
@@ -142,8 +225,24 @@
               "listen": "test",
               "script": {
                 "exec": [
+                  "pm.test('Registration successful', function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([201, 409]);",
+                  "});",
+                  "",
                   "if (pm.response.code === 201) {",
-                  "    console.log('Mahasiswa 2 registered successfully');",
+                  "    pm.test('Response has success true', function () {",
+                  "        const jsonData = pm.response.json();",
+                  "        pm.expect(jsonData.success).to.be.true;",
+                  "    });",
+                  "    ",
+                  "    pm.test('User data is present', function () {",
+                  "        const jsonData = pm.response.json();",
+                  "        pm.expect(jsonData.data.user.email).to.eql('mahasiswa2@student.unsri.ac.id');",
+                  "    });",
+                  "    ",
+                  "    console.log('✅ Mahasiswa 2 registered successfully');",
+                  "} else if (pm.response.code === 409) {",
+                  "    console.log('⚠️ Mahasiswa 2 already exists (409)');",
                   "}"
                 ]
               }
@@ -175,8 +274,24 @@
               "listen": "test",
               "script": {
                 "exec": [
+                  "pm.test('Registration successful', function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([201, 409]);",
+                  "});",
+                  "",
                   "if (pm.response.code === 201) {",
-                  "    console.log('Admin registered successfully');",
+                  "    pm.test('Response has success true', function () {",
+                  "        const jsonData = pm.response.json();",
+                  "        pm.expect(jsonData.success).to.be.true;",
+                  "    });",
+                  "    ",
+                  "    pm.test('Admin user has correct role', function () {",
+                  "        const jsonData = pm.response.json();",
+                  "        pm.expect(jsonData.data.user.roles).to.include('admin');",
+                  "    });",
+                  "    ",
+                  "    console.log('✅ Admin registered successfully');",
+                  "} else if (pm.response.code === 409) {",
+                  "    console.log('⚠️ Admin already exists (409)');",
                   "}"
                 ]
               }
@@ -208,11 +323,43 @@
               "listen": "test",
               "script": {
                 "exec": [
+                  "pm.test('Login successful', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Response has access token', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.success).to.be.true;",
+                  "    pm.expect(jsonData.data).to.have.property('accessToken');",
+                  "    pm.expect(jsonData.data.accessToken).to.be.a('string');",
+                  "    pm.expect(jsonData.data.accessToken.length).to.be.greaterThan(0);",
+                  "});",
+                  "",
+                  "pm.test('Token has correct format', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    const token = jsonData.data.accessToken;",
+                  "    const parts = token.split('.');",
+                  "    pm.expect(parts.length).to.eql(3);",
+                  "});",
+                  "",
+                  "pm.test('Response has user data', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.data).to.have.property('user');",
+                  "    pm.expect(jsonData.data.user).to.have.property('email');",
+                  "    pm.expect(jsonData.data.user).to.have.property('roles');",
+                  "});",
+                  "",
+                  "pm.test('Expires in is present', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.data).to.have.property('expiresIn');",
+                  "    pm.expect(jsonData.data.expiresIn).to.be.a('number');",
+                  "});",
+                  "",
                   "if (pm.response.code === 200) {",
-                  "    var jsonData = pm.response.json();",
-                  "    pm.collectionVariables.set('mahasiswaToken', jsonData.data.access_token);",
-                  "    pm.collectionVariables.set('accessToken', jsonData.data.access_token);",
-                  "    console.log('Mahasiswa 1 token saved');",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.collectionVariables.set('mahasiswaToken', jsonData.data.accessToken);",
+                  "    pm.collectionVariables.set('accessToken', jsonData.data.accessToken);",
+                  "    console.log('✅ Mahasiswa 1 logged in - Token saved');",
                   "}"
                 ]
               }
@@ -244,10 +391,25 @@
               "listen": "test",
               "script": {
                 "exec": [
+                  "pm.test('Login successful', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Response has access token', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.data).to.have.property('accessToken');",
+                  "    pm.expect(jsonData.data.accessToken).to.be.a('string');",
+                  "});",
+                  "",
+                  "pm.test('Response has user data', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.data.user.email).to.eql('mahasiswa2@student.unsri.ac.id');",
+                  "});",
+                  "",
                   "if (pm.response.code === 200) {",
-                  "    var jsonData = pm.response.json();",
-                  "    pm.collectionVariables.set('mahasiswa2Token', jsonData.data.access_token);",
-                  "    console.log('Mahasiswa 2 token saved');",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.collectionVariables.set('mahasiswa2Token', jsonData.data.accessToken);",
+                  "    console.log('✅ Mahasiswa 2 logged in - Token saved');",
                   "}"
                 ]
               }
@@ -279,10 +441,25 @@
               "listen": "test",
               "script": {
                 "exec": [
+                  "pm.test('Login successful', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Response has access token', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.data).to.have.property('accessToken');",
+                  "    pm.expect(jsonData.data.accessToken).to.be.a('string');",
+                  "});",
+                  "",
+                  "pm.test('Admin has correct role', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.data.user.roles).to.include('admin');",
+                  "});",
+                  "",
                   "if (pm.response.code === 200) {",
-                  "    var jsonData = pm.response.json();",
-                  "    pm.collectionVariables.set('adminToken', jsonData.data.access_token);",
-                  "    console.log('Admin token saved');",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.collectionVariables.set('adminToken', jsonData.data.accessToken);",
+                  "    console.log('✅ Admin logged in - Token saved');",
                   "}"
                 ]
               }
@@ -314,6 +491,57 @@
       "item": [
         {
           "name": "Get My Info (Mahasiswa)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Request successful', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Response structure is correct', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.success).to.be.true;",
+                  "    pm.expect(jsonData.data).to.have.property('user');",
+                  "    pm.expect(jsonData.data).to.have.property('profiles');",
+                  "});",
+                  "",
+                  "pm.test('User info from JWT is present', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    const user = jsonData.data.user;",
+                  "    pm.expect(user).to.have.property('id');",
+                  "    pm.expect(user).to.have.property('email');",
+                  "    pm.expect(user).to.have.property('roles');",
+                  "    pm.expect(user.roles).to.be.an('array');",
+                  "});",
+                  "",
+                  "pm.test('User has mahasiswa role', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.data.user.roles).to.include('mahasiswa');",
+                  "});",
+                  "",
+                  "pm.test('Profiles from Profile Service present', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.data).to.have.property('profiles');",
+                  "    const profileData = jsonData.data.profiles;",
+                  "    pm.expect(profileData).to.have.property('profiles');",
+                  "    pm.expect(profileData.profiles).to.be.an('array');",
+                  "    ",
+                  "    if (profileData.profiles.length > 0) {",
+                  "        const profile = profileData.profiles[0];",
+                  "        pm.expect(profile).to.have.property('type');",
+                  "        pm.expect(profile.type).to.eql('MAHASISWA');",
+                  "        pm.expect(profile).to.have.property('mahasiswa');",
+                  "        pm.expect(profile.mahasiswa).to.have.property('nim');",
+                  "    }",
+                  "});",
+                  "",
+                  "console.log('✅ User info retrieved successfully');"
+                ]
+              }
+            }
+          ],
           "request": {
             "method": "GET",
             "header": [
@@ -341,11 +569,52 @@
               "listen": "test",
               "script": {
                 "exec": [
+                  "// ✅ Accept both 201 (created) and 409 (conflict - team already exists)",
+                  "pm.test('Team creation or already exists', function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([201, 409]);",
+                  "});",
+                  "",
                   "if (pm.response.code === 201) {",
-                  "    var jsonData = pm.response.json();",
+                  "    pm.test('Response has success true', function () {",
+                  "        const jsonData = pm.response.json();",
+                  "        pm.expect(jsonData.success).to.be.true;",
+                  "    });",
+                  "    ",
+                  "    pm.test('Team data structure is correct', function () {",
+                  "        const jsonData = pm.response.json();",
+                  "        pm.expect(jsonData.data).to.have.property('id');",
+                  "        pm.expect(jsonData.data).to.have.property('code');",
+                  "        pm.expect(jsonData.data).to.have.property('leaderId');",
+                  "        pm.expect(jsonData.data).to.have.property('status');",
+                  "    });",
+                  "    ",
+                  "    pm.test('Team code is generated', function () {",
+                  "        const jsonData = pm.response.json();",
+                  "        pm.expect(jsonData.data.code).to.match(/^[A-Z0-9]+$/);",
+                  "    });",
+                  "    ",
+                  "    pm.test('Initial status is PENDING', function () {",
+                  "        const jsonData = pm.response.json();",
+                  "        pm.expect(jsonData.data.status).to.eql('PENDING');",
+                  "    });",
+                  "    ",
+                  "    const jsonData = pm.response.json();",
                   "    pm.collectionVariables.set('teamId', jsonData.data.id);",
-                  "    console.log('Team created with ID:', jsonData.data.id);",
-                  "    console.log('Team code:', jsonData.data.code);",
+                  "    console.log('✅ Team created with ID:', jsonData.data.id);",
+                  "    console.log('✅ Team code:', jsonData.data.code);",
+                  "} else if (pm.response.code === 409) {",
+                  "    // Team already exists - this is expected and OK",
+                  "    pm.test('Conflict response structure', function () {",
+                  "        const jsonData = pm.response.json();",
+                  "        pm.expect(jsonData.success).to.be.false;",
+                  "        pm.expect(jsonData.message).to.be.a('string');",
+                  "        pm.expect(jsonData.message.toLowerCase()).to.satisfy(function(msg) {",
+                  "            return msg.includes('already') || msg.includes('sudah');",
+                  "        }, 'Message should indicate team already exists');",
+                  "    });",
+                  "    ",
+                  "    console.log('⚠️ Team already exists (409 Conflict) - This is expected');",
+                  "    console.log('ℹ️ Will retrieve teamId from \"Get My Team\" request');",
                   "}"
                 ]
               }
@@ -376,6 +645,48 @@
         },
         {
           "name": "Get My Team",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Request successful', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Team data is present', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.success).to.be.true;",
+                  "    pm.expect(jsonData.data).to.have.property('id');",
+                  "    pm.expect(jsonData.data).to.have.property('code');",
+                  "    pm.expect(jsonData.data).to.have.property('members');",
+                  "});",
+                  "",
+                  "pm.test('Team has members array', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.data.members).to.be.an('array');",
+                  "    pm.expect(jsonData.data.members.length).to.be.greaterThan(0);",
+                  "});",
+                  "",
+                  "pm.test('Leader is in members', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    const leaderMember = jsonData.data.members.find(m => m.role === 'KETUA');",
+                  "    pm.expect(leaderMember).to.not.be.undefined;",
+                  "    pm.expect(leaderMember.status).to.eql('ACCEPTED');",
+                  "});",
+                  "",
+                  "// Always save teamId from this response as fallback",
+                  "const jsonData = pm.response.json();",
+                  "if (jsonData.data && jsonData.data.id) {",
+                  "    pm.collectionVariables.set('teamId', jsonData.data.id);",
+                  "    console.log('✅ Team retrieved - TeamId saved:', jsonData.data.id);",
+                  "}",
+                  "",
+                  "console.log('✅ Team retrieved successfully');"
+                ]
+              }
+            }
+          ],
           "request": {
             "method": "GET",
             "header": [
@@ -398,10 +709,37 @@
               "listen": "test",
               "script": {
                 "exec": [
+                  "pm.test('Invitation sent successfully', function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "",
+                  "pm.test('Response has success true', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.success).to.be.true;",
+                  "});",
+                  "",
+                  "pm.test('Invitation data is present', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.data).to.have.property('id');",
+                  "    pm.expect(jsonData.data).to.have.property('teamId');",
+                  "    pm.expect(jsonData.data).to.have.property('userId');",
+                  "    pm.expect(jsonData.data).to.have.property('invitationStatus');",
+                  "});",
+                  "",
+                  "pm.test('Initial status is PENDING', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.data.invitationStatus).to.eql('PENDING');",
+                  "});",
+                  "",
+                  "pm.test('Role is ANGGOTA', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.data.role).to.eql('ANGGOTA');",
+                  "});",
+                  "",
                   "if (pm.response.code === 201) {",
-                  "    var jsonData = pm.response.json();",
+                  "    const jsonData = pm.response.json();",
                   "    pm.collectionVariables.set('invitationId', jsonData.data.id);",
-                  "    console.log('Invitation sent with ID:', jsonData.data.id);",
+                  "    console.log('✅ Invitation sent with ID:', jsonData.data.id);",
                   "}"
                 ]
               }
@@ -432,6 +770,36 @@
         },
         {
           "name": "Get My Invitations (Member)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Request successful', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Response has invitations array', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.success).to.be.true;",
+                  "    pm.expect(jsonData.data).to.be.an('array');",
+                  "});",
+                  "",
+                  "pm.test('Invitation has team info', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    if (jsonData.data.length > 0) {",
+                  "        const invitation = jsonData.data[0];",
+                  "        pm.expect(invitation).to.have.property('id');",
+                  "        pm.expect(invitation).to.have.property('team');",
+                  "        pm.expect(invitation).to.have.property('status');",
+                  "    }",
+                  "});",
+                  "",
+                  "console.log('✅ Invitations retrieved successfully');"
+                ]
+              }
+            }
+          ],
           "request": {
             "method": "GET",
             "header": [
@@ -449,6 +817,30 @@
         },
         {
           "name": "Accept Invitation",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Invitation accepted successfully', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Response has success true', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.success).to.be.true;",
+                  "});",
+                  "",
+                  "pm.test('Status updated to ACCEPTED', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.data.status).to.eql('ACCEPTED');",
+                  "});",
+                  "",
+                  "console.log('✅ Invitation accepted');"
+                ]
+              }
+            }
+          ],
           "request": {
             "method": "PATCH",
             "header": [
@@ -474,6 +866,25 @@
         },
         {
           "name": "Reject Invitation",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Invitation rejected successfully', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Status updated to REJECTED', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.data.status).to.eql('REJECTED');",
+                  "});",
+                  "",
+                  "console.log('✅ Invitation rejected');"
+                ]
+              }
+            }
+          ],
           "request": {
             "method": "PATCH",
             "header": [
@@ -499,6 +910,26 @@
         },
         {
           "name": "Leave Team",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Left team successfully', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Response confirms leaving', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.success).to.be.true;",
+                  "    pm.expect(jsonData.data).to.have.property('teamId');",
+                  "});",
+                  "",
+                  "console.log('✅ Successfully left team');"
+                ]
+              }
+            }
+          ],
           "request": {
             "method": "DELETE",
             "header": [
@@ -516,6 +947,25 @@
         },
         {
           "name": "Cancel Invitation (Leader)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Invitation cancelled successfully', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Response confirms cancellation', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.success).to.be.true;",
+                  "});",
+                  "",
+                  "console.log('✅ Invitation cancelled');"
+                ]
+              }
+            }
+          ],
           "request": {
             "method": "DELETE",
             "header": [
@@ -543,10 +993,37 @@
               "listen": "test",
               "script": {
                 "exec": [
+                  "pm.test('Submission created successfully', function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "",
+                  "pm.test('Response has success true', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.success).to.be.true;",
+                  "});",
+                  "",
+                  "pm.test('Submission data structure is correct', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.data).to.have.property('id');",
+                  "    pm.expect(jsonData.data).to.have.property('teamId');",
+                  "    pm.expect(jsonData.data).to.have.property('companyName');",
+                  "    pm.expect(jsonData.data).to.have.property('status');",
+                  "});",
+                  "",
+                  "pm.test('Initial status is DRAFT', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.data.status).to.eql('DRAFT');",
+                  "});",
+                  "",
+                  "pm.test('Company name matches', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.data.companyName).to.eql('PT Telkom Indonesia');",
+                  "});",
+                  "",
                   "if (pm.response.code === 201) {",
-                  "    var jsonData = pm.response.json();",
+                  "    const jsonData = pm.response.json();",
                   "    pm.collectionVariables.set('submissionId', jsonData.data.id);",
-                  "    console.log('Submission created with ID:', jsonData.data.id);",
+                  "    console.log('✅ Submission created with ID:', jsonData.data.id);",
                   "}"
                 ]
               }
@@ -577,6 +1054,26 @@
         },
         {
           "name": "Get My Submissions",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Request successful', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Response has submissions array', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.success).to.be.true;",
+                  "    pm.expect(jsonData.data).to.be.an('array');",
+                  "});",
+                  "",
+                  "console.log('✅ Submissions retrieved');"
+                ]
+              }
+            }
+          ],
           "request": {
             "method": "GET",
             "header": [
@@ -594,6 +1091,27 @@
         },
         {
           "name": "Get Submission by ID",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Request successful', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Submission data is complete', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.data).to.have.property('id');",
+                  "    pm.expect(jsonData.data).to.have.property('companyName');",
+                  "    pm.expect(jsonData.data).to.have.property('status');",
+                  "});",
+                  "",
+                  "console.log('✅ Submission detail retrieved');"
+                ]
+              }
+            }
+          ],
           "request": {
             "method": "GET",
             "header": [
@@ -611,6 +1129,25 @@
         },
         {
           "name": "Update Submission",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Submission updated successfully', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Updated data is reflected', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.data.companyPhone).to.eql('0711-999888');",
+                  "});",
+                  "",
+                  "console.log('✅ Submission updated');"
+                ]
+              }
+            }
+          ],
           "request": {
             "method": "PATCH",
             "header": [
@@ -636,6 +1173,25 @@
         },
         {
           "name": "Submit for Review",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Submission submitted successfully', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Status changed to MENUNGGU', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.data.status).to.eql('MENUNGGU');",
+                  "});",
+                  "",
+                  "console.log('✅ Submission sent for review');"
+                ]
+              }
+            }
+          ],
           "request": {
             "method": "POST",
             "header": [
@@ -658,6 +1214,35 @@
       "item": [
         {
           "name": "Get All Submissions",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Request successful', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Response has submissions array', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.success).to.be.true;",
+                  "    pm.expect(jsonData.data).to.be.an('array');",
+                  "});",
+                  "",
+                  "pm.test('Submissions have team info', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    if (jsonData.data.length > 0) {",
+                  "        const submission = jsonData.data[0];",
+                  "        pm.expect(submission).to.have.property('team');",
+                  "        pm.expect(submission).to.have.property('companyName');",
+                  "    }",
+                  "});",
+                  "",
+                  "console.log('✅ All submissions retrieved');"
+                ]
+              }
+            }
+          ],
           "request": {
             "method": "GET",
             "header": [
@@ -675,6 +1260,29 @@
         },
         {
           "name": "Get Submissions by Status",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Request successful', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('All submissions have MENUNGGU status', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    if (jsonData.data.length > 0) {",
+                  "        jsonData.data.forEach(submission => {",
+                  "            pm.expect(submission.status).to.eql('MENUNGGU');",
+                  "        });",
+                  "    }",
+                  "});",
+                  "",
+                  "console.log('✅ Filtered submissions retrieved');"
+                ]
+              }
+            }
+          ],
           "request": {
             "method": "GET",
             "header": [
@@ -692,6 +1300,27 @@
         },
         {
           "name": "Get Submission Detail",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Request successful', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Submission detail is complete', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.data).to.have.property('id');",
+                  "    pm.expect(jsonData.data).to.have.property('team');",
+                  "    pm.expect(jsonData.data).to.have.property('companyName');",
+                  "});",
+                  "",
+                  "console.log('✅ Submission detail retrieved');"
+                ]
+              }
+            }
+          ],
           "request": {
             "method": "GET",
             "header": [
@@ -709,6 +1338,31 @@
         },
         {
           "name": "Approve Submission",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Submission approved successfully', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Status changed to DITERIMA', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.data.status).to.eql('DITERIMA');",
+                  "});",
+                  "",
+                  "pm.test('Approved by and at fields are set', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.data).to.have.property('approvedBy');",
+                  "    pm.expect(jsonData.data).to.have.property('approvedAt');",
+                  "});",
+                  "",
+                  "console.log('✅ Submission approved');"
+                ]
+              }
+            }
+          ],
           "request": {
             "method": "POST",
             "header": [
@@ -726,6 +1380,30 @@
         },
         {
           "name": "Reject Submission",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Submission rejected successfully', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Status changed to DITOLAK', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.data.status).to.eql('DITOLAK');",
+                  "});",
+                  "",
+                  "pm.test('Rejection reason is saved', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.data).to.have.property('rejectionReason');",
+                  "});",
+                  "",
+                  "console.log('✅ Submission rejected');"
+                ]
+              }
+            }
+          ],
           "request": {
             "method": "POST",
             "header": [
@@ -751,6 +1429,25 @@
         },
         {
           "name": "Generate Letter",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Letter generated successfully', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Letter URL is provided', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.data).to.have.property('letterUrl');",
+                  "});",
+                  "",
+                  "console.log('✅ Letter generated');"
+                ]
+              }
+            }
+          ],
           "request": {
             "method": "POST",
             "header": [
@@ -768,6 +1465,31 @@
         },
         {
           "name": "Get Statistics",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Request successful', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Statistics data is present', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.data).to.have.property('total');",
+                  "    pm.expect(jsonData.data).to.have.property('byStatus');",
+                  "});",
+                  "",
+                  "pm.test('Status counts are numbers', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.data.total).to.be.a('number');",
+                  "});",
+                  "",
+                  "console.log('✅ Statistics retrieved');"
+                ]
+              }
+            }
+          ],
           "request": {
             "method": "GET",
             "header": [

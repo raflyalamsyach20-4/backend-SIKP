@@ -1,6 +1,7 @@
 import { TeamRepository } from '@/repositories/team.repository';
 import { ProfileServiceClient } from '@/utils/profile-service';
 import { generateId, generateTeamCode } from '@/utils/helpers';
+import { HTTPException } from 'hono/http-exception';
 
 export class TeamService {
   constructor(
@@ -9,35 +10,29 @@ export class TeamService {
   ) {}
 
   async createTeam(leaderId: string, accessToken: string) {
-    console.log(`[createTeam] 🚀 Starting team creation for leaderId=${leaderId}`);
-    
     try {
       // Verify leader is mahasiswa through Profile Service
       const profileResponse = await this.profileService.getMahasiswaByAuthUserId(leaderId, accessToken);
       
-      if (!profileResponse.success || !profileResponse.data) {
-        console.error(`[createTeam] ❌ User is not a mahasiswa or profile not found`);
-        throw new Error('Only students (mahasiswa) can create teams');
+      // Profile Service returns array, get first item
+      if (!profileResponse.success || !profileResponse.data || !Array.isArray(profileResponse.data) || profileResponse.data.length === 0) {
+        throw new HTTPException(403, { message: 'Only students (mahasiswa) can create teams' });
       }
 
-      console.log(`[createTeam] ✅ User verified: ${profileResponse.data.name} (NIM: ${profileResponse.data.nim})`);
+      const mahasiswaProfile = profileResponse.data[0];
 
       // Check if user already has a team (as leader)
       const existingTeamsAsLeader = await this.teamRepo.findByLeaderId(leaderId);
       if (existingTeamsAsLeader.length > 0) {
-        console.error(`[createTeam] ❌ User already has ${existingTeamsAsLeader.length} team(s)`);
-        throw new Error('You already have a team. Each student can only create one team');
+        throw new HTTPException(409, { message: 'You already have a team. Each student can only create one team' });
       }
 
       // Check if user is already a member of another team (ACCEPTED status)
       const existingMemberships = await this.teamRepo.findMembershipByUserId(leaderId);
       const acceptedMembership = existingMemberships.find(m => m.invitationStatus === 'ACCEPTED');
       if (acceptedMembership) {
-        console.error(`[createTeam] ❌ User already member of team: ${acceptedMembership.teamId}`);
-        throw new Error('You are already a member of another team. Each student can only join one team');
+        throw new HTTPException(409, { message: 'You are already a member of another team. Each student can only join one team' });
       }
-
-      console.log(`[createTeam] ✅ Validation passed, creating team...`);
 
       // Create team with auto-generated code
       const team = await this.teamRepo.create({
@@ -46,8 +41,6 @@ export class TeamService {
         leaderId,
         status: 'PENDING',
       });
-
-      console.log(`[createTeam] ✅ Team created: ${team.id} (${team.code})`);
 
       // Add leader as member with ACCEPTED status
       try {
@@ -59,28 +52,25 @@ export class TeamService {
           invitationStatus: 'ACCEPTED',
           invitedBy: null,
         });
-        
-        console.log(`[createTeam] ✅ Leader added as member successfully`);
       } catch (memberError: any) {
-        console.error(`[createTeam] ❌ Failed to add leader as member:`, memberError);
-        
         // Rollback: Delete the team if adding member fails
         try {
           await this.teamRepo.deleteTeam(team.id);
-          console.log(`[createTeam] 🔄 Team rolled back: ${team.id}`);
         } catch (rollbackError) {
-          console.error(`[createTeam] ⚠️ Rollback failed:`, rollbackError);
+          // Silent rollback failure
         }
         
-        throw new Error(`Failed to add leader to team: ${memberError.message}`);
+        throw new HTTPException(400, { message: `Failed to add leader to team: ${memberError.message}` });
       }
 
-      console.log(`[createTeam] ✅ Team creation completed: ${team.code}`);
       return team;
       
     } catch (error: any) {
-      console.error(`[createTeam] ❌ Error creating team:`, error);
-      throw new Error(error instanceof Error ? error.message : 'Failed to create team');
+      // Re-throw HTTPException as-is
+      if (error instanceof HTTPException) {
+        throw error;
+      }
+      throw new HTTPException(400, { message: error instanceof Error ? error.message : 'Failed to create team' });
     }
   }
 
@@ -283,7 +273,12 @@ export class TeamService {
       throw new Error('Mahasiswa with this NIM not found');
     }
 
-    const memberId = memberProfile.data.authUserId;
+    // Profile Service returns nested structure: data.profile.authUserId
+    const memberId = (memberProfile.data as any).profile?.authUserId || memberProfile.data.authUserId;
+    
+    if (!memberId) {
+      throw new Error('Invalid profile data: authUserId not found');
+    }
 
     // Check if member is already in the team
     const existingMember = await this.teamRepo.findMemberByTeamAndUser(teamId, memberId);
@@ -661,32 +656,13 @@ export class TeamService {
           return null;
         }
 
-        // ✅ Get inviter info from Profile Service
-        let inviterData = null;
-        if (inv.invitedBy) {
-          try {
-            const inviterResponse = await this.profileService.getMahasiswaByAuthUserId(inv.invitedBy, accessToken);
-            if (inviterResponse.success && inviterResponse.data) {
-              inviterData = {
-                id: inviterResponse.data.authUserId,
-                nim: inviterResponse.data.nim,
-                name: inviterResponse.data.name,
-                email: inviterResponse.data.email || '',
-              };
-              console.log(`[getMyInvitations] ✅ Inviter found: ${inviterData.name} (${inviterData.nim})`);
-            } else {
-              console.warn(`[getMyInvitations] ⚠️ Inviter profile not found for userId=${inv.invitedBy}`);
-            }
-          } catch (error) {
-            console.error(`[getMyInvitations] Error fetching inviter profile for userId=${inv.invitedBy}:`, error);
-          }
-        } else {
-          console.warn(`[getMyInvitations] ⚠️ No invitedBy field for invitation ${inv.id}`);
-        }
+        // ⚠️ NOTE: We don't fetch inviter profile because Profile Service 
+        // doesn't allow users to access other users' data (ownership only)
+        // Frontend can show "Invited by team leader" from team data
 
         return {
           id: inv.id,
-          teamId: inv.teamId,  // ✅ CRITICAL: Include teamId
+          teamId: inv.teamId,
           userId: inv.userId,
           status: inv.invitationStatus,
           invitedBy: inv.invitedBy,
@@ -695,9 +671,8 @@ export class TeamService {
           team: {
             id: team.id,
             code: team.code,
-            name: team.code, // Using code as name since teams table doesn't have name
+            name: team.code,
           },
-          inviter: inviterData,  // ✅ Will be null if inviter not found, or object with data
         };
       })
     );

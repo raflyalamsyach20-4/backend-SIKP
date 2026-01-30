@@ -61,6 +61,7 @@ app.get('/', (c) => {
 app.get('/health', (c) => {
   return c.json({
     status: 'healthy',
+    ssoEnabled: true,
     timestamp: new Date().toISOString(),
   });
 });

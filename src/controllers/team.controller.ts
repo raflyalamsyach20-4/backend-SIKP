@@ -26,14 +26,10 @@ export class TeamController {
         return c.json({ error: 'Unauthorized', message: 'No token provided' }, 401);
       }
 
-      console.log(`[TeamController.createTeam] Request from userId=${auth.userId}`);
-
       const team = await this.teamService.createTeam(auth.userId, token);
 
-      console.log(`[TeamController.createTeam] ✅ Success: ${team.code}`);
       return c.json(createResponse(true, 'Team created successfully', team), 201);
     } catch (error: any) {
-      console.error(`[TeamController.createTeam] ❌ Error:`, error);
       return handleError(c, error, 'Failed to create team');
     }
   };

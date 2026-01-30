@@ -1,4 +1,5 @@
 import { Context } from 'hono';
+import { HTTPException } from 'hono/http-exception';
 import type { ApiResponse } from '@/types';
 
 export const createResponse = <T = any>(
@@ -16,6 +17,13 @@ export const createResponse = <T = any>(
 export const handleError = (c: Context, error: any, defaultMessage: string = 'Internal server error') => {
   console.error('Error:', error);
   
+  // Handle HTTPException from Hono (has 'status' property)
+  if (error instanceof HTTPException) {
+    const message = error.message || defaultMessage;
+    return c.json(createResponse(false, message), error.status);
+  }
+  
+  // Handle custom errors with statusCode property
   const message = error.message || defaultMessage;
   const statusCode = error.statusCode || 500;
   
