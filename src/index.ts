@@ -7,6 +7,7 @@ import { createDbClient } from '@/db';
 import { UserRepository } from '@/repositories/user.repository';
 import { TeamRepository } from '@/repositories/team.repository';
 import { SubmissionRepository } from '@/repositories/submission.repository';
+import { TemplateRepository } from '@/repositories/template.repository';
 
 // Services
 import { AuthService } from '@/services/auth.service';
@@ -16,18 +17,24 @@ import { AdminService } from '@/services/admin.service';
 import { StorageService } from '@/services/storage.service';
 import { MockR2Bucket } from '@/services/mock-r2-bucket';
 import { LetterService } from '@/services/letter.service';
+import { TemplateService } from '@/services/template.service';
 
 // Controllers
 import { AuthController } from '@/controllers/auth.controller';
 import { TeamController } from '@/controllers/team.controller';
 import { SubmissionController } from '@/controllers/submission.controller';
 import { AdminController } from '@/controllers/admin.controller';
+import { TemplateController } from '@/controllers/template.controller';
+
+// Middlewares (MOVED TO TOP - must be imported before use)
+import { authMiddleware, mahasiswaOnly, adminOnly } from '@/middlewares/auth.middleware';
 
 // Routes
 import { createAuthRoutes } from '@/routes/auth.route';
 import { createTeamRoutes } from '@/routes/team.route';
 import { createSubmissionRoutes } from '@/routes/submission.route';
 import { createAdminRoutes } from '@/routes/admin.route';
+import { createTemplateRoutes } from '@/routes/template.route';
 
 type Bindings = {
   DATABASE_URL: string;
@@ -101,9 +108,6 @@ app.use('/api/*', async (c, next) => {
 
   await next();
 });
-
-// Import middlewares
-import { authMiddleware, mahasiswaOnly, adminOnly } from '@/middlewares/auth.middleware';
 
 // Mount routes
 app.route('/api/auth', (() => {
@@ -234,6 +238,46 @@ app.route('/api/admin', (() => {
   route.post('/submissions/:submissionId/reject', async (c) => getController(c).rejectSubmission(c));
   route.post('/submissions/:submissionId/generate-letter', async (c) => getController(c).generateLetter(c));
   route.get('/statistics', async (c) => getController(c).getStatistics(c));
+
+  return route;
+})());
+
+app.route('/api/templates', (() => {
+  const route = new Hono<{ Bindings: Bindings }>();
+  
+  // Apply auth middleware to all template routes
+  route.use('*', authMiddleware);
+  
+  const getController = (c: any) => {
+    const db = createDbClient(c.env.DATABASE_URL);
+    const useMockR2Env = (c.env as any).USE_MOCK_R2;
+    const useMockR2 = useMockR2Env === true || useMockR2Env === 'true';
+    const r2BucketOrMock = useMockR2 ? new MockR2Bucket('document-sikp-mi') : c.env.R2_BUCKET;
+    
+    return new TemplateController(
+      db, 
+      {
+        R2Bucket: r2BucketOrMock as any,
+        s3Client: undefined,
+      },
+      c.env.R2_DOMAIN,
+      c.env.R2_BUCKET_NAME
+    );
+  };
+
+  // Public read routes (specific paths first)
+  route.get('/active', async (c) => getController(c).getActive(c));
+  route.get('/', async (c) => getController(c).getAll(c));
+  
+  // Admin-only write routes
+  route.post('/', adminOnly, async (c) => getController(c).create(c));
+  route.put('/:id', adminOnly, async (c) => getController(c).update(c));
+  route.delete('/:id', adminOnly, async (c) => getController(c).delete(c));
+  route.patch('/:id/toggle-active', adminOnly, async (c) => getController(c).toggleActive(c));
+  
+  // Public read routes (by ID and download)
+  route.get('/:id/download', async (c) => getController(c).download(c));
+  route.get('/:id', async (c) => getController(c).getById(c));
 
   return route;
 })());

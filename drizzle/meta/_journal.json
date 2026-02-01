@@ -64,6 +64,13 @@
       "when": 1769272653744,
       "tag": "0008_even_morbius",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "5",
+      "when": 1769954868065,
+      "tag": "0009_many_arachne",
+      "breakpoints": true
     }
   ]
 }

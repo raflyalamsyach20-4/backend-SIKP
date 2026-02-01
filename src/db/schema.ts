@@ -1,4 +1,4 @@
-import { pgTable, text, timestamp, boolean, pgEnum, varchar, integer, uniqueIndex } from 'drizzle-orm/pg-core';
+import { pgTable, text, timestamp, boolean, pgEnum, varchar, integer, uniqueIndex, bigint, json, index } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
 
 // Enums
@@ -126,6 +126,32 @@ export const generatedLetters = pgTable('generated_letters', {
   createdAt: timestamp('created_at').defaultNow().notNull(),
 });
 
+// Templates Table
+export const templates = pgTable('templates', {
+  id: text('id').primaryKey(),
+  name: varchar('name', { length: 255 }).notNull(),
+  type: varchar('type', { length: 50 }).notNull(), // 'Template Only' atau 'Generate & Template'
+  description: text('description'),
+  fileName: varchar('file_name', { length: 255 }).notNull(),
+  fileUrl: text('file_url').notNull(),
+  fileSize: bigint('file_size', { mode: 'number' }).notNull(),
+  fileType: varchar('file_type', { length: 100 }).notNull(),
+  originalName: varchar('original_name', { length: 255 }).notNull(),
+  fields: json('fields'), // Array of TemplateField objects
+  version: integer('version').notNull().default(1),
+  isActive: boolean('is_active').notNull().default(true),
+  createdBy: text('created_by').notNull().references(() => users.id, { onDelete: 'restrict' }),
+  updatedBy: text('updated_by').references(() => users.id, { onDelete: 'set null' }),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (table) => {
+  return {
+    idxType: index('idx_templates_type').on(table.type),
+    idxIsActive: index('idx_templates_is_active').on(table.isActive),
+    idxCreatedAt: index('idx_templates_created_at').on(table.createdAt),
+  };
+});
+
 // Relations
 export const usersRelations = relations(users, ({ one, many }) => ({
   mahasiswaProfile: one(mahasiswa),
@@ -137,6 +163,8 @@ export const usersRelations = relations(users, ({ one, many }) => ({
   approvedSubmissions: many(submissions),
   uploadedDocuments: many(submissionDocuments),
   generatedLetters: many(generatedLetters),
+  createdTemplates: many(templates),
+  updatedTemplates: many(templates),
 }));
 
 export const mahasiswaRelations = relations(mahasiswa, ({ one }) => ({
@@ -222,6 +250,16 @@ export const generatedLettersRelations = relations(generatedLetters, ({ one }) =
   }),
   generator: one(users, {
     fields: [generatedLetters.generatedBy],
+    references: [users.id],
+  }),
+}));
+export const templatesRelations = relations(templates, ({ one }) => ({
+  creator: one(users, {
+    fields: [templates.createdBy],
+    references: [users.id],
+  }),
+  updater: one(users, {
+    fields: [templates.updatedBy],
     references: [users.id],
   }),
 }));
