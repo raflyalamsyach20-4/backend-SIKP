@@ -1,4 +1,4 @@
-import { pgTable, text, timestamp, boolean, pgEnum, varchar, integer, uniqueIndex, bigint, json, index } from 'drizzle-orm/pg-core';
+import { pgTable, text, timestamp, boolean, pgEnum, varchar, integer, uniqueIndex, bigint, json, index, date } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
 
 // Enums
@@ -82,13 +82,11 @@ export const submissions = pgTable('submissions', {
   companyName: varchar('company_name', { length: 255 }).notNull(),
   companyAddress: text('company_address').notNull(),
   division: varchar('division', { length: 255 }).notNull(),
-  companySupervisor: varchar('company_supervisor', { length: 255 }).notNull(),
-  startDate: timestamp('start_date').notNull(),
-  endDate: timestamp('end_date').notNull(),
+  startDate: date('start_date').notNull(),
+  endDate: date('end_date').notNull(),
   status: submissionStatusEnum('status').notNull().default('DRAFT'),
   rejectionReason: text('rejection_reason'),
   submittedAt: timestamp('submitted_at'),
-  approvedBy: text('approved_by').references(() => users.id),
   approvedAt: timestamp('approved_at'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
@@ -219,10 +217,6 @@ export const submissionsRelations = relations(submissions, ({ one, many }) => ({
   team: one(teams, {
     fields: [submissions.teamId],
     references: [teams.id],
-  }),
-  approver: one(users, {
-    fields: [submissions.approvedBy],
-    references: [users.id],
   }),
   documents: many(submissionDocuments),
   letters: many(generatedLetters),

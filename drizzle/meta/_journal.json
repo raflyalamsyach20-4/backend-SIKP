@@ -71,6 +71,27 @@
       "when": 1769954868065,
       "tag": "0009_many_arachne",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "5",
+      "when": 1770032661504,
+      "tag": "0010_massive_quentin_quire",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "5",
+      "when": 1770033126284,
+      "tag": "0011_drop_extra_submission_columns",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "5",
+      "when": 1770035821986,
+      "tag": "0012_high_eternity",
+      "breakpoints": true
     }
   ]
 }

@@ -18,7 +18,6 @@ export class SubmissionService {
       companyName: string;
       companyAddress: string;
       division: string;
-      companySupervisor: string;
       startDate: Date;
       endDate: Date;
     }
@@ -46,7 +45,6 @@ export class SubmissionService {
       companyName: data.companyName,
       companyAddress: data.companyAddress,
       division: data.division,
-      companySupervisor: data.companySupervisor,
       startDate: data.startDate,
       endDate: data.endDate,
       status: 'DRAFT',
@@ -60,7 +58,6 @@ export class SubmissionService {
     companyName?: string;
     companyAddress?: string;
     division?: string;
-    companySupervisor?: string;
     startDate?: Date;
     endDate?: Date;
   }) {
@@ -100,7 +97,7 @@ export class SubmissionService {
 
     // Validate required fields
     if (!submission.letterPurpose || !submission.companyName || !submission.companyAddress || 
-        !submission.division || !submission.companySupervisor || !submission.startDate || !submission.endDate) {
+        !submission.division || !submission.startDate || !submission.endDate) {
       throw new Error('All submission fields are required');
     }
 
