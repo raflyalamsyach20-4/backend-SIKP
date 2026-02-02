@@ -71,16 +71,12 @@ export interface Submission {
   teamId: string;
   companyName: string;
   companyAddress: string;
-  companyPhone: string | null;
-  companyEmail: string | null;
-  companySupervisor: string | null;
-  position: string | null;
+  division: string | null;
   startDate: Date | null;
   endDate: Date | null;
   description: string | null;
   status: SubmissionStatus;
   rejectionReason: string | null;
-  approvedBy: string | null;
   approvedAt: Date | null;
   submittedAt: Date | null;
   createdAt: Date;

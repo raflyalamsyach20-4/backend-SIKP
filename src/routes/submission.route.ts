@@ -12,6 +12,7 @@ export const createSubmissionRoutes = (submissionController: SubmissionControlle
   submission.post('/', submissionController.createSubmission);
   submission.get('/my-submissions', submissionController.getMySubmissions);
   submission.get('/:submissionId', submissionController.getSubmissionById);
+  submission.put('/:submissionId', submissionController.updateSubmission);
   submission.patch('/:submissionId', submissionController.updateSubmission);
   submission.post('/:submissionId/submit', submissionController.submitForReview);
   submission.post('/:submissionId/documents', submissionController.uploadDocument);

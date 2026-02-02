@@ -10,7 +10,6 @@ const createSubmissionSchema = z.object({
   companyName: z.string().min(1),
   companyAddress: z.string().min(1),
   division: z.string().min(1),
-  companySupervisor: z.string().min(1),
   startDate: z.string().datetime(),
   endDate: z.string().datetime(),
 });
@@ -20,7 +19,6 @@ const updateSubmissionSchema = z.object({
   companyName: z.string().optional(),
   companyAddress: z.string().optional(),
   division: z.string().optional(),
-  companySupervisor: z.string().optional(),
   startDate: z.string().optional(),
   endDate: z.string().optional(),
 });
@@ -58,7 +56,6 @@ export class SubmissionController {
           companyName: data.companyName,
           companyAddress: data.companyAddress,
           division: data.division,
-          companySupervisor: data.companySupervisor,
           startDate: new Date(data.startDate),
           endDate: new Date(data.endDate),
         }
