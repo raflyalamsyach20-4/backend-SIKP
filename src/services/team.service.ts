@@ -261,20 +261,14 @@ export class TeamService {
       throw err;
     }
 
-    // 3. Get all members and check if at least one accepted member exists (excluding leader)
+    // 3. Get all members (validation removed - team can be finalized with just the leader)
     const members = await this.teamRepo.findMembersByTeamId(teamId);
     const acceptedMembers = members.filter(m => 
       m.invitationStatus === 'ACCEPTED' && m.role !== 'KETUA'
     );
     
     console.log(`[finalizeTeam] Team has ${members.length} total members, ${acceptedMembers.length} accepted (excluding leader)`);
-
-    if (acceptedMembers.length < 1) {
-      console.error(`[finalizeTeam] ❌ No accepted members yet`);
-      const err: any = new Error('Tim harus memiliki minimal 1 anggota yang diterima');
-      err.statusCode = 400;
-      throw err;
-    }
+    console.log(`[finalizeTeam] Allowing finalization even with just the leader`);
 
     // 4. Update team status to FIXED
     console.log(`[finalizeTeam] Updating team status to FIXED...`);

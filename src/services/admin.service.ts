@@ -1,5 +1,6 @@
 import { SubmissionRepository } from '@/repositories/submission.repository';
 import { LetterService } from './letter.service';
+import { z } from 'zod';
 
 export class AdminService {
   constructor(
@@ -8,7 +9,7 @@ export class AdminService {
   ) {}
 
   async getAllSubmissions() {
-    return await this.submissionRepo.findAll();
+    return await this.submissionRepo.findAllForAdmin();
   }
 
   async getSubmissionsByStatus(status: 'DRAFT' | 'PENDING_REVIEW' | 'REJECTED' | 'APPROVED') {
@@ -16,22 +17,76 @@ export class AdminService {
   }
 
   async getSubmissionById(id: string) {
-    const submission = await this.submissionRepo.findById(id);
+    const submission = await (this.submissionRepo as any).findByIdWithTeam(id);
     if (!submission) {
       throw new Error('Submission not found');
     }
 
-    // Get documents
-    const documents = await this.submissionRepo.findDocumentsBySubmissionId(id);
-    
     // Get letters if any
     const letters = await this.submissionRepo.findLettersBySubmissionId(id);
 
     return {
       ...submission,
-      documents,
       letters,
     };
+  }
+
+  /**
+   * Update submission status (APPROVED or REJECTED)
+   * Implements requirements from BACKEND_ADMIN_SUBMISSION_API_DOCUMENTATION
+   */
+  async updateSubmissionStatus(
+    submissionId: string,
+    status: 'APPROVED' | 'REJECTED',
+    rejectionReason?: string,
+    documentReviews?: Record<string, string>
+  ) {
+    // Validate input
+    if (!['APPROVED', 'REJECTED'].includes(status)) {
+      throw new Error('Status must be either APPROVED or REJECTED');
+    }
+
+    // Check submission exists
+    const submission = await this.submissionRepo.findById(submissionId);
+    if (!submission) {
+      throw new Error('Submission tidak ditemukan');
+    }
+
+    // Validate current status
+    if (submission.status !== 'PENDING_REVIEW') {
+      throw new Error('Can only update submissions with PENDING_REVIEW status');
+    }
+
+    // Validate rejection reason when rejecting
+    if (status === 'REJECTED') {
+      if (!rejectionReason || rejectionReason.trim().length === 0) {
+        throw new Error('Rejection reason is required when rejecting');
+      }
+    }
+
+    // Build update data
+    const updateData: any = {
+      status,
+      updatedAt: new Date(),
+    };
+
+    if (status === 'APPROVED') {
+      updateData.approvedAt = new Date();
+      updateData.rejectionReason = null;
+    } else {
+      // REJECTED
+      updateData.rejectionReason = rejectionReason;
+      updateData.approvedAt = null;
+    }
+
+    // Perform update
+    const updated = await this.submissionRepo.update(submissionId, updateData);
+
+    if (!updated) {
+      throw new Error('Failed to update submission status');
+    }
+
+    return updated;
   }
 
   async approveSubmission(submissionId: string, adminId: string, autoGenerateLetter: boolean = false) {
@@ -46,7 +101,6 @@ export class AdminService {
 
     const updated = await this.submissionRepo.update(submissionId, {
       status: 'APPROVED',
-      approvedBy: adminId,
       approvedAt: new Date(),
     });
 
@@ -75,8 +129,7 @@ export class AdminService {
     return await this.submissionRepo.update(submissionId, {
       status: 'REJECTED',
       rejectionReason: reason,
-      approvedBy: adminId,
-      approvedAt: new Date(),
+      approvedAt: null,
     });
   }
 

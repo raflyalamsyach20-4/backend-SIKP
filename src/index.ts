@@ -214,6 +214,7 @@ app.route('/api/submissions', (() => {
   route.put('/:submissionId', async (c) => getController(c).updateSubmission(c));
   route.patch('/:submissionId', async (c) => getController(c).updateSubmission(c));
   route.post('/:submissionId/submit', async (c) => getController(c).submitForReview(c));
+  route.put('/:submissionId/submit', async (c) => getController(c).submitForReview(c));
   route.post('/:submissionId/documents', async (c) => getController(c).uploadDocument(c));
   route.get('/:submissionId/documents', async (c) => getController(c).getDocuments(c));
 

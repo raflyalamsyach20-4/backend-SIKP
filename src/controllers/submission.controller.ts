@@ -130,11 +130,27 @@ export class SubmissionController {
 
   getSubmissionById = async (c: Context) => {
     try {
+      const user = c.get('user') as JWTPayload;
       const submissionId = c.req.param('submissionId');
       const submission = await this.submissionService.getSubmissionById(submissionId);
 
       if (!submission) {
         return c.json(createResponse(false, 'Submission not found'), 404);
+      }
+
+      // Authorization check:
+      // - ADMIN/KAPRODI/WAKIL_DEKAN can view any submission
+      // - MAHASISWA can only view submissions from their own team
+      if (!['ADMIN', 'KAPRODI', 'WAKIL_DEKAN'].includes(user.role)) {
+        // User is MAHASISWA - verify they're a member of the submission's team
+        const submission_data = await (this.submissionService as any).submissionRepo.findById(submissionId);
+        if (submission_data) {
+          const teamRepo = (this.submissionService as any).teamRepo;
+          const member = await teamRepo.findMemberByTeamAndUser(submission_data.teamId, user.userId);
+          if (!member) {
+            return c.json(createResponse(false, 'Forbidden: You do not have access to this submission'), 403);
+          }
+        }
       }
 
       return c.json(createResponse(true, 'Submission retrieved', submission));

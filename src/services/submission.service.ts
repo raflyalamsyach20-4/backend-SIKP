@@ -230,7 +230,47 @@ export class SubmissionService {
   }
 
   async getSubmissionById(submissionId: string) {
-    return await this.submissionRepo.findById(submissionId);
+    const submission = await this.submissionRepo.findById(submissionId);
+    if (!submission) {
+      return null;
+    }
+
+    const team = await this.teamRepo.findById(submission.teamId);
+    const documents = await this.submissionRepo.findDocumentsBySubmissionId(submissionId);
+
+    let members: Array<{
+      id: string;
+      user: { id: string; name: string | null; email: string | null; nim: string | null; prodi: string | null };
+      role: string;
+      status: string;
+    }> = [];
+
+    if (team) {
+      const teamMembers = await this.teamRepo.findMembersWithUserDataByTeamId(submission.teamId);
+      members = teamMembers.map((m) => ({
+        id: m.id,
+        user: {
+          id: m.user.id,
+          name: m.user.nama ?? null,
+          email: m.user.email ?? null,
+          nim: m.user.nim ?? null,
+          prodi: m.user.prodi ?? null,
+        },
+        role: m.role,
+        status: m.invitationStatus,
+      }));
+    }
+
+    return {
+      ...submission,
+      team: team
+        ? {
+            ...team,
+            members,
+          }
+        : null,
+      documents,
+    };
   }
 
   async approveSubmission(submissionId: string, approvedByUserId: string) {
