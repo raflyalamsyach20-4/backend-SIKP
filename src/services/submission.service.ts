@@ -18,8 +18,8 @@ export class SubmissionService {
       companyName: string;
       companyAddress: string;
       division: string;
-      startDate: Date;
-      endDate: Date;
+      startDate: string;
+      endDate: string;
     }
   ) {
     // Verify team exists and is FIXED
@@ -58,22 +58,22 @@ export class SubmissionService {
     companyName?: string;
     companyAddress?: string;
     division?: string;
-    startDate?: Date;
-    endDate?: Date;
+    startDate?: string;
+    endDate?: string;
   }) {
     const submission = await this.submissionRepo.findById(submissionId);
     if (!submission) {
-      throw new Error('Submission not found');
+      throw new Error('Pengajuan tidak ditemukan.');
     }
 
     if (submission.status !== 'DRAFT') {
-      throw new Error('Can only update draft submissions');
+      throw new Error('Pengajuan sudah diajukan dan tidak dapat diubah.');
     }
 
     // Verify user is team leader
     const team = await this.teamRepo.findById(submission.teamId);
     if (!team || team.leaderId !== userId) {
-      throw new Error('Only team leader can update submission');
+      throw new Error('Hanya ketua tim yang dapat mengubah pengajuan.');
     }
 
     return await this.submissionRepo.update(submissionId, data);
@@ -82,23 +82,23 @@ export class SubmissionService {
   async submitForReview(submissionId: string, userId: string) {
     const submission = await this.submissionRepo.findById(submissionId);
     if (!submission) {
-      throw new Error('Submission not found');
+      throw new Error('Pengajuan tidak ditemukan.');
     }
 
     if (submission.status !== 'DRAFT') {
-      throw new Error('Submission already submitted');
+      throw new Error('Pengajuan sudah diajukan dan tidak dapat diubah.');
     }
 
     // Verify user is team leader
     const team = await this.teamRepo.findById(submission.teamId);
     if (!team || team.leaderId !== userId) {
-      throw new Error('Only team leader can submit');
+      throw new Error('Hanya ketua tim yang dapat mengajukan.');
     }
 
     // Validate required fields
     if (!submission.letterPurpose || !submission.companyName || !submission.companyAddress || 
         !submission.division || !submission.startDate || !submission.endDate) {
-      throw new Error('All submission fields are required');
+      throw new Error('Semua kolom wajib diisi sebelum mengajukan untuk ditinjau.');
     }
 
     return await this.submissionRepo.update(submissionId, { 
@@ -132,13 +132,13 @@ export class SubmissionService {
   ) {
     const submission = await this.submissionRepo.findById(submissionId);
     if (!submission) {
-      const notFound: any = new Error('Submission not found');
+      const notFound: any = new Error('Pengajuan tidak ditemukan.');
       notFound.statusCode = 404;
       throw notFound;
     }
 
     if (submission.status !== 'DRAFT') {
-      throw new Error('Can only upload documents for draft submissions');
+      throw new Error('Pengajuan sudah diajukan dan tidak dapat diubah.');
     }
 
     // ✅ Requester must be an ACCEPTED member of the team
@@ -285,7 +285,6 @@ export class SubmissionService {
 
     return await this.submissionRepo.update(submissionId, {
       status: 'APPROVED',
-      approvedBy: approvedByUserId,
       approvedAt: new Date(),
     });
   }
@@ -303,7 +302,6 @@ export class SubmissionService {
     return await this.submissionRepo.update(submissionId, {
       status: 'REJECTED',
       rejectionReason,
-      approvedBy: approvedByUserId,
       approvedAt: new Date(),
     });
   }
