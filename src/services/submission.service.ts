@@ -305,5 +305,52 @@ export class SubmissionService {
       approvedAt: new Date(),
     });
   }
+
+  /**
+   * Reset submission from REJECTED to DRAFT
+   * Allows team members to resubmit after rejection
+   * Appends to statusHistory
+   */
+  async resetToDraft(submissionId: string, userId: string) {
+    const submission = await this.submissionRepo.findById(submissionId);
+    if (!submission) {
+      throw new Error('Pengajuan tidak ditemukan.');
+    }
+
+    // ✅ Only REJECTED submissions can be reset to DRAFT
+    if (submission.status !== 'REJECTED') {
+      throw new Error('Hanya pengajuan yang ditolak yang dapat diajukan ulang.');
+    }
+
+    // Verify user is team member
+    const team = await this.teamRepo.findById(submission.teamId);
+    if (!team) {
+      throw new Error('Tim tidak ditemukan.');
+    }
+
+    // ✅ Check if user is an ACCEPTED member of the team
+    const userMembership = await this.teamRepo.findMemberByTeamAndUser(submission.teamId, userId);
+    if (!userMembership || userMembership.invitationStatus !== 'ACCEPTED') {
+      throw new Error('Anda tidak authorized untuk mengajukan ulang pengajuan ini.');
+    }
+
+    // ✅ Prepare status history entry for DRAFT
+    const now = new Date();
+    const draftHistoryEntry = {
+      status: 'DRAFT',
+      date: now.toISOString(),
+    };
+
+    // ✅ Append to existing history
+    const currentHistory = Array.isArray(submission.statusHistory) ? submission.statusHistory : [];
+    const newHistory = [...currentHistory, draftHistoryEntry];
+
+    // Reset submission to DRAFT
+    return await this.submissionRepo.update(submissionId, {
+      status: 'DRAFT',
+      rejectionReason: null,
+      statusHistory: newHistory,
+    });
+  }
 }
 

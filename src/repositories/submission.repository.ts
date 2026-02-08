@@ -222,4 +222,50 @@ export class SubmissionRepository {
 
     return result;
   }
+
+  /**
+   * Create dummy SURAT_PENGANTAR document when admin approves submission
+   * Called automatically by AdminService.updateSubmissionStatus when status = APPROVED
+   * 
+   * @param submissionId - The submission ID
+   * @param adminId - The admin user ID who approved
+   * @param teamId - The team ID (for generating team code in filename)
+   * @returns Created document
+   */
+  async createCoverLetterDocument(submissionId: string, adminId: string, teamId: string) {
+    // Get team to include team code in filename
+    const teamData = await this.db
+      .select()
+      .from(teams)
+      .where(eq(teams.id, teamId))
+      .limit(1);
+    
+    const team = teamData[0];
+    const teamCode = team?.code || 'UNKNOWN';
+    const timestamp = Date.now();
+    
+    // Generate dummy document data
+    const documentData = {
+      id: `doc-${timestamp}`,
+      submissionId,
+      documentType: 'SURAT_PENGANTAR' as const,
+      memberUserId: adminId, // System-generated, uploaded by admin
+      uploadedByUserId: adminId,
+      originalName: `Surat_Pengantar_Kerja_Praktik_${teamCode}.pdf`,
+      fileName: `Surat_Pengantar_Kerja_Praktik_${teamCode}_${timestamp}.pdf`,
+      fileType: 'application/pdf',
+      fileSize: 1024000, // Dummy size ~1MB
+      fileUrl: `/uploads/submissions/${submissionId}/Surat_Pengantar_Kerja_Praktik_${teamCode}_${timestamp}.pdf`,
+      createdAt: new Date(),
+    };
+    
+    console.log('[createCoverLetterDocument] Creating dummy SURAT_PENGANTAR:', {
+      submissionId,
+      adminId,
+      teamCode,
+      fileName: documentData.fileName
+    });
+    
+    return await this.addDocument(documentData);
+  }
 }

@@ -217,6 +217,8 @@ app.route('/api/submissions', (() => {
   route.put('/:submissionId/submit', async (c) => getController(c).submitForReview(c));
   route.post('/:submissionId/documents', async (c) => getController(c).uploadDocument(c));
   route.get('/:submissionId/documents', async (c) => getController(c).getDocuments(c));
+  // ✅ NEW: Reset submission from REJECTED to DRAFT (resubmit)
+  route.put('/:submissionId/reset', async (c) => getController(c).resetToDraft(c));
 
   return route;
 })());
@@ -236,6 +238,8 @@ app.route('/api/admin', (() => {
   route.get('/submissions', async (c) => getController(c).getAllSubmissions(c));
   route.get('/submissions/status/:status', async (c) => getController(c).getSubmissionsByStatus(c));
   route.get('/submissions/:submissionId', async (c) => getController(c).getSubmissionById(c));
+  // ✅ NEW: Update submission status endpoint (approve/reject with dummy SURAT_PENGANTAR)
+  route.put('/submissions/:submissionId/status', async (c) => getController(c).updateSubmissionStatus(c));
   route.post('/submissions/:submissionId/approve', async (c) => getController(c).approveSubmission(c));
   route.post('/submissions/:submissionId/reject', async (c) => getController(c).rejectSubmission(c));
   route.post('/submissions/:submissionId/generate-letter', async (c) => getController(c).generateLetter(c));

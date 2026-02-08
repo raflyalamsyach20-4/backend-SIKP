@@ -6,7 +6,7 @@ export const roleEnum = pgEnum('role', ['MAHASISWA', 'ADMIN', 'DOSEN', 'KAPRODI'
 export const teamStatusEnum = pgEnum('team_status', ['PENDING', 'FIXED']);
 export const invitationStatusEnum = pgEnum('invitation_status', ['PENDING', 'ACCEPTED', 'REJECTED']);
 export const submissionStatusEnum = pgEnum('submission_status', ['DRAFT', 'PENDING_REVIEW', 'APPROVED', 'REJECTED']);
-export const documentTypeEnum = pgEnum('document_type', ['PROPOSAL_KETUA', 'SURAT_KESEDIAAN', 'FORM_PERMOHONAN', 'KRS_SEMESTER_4', 'DAFTAR_KUMPULAN_NILAI', 'BUKTI_PEMBAYARAN_UKT']);
+export const documentTypeEnum = pgEnum('document_type', ['PROPOSAL_KETUA', 'SURAT_KESEDIAAN', 'FORM_PERMOHONAN', 'KRS_SEMESTER_4', 'DAFTAR_KUMPULAN_NILAI', 'BUKTI_PEMBAYARAN_UKT', 'SURAT_PENGANTAR']);
 
 // Users Table (Base table untuk semua user)
 export const users = pgTable('users', {
@@ -88,6 +88,8 @@ export const submissions = pgTable('submissions', {
   rejectionReason: text('rejection_reason'),
   submittedAt: timestamp('submitted_at'),
   approvedAt: timestamp('approved_at'),
+  approvedBy: text('approved_by').references(() => users.id, { onDelete: 'set null' }),
+  statusHistory: json('status_history').notNull().default('[]'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 });

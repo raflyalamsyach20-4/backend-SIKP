@@ -221,4 +221,31 @@ export class SubmissionController {
       return handleError(c, error, 'Failed to get documents');
     }
   };
+
+  /**
+   * Reset submission from REJECTED to DRAFT
+   * Allows team members to resubmit after rejection
+   * Endpoint: PUT /api/submissions/{id}/status/reset-draft
+   */
+  resetToDraft = async (c: Context) => {
+    try {
+      const user = c.get('user') as JWTPayload;
+      const submissionId = c.req.param('submissionId');
+
+      console.log('[SubmissionController.resetToDraft] Request:', {
+        submissionId,
+        userId: user.userId,
+      });
+
+      const submission = await this.submissionService.resetToDraft(
+        submissionId,
+        user.userId
+      );
+
+      console.log('[SubmissionController.resetToDraft] Success');
+      return c.json(createResponse(true, 'Submission reset to draft', submission));
+    } catch (error: any) {
+      return handleError(c, error, 'Failed to reset submission to draft');
+    }
+  };
 }

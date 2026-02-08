@@ -73,16 +73,27 @@ export class AdminController {
   /**
    * Update submission status (APPROVED or REJECTED)
    * PUT /api/admin/submissions/:submissionId/status
-   * Implements BACKEND_ADMIN_SUBMISSION_API_DOCUMENTATION requirement
+   * Implements BACKEND_ADMIN_APPROVE_REJECT_FLOW requirement
    */
   updateSubmissionStatus = async (c: Context) => {
     try {
+      const user = c.get('user') as JWTPayload;
       const submissionId = c.req.param('submissionId');
       const body = await c.req.json();
+      
+      console.log('[AdminController.updateSubmissionStatus] Request details:', {
+        submissionId,
+        userId: user.userId,
+        userRole: user.role,
+        body,
+        url: c.req.url,
+      });
+      
       const validated = updateSubmissionStatusSchema.parse(body);
 
       const result = await this.adminService.updateSubmissionStatus(
         submissionId,
+        user.userId, // ✅ Pass admin ID for audit trail
         validated.status,
         validated.rejectionReason,
         validated.documentReviews

@@ -33,10 +33,25 @@ export class AdminService {
 
   /**
    * Update submission status (APPROVED or REJECTED)
-   * Implements requirements from BACKEND_ADMIN_SUBMISSION_API_DOCUMENTATION
+   * Implements requirements from BACKEND_ADMIN_APPROVE_REJECT_FLOW
+   * 
+   * When APPROVED:
+   * - Set status = APPROVED
+   * - Set approvedAt = current timestamp
+   * - Set approvedBy = admin user id (audit trail)
+   * - Auto-generate dummy SURAT_PENGANTAR document
+   * - Append to statusHistory
+   * 
+   * When REJECTED:
+   * - Set status = REJECTED
+   * - Set rejectionReason
+   * - Set approvedBy = admin user id (audit trail)
+   * - Do NOT create any documents
+   * - Append to statusHistory
    */
   async updateSubmissionStatus(
     submissionId: string,
+    adminId: string,
     status: 'APPROVED' | 'REJECTED',
     rejectionReason?: string,
     documentReviews?: Record<string, string>
@@ -46,14 +61,41 @@ export class AdminService {
       throw new Error('Status must be either APPROVED or REJECTED');
     }
 
+    // Debug logging
+    console.log('[updateSubmissionStatus] Received params:', {
+      submissionId,
+      adminId,
+      status,
+      rejectionReason,
+    });
+
     // Check submission exists
     const submission = await this.submissionRepo.findById(submissionId);
+    
+    console.log('[updateSubmissionStatus] Found submission:', {
+      found: !!submission,
+      submissionData: submission ? {
+        id: submission.id,
+        status: submission.status,
+        teamId: submission.teamId,
+      } : null
+    });
+    
     if (!submission) {
+      // Try to find all submissions to help debug
+      const allSubmissions = await this.submissionRepo.findAll();
+      console.log('[updateSubmissionStatus] Total submissions in DB:', allSubmissions.length);
+      console.log('[updateSubmissionStatus] All submission IDs:', allSubmissions.map(s => s.id));
+      
       throw new Error('Submission tidak ditemukan');
     }
 
     // Validate current status
     if (submission.status !== 'PENDING_REVIEW') {
+      console.log('[updateSubmissionStatus] Invalid status:', {
+        currentStatus: submission.status,
+        required: 'PENDING_REVIEW'
+      });
       throw new Error('Can only update submissions with PENDING_REVIEW status');
     }
 
@@ -64,29 +106,71 @@ export class AdminService {
       }
     }
 
+    // ✅ Prepare status history entry
+    const now = new Date();
+    const historyEntry: any = {
+      status,
+      date: now.toISOString(),
+    };
+
+    if (status === 'REJECTED') {
+      historyEntry.reason = rejectionReason;
+    }
+
+    // ✅ Append to existing history
+    const currentHistory = Array.isArray(submission.statusHistory) ? submission.statusHistory : [];
+    const newHistory = [...currentHistory, historyEntry];
+
     // Build update data
     const updateData: any = {
       status,
+      approvedBy: adminId, // ✅ Track admin yang approve/reject
+      statusHistory: newHistory,
       updatedAt: new Date(),
     };
 
     if (status === 'APPROVED') {
       updateData.approvedAt = new Date();
       updateData.rejectionReason = null;
+      
+      // Perform update first
+      const updated = await this.submissionRepo.update(submissionId, updateData);
+      
+      if (!updated) {
+        throw new Error('Failed to update submission status');
+      }
+      
+      // ✅ Auto-generate dummy SURAT_PENGANTAR document
+      const newDocument = await this.submissionRepo.createCoverLetterDocument(
+        submissionId, 
+        adminId, 
+        submission.teamId
+      );
+      
+      console.log('[updateSubmissionStatus] Created SURAT_PENGANTAR:', newDocument);
+      
+      // Get all documents for this submission
+      const documents = await this.submissionRepo.findDocumentsBySubmissionId(submissionId);
+      
+      // Return updated submission with documents
+      return {
+        ...updated,
+        documents,
+      };
     } else {
       // REJECTED
       updateData.rejectionReason = rejectionReason;
       updateData.approvedAt = null;
+      
+      // Perform update
+      const updated = await this.submissionRepo.update(submissionId, updateData);
+      
+      if (!updated) {
+        throw new Error('Failed to update submission status');
+      }
+      
+      return updated;
     }
-
-    // Perform update
-    const updated = await this.submissionRepo.update(submissionId, updateData);
-
-    if (!updated) {
-      throw new Error('Failed to update submission status');
-    }
-
-    return updated;
   }
 
   async approveSubmission(submissionId: string, adminId: string, autoGenerateLetter: boolean = false) {
