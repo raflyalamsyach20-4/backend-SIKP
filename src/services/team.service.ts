@@ -1,25 +1,26 @@
 import { TeamRepository } from '@/repositories/team.repository';
-import { ProfileServiceClient } from '@/utils/profile-service';
+import { createSSOClient } from '@/lib/sso-client';
 import { generateId, generateTeamCode } from '@/utils/helpers';
 import { HTTPException } from 'hono/http-exception';
 
 export class TeamService {
   constructor(
     private teamRepo: TeamRepository,
-    private profileService: ProfileServiceClient
+    private ssoBaseUrl: string
   ) {}
 
   async createTeam(leaderId: string, accessToken: string) {
     try {
-      // Verify leader is mahasiswa through Profile Service
-      const profileResponse = await this.profileService.getMahasiswaByAuthUserId(leaderId, accessToken);
+      // Verify leader is mahasiswa through SSO
+      const ssoClient = createSSOClient(this.ssoBaseUrl, accessToken);
+      const profileResponse = await ssoClient.getProfile();
       
-      // Profile Service returns array, get first item
-      if (!profileResponse.success || !profileResponse.data || !Array.isArray(profileResponse.data) || profileResponse.data.length === 0) {
+      // Check if profile has mahasiswa data
+      if (!profileResponse.success || !profileResponse.data || !profileResponse.data.mahasiswa) {
         throw new HTTPException(403, { message: 'Only students (mahasiswa) can create teams' });
       }
 
-      const mahasiswaProfile = profileResponse.data[0];
+      const mahasiswaProfile = profileResponse.data.mahasiswa;
 
       // Check if user already has a team (as leader)
       const existingTeamsAsLeader = await this.teamRepo.findByLeaderId(leaderId);
@@ -267,17 +268,19 @@ export class TeamService {
       throw new Error('Cannot invite members to a finalized team');
     }
 
-    // Find member by NIM from Profile Service
-    const memberProfile = await this.profileService.getMahasiswaByNim(memberNim, accessToken);
+    // Find member by NIM from SSO
+    const ssoClient = createSSOClient(this.ssoBaseUrl, accessToken);
+    const memberProfile = await ssoClient.findMahasiswaByNim(memberNim);
+    
     if (!memberProfile.success || !memberProfile.data) {
       throw new Error('Mahasiswa with this NIM not found');
     }
 
-    // Profile Service returns nested structure: data.profile.authUserId
-    const memberId = (memberProfile.data as any).profile?.authUserId || memberProfile.data.authUserId;
+    // Get authUserId (sub) from SSO profile
+    const memberId = memberProfile.data.sub;
     
     if (!memberId) {
-      throw new Error('Invalid profile data: authUserId not found');
+      throw new Error('Invalid profile data: sub (authUserId) not found');
     }
 
     // Check if member is already in the team
@@ -405,11 +408,17 @@ export class TeamService {
 
     const members = await this.teamRepo.findMembersByTeamId(teamId);
 
-    // Enrich members with profile data from Profile Service
+    // Create SSO client for profile enrichment
+    const ssoClient = createSSOClient(this.ssoBaseUrl, accessToken);
+
+    // Enrich members with profile data from SSO
     const enrichedMembers = await Promise.all(
       members.map(async (member) => {
         try {
-          const profileResponse = await this.profileService.getMahasiswaByAuthUserId(member.userId, accessToken);
+          // Get profile from SSO using user's ID
+          const profileResponse = await ssoClient.getMahasiswaByAuthUserId(member.userId);
+          
+          const mahasiswa = profileResponse.data?.mahasiswa;
           
           return {
             id: member.id,
@@ -421,8 +430,8 @@ export class TeamService {
             invitedAt: member.invitedAt,
             respondedAt: member.respondedAt,
             user: {
-              id: profileResponse.data?.authUserId || member.userId,
-              nim: profileResponse.data?.nim || '',
+              id: profileResponse.data?.sub || member.userId,
+              nim: mahasiswa?.nim || '',
               name: profileResponse.data?.name || '',
               email: profileResponse.data?.email || '',
             },
@@ -486,11 +495,16 @@ export class TeamService {
         // Get all members of this team (ALL statuses)
         const members = await this.teamRepo.findMembersByTeamId(team.id);
         
-        // Enrich members with profile data from Profile Service
+        // Create SSO client for profile enrichment
+        const ssoClient = createSSOClient(this.ssoBaseUrl, accessToken);
+        
+        // Enrich members with profile data from SSO
         const enrichedMembers = await Promise.all(
           members.map(async (member) => {
             try {
-              const profileResponse = await this.profileService.getMahasiswaByAuthUserId(member.userId, accessToken);
+              const profileResponse = await ssoClient.getMahasiswaByAuthUserId(member.userId);
+              
+              const mahasiswa = profileResponse.data?.mahasiswa;
               
               return {
                 id: member.id,
@@ -502,8 +516,8 @@ export class TeamService {
                 invitedAt: member.invitedAt,
                 respondedAt: member.respondedAt,
                 user: {
-                  id: profileResponse.data?.authUserId || member.userId,
-                  nim: profileResponse.data?.nim || '',
+                  id: profileResponse.data?.sub || member.userId,
+                  nim: mahasiswa?.nim || '',
                   name: profileResponse.data?.name || '',
                   email: profileResponse.data?.email || '',
                 },
@@ -572,11 +586,16 @@ export class TeamService {
     // Get all members of this team
     const members = await this.teamRepo.findMembersByTeamId(team.id);
     
-    // Enrich members with profile data from Profile Service
+    // Create SSO client for profile enrichment
+    const ssoClient = createSSOClient(this.ssoBaseUrl, accessToken);
+    
+    // Enrich members with profile data from SSO
     const enrichedMembers = await Promise.all(
       members.map(async (member) => {
         try {
-          const profileResponse = await this.profileService.getMahasiswaByAuthUserId(member.userId, accessToken);
+          const profileResponse = await ssoClient.getMahasiswaByAuthUserId(member.userId);
+          
+          const mahasiswa = profileResponse.data?.mahasiswa;
           
           return {
             id: member.id,
@@ -588,8 +607,8 @@ export class TeamService {
             invitedAt: member.invitedAt,
             respondedAt: member.respondedAt,
             user: {
-              id: profileResponse.data?.authUserId || member.userId,
-              nim: profileResponse.data?.nim || '',
+              id: profileResponse.data?.sub || member.userId,
+              nim: mahasiswa?.nim || '',
               name: profileResponse.data?.name || '',
               email: profileResponse.data?.email || '',
             },

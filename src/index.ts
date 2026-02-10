@@ -20,8 +20,8 @@ import { TeamController } from '@/controllers/team.controller';
 import { SubmissionController } from '@/controllers/submission.controller';
 import { AdminController } from '@/controllers/admin.controller';
 
-// Utils
-import { ProfileServiceClient } from '@/utils/profile-service';
+// Routes
+import { createAuthRoutes } from '@/routes/auth.route';
 
 // Middlewares
 import { authMiddleware, requireMahasiswa, requireAdmin } from '@/middlewares/auth.middleware';
@@ -29,12 +29,13 @@ import { authMiddleware, requireMahasiswa, requireAdmin } from '@/middlewares/au
 type Bindings = {
   DATABASE_URL: string;
   R2_BUCKET: R2Bucket;
-  // Auth Service Configuration
-  AUTH_ISSUER: string;
-  AUTH_JWKS_URL: string;
-  AUTH_AUDIENCE: string;
-  // Profile Service Configuration
-  PROFILE_SERVICE_URL: string;
+  // SSO Configuration (OAuth 2.0 Identity Gateway)
+  SSO_BASE_URL: string;
+  SSO_JWKS_URL: string;
+  SSO_ISSUER: string;
+  SSO_CLIENT_ID: string;
+  SSO_CLIENT_SECRET: string;
+  SSO_REDIRECT_URI: string;
 };
 
 const app = new Hono<{ Bindings: Bindings }>();
@@ -71,15 +72,13 @@ function createServices(c: any) {
   const db = createDbClient(c.env.DATABASE_URL);
   const teamRepo = new TeamRepository(db);
   const submissionRepo = new SubmissionRepository(db);
-  const profileService = new ProfileServiceClient(c.env.PROFILE_SERVICE_URL);
-  const teamService = new TeamService(teamRepo, profileService);
+  const teamService = new TeamService(teamRepo, c.env.SSO_BASE_URL);
   const storageService = new StorageService(c.env.R2_BUCKET);
   const letterService = new LetterService(submissionRepo, storageService);
   const submissionService = new SubmissionService(submissionRepo, teamRepo, storageService);
   const adminService = new AdminService(submissionRepo, letterService);
 
   return {
-    profileService,
     teamService,
     submissionService,
     adminService,
@@ -89,10 +88,21 @@ function createServices(c: any) {
 // ============ AUTH ROUTES ============
 const authRoutes = new Hono<{ Bindings: Bindings }>();
 
-// Get current user info (with profiles from Profile Service)
+// OAuth 2.0 - Exchange authorization code for token
+authRoutes.post('/exchange', async (c) => {
+  const controller = new AuthController(c.env.SSO_BASE_URL);
+  return controller.exchange(c);
+});
+
+// OAuth 2.0 - Refresh access token
+authRoutes.post('/refresh', async (c) => {
+  const controller = new AuthController(c.env.SSO_BASE_URL);
+  return controller.refresh(c);
+});
+
+// Get current user info (with profiles from SSO)
 authRoutes.get('/me', authMiddleware(), async (c) => {
-  const { profileService } = createServices(c);
-  const controller = new AuthController(profileService);
+  const controller = new AuthController(c.env.SSO_BASE_URL);
   return controller.me(c);
 });
 

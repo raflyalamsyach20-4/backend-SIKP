@@ -125,3 +125,66 @@ export interface JWTPayload {
   nim?: string; // Optional for mahasiswa
   nip?: string; // Optional for admin/dosen
 }
+
+// ============ SSO Integration Types ============
+
+/**
+ * SSO JWT Token Claims (from SSO Identity Gateway)
+ */
+export interface SSOTokenClaims {
+  sub: string;          // User ID (authUserId)
+  email: string;
+  name: string;
+  roles: string[];      // User roles array
+  iat: number;          // Issued at
+  exp: number;          // Expiration
+  iss: string;          // Issuer (SSO service)
+  aud: string;          // Audience (client ID)
+}
+
+/**
+ * SSO Profile Response Structure
+ * This matches the /profile endpoint response from SSO Gateway
+ */
+export interface SSOProfile {
+  sub: string;          // User ID (authUserId)
+  email: string;
+  name: string;
+  roles: string[];
+  // Profile-specific data (based on roles)
+  mahasiswa?: {
+    id: string;
+    nim: string;
+    prodi: string;
+    fakultas: string;
+    angkatan?: number;
+  } | null;
+  dosen?: {
+    id: string;
+    nidn: string;
+    prodi: string;
+    fakultas: string;
+  } | null;
+  admin?: {
+    id: string;
+    level: string;
+  } | null;
+}
+
+/**
+ * OAuth Token Exchange Response
+ */
+export interface OAuthTokenResponse {
+  access_token: string;
+  refresh_token?: string;
+  token_type: string;
+  expires_in: number;
+}
+
+/**
+ * OAuth Authorization Code Exchange Request
+ */
+export interface OAuthExchangeRequest {
+  code: string;
+  codeVerifier: string;
+}

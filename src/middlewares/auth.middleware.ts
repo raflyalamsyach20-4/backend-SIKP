@@ -42,19 +42,19 @@ export function authMiddleware() {
     }
 
     try {
-      const authIssuer = c.env?.AUTH_ISSUER;
-      const authJwksUrl = c.env?.AUTH_JWKS_URL;
-      const authAudience = c.env?.AUTH_AUDIENCE;
+      const ssoIssuer = c.env?.SSO_ISSUER;
+      const ssoJwksUrl = c.env?.SSO_JWKS_URL;
+      const ssoClientId = c.env?.SSO_CLIENT_ID; // This is our audience
 
-      if (!authIssuer || !authJwksUrl || !authAudience) {
-        console.error('Missing auth configuration:', { authIssuer, authJwksUrl, authAudience });
-        return c.json({ error: 'Internal Server Error', message: 'Auth service not configured' }, 500);
+      if (!ssoIssuer || !ssoJwksUrl || !ssoClientId) {
+        console.error('Missing SSO configuration:', { ssoIssuer, ssoJwksUrl, ssoClientId });
+        return c.json({ error: 'Internal Server Error', message: 'SSO not configured' }, 500);
       }
 
-      const jwks = getJWKS(authJwksUrl);
+      const jwks = getJWKS(ssoJwksUrl);
       const { payload } = await jwtVerify(token, jwks, {
-        issuer: authIssuer,
-        audience: authAudience,
+        issuer: ssoIssuer,
+        audience: ssoClientId,
       });
 
       // Extract claims from JWT
@@ -90,20 +90,20 @@ export function optionalAuthMiddleware() {
     }
 
     try {
-      const authIssuer = c.env?.AUTH_ISSUER;
-      const authJwksUrl = c.env?.AUTH_JWKS_URL;
-      const authAudience = c.env?.AUTH_AUDIENCE;
+      const ssoIssuer = c.env?.SSO_ISSUER;
+      const ssoJwksUrl = c.env?.SSO_JWKS_URL;
+      const ssoClientId = c.env?.SSO_CLIENT_ID;
 
-      if (!authIssuer || !authJwksUrl || !authAudience) {
+      if (!ssoIssuer || !ssoJwksUrl || !ssoClientId) {
         // Config missing, continue without auth
         await next();
         return;
       }
 
-      const jwks = getJWKS(authJwksUrl);
+      const jwks = getJWKS(ssoJwksUrl);
       const { payload } = await jwtVerify(token, jwks, {
-        issuer: authIssuer,
-        audience: authAudience,
+        issuer: ssoIssuer,
+        audience: ssoClientId,
       });
 
       const authContext: AuthContext = {

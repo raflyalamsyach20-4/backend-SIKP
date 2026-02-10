@@ -1,63 +1,151 @@
 import { Context } from 'hono';
-import { ProfileServiceClient } from '@/utils/profile-service';
+import { createSSOClient } from '@/lib/sso-client';
 import { createResponse, handleError } from '@/utils/helpers';
 
 export class AuthController {
-  constructor(private profileService: ProfileServiceClient) {}
+  constructor(private ssoBaseUrl: string) {}
 
-  // Get current user info from JWT + Profile Service
-  me = async (c: Context) => {
+  /**
+   * POST /auth/exchange
+   * Exchange authorization code for access token (OAuth 2.0)
+   */
+  exchange = async (c: Context) => {
     try {
-      const auth = c.get('auth');
-      const token = c.req.header('Authorization')?.replace('Bearer ', '');
+      const { code, codeVerifier } = await c.req.json();
 
-      if (!token) {
-        return c.json({ error: 'Unauthorized', message: 'No token provided' }, 401);
+      if (!code || !codeVerifier) {
+        return c.json(
+          createResponse(false, 'Missing code or code_verifier'),
+          400
+        );
       }
 
-      // Get user profiles from Profile Service
-      const profileResponse = await this.profileService.getCurrentUserProfiles(token);
+      const clientId = c.env.SSO_CLIENT_ID;
+      const clientSecret = c.env.SSO_CLIENT_SECRET;
+      const redirectUri = c.env.SSO_REDIRECT_URI;
 
-      const response = {
-        user: {
-          id: auth.userId,
-          email: auth.email,
-          name: auth.name,
-          roles: auth.roles,
-          permissions: auth.permissions,
+      // Exchange authorization code for access token
+      const tokenResponse = await fetch(`${this.ssoBaseUrl}/oauth/token`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
         },
-        profiles: profileResponse.success ? profileResponse.data : [],
-      };
+        body: JSON.stringify({
+          grant_type: 'authorization_code',
+          code,
+          code_verifier: codeVerifier,
+          client_id: clientId,
+          client_secret: clientSecret,
+          redirect_uri: redirectUri,
+        }),
+      });
 
-      return c.json(createResponse(true, 'User info retrieved', response));
+      if (!tokenResponse.ok) {
+        const error = await tokenResponse.json().catch(() => ({ message: 'Token exchange failed' }));
+        console.error('[AUTH] Token exchange failed:', error);
+        return c.json(
+          createResponse(false, error.message || 'Failed to exchange token'),
+          tokenResponse.status
+        );
+      }
+
+      const tokenData = await tokenResponse.json();
+
+      return c.json(
+        createResponse(true, 'Token exchanged successfully', {
+          accessToken: tokenData.access_token,
+          refreshToken: tokenData.refresh_token,
+          expiresIn: tokenData.expires_in,
+          tokenType: tokenData.token_type || 'Bearer',
+        })
+      );
     } catch (error: any) {
-      return handleError(c, error, 'Failed to get user info');
+      return handleError(c, error, 'Failed to exchange token');
     }
   };
 
-  // Get user profile (mahasiswa/dosen/admin/mentor)
-  getProfile = async (c: Context) => {
+  /**
+   * POST /auth/refresh
+   * Refresh access token using refresh token
+   */
+  refresh = async (c: Context) => {
     try {
-      const auth = c.get('auth');
+      const { refreshToken } = await c.req.json();
+
+      if (!refreshToken) {
+        return c.json(
+          createResponse(false, 'Missing refresh_token'),
+          400
+        );
+      }
+
+      const clientId = c.env.SSO_CLIENT_ID;
+      const clientSecret = c.env.SSO_CLIENT_SECRET;
+
+      // Refresh token
+      const tokenResponse = await fetch(`${this.ssoBaseUrl}/oauth/token`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          grant_type: 'refresh_token',
+          refresh_token: refreshToken,
+          client_id: clientId,
+          client_secret: clientSecret,
+        }),
+      });
+
+      if (!tokenResponse.ok) {
+        const error = await tokenResponse.json().catch(() => ({ message: 'Token refresh failed' }));
+        console.error('[AUTH] Token refresh failed:', error);
+        return c.json(
+          createResponse(false, error.message || 'Failed to refresh token'),
+          tokenResponse.status
+        );
+      }
+
+      const tokenData = await tokenResponse.json();
+
+      return c.json(
+        createResponse(true, 'Token refreshed successfully', {
+          accessToken: tokenData.access_token,
+          refreshToken: tokenData.refresh_token,
+          expiresIn: tokenData.expires_in,
+          tokenType: tokenData.token_type || 'Bearer',
+        })
+      );
+    } catch (error: any) {
+      return handleError(c, error, 'Failed to refresh token');
+    }
+  };
+
+  /**
+   * GET /auth/me
+   * Get current user info from SSO /profile endpoint (proxy)
+   */
+  me = async (c: Context) => {
+    try {
       const token = c.req.header('Authorization')?.replace('Bearer ', '');
 
       if (!token) {
         return c.json({ error: 'Unauthorized', message: 'No token provided' }, 401);
       }
 
-      // Get profiles from Profile Service
-      const profileResponse = await this.profileService.getCurrentUserProfiles(token);
+      // Get profile from SSO (proxy to Profile Service)
+      const ssoClient = createSSOClient(this.ssoBaseUrl, token);
+      const profileResponse = await ssoClient.getProfile();
 
-      if (!profileResponse.success || !profileResponse.data || profileResponse.data.length === 0) {
+      if (!profileResponse.success) {
         return c.json(
-          createResponse(false, 'No profile found for this user', null),
+          createResponse(false, profileResponse.message || 'Failed to get profile'),
           404
         );
       }
 
-      return c.json(createResponse(true, 'Profile retrieved', profileResponse.data));
+      return c.json(createResponse(true, 'User info retrieved', profileResponse.data));
     } catch (error: any) {
-      return handleError(c, error, 'Failed to get profile');
+      return handleError(c, error, 'Failed to get user info');
     }
   };
 }
