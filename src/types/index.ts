@@ -71,16 +71,12 @@ export interface Submission {
   teamId: string;
   companyName: string;
   companyAddress: string;
-  companyPhone: string | null;
-  companyEmail: string | null;
-  companySupervisor: string | null;
-  position: string | null;
+  division: string | null;
   startDate: Date | null;
   endDate: Date | null;
   description: string | null;
   status: SubmissionStatus;
   rejectionReason: string | null;
-  approvedBy: string | null;
   approvedAt: Date | null;
   submittedAt: Date | null;
   createdAt: Date;
@@ -124,4 +120,34 @@ export interface JWTPayload {
   role: UserRole;
   nim?: string; // Optional for mahasiswa
   nip?: string; // Optional for admin/dosen
+}
+// Template Field interface
+export interface TemplateField {
+  variable: string;
+  label: string;
+  type: 'text' | 'textarea' | 'number' | 'date' | 'time' | 'email' | 'select';
+  required: boolean;
+  placeholder?: string;
+  order: number;
+  options?: Array<{ value: string; label: string }>; // For select type
+}
+
+// Template interface
+export interface Template {
+  id: string;
+  name: string;
+  type: 'Template Only' | 'Generate & Template';
+  description?: string | null;
+  fileName: string;
+  fileUrl: string;
+  fileSize: number;
+  fileType: string;
+  originalName: string;
+  fields?: TemplateField[] | null;
+  version: number;
+  isActive: boolean;
+  createdBy: string;
+  updatedBy?: string | null;
+  createdAt: Date;
+  updatedAt: Date;
 }

@@ -7,6 +7,7 @@ import { createDbClient } from '@/db';
 import { UserRepository } from '@/repositories/user.repository';
 import { TeamRepository } from '@/repositories/team.repository';
 import { SubmissionRepository } from '@/repositories/submission.repository';
+import { TemplateRepository } from '@/repositories/template.repository';
 
 // Services
 import { AuthService } from '@/services/auth.service';
@@ -14,24 +15,33 @@ import { TeamService } from '@/services/team.service';
 import { SubmissionService } from '@/services/submission.service';
 import { AdminService } from '@/services/admin.service';
 import { StorageService } from '@/services/storage.service';
+import { MockR2Bucket } from '@/services/mock-r2-bucket';
 import { LetterService } from '@/services/letter.service';
+import { TemplateService } from '@/services/template.service';
 
 // Controllers
 import { AuthController } from '@/controllers/auth.controller';
 import { TeamController } from '@/controllers/team.controller';
 import { SubmissionController } from '@/controllers/submission.controller';
 import { AdminController } from '@/controllers/admin.controller';
+import { TemplateController } from '@/controllers/template.controller';
+
+// Middlewares (MOVED TO TOP - must be imported before use)
+import { authMiddleware, mahasiswaOnly, adminOnly } from '@/middlewares/auth.middleware';
 
 // Routes
 import { createAuthRoutes } from '@/routes/auth.route';
 import { createTeamRoutes } from '@/routes/team.route';
 import { createSubmissionRoutes } from '@/routes/submission.route';
 import { createAdminRoutes } from '@/routes/admin.route';
+import { createTemplateRoutes } from '@/routes/template.route';
 
 type Bindings = {
   DATABASE_URL: string;
   JWT_SECRET: string;
   R2_BUCKET: R2Bucket;
+  R2_DOMAIN: string;
+  R2_BUCKET_NAME: string;
 };
 
 const app = new Hono<{ Bindings: Bindings }>();
@@ -74,7 +84,17 @@ app.use('/api/*', async (c, next) => {
   // Initialize services
   const authService = new AuthService(userRepo, c.env.JWT_SECRET);
   const teamService = new TeamService(teamRepo, userRepo);
-  const storageService = new StorageService(c.env.R2_BUCKET);
+  
+  // ✅ Require real R2 bucket binding in production; only allow mock when explicitly enabled
+  const useMockR2Env = (c.env as any).USE_MOCK_R2;
+  const useMockR2 = useMockR2Env === true || useMockR2Env === 'true';
+  const r2BucketOrMock = useMockR2 ? new MockR2Bucket('document-sikp-mi') : c.env.R2_BUCKET;
+
+  const storageService = new StorageService(
+    r2BucketOrMock as any,
+    c.env.R2_DOMAIN as string,
+    c.env.R2_BUCKET_NAME as string
+  );
   const letterService = new LetterService(submissionRepo, storageService);
   const submissionService = new SubmissionService(submissionRepo, teamRepo, storageService);
   const adminService = new AdminService(submissionRepo, letterService);
@@ -88,9 +108,6 @@ app.use('/api/*', async (c, next) => {
 
   await next();
 });
-
-// Import middlewares
-import { authMiddleware, mahasiswaOnly, adminOnly } from '@/middlewares/auth.middleware';
 
 // Mount routes
 app.route('/api/auth', (() => {
@@ -171,6 +188,7 @@ app.route('/api/teams', (() => {
   route.post('/invitations/:memberId/cancel', async (c) => getController(c).cancelInvitation(c));
   route.post('/:teamCode/join', async (c) => getController(c).joinTeam(c));
   route.get('/:teamId/members', async (c) => getController(c).getTeamMembers(c));
+  route.post('/:teamId/finalize', async (c) => getController(c).finalizeTeam(c));
   route.post('/:teamId/leave', async (c) => getController(c).leaveTeam(c));
   route.post('/:teamId/members/:memberId/remove', async (c) => getController(c).removeMember(c));
   route.post('/:teamId/delete', async (c) => getController(c).deleteTeam(c));
@@ -193,10 +211,14 @@ app.route('/api/submissions', (() => {
   route.post('/', async (c) => getController(c).createSubmission(c));
   route.get('/my-submissions', async (c) => getController(c).getMySubmissions(c));
   route.get('/:submissionId', async (c) => getController(c).getSubmissionById(c));
+  route.put('/:submissionId', async (c) => getController(c).updateSubmission(c));
   route.patch('/:submissionId', async (c) => getController(c).updateSubmission(c));
   route.post('/:submissionId/submit', async (c) => getController(c).submitForReview(c));
+  route.put('/:submissionId/submit', async (c) => getController(c).submitForReview(c));
   route.post('/:submissionId/documents', async (c) => getController(c).uploadDocument(c));
   route.get('/:submissionId/documents', async (c) => getController(c).getDocuments(c));
+  // ✅ NEW: Reset submission from REJECTED to DRAFT (resubmit)
+  route.put('/:submissionId/reset', async (c) => getController(c).resetToDraft(c));
 
   return route;
 })());
@@ -216,10 +238,52 @@ app.route('/api/admin', (() => {
   route.get('/submissions', async (c) => getController(c).getAllSubmissions(c));
   route.get('/submissions/status/:status', async (c) => getController(c).getSubmissionsByStatus(c));
   route.get('/submissions/:submissionId', async (c) => getController(c).getSubmissionById(c));
+  // ✅ NEW: Update submission status endpoint (approve/reject with dummy SURAT_PENGANTAR)
+  route.put('/submissions/:submissionId/status', async (c) => getController(c).updateSubmissionStatus(c));
   route.post('/submissions/:submissionId/approve', async (c) => getController(c).approveSubmission(c));
   route.post('/submissions/:submissionId/reject', async (c) => getController(c).rejectSubmission(c));
   route.post('/submissions/:submissionId/generate-letter', async (c) => getController(c).generateLetter(c));
   route.get('/statistics', async (c) => getController(c).getStatistics(c));
+
+  return route;
+})());
+
+app.route('/api/templates', (() => {
+  const route = new Hono<{ Bindings: Bindings }>();
+  
+  // Apply auth middleware to all template routes
+  route.use('*', authMiddleware);
+  
+  const getController = (c: any) => {
+    const db = createDbClient(c.env.DATABASE_URL);
+    const useMockR2Env = (c.env as any).USE_MOCK_R2;
+    const useMockR2 = useMockR2Env === true || useMockR2Env === 'true';
+    const r2BucketOrMock = useMockR2 ? new MockR2Bucket('document-sikp-mi') : c.env.R2_BUCKET;
+    
+    return new TemplateController(
+      db, 
+      {
+        R2Bucket: r2BucketOrMock as any,
+        s3Client: undefined,
+      },
+      c.env.R2_DOMAIN,
+      c.env.R2_BUCKET_NAME
+    );
+  };
+
+  // Public read routes (specific paths first)
+  route.get('/active', async (c) => getController(c).getActive(c));
+  route.get('/', async (c) => getController(c).getAll(c));
+  
+  // Admin-only write routes
+  route.post('/', adminOnly, async (c) => getController(c).create(c));
+  route.put('/:id', adminOnly, async (c) => getController(c).update(c));
+  route.delete('/:id', adminOnly, async (c) => getController(c).delete(c));
+  route.patch('/:id/toggle-active', adminOnly, async (c) => getController(c).toggleActive(c));
+  
+  // Public read routes (by ID and download)
+  route.get('/:id/download', async (c) => getController(c).download(c));
+  route.get('/:id', async (c) => getController(c).getById(c));
 
   return route;
 })());

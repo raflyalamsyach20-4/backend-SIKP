@@ -50,6 +50,55 @@
       "when": 1768570887801,
       "tag": "0006_black_hulk",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "5",
+      "when": 1769257496456,
+      "tag": "0007_round_shinko_yamashiro",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "5",
+      "when": 1769272653744,
+      "tag": "0008_even_morbius",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "5",
+      "when": 1769954868065,
+      "tag": "0009_many_arachne",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "5",
+      "when": 1770032661504,
+      "tag": "0010_massive_quentin_quire",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "5",
+      "when": 1770033126284,
+      "tag": "0011_drop_extra_submission_columns",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "5",
+      "when": 1770035821986,
+      "tag": "0012_high_eternity",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "5",
+      "when": 1770045256270,
+      "tag": "0013_slow_ulik",
+      "breakpoints": true
     }
   ]
 }

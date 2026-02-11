@@ -1,6 +1,6 @@
 import { eq, and } from 'drizzle-orm';
 import type { DbClient } from '@/db';
-import { teams, teamMembers, submissions } from '@/db/schema';
+import { teams, teamMembers, submissions, users, mahasiswa } from '@/db/schema';
 
 export class TeamRepository {
   constructor(private db: DbClient) {}
@@ -40,6 +40,31 @@ export class TeamRepository {
 
   async findMembersByTeamId(teamId: string) {
     return await this.db.select().from(teamMembers).where(eq(teamMembers.teamId, teamId));
+  }
+
+  /**
+   * Get team members with user data (for displaying member info)
+   */
+  async findMembersWithUserDataByTeamId(teamId: string) {
+    return await this.db
+      .select({
+        id: teamMembers.id,
+        teamId: teamMembers.teamId,
+        userId: teamMembers.userId,
+        role: teamMembers.role,
+        invitationStatus: teamMembers.invitationStatus,
+        user: {
+          id: users.id,
+          nama: users.nama,
+          email: users.email,
+          nim: mahasiswa.nim,
+          prodi: mahasiswa.prodi,
+        },
+      })
+      .from(teamMembers)
+      .innerJoin(users, eq(teamMembers.userId, users.id))
+      .leftJoin(mahasiswa, eq(users.id, mahasiswa.id))
+      .where(eq(teamMembers.teamId, teamId));
   }
 
   async findMemberByTeamAndUser(teamId: string, userId: string) {

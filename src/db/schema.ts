@@ -1,12 +1,12 @@
-import { pgTable, text, timestamp, boolean, pgEnum, varchar, integer } from 'drizzle-orm/pg-core';
+import { pgTable, text, timestamp, boolean, pgEnum, varchar, integer, uniqueIndex, bigint, json, index, date } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
 
 // Enums
 export const roleEnum = pgEnum('role', ['MAHASISWA', 'ADMIN', 'DOSEN', 'KAPRODI', 'WAKIL_DEKAN', 'PEMBIMBING_LAPANGAN']);
 export const teamStatusEnum = pgEnum('team_status', ['PENDING', 'FIXED']);
 export const invitationStatusEnum = pgEnum('invitation_status', ['PENDING', 'ACCEPTED', 'REJECTED']);
-export const submissionStatusEnum = pgEnum('submission_status', ['DRAFT', 'MENUNGGU', 'DITOLAK', 'DITERIMA']);
-export const documentTypeEnum = pgEnum('document_type', ['KTP', 'TRANSKRIP', 'KRS', 'PROPOSAL', 'OTHER']);
+export const submissionStatusEnum = pgEnum('submission_status', ['DRAFT', 'PENDING_REVIEW', 'APPROVED', 'REJECTED']);
+export const documentTypeEnum = pgEnum('document_type', ['PROPOSAL_KETUA', 'SURAT_KESEDIAAN', 'FORM_PERMOHONAN', 'KRS_SEMESTER_4', 'DAFTAR_KUMPULAN_NILAI', 'BUKTI_PEMBAYARAN_UKT', 'SURAT_PENGANTAR']);
 
 // Users Table (Base table untuk semua user)
 export const users = pgTable('users', {
@@ -78,20 +78,18 @@ export const teamMembers = pgTable('team_members', {
 export const submissions = pgTable('submissions', {
   id: text('id').primaryKey(),
   teamId: text('team_id').notNull().references(() => teams.id, { onDelete: 'cascade' }),
+  letterPurpose: varchar('letter_purpose', { length: 255 }).notNull(),
   companyName: varchar('company_name', { length: 255 }).notNull(),
   companyAddress: text('company_address').notNull(),
-  companyPhone: varchar('company_phone', { length: 50 }),
-  companyEmail: varchar('company_email', { length: 255 }),
-  companySupervisor: varchar('company_supervisor', { length: 255 }),
-  position: varchar('position', { length: 255 }),
-  startDate: timestamp('start_date'),
-  endDate: timestamp('end_date'),
-  description: text('description'),
+  division: varchar('division', { length: 255 }).notNull(),
+  startDate: date('start_date').notNull(),
+  endDate: date('end_date').notNull(),
   status: submissionStatusEnum('status').notNull().default('DRAFT'),
   rejectionReason: text('rejection_reason'),
-  approvedBy: text('approved_by').references(() => users.id),
-  approvedAt: timestamp('approved_at'),
   submittedAt: timestamp('submitted_at'),
+  approvedAt: timestamp('approved_at'),
+  approvedBy: text('approved_by').references(() => users.id, { onDelete: 'set null' }),
+  statusHistory: json('status_history').notNull().default('[]'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 });
@@ -100,14 +98,19 @@ export const submissions = pgTable('submissions', {
 export const submissionDocuments = pgTable('submission_documents', {
   id: text('id').primaryKey(),
   submissionId: text('submission_id').notNull().references(() => submissions.id, { onDelete: 'cascade' }),
-  fileName: varchar('file_name', { length: 255 }).notNull(),
+  documentType: documentTypeEnum('document_type').notNull(),
+  memberUserId: text('member_user_id').notNull().references(() => users.id),
+  uploadedByUserId: text('uploaded_by_user_id').notNull().references(() => users.id),
   originalName: varchar('original_name', { length: 255 }).notNull(),
-  fileType: varchar('file_type', { length: 50 }).notNull(),
+  fileName: varchar('file_name', { length: 255 }).notNull(),
+  fileType: varchar('file_type', { length: 100 }).notNull(),
   fileSize: integer('file_size').notNull(),
   fileUrl: text('file_url').notNull(),
-  documentType: documentTypeEnum('document_type').notNull(),
-  uploadedBy: text('uploaded_by').notNull().references(() => users.id),
   createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (table) => {
+  return {
+    uqDocPerMember: uniqueIndex('uq_document_per_member').on(table.submissionId, table.documentType, table.memberUserId),
+  };
 });
 
 // Generated Letters Table
@@ -123,6 +126,32 @@ export const generatedLetters = pgTable('generated_letters', {
   createdAt: timestamp('created_at').defaultNow().notNull(),
 });
 
+// Templates Table
+export const templates = pgTable('templates', {
+  id: text('id').primaryKey(),
+  name: varchar('name', { length: 255 }).notNull(),
+  type: varchar('type', { length: 50 }).notNull(), // 'Template Only' atau 'Generate & Template'
+  description: text('description'),
+  fileName: varchar('file_name', { length: 255 }).notNull(),
+  fileUrl: text('file_url').notNull(),
+  fileSize: bigint('file_size', { mode: 'number' }).notNull(),
+  fileType: varchar('file_type', { length: 100 }).notNull(),
+  originalName: varchar('original_name', { length: 255 }).notNull(),
+  fields: json('fields'), // Array of TemplateField objects
+  version: integer('version').notNull().default(1),
+  isActive: boolean('is_active').notNull().default(true),
+  createdBy: text('created_by').notNull().references(() => users.id, { onDelete: 'restrict' }),
+  updatedBy: text('updated_by').references(() => users.id, { onDelete: 'set null' }),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (table) => {
+  return {
+    idxType: index('idx_templates_type').on(table.type),
+    idxIsActive: index('idx_templates_is_active').on(table.isActive),
+    idxCreatedAt: index('idx_templates_created_at').on(table.createdAt),
+  };
+});
+
 // Relations
 export const usersRelations = relations(users, ({ one, many }) => ({
   mahasiswaProfile: one(mahasiswa),
@@ -134,6 +163,8 @@ export const usersRelations = relations(users, ({ one, many }) => ({
   approvedSubmissions: many(submissions),
   uploadedDocuments: many(submissionDocuments),
   generatedLetters: many(generatedLetters),
+  createdTemplates: many(templates),
+  updatedTemplates: many(templates),
 }));
 
 export const mahasiswaRelations = relations(mahasiswa, ({ one }) => ({
@@ -189,10 +220,6 @@ export const submissionsRelations = relations(submissions, ({ one, many }) => ({
     fields: [submissions.teamId],
     references: [teams.id],
   }),
-  approver: one(users, {
-    fields: [submissions.approvedBy],
-    references: [users.id],
-  }),
   documents: many(submissionDocuments),
   letters: many(generatedLetters),
 }));
@@ -202,8 +229,12 @@ export const submissionDocumentsRelations = relations(submissionDocuments, ({ on
     fields: [submissionDocuments.submissionId],
     references: [submissions.id],
   }),
+  member: one(users, {
+    fields: [submissionDocuments.memberUserId],
+    references: [users.id],
+  }),
   uploader: one(users, {
-    fields: [submissionDocuments.uploadedBy],
+    fields: [submissionDocuments.uploadedByUserId],
     references: [users.id],
   }),
 }));
@@ -215,6 +246,16 @@ export const generatedLettersRelations = relations(generatedLetters, ({ one }) =
   }),
   generator: one(users, {
     fields: [generatedLetters.generatedBy],
+    references: [users.id],
+  }),
+}));
+export const templatesRelations = relations(templates, ({ one }) => ({
+  creator: one(users, {
+    fields: [templates.createdBy],
+    references: [users.id],
+  }),
+  updater: one(users, {
+    fields: [templates.updatedBy],
     references: [users.id],
   }),
 }));

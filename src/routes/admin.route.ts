@@ -9,14 +9,9 @@ export const createAdminRoutes = (adminController: AdminController) => {
   admin.use('*', authMiddleware);
   admin.use('*', adminOnly);
 
-  admin.get('/submissions', adminController.getAllSubmissions);
+  // ⚠️ ORDER MATTERS: More specific routes must come BEFORE generic ones
   admin.get('/submissions/status/:status', adminController.getSubmissionsByStatus);
+  admin.get('/submissions', adminController.getAllSubmissions);
   admin.get('/submissions/:submissionId', adminController.getSubmissionById);
-  admin.post('/submissions/:submissionId/approve', adminController.approveSubmission);
-  admin.post('/submissions/:submissionId/reject', adminController.rejectSubmission);
-  admin.post('/submissions/:submissionId/generate-letter', adminController.generateLetter);
-  admin.get('/statistics', adminController.getStatistics);
-  
-
-  return admin;
-};
+  // PUT endpoint for updating submission status (APPROVED/REJECTED) per BACKEND_ADMIN_SUBMISSION_API_DOCUMENTATION
+  admin.put('/submissions/:submissionId/status', adminController.updateSubmissionStatus);

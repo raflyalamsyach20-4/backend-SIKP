@@ -156,6 +156,14 @@ export class TeamService {
       throw err;
     }
 
+    // ✅ Prevent removing members from FIXED teams
+    if (team.status === 'FIXED') {
+      console.error(`[removeMember] ❌ Cannot remove member from finalized team: ${teamId}`);
+      const err: any = new Error('Cannot remove members from a finalized team');
+      err.statusCode = 400;
+      throw err;
+    }
+
     // Get all members of this team to find the one by memberId
     const allMembers = await this.teamRepo.findMembersByTeamId(teamId);
     const member = allMembers.find(m => m.id === memberId);
@@ -237,31 +245,32 @@ export class TeamService {
       throw new Error('Team not found');
     }
 
+    // 1. Authorization: User must be team leader
     if (team.leaderId !== requesterId) {
       console.error(`[finalizeTeam] ❌ Unauthorized: User ${requesterId} is not leader of team ${teamId}`);
-      const err: any = new Error('Only team leader can finalize the team');
+      const err: any = new Error('Hanya ketua tim yang dapat finalisasi tim');
       err.statusCode = 403;
       throw err;
     }
 
-    // Check if team is already FIXED
+    // 2. Check if team is already FIXED
     if (team.status === 'FIXED') {
       console.warn(`[finalizeTeam] ⚠️ Team already finalized: ${teamId}`);
-      throw new Error('Team is already finalized');
+      const err: any = new Error('Tim sudah difinalisasi sebelumnya');
+      err.statusCode = 409;
+      throw err;
     }
 
-    // Get all members and check if at least one accepted member exists
+    // 3. Get all members (validation removed - team can be finalized with just the leader)
     const members = await this.teamRepo.findMembersByTeamId(teamId);
-    const acceptedMembers = members.filter(m => m.invitationStatus === 'ACCEPTED');
+    const acceptedMembers = members.filter(m => 
+      m.invitationStatus === 'ACCEPTED' && m.role !== 'KETUA'
+    );
     
-    console.log(`[finalizeTeam] Team has ${members.length} total members, ${acceptedMembers.length} accepted`);
+    console.log(`[finalizeTeam] Team has ${members.length} total members, ${acceptedMembers.length} accepted (excluding leader)`);
+    console.log(`[finalizeTeam] Allowing finalization even with just the leader`);
 
-    if (acceptedMembers.length < 1) {
-      console.error(`[finalizeTeam] ❌ No accepted members yet`);
-      throw new Error('At least 1 member must accept the invitation before finalizing');
-    }
-
-    // Update team status to FIXED
+    // 4. Update team status to FIXED
     console.log(`[finalizeTeam] Updating team status to FIXED...`);
     const updatedTeam = await this.teamRepo.update(teamId, { status: 'FIXED' });
     console.log(`[finalizeTeam] ✅ Team finalized successfully`);
@@ -270,7 +279,7 @@ export class TeamService {
       id: updatedTeam?.id,
       code: updatedTeam?.code,
       status: updatedTeam?.status,
-      message: `Team finalized with ${acceptedMembers.length} accepted member(s)`
+      message: 'Tim berhasil difinalisasi dan siap untuk pengajuan'
     };
   }
 
