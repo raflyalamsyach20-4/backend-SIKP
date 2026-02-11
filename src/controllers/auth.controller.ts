@@ -41,15 +41,15 @@ export class AuthController {
       });
 
       if (!tokenResponse.ok) {
-        const error = await tokenResponse.json().catch(() => ({ message: 'Token exchange failed' }));
+        const error: any = await tokenResponse.json().catch(() => ({ message: 'Token exchange failed' }));
         console.error('[AUTH] Token exchange failed:', error);
         return c.json(
           createResponse(false, error.message || 'Failed to exchange token'),
-          tokenResponse.status
+          tokenResponse.status as any
         );
       }
 
-      const tokenData = await tokenResponse.json();
+      const tokenData: any = await tokenResponse.json();
 
       return c.json(
         createResponse(true, 'Token exchanged successfully', {
@@ -97,15 +97,15 @@ export class AuthController {
       });
 
       if (!tokenResponse.ok) {
-        const error = await tokenResponse.json().catch(() => ({ message: 'Token refresh failed' }));
+        const error: any = await tokenResponse.json().catch(() => ({ message: 'Token refresh failed' }));
         console.error('[AUTH] Token refresh failed:', error);
         return c.json(
           createResponse(false, error.message || 'Failed to refresh token'),
-          tokenResponse.status
+          tokenResponse.status as any
         );
       }
 
-      const tokenData = await tokenResponse.json();
+      const tokenData: any = await tokenResponse.json();
 
       return c.json(
         createResponse(true, 'Token refreshed successfully', {
