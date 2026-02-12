@@ -1,6 +1,36 @@
 import { Context } from 'hono';
-import { createSSOClient } from '@/lib/sso-client';
+import { createSSOClient, type SSOProfileResponse } from '@/lib/sso-client';
 import { createResponse, handleError } from '@/utils/helpers';
+
+type ExchangeRequestBody = {
+  code: string;
+  codeVerifier: string;
+};
+
+type RefreshRequestBody = {
+  refreshToken: string;
+};
+
+type OAuthTokenResponse = {
+  access_token: string;
+  refresh_token?: string;
+  expires_in?: number;
+  token_type?: string;
+};
+
+type ExchangeResponseData = {
+  accessToken: string;
+  refreshToken?: string;
+  expiresIn?: number;
+  tokenType: string;
+};
+
+type RefreshResponseData = {
+  accessToken: string;
+  refreshToken?: string;
+  expiresIn?: number;
+  tokenType: string;
+};
 
 export class AuthController {
   constructor(private ssoBaseUrl: string) {}
@@ -8,10 +38,21 @@ export class AuthController {
   /**
    * POST /auth/exchange
    * Exchange authorization code for access token (OAuth 2.0)
+   *
+   * Return (success):
+   * - HTTP 200
+   * - { success: true, message: string, data: { accessToken, refreshToken?, expiresIn?, tokenType } }
+   *
+   * Return (failure):
+   * - HTTP 400 when code/codeVerifier missing
+   * - HTTP <upstream status> when SSO token exchange fails
+   * - HTTP 500 for unexpected errors
    */
-  exchange = async (c: Context) => {
+  exchange = async (c: Context): Promise<Response> => {
     try {
-      const { code, codeVerifier } = await c.req.json();
+      const body = (await c.req.json().catch(() => ({}))) as Partial<ExchangeRequestBody>;
+      const code = body.code;
+      const codeVerifier = body.codeVerifier;
 
       if (!code || !codeVerifier) {
         return c.json(
@@ -49,15 +90,17 @@ export class AuthController {
         );
       }
 
-      const tokenData: any = await tokenResponse.json();
+      const tokenData = (await tokenResponse.json()) as OAuthTokenResponse;
+
+      const responseData: ExchangeResponseData = {
+        accessToken: tokenData.access_token,
+        refreshToken: tokenData.refresh_token,
+        expiresIn: tokenData.expires_in,
+        tokenType: tokenData.token_type || 'Bearer',
+      };
 
       return c.json(
-        createResponse(true, 'Token exchanged successfully', {
-          accessToken: tokenData.access_token,
-          refreshToken: tokenData.refresh_token,
-          expiresIn: tokenData.expires_in,
-          tokenType: tokenData.token_type || 'Bearer',
-        })
+        createResponse<ExchangeResponseData>(true, 'Token exchanged successfully', responseData)
       );
     } catch (error: any) {
       return handleError(c, error, 'Failed to exchange token');
@@ -67,10 +110,20 @@ export class AuthController {
   /**
    * POST /auth/refresh
    * Refresh access token using refresh token
+   *
+   * Return (success):
+   * - HTTP 200
+   * - { success: true, message: string, data: { accessToken, refreshToken?, expiresIn?, tokenType } }
+   *
+   * Return (failure):
+   * - HTTP 400 when refreshToken missing
+   * - HTTP <upstream status> when SSO refresh fails
+   * - HTTP 500 for unexpected errors
    */
-  refresh = async (c: Context) => {
+  refresh = async (c: Context): Promise<Response> => {
     try {
-      const { refreshToken } = await c.req.json();
+      const body = (await c.req.json().catch(() => ({}))) as Partial<RefreshRequestBody>;
+      const refreshToken = body.refreshToken;
 
       if (!refreshToken) {
         return c.json(
@@ -105,15 +158,17 @@ export class AuthController {
         );
       }
 
-      const tokenData: any = await tokenResponse.json();
+      const tokenData = (await tokenResponse.json()) as OAuthTokenResponse;
+
+      const responseData: RefreshResponseData = {
+        accessToken: tokenData.access_token,
+        refreshToken: tokenData.refresh_token,
+        expiresIn: tokenData.expires_in,
+        tokenType: tokenData.token_type || 'Bearer',
+      };
 
       return c.json(
-        createResponse(true, 'Token refreshed successfully', {
-          accessToken: tokenData.access_token,
-          refreshToken: tokenData.refresh_token,
-          expiresIn: tokenData.expires_in,
-          tokenType: tokenData.token_type || 'Bearer',
-        })
+        createResponse<RefreshResponseData>(true, 'Token refreshed successfully', responseData)
       );
     } catch (error: any) {
       return handleError(c, error, 'Failed to refresh token');
@@ -123,8 +178,17 @@ export class AuthController {
   /**
    * GET /auth/me
    * Get current user info from SSO /profile endpoint (proxy)
+   *
+   * Return (success):
+   * - HTTP 200
+   * - { success: true, message: string, data: <SSO profile data> }
+   *
+   * Return (failure):
+   * - HTTP 401 when missing Authorization header
+   * - HTTP 404 when SSO returns success=false (profile not found / blocked)
+   * - HTTP 500 for unexpected errors
    */
-  me = async (c: Context) => {
+  me = async (c: Context): Promise<Response> => {
     try {
       const token = c.req.header('Authorization')?.replace('Bearer ', '');
 
@@ -143,7 +207,13 @@ export class AuthController {
         );
       }
 
-      return c.json(createResponse(true, 'User info retrieved', profileResponse.data));
+      return c.json(
+        createResponse<NonNullable<SSOProfileResponse['data']>>(
+          true,
+          'User info retrieved',
+          profileResponse.data as NonNullable<SSOProfileResponse['data']>
+        )
+      );
     } catch (error: any) {
       return handleError(c, error, 'Failed to get user info');
     }
