@@ -1,20 +1,16 @@
-{
+﻿{
   "info": {
     "name": "Backend SIKP API (SSO Integrated)",
-    "description": "Collection untuk testing Backend SIKP dengan SSO UNSRI Integration",
+    "description": "Collection untuk testing Backend SIKP dengan SSO Identity Gateway Integration.\n\nCatatan: Backend SIKP hanya berkomunikasi dengan SSO, tidak langsung ke Profile Service.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
-    "version": "2.0.0"
+    "version": "2.1.0"
   },
   "variable": [
     {
-      "key": "authServiceUrl",
+      "key": "ssoBaseUrl",
       "value": "http://localhost:8787",
-      "type": "string"
-    },
-    {
-      "key": "profileServiceUrl",
-      "value": "http://localhost:8788",
-      "type": "string"
+      "type": "string",
+      "description": "SSO Identity Gateway URL"
     },
     {
       "key": "backendSikpUrl",
@@ -62,13 +58,13 @@
       "name": "0. Health Check",
       "item": [
         {
-          "name": "Auth Service Health",
+          "name": "SSO Identity Gateway Health",
           "event": [
             {
               "listen": "test",
               "script": {
                 "exec": [
-                  "pm.test('Auth Service is running', function () {",
+                  "pm.test('SSO Identity Gateway is running', function () {",
                   "    pm.response.to.have.status(200);",
                   "});",
                   "",
@@ -77,7 +73,7 @@
                   "    pm.expect(jsonData).to.have.property('status');",
                   "});",
                   "",
-                  "console.log('✅ Auth Service health check passed');"
+                  "console.log('âœ… SSO Identity Gateway health check passed');"
                 ]
               }
             }
@@ -86,20 +82,21 @@
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{authServiceUrl}}/health",
-              "host": ["{{authServiceUrl}}"],
+              "raw": "{{ssoBaseUrl}}/health",
+              "host": ["{{ssoBaseUrl}}"],
               "path": ["health"]
             }
           }
         },
         {
-          "name": "Profile Service Health",
+          "name": "Profile Service Health (via SSO)",
+          "description": "Note: Backend SIKP tidak mengakses Profile Service langsung. Test ini untuk memastikan SSO dapat mengakses Profile Service.",
           "event": [
             {
               "listen": "test",
               "script": {
                 "exec": [
-                  "pm.test('Profile Service is running', function () {",
+                  "pm.test('Profile Service is accessible via SSO', function () {",
                   "    pm.response.to.have.status(200);",
                   "});",
                   "",
@@ -108,7 +105,7 @@
                   "    pm.expect(jsonData).to.have.property('status');",
                   "});",
                   "",
-                  "console.log('✅ Profile Service health check passed');"
+                  "console.log('âœ… Profile Service health check passed (via SSO)');"
                 ]
               }
             }
@@ -117,9 +114,9 @@
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{profileServiceUrl}}/health",
-              "host": ["{{profileServiceUrl}}"],
-              "path": ["health"]
+              "raw": "{{ssoBaseUrl}}/profile/health",
+              "host": ["{{ssoBaseUrl}}"],
+              "path": ["profile", "health"]
             }
           }
         },
@@ -146,7 +143,7 @@
                   "    pm.expect(jsonData.ssoEnabled).to.be.true;",
                   "});",
                   "",
-                  "console.log('✅ Backend SIKP health check passed');"
+                  "console.log('âœ… Backend SIKP health check passed');"
                 ]
               }
             }
@@ -164,7 +161,8 @@
       ]
     },
     {
-      "name": "1. Auth Service - Register & Login",
+      "name": "1. SSO - Register & Login",
+      "description": "Register dan login via SSO Identity Gateway",
       "item": [
         {
           "name": "Register Mahasiswa 1 (Leader)",
@@ -191,9 +189,9 @@
                   "        pm.expect(jsonData.data.user.email).to.eql('mahasiswa1@student.unsri.ac.id');",
                   "    });",
                   "    ",
-                  "    console.log('✅ Mahasiswa 1 registered successfully');",
+                  "    console.log('âœ… Mahasiswa 1 registered successfully');",
                   "} else if (pm.response.code === 409) {",
-                  "    console.log('⚠️ Mahasiswa 1 already exists (409)');",
+                  "    console.log('âš ï¸ Mahasiswa 1 already exists (409)');",
                   "}"
                 ]
               }
@@ -212,8 +210,8 @@
               "raw": "{\n  \"email\": \"mahasiswa1@student.unsri.ac.id\",\n  \"password\": \"Password123!\",\n  \"role\": \"mahasiswa\",\n  \"nim\": \"09021182025001\"\n}"
             },
             "url": {
-              "raw": "{{authServiceUrl}}/api/auth/register",
-              "host": ["{{authServiceUrl}}"],
+              "raw": "{{ssoBaseUrl}}/api/auth/register",
+              "host": ["{{ssoBaseUrl}}"],
               "path": ["api", "auth", "register"]
             }
           }
@@ -240,9 +238,9 @@
                   "        pm.expect(jsonData.data.user.email).to.eql('mahasiswa2@student.unsri.ac.id');",
                   "    });",
                   "    ",
-                  "    console.log('✅ Mahasiswa 2 registered successfully');",
+                  "    console.log('âœ… Mahasiswa 2 registered successfully');",
                   "} else if (pm.response.code === 409) {",
-                  "    console.log('⚠️ Mahasiswa 2 already exists (409)');",
+                  "    console.log('âš ï¸ Mahasiswa 2 already exists (409)');",
                   "}"
                 ]
               }
@@ -261,8 +259,8 @@
               "raw": "{\n  \"email\": \"mahasiswa2@student.unsri.ac.id\",\n  \"password\": \"Password123!\",\n  \"role\": \"mahasiswa\",\n  \"nim\": \"09021182025002\"\n}"
             },
             "url": {
-              "raw": "{{authServiceUrl}}/api/auth/register",
-              "host": ["{{authServiceUrl}}"],
+              "raw": "{{ssoBaseUrl}}/api/auth/register",
+              "host": ["{{ssoBaseUrl}}"],
               "path": ["api", "auth", "register"]
             }
           }
@@ -289,9 +287,9 @@
                   "        pm.expect(jsonData.data.user.roles).to.include('admin');",
                   "    });",
                   "    ",
-                  "    console.log('✅ Admin registered successfully');",
+                  "    console.log('âœ… Admin registered successfully');",
                   "} else if (pm.response.code === 409) {",
-                  "    console.log('⚠️ Admin already exists (409)');",
+                  "    console.log('âš ï¸ Admin already exists (409)');",
                   "}"
                 ]
               }
@@ -310,8 +308,8 @@
               "raw": "{\n  \"email\": \"admin@unsri.ac.id\",\n  \"password\": \"Admin123!\",\n  \"role\": \"admin\",\n  \"nip\": \"199001012020121001\"\n}"
             },
             "url": {
-              "raw": "{{authServiceUrl}}/api/auth/register",
-              "host": ["{{authServiceUrl}}"],
+              "raw": "{{ssoBaseUrl}}/api/auth/register",
+              "host": ["{{ssoBaseUrl}}"],
               "path": ["api", "auth", "register"]
             }
           }
@@ -359,7 +357,7 @@
                   "    const jsonData = pm.response.json();",
                   "    pm.collectionVariables.set('mahasiswaToken', jsonData.data.accessToken);",
                   "    pm.collectionVariables.set('accessToken', jsonData.data.accessToken);",
-                  "    console.log('✅ Mahasiswa 1 logged in - Token saved');",
+                  "    console.log('âœ… Mahasiswa 1 logged in - Token saved');",
                   "}"
                 ]
               }
@@ -378,8 +376,8 @@
               "raw": "{\n  \"email\": \"mahasiswa1@student.unsri.ac.id\",\n  \"password\": \"Password123!\"\n}"
             },
             "url": {
-              "raw": "{{authServiceUrl}}/api/auth/login",
-              "host": ["{{authServiceUrl}}"],
+              "raw": "{{ssoBaseUrl}}/api/auth/login",
+              "host": ["{{ssoBaseUrl}}"],
               "path": ["api", "auth", "login"]
             }
           }
@@ -409,7 +407,7 @@
                   "if (pm.response.code === 200) {",
                   "    const jsonData = pm.response.json();",
                   "    pm.collectionVariables.set('mahasiswa2Token', jsonData.data.accessToken);",
-                  "    console.log('✅ Mahasiswa 2 logged in - Token saved');",
+                  "    console.log('âœ… Mahasiswa 2 logged in - Token saved');",
                   "}"
                 ]
               }
@@ -428,8 +426,8 @@
               "raw": "{\n  \"email\": \"mahasiswa2@student.unsri.ac.id\",\n  \"password\": \"Password123!\"\n}"
             },
             "url": {
-              "raw": "{{authServiceUrl}}/api/auth/login",
-              "host": ["{{authServiceUrl}}"],
+              "raw": "{{ssoBaseUrl}}/api/auth/login",
+              "host": ["{{ssoBaseUrl}}"],
               "path": ["api", "auth", "login"]
             }
           }
@@ -459,7 +457,7 @@
                   "if (pm.response.code === 200) {",
                   "    const jsonData = pm.response.json();",
                   "    pm.collectionVariables.set('adminToken', jsonData.data.accessToken);",
-                  "    console.log('✅ Admin logged in - Token saved');",
+                  "    console.log('âœ… Admin logged in - Token saved');",
                   "}"
                 ]
               }
@@ -478,8 +476,8 @@
               "raw": "{\n  \"email\": \"admin@unsri.ac.id\",\n  \"password\": \"Admin123!\"\n}"
             },
             "url": {
-              "raw": "{{authServiceUrl}}/api/auth/login",
-              "host": ["{{authServiceUrl}}"],
+              "raw": "{{ssoBaseUrl}}/api/auth/login",
+              "host": ["{{ssoBaseUrl}}"],
               "path": ["api", "auth", "login"]
             }
           }
@@ -487,10 +485,12 @@
       ]
     },
     {
-      "name": "2. Backend SIKP - User Info",
+      "name": "2. Backend SIKP - User Info (via SSO)",
+      "description": "Get user info via Backend SIKP yang proxy ke SSO /profile endpoint",
       "item": [
         {
           "name": "Get My Info (Mahasiswa)",
+          "description": "Get user profile via Backend SIKP (proxied from SSO /profile endpoint)",
           "event": [
             {
               "listen": "test",
@@ -500,44 +500,33 @@
                   "    pm.response.to.have.status(200);",
                   "});",
                   "",
-                  "pm.test('Response structure is correct', function () {",
+                  "pm.test('Response structure is correct (SSO format)', function () {",
                   "    const jsonData = pm.response.json();",
                   "    pm.expect(jsonData.success).to.be.true;",
-                  "    pm.expect(jsonData.data).to.have.property('user');",
-                  "    pm.expect(jsonData.data).to.have.property('profiles');",
-                  "});",
-                  "",
-                  "pm.test('User info from JWT is present', function () {",
-                  "    const jsonData = pm.response.json();",
-                  "    const user = jsonData.data.user;",
-                  "    pm.expect(user).to.have.property('id');",
-                  "    pm.expect(user).to.have.property('email');",
-                  "    pm.expect(user).to.have.property('roles');",
-                  "    pm.expect(user.roles).to.be.an('array');",
+                  "    pm.expect(jsonData.data).to.have.property('sub');",
+                  "    pm.expect(jsonData.data).to.have.property('email');",
+                  "    pm.expect(jsonData.data).to.have.property('name');",
+                  "    pm.expect(jsonData.data).to.have.property('roles');",
                   "});",
                   "",
                   "pm.test('User has mahasiswa role', function () {",
                   "    const jsonData = pm.response.json();",
-                  "    pm.expect(jsonData.data.user.roles).to.include('mahasiswa');",
+                  "    pm.expect(jsonData.data.roles).to.include('mahasiswa');",
                   "});",
                   "",
-                  "pm.test('Profiles from Profile Service present', function () {",
+                  "pm.test('Mahasiswa profile from SSO present', function () {",
                   "    const jsonData = pm.response.json();",
-                  "    pm.expect(jsonData.data).to.have.property('profiles');",
-                  "    const profileData = jsonData.data.profiles;",
-                  "    pm.expect(profileData).to.have.property('profiles');",
-                  "    pm.expect(profileData.profiles).to.be.an('array');",
+                  "    pm.expect(jsonData.data).to.have.property('mahasiswa');",
                   "    ",
-                  "    if (profileData.profiles.length > 0) {",
-                  "        const profile = profileData.profiles[0];",
-                  "        pm.expect(profile).to.have.property('type');",
-                  "        pm.expect(profile.type).to.eql('MAHASISWA');",
-                  "        pm.expect(profile).to.have.property('mahasiswa');",
-                  "        pm.expect(profile.mahasiswa).to.have.property('nim');",
+                  "    if (jsonData.data.mahasiswa) {",
+                  "        const mahasiswa = jsonData.data.mahasiswa;",
+                  "        pm.expect(mahasiswa).to.have.property('nim');",
+                  "        pm.expect(mahasiswa).to.have.property('prodi');",
+                  "        pm.expect(mahasiswa).to.have.property('fakultas');",
                   "    }",
                   "});",
                   "",
-                  "console.log('✅ User info retrieved successfully');"
+                  "console.log('✅ User info retrieved successfully (via SSO)');"
                 ]
               }
             }
@@ -569,7 +558,7 @@
               "listen": "test",
               "script": {
                 "exec": [
-                  "// ✅ Accept both 201 (created) and 409 (conflict - team already exists)",
+                  "// âœ… Accept both 201 (created) and 409 (conflict - team already exists)",
                   "pm.test('Team creation or already exists', function () {",
                   "    pm.expect(pm.response.code).to.be.oneOf([201, 409]);",
                   "});",
@@ -600,8 +589,8 @@
                   "    ",
                   "    const jsonData = pm.response.json();",
                   "    pm.collectionVariables.set('teamId', jsonData.data.id);",
-                  "    console.log('✅ Team created with ID:', jsonData.data.id);",
-                  "    console.log('✅ Team code:', jsonData.data.code);",
+                  "    console.log('âœ… Team created with ID:', jsonData.data.id);",
+                  "    console.log('âœ… Team code:', jsonData.data.code);",
                   "} else if (pm.response.code === 409) {",
                   "    // Team already exists - this is expected and OK",
                   "    pm.test('Conflict response structure', function () {",
@@ -613,8 +602,8 @@
                   "        }, 'Message should indicate team already exists');",
                   "    });",
                   "    ",
-                  "    console.log('⚠️ Team already exists (409 Conflict) - This is expected');",
-                  "    console.log('ℹ️ Will retrieve teamId from \"Get My Team\" request');",
+                  "    console.log('âš ï¸ Team already exists (409 Conflict) - This is expected');",
+                  "    console.log('â„¹ï¸ Will retrieve teamId from \"Get My Team\" request');",
                   "}"
                 ]
               }
@@ -679,10 +668,10 @@
                   "const jsonData = pm.response.json();",
                   "if (jsonData.data && jsonData.data.id) {",
                   "    pm.collectionVariables.set('teamId', jsonData.data.id);",
-                  "    console.log('✅ Team retrieved - TeamId saved:', jsonData.data.id);",
+                  "    console.log('âœ… Team retrieved - TeamId saved:', jsonData.data.id);",
                   "}",
                   "",
-                  "console.log('✅ Team retrieved successfully');"
+                  "console.log('âœ… Team retrieved successfully');"
                 ]
               }
             }
@@ -739,7 +728,7 @@
                   "if (pm.response.code === 201) {",
                   "    const jsonData = pm.response.json();",
                   "    pm.collectionVariables.set('invitationId', jsonData.data.id);",
-                  "    console.log('✅ Invitation sent with ID:', jsonData.data.id);",
+                  "    console.log('âœ… Invitation sent with ID:', jsonData.data.id);",
                   "}"
                 ]
               }
@@ -795,7 +784,7 @@
                   "    }",
                   "});",
                   "",
-                  "console.log('✅ Invitations retrieved successfully');"
+                  "console.log('âœ… Invitations retrieved successfully');"
                 ]
               }
             }
@@ -836,7 +825,7 @@
                   "    pm.expect(jsonData.data.status).to.eql('ACCEPTED');",
                   "});",
                   "",
-                  "console.log('✅ Invitation accepted');"
+                  "console.log('âœ… Invitation accepted');"
                 ]
               }
             }
@@ -855,7 +844,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"action\": \"ACCEPT\"\n}"
+              "raw": "{\n  \"accept\": true\n}"
             },
             "url": {
               "raw": "{{backendSikpUrl}}/api/teams/members/{{invitationId}}/respond",
@@ -880,7 +869,7 @@
                   "    pm.expect(jsonData.data.status).to.eql('REJECTED');",
                   "});",
                   "",
-                  "console.log('✅ Invitation rejected');"
+                  "console.log('âœ… Invitation rejected');"
                 ]
               }
             }
@@ -899,7 +888,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"action\": \"REJECT\"\n}"
+              "raw": "{\n  \"accept\": false\n}"
             },
             "url": {
               "raw": "{{backendSikpUrl}}/api/teams/members/{{invitationId}}/respond",
@@ -925,7 +914,7 @@
                   "    pm.expect(jsonData.data).to.have.property('teamId');",
                   "});",
                   "",
-                  "console.log('✅ Successfully left team');"
+                  "console.log('âœ… Successfully left team');"
                 ]
               }
             }
@@ -961,7 +950,7 @@
                   "    pm.expect(jsonData.success).to.be.true;",
                   "});",
                   "",
-                  "console.log('✅ Invitation cancelled');"
+                  "console.log('âœ… Invitation cancelled');"
                 ]
               }
             }
@@ -1023,7 +1012,7 @@
                   "if (pm.response.code === 201) {",
                   "    const jsonData = pm.response.json();",
                   "    pm.collectionVariables.set('submissionId', jsonData.data.id);",
-                  "    console.log('✅ Submission created with ID:', jsonData.data.id);",
+                  "    console.log('âœ… Submission created with ID:', jsonData.data.id);",
                   "}"
                 ]
               }
@@ -1069,7 +1058,7 @@
                   "    pm.expect(jsonData.data).to.be.an('array');",
                   "});",
                   "",
-                  "console.log('✅ Submissions retrieved');"
+                  "console.log('âœ… Submissions retrieved');"
                 ]
               }
             }
@@ -1107,7 +1096,7 @@
                   "    pm.expect(jsonData.data).to.have.property('status');",
                   "});",
                   "",
-                  "console.log('✅ Submission detail retrieved');"
+                  "console.log('âœ… Submission detail retrieved');"
                 ]
               }
             }
@@ -1143,7 +1132,7 @@
                   "    pm.expect(jsonData.data.companyPhone).to.eql('0711-999888');",
                   "});",
                   "",
-                  "console.log('✅ Submission updated');"
+                  "console.log('âœ… Submission updated');"
                 ]
               }
             }
@@ -1187,7 +1176,7 @@
                   "    pm.expect(jsonData.data.status).to.eql('MENUNGGU');",
                   "});",
                   "",
-                  "console.log('✅ Submission sent for review');"
+                  "console.log('âœ… Submission sent for review');"
                 ]
               }
             }
@@ -1238,7 +1227,7 @@
                   "    }",
                   "});",
                   "",
-                  "console.log('✅ All submissions retrieved');"
+                  "console.log('âœ… All submissions retrieved');"
                 ]
               }
             }
@@ -1278,7 +1267,7 @@
                   "    }",
                   "});",
                   "",
-                  "console.log('✅ Filtered submissions retrieved');"
+                  "console.log('âœ… Filtered submissions retrieved');"
                 ]
               }
             }
@@ -1316,7 +1305,7 @@
                   "    pm.expect(jsonData.data).to.have.property('companyName');",
                   "});",
                   "",
-                  "console.log('✅ Submission detail retrieved');"
+                  "console.log('âœ… Submission detail retrieved');"
                 ]
               }
             }
@@ -1358,7 +1347,7 @@
                   "    pm.expect(jsonData.data).to.have.property('approvedAt');",
                   "});",
                   "",
-                  "console.log('✅ Submission approved');"
+                  "console.log('âœ… Submission approved');"
                 ]
               }
             }
@@ -1399,7 +1388,7 @@
                   "    pm.expect(jsonData.data).to.have.property('rejectionReason');",
                   "});",
                   "",
-                  "console.log('✅ Submission rejected');"
+                  "console.log('âœ… Submission rejected');"
                 ]
               }
             }
@@ -1443,7 +1432,7 @@
                   "    pm.expect(jsonData.data).to.have.property('letterUrl');",
                   "});",
                   "",
-                  "console.log('✅ Letter generated');"
+                  "console.log('âœ… Letter generated');"
                 ]
               }
             }
@@ -1485,7 +1474,7 @@
                   "    pm.expect(jsonData.data.total).to.be.a('number');",
                   "});",
                   "",
-                  "console.log('✅ Statistics retrieved');"
+                  "console.log('âœ… Statistics retrieved');"
                 ]
               }
             }

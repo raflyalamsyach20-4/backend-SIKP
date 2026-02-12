@@ -1,33 +1,32 @@
-# 🧪 Testing Guide - Backend SIKP dengan SSO Integration
+﻿# ðŸ§ª Testing Guide - Backend SIKP dengan SSO Integration
 
-> **Panduan lengkap untuk testing Backend SIKP yang terintegrasi dengan SSO UNSRI & Profile Service menggunakan Postman**
+> **Panduan lengkap untuk testing Backend SIKP yang terintegrasi dengan SSO Identity Gateway menggunakan Postman**
+>
+> **âš ï¸ PENTING**: Backend SIKP **TIDAK** mengakses Profile Service secara langsung. Semua data profil diambil melalui SSO.
 
 ---
 
-## 📋 Prerequisites
+## ðŸ“‹ Prerequisites
 
 ### 1. Services yang Harus Running
 
-Pastikan ketiga service berikut sudah running sebelum testing:
+Pastikan service berikut sudah running sebelum testing:
 
-| Service | Port | URL | Status Check |
-|---------|------|-----|--------------|
-| **Auth Service** | 8787 | http://localhost:8787 | `GET /health` |
-| **Profile Service** | 8788 | http://localhost:8788 | `GET /health` |
-| **Backend SIKP** | 8789 | http://localhost:8789 | `GET /health` |
+| Service | Port | URL | Status Check | Catatan |
+|---------|------|-----|--------------|---------|
+| **SSO Identity Gateway** | 8787 | http://localhost:8787 | `GET /health` | Termasuk Profile aggregation |
+| **Backend SIKP** | 8789 | http://localhost:8789 | `GET /health` | Berkomunikasi dengan SSO |
+
+**Note**: Profile Service (port 8788) diakses oleh SSO secara internal, bukan oleh Backend SIKP.
 
 **Start Services:**
 
 ```powershell
-# Terminal 1 - Auth Service
-cd ..\auth-backend-sso
+# Terminal 1 - SSO Identity Gateway (includes Auth + Profile proxy)
+cd ..\backend-sso
 npm run dev
 
-# Terminal 2 - Profile Service
-cd ..\profile-service
-npm run dev
-
-# Terminal 3 - Backend SIKP
+# Terminal 2 - Backend SIKP
 cd ..\backend-sikp
 npm run dev
 ```
@@ -50,48 +49,57 @@ bun run db:migrate
 
 ---
 
-## 🎯 Testing Flow
+## ðŸŽ¯ Testing Flow
 
-### ⚠️ PENTING: Urutan Testing
+### âš ï¸ PENTING: Urutan Testing
 
 Testing **HARUS** dilakukan sesuai urutan ini karena ada dependency antar endpoint:
 
 ```
 1. Health Check (opsional)
-   ↓
-2. Register & Login (Auth Service)
-   ↓ (simpan access token)
-3. Get User Info (Backend SIKP)
-   ↓
+   â†“
+2. Register & Login (SSO)
+   â†“ (simpan access token)
+3. Get User Info (Backend SIKP - proxied from SSO)
+   â†“
 4. Team Management
-   ↓
+   â†“
 5. Submission Management
-   ↓
+   â†“
 6. Admin Review & Approval
+```
+
+### ðŸ“Œ Arsitektur Komunikasi
+
+```
+Frontend â†’ Backend SIKP â†’ SSO Identity Gateway
+                    â†“
+               Profile Data (aggregated by SSO)
+                    â†“
+               âŒ TIDAK langsung ke Profile Service
 ```
 
 ---
 
-## 📝 Step-by-Step Testing
+## ðŸ“ Step-by-Step Testing
 
 ### Step 0: Health Check (Optional)
 
-Verifikasi semua services running dengan baik.
+Verifikasi services running dengan baik.
 
 **Requests:**
-1. ✅ Auth Service Health → Expected: `{"status": "ok"}`
-2. ✅ Profile Service Health → Expected: `{"status": "ok"}`
-3. ✅ Backend SIKP Health → Expected: `{"status": "healthy"}`
+1. âœ… SSO Identity Gateway Health â†’ Expected: `{"status": "ok"}`
+2. âœ… Backend SIKP Health â†’ Expected: `{"status": "healthy", "ssoEnabled": true}`
 
 ---
 
-### Step 1: Register Users (Auth Service)
+### Step 1: Register Users (SSO)
 
 Register 3 user untuk testing: 2 mahasiswa dan 1 admin.
 
 #### 1.1 Register Mahasiswa 1 (Leader)
 
-**Request:** `POST /api/auth/register` ke Auth Service
+**Request:** `POST /api/auth/register` ke SSO
 
 ```json
 {
@@ -118,13 +126,13 @@ Register 3 user untuk testing: 2 mahasiswa dan 1 admin.
 }
 ```
 
-⚠️ **Note:** 
+âš ï¸ **Note:** 
 - NIM `09021182025001` harus sudah ada di **Profile Service**
 - Field `name` akan otomatis diambil dari Profile Service
 
 #### 1.2 Register Mahasiswa 2 (Member)
 
-**Request:** `POST /api/auth/register` ke Auth Service
+**Request:** `POST /api/auth/register` ke SSO
 
 ```json
 {
@@ -137,7 +145,7 @@ Register 3 user untuk testing: 2 mahasiswa dan 1 admin.
 
 #### 1.3 Register Admin
 
-**Request:** `POST /api/auth/register` ke Auth Service
+**Request:** `POST /api/auth/register` ke SSO
 
 ```json
 {
@@ -156,7 +164,7 @@ Login dengan setiap user untuk mendapatkan access token.
 
 #### 2.1 Login Mahasiswa 1
 
-**Request:** `POST /api/auth/login` ke Auth Service
+**Request:** `POST /api/auth/login` ke SSO
 
 ```json
 {
@@ -177,19 +185,19 @@ Login dengan setiap user untuk mendapatkan access token.
 }
 ```
 
-✅ **Postman akan otomatis menyimpan token ke variable `mahasiswaToken`**
+âœ… **Postman akan otomatis menyimpan token ke variable `mahasiswaToken`**
 
 #### 2.2 Login Mahasiswa 2
 
 **Request:** Sama seperti 2.1, ganti email/password
 
-✅ **Token disimpan ke variable `mahasiswa2Token`**
+âœ… **Token disimpan ke variable `mahasiswa2Token`**
 
 #### 2.3 Login Admin
 
 **Request:** Sama seperti 2.1, ganti email/password
 
-✅ **Token disimpan ke variable `adminToken`**
+âœ… **Token disimpan ke variable `adminToken`**
 
 ---
 
@@ -235,7 +243,7 @@ Authorization: Bearer {{mahasiswaToken}}
 }
 ```
 
-✅ **Verify:**
+âœ… **Verify:**
 - User info dari JWT token
 - Profiles dari Profile Service
 - Role dan permissions sesuai
@@ -282,7 +290,7 @@ Authorization: Bearer {{mahasiswaToken}}
 }
 ```
 
-✅ **Postman akan menyimpan `team.id` ke variable `teamId`**
+âœ… **Postman akan menyimpan `team.id` ke variable `teamId`**
 
 #### 4.2 Get My Team
 
@@ -326,7 +334,7 @@ Authorization: Bearer {{mahasiswaToken}}
 }
 ```
 
-✅ **Postman akan menyimpan `invitation.id` ke variable `invitationId`**
+âœ… **Postman akan menyimpan `invitation.id` ke variable `invitationId`**
 
 #### 4.4 Get My Invitations (as Mahasiswa 2)
 
@@ -445,7 +453,7 @@ Authorization: Bearer {{mahasiswaToken}}
 }
 ```
 
-✅ **Postman akan menyimpan `submission.id` ke variable `submissionId`**
+âœ… **Postman akan menyimpan `submission.id` ke variable `submissionId`**
 
 #### 5.2 Get My Submissions
 
@@ -559,7 +567,7 @@ Authorization: Bearer {{adminToken}}
 
 ---
 
-## ✅ Testing Checklist
+## âœ… Testing Checklist
 
 ### Basic Flow
 - [ ] All services health check passed
@@ -594,7 +602,7 @@ Authorization: Bearer {{adminToken}}
 
 ---
 
-## 🐛 Common Issues & Troubleshooting
+## ðŸ› Common Issues & Troubleshooting
 
 ### Issue: "No token provided" (401)
 
@@ -643,7 +651,7 @@ Authorization: Bearer {{adminToken}}
 
 ---
 
-## 📊 Expected Results Summary
+## ðŸ“Š Expected Results Summary
 
 | Endpoint | Role | Expected Status | Notes |
 |----------|------|-----------------|-------|
@@ -657,7 +665,7 @@ Authorization: Bearer {{adminToken}}
 
 ---
 
-## 🎓 Testing Best Practices
+## ðŸŽ“ Testing Best Practices
 
 1. **Test in Order:** Always follow the testing flow sequence
 2. **Save Variables:** Let Postman scripts save IDs automatically
@@ -668,7 +676,7 @@ Authorization: Bearer {{adminToken}}
 
 ---
 
-## 📞 Support
+## ðŸ“ž Support
 
 Jika menemukan issue atau ada pertanyaan:
 
@@ -678,4 +686,4 @@ Jika menemukan issue atau ada pertanyaan:
 
 ---
 
-**Happy Testing! 🚀**
+**Happy Testing! ðŸš€**
