@@ -1,17 +1,73 @@
-import { Hono } from 'hono';
-import { AdminController } from '@/controllers/admin.controller';
+import { Hono, Context } from 'hono';
+import { DIContainer } from '@/core';
 import { authMiddleware, adminOnly } from '@/middlewares/auth.middleware';
+import { CloudflareBindings } from '@/config';
 
-export const createAdminRoutes = (adminController: AdminController) => {
-  const admin = new Hono();
+/**
+ * Extended context variables
+ */
+type Variables = {
+  container: DIContainer;
+};
+
+/**
+ * Admin Routes
+ * Handles admin-specific endpoints for submission management
+ */
+export const createAdminRoutes = () => {
+  const admin = new Hono<{ Bindings: CloudflareBindings; Variables: Variables }>();
 
   // Apply auth middleware to all admin routes
   admin.use('*', authMiddleware);
   admin.use('*', adminOnly);
 
-  // ⚠️ ORDER MATTERS: More specific routes must come BEFORE generic ones
-  admin.get('/submissions/status/:status', adminController.getSubmissionsByStatus);
-  admin.get('/submissions', adminController.getAllSubmissions);
-  admin.get('/submissions/:submissionId', adminController.getSubmissionById);
-  // PUT endpoint for updating submission status (APPROVED/REJECTED) per BACKEND_ADMIN_SUBMISSION_API_DOCUMENTATION
-  admin.put('/submissions/:submissionId/status', adminController.updateSubmissionStatus);
+  // Get submissions by status (more specific route first)
+  admin.get('/submissions/status/:status', async (c: Context) => {
+    const container = c.get('container') as DIContainer;
+    return container.adminController.getSubmissionsByStatus(c);
+  });
+
+  // Get all submissions
+  admin.get('/submissions', async (c: Context) => {
+    const container = c.get('container') as DIContainer;
+    return container.adminController.getAllSubmissions(c);
+  });
+
+  // Get submission by ID
+  admin.get('/submissions/:submissionId', async (c: Context) => {
+    const container = c.get('container') as DIContainer;
+    return container.adminController.getSubmissionById(c);
+  });
+
+  // Update submission status
+  admin.put('/submissions/:submissionId/status', async (c: Context) => {
+    const container = c.get('container') as DIContainer;
+    return container.adminController.updateSubmissionStatus(c);
+  });
+
+  // Approve submission
+  admin.post('/submissions/:submissionId/approve', async (c: Context) => {
+    const container = c.get('container') as DIContainer;
+    return container.adminController.approveSubmission(c);
+  });
+
+  // Reject submission
+  admin.post('/submissions/:submissionId/reject', async (c: Context) => {
+    const container = c.get('container') as DIContainer;
+    return container.adminController.rejectSubmission(c);
+  });
+
+  // Generate letter
+  admin.post('/submissions/:submissionId/generate-letter', async (c: Context) => {
+    const container = c.get('container') as DIContainer;
+    return container.adminController.generateLetter(c);
+  });
+
+  // Get statistics
+  admin.get('/statistics', async (c: Context) => {
+    const container = c.get('container') as DIContainer;
+    return container.adminController.getStatistics(c);
+  });
+
+  return admin;
+};

@@ -1,0 +1,11 @@
+-- Simplify response_letters table by removing redundant and unnecessary columns
+-- Removed columns:
+-- - team_id: redundant because submission already has team_id
+-- - file_path: not needed
+-- - letter_status_description: not needed
+-- - verification_notes: not needed
+-- - created_at: not needed (we have submitted_at)
+-- - updated_at: not needed
+
+-- Note: These changes were applied directly using apply-response-letters-changes.ts
+-- as the standard migration system has issues with neon-http prepared statements

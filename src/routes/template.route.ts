@@ -1,38 +1,67 @@
-import { Hono } from 'hono';
-import type { DbClient } from '@/db';
-import { TemplateController } from '@/controllers/template.controller';
-import { authMiddleware } from '@/middlewares/auth.middleware';
+import { Hono, Context } from 'hono';
+import { DIContainer } from '@/core';
+import { authMiddleware, adminOnly } from '@/middlewares/auth.middleware';
+import { CloudflareBindings } from '@/config';
 
-export const createTemplateRoutes = (db: DbClient, uploadConfig: { R2Bucket?: R2Bucket; s3Client?: any }) => {
-  const router = new Hono<{ Bindings: { R2_BUCKET?: R2Bucket } }>();
-  const controller = new TemplateController(db, uploadConfig);
+/**
+ * Extended context variables
+ */
+type Variables = {
+  container: DIContainer;
+};
 
-  // Public routes (require authentication)
+/**
+ * Template Routes
+ * Handles template management endpoints
+ */
+export const createTemplateRoutes = () => {
+  const router = new Hono<{ Bindings: CloudflareBindings; Variables: Variables }>();
+
+  // Apply auth middleware to all template routes
   router.use('*', authMiddleware);
 
-  // Get all templates
-  router.get('/', (c) => controller.getAll(c));
+  // Public read routes (specific paths first)
+  router.get('/active', async (c: Context) => {
+    const container = c.get('container') as DIContainer;
+    return container.templateController.getActive(c);
+  });
 
-  // Get active templates
-  router.get('/active', (c) => controller.getActive(c));
+  router.get('/', async (c: Context) => {
+    const container = c.get('container') as DIContainer;
+    return container.templateController.getAll(c);
+  });
 
-  // Get template by ID
-  router.get('/:id', (c) => controller.getById(c));
+  // Admin-only write routes
+  router.post('/', adminOnly, async (c: Context) => {
+    const container = c.get('container') as DIContainer;
+    return container.templateController.create(c);
+  });
 
-  // Create template (Admin only)
-  router.post('/', (c) => controller.create(c));
+  router.put('/:id', adminOnly, async (c: Context) => {
+    const container = c.get('container') as DIContainer;
+    return container.templateController.update(c);
+  });
 
-  // Update template (Admin only)
-  router.put('/:id', (c) => controller.update(c));
+  router.delete('/:id', adminOnly, async (c: Context) => {
+    const container = c.get('container') as DIContainer;
+    return container.templateController.delete(c);
+  });
 
-  // Delete template (Admin only)
-  router.delete('/:id', (c) => controller.delete(c));
+  router.patch('/:id/toggle-active', adminOnly, async (c: Context) => {
+    const container = c.get('container') as DIContainer;
+    return container.templateController.toggleActive(c);
+  });
 
-  // Toggle active status (Admin only)
-  router.patch('/:id/toggle-active', (c) => controller.toggleActive(c));
+  // Public read routes (by ID and download)
+  router.get('/:id/download', async (c: Context) => {
+    const container = c.get('container') as DIContainer;
+    return container.templateController.download(c);
+  });
 
-  // Download template file
-  router.get('/:id/download', (c) => controller.download(c));
+  router.get('/:id', async (c: Context) => {
+    const container = c.get('container') as DIContainer;
+    return container.templateController.getById(c);
+  });
 
   return router;
 };

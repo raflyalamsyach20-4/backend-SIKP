@@ -17,7 +17,7 @@ export class AdminService {
   }
 
   async getSubmissionById(id: string) {
-    const submission = await (this.submissionRepo as any).findByIdWithTeam(id);
+    const submission = await this.submissionRepo.findByIdWithTeam(id);
     if (!submission) {
       throw new Error('Submission not found');
     }
@@ -126,6 +126,7 @@ export class AdminService {
       status,
       approvedBy: adminId, // ✅ Track admin yang approve/reject
       statusHistory: newHistory,
+      documentReviews: documentReviews || {}, // ✅ Save document reviews
       updatedAt: new Date(),
     };
 

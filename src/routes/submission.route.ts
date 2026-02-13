@@ -1,37 +1,85 @@
-import { Hono } from 'hono';
-import { SubmissionController } from '@/controllers/submission.controller';
+import { Hono, Context } from 'hono';
+import { DIContainer } from '@/core';
 import { authMiddleware, mahasiswaOnly, roleMiddleware } from '@/middlewares/auth.middleware';
+import { CloudflareBindings } from '@/config';
 
-export const createSubmissionRoutes = (submissionController: SubmissionController) => {
-  const submission = new Hono();
+/**
+ * Extended context variables
+ */
+type Variables = {
+  container: DIContainer;
+};
+
+/**
+ * Submission Routes
+ * Handles submission management endpoints
+ */
+export const createSubmissionRoutes = () => {
+  const submission = new Hono<{ Bindings: CloudflareBindings; Variables: Variables }>();
 
   // Apply auth middleware to all submission routes
   submission.use('*', authMiddleware);
 
-  // POST / - create submission (mahasiswa only)
-  submission.post('/', mahasiswaOnly, submissionController.createSubmission);
+  // Create submission (mahasiswa only)
+  submission.post('/', mahasiswaOnly, async (c: Context) => {
+    const container = c.get('container') as DIContainer;
+    return container.submissionController.createSubmission(c);
+  });
 
-  // GET /my-submissions - get user's submissions (mahasiswa only)
-  submission.get('/my-submissions', mahasiswaOnly, submissionController.getMySubmissions);
+  // Get user's submissions (mahasiswa only)
+  submission.get('/my-submissions', mahasiswaOnly, async (c: Context) => {
+    const container = c.get('container') as DIContainer;
+    return container.submissionController.getMySubmissions(c);
+  });
 
-  // GET /:submissionId - get submission by id (mahasiswa + admin)
-  // ⚠️ IMPORTANT: This must come BEFORE other /:submissionId routes due to Hono routing
-  submission.get('/:submissionId', roleMiddleware(['MAHASISWA', 'ADMIN', 'KAPRODI', 'WAKIL_DEKAN']), submissionController.getSubmissionById);
+  // Get submission by ID (mahasiswa + admin)
+  submission.get('/:submissionId', 
+    roleMiddleware(['MAHASISWA', 'ADMIN', 'KAPRODI', 'WAKIL_DEKAN']), 
+    async (c: Context) => {
+      const container = c.get('container') as DIContainer;
+      return container.submissionController.getSubmissionById(c);
+    }
+  );
 
-  // PUT /:submissionId - update submission (mahasiswa only)
-  submission.put('/:submissionId', mahasiswaOnly, submissionController.updateSubmission);
+  // Update submission (mahasiswa only)
+  submission.put('/:submissionId', mahasiswaOnly, async (c: Context) => {
+    const container = c.get('container') as DIContainer;
+    return container.submissionController.updateSubmission(c);
+  });
 
-  // PATCH /:submissionId - update submission (mahasiswa only)
-  submission.patch('/:submissionId', mahasiswaOnly, submissionController.updateSubmission);
+  submission.patch('/:submissionId', mahasiswaOnly, async (c: Context) => {
+    const container = c.get('container') as DIContainer;
+    return container.submissionController.updateSubmission(c);
+  });
 
-  // POST /:submissionId/submit - submit for review (mahasiswa only)
-  submission.post('/:submissionId/submit', mahasiswaOnly, submissionController.submitForReview);
+  // Submit for review (mahasiswa only)
+  submission.post('/:submissionId/submit', mahasiswaOnly, async (c: Context) => {
+    const container = c.get('container') as DIContainer;
+    return container.submissionController.submitForReview(c);
+  });
 
-  // POST /:submissionId/documents - upload document (mahasiswa only)
-  submission.post('/:submissionId/documents', mahasiswaOnly, submissionController.uploadDocument);
+  submission.put('/:submissionId/submit', mahasiswaOnly, async (c: Context) => {
+    const container = c.get('container') as DIContainer;
+    return container.submissionController.submitForReview(c);
+  });
 
-  // GET /:submissionId/documents - get documents (mahasiswa only)
-  submission.get('/:submissionId/documents', mahasiswaOnly, submissionController.getDocuments);
+  // Upload document (mahasiswa only)
+  submission.post('/:submissionId/documents', mahasiswaOnly, async (c: Context) => {
+    const container = c.get('container') as DIContainer;
+    return container.submissionController.uploadDocument(c);
+  });
+
+  // Get documents (mahasiswa only)
+  submission.get('/:submissionId/documents', mahasiswaOnly, async (c: Context) => {
+    const container = c.get('container') as DIContainer;
+    return container.submissionController.getDocuments(c);
+  });
+
+  // Reset to draft (mahasiswa only)
+  submission.put('/:submissionId/reset', mahasiswaOnly, async (c: Context) => {
+    const container = c.get('container') as DIContainer;
+    return container.submissionController.resetToDraft(c);
+  });
 
   return submission;
 };

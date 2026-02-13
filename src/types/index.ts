@@ -3,6 +3,8 @@ export type TeamStatus = 'PENDING' | 'FIXED';
 export type InvitationStatus = 'PENDING' | 'ACCEPTED' | 'REJECTED';
 export type SubmissionStatus = 'DRAFT' | 'MENUNGGU' | 'DITOLAK' | 'DITERIMA';
 export type DocumentType = 'KTP' | 'TRANSKRIP' | 'KRS' | 'PROPOSAL' | 'OTHER';
+export type ResponseLetterStatus = 'approved' | 'rejected';
+export type ResponseLetterTrackingStatus = 'pending' | 'submitted' | 'verified';
 
 // Base User interface
 export interface User {
@@ -150,4 +152,30 @@ export interface Template {
   updatedBy?: string | null;
   createdAt: Date;
   updatedAt: Date;
+}
+
+// Response Letter interface
+export interface ResponseLetter {
+  id: string;
+  submissionId: string;
+  originalName: string | null;
+  fileName: string | null;
+  fileType: string | null;
+  fileSize: number | null;
+  fileUrl: string | null;
+  memberUserId: string | null;
+  letterStatus: ResponseLetterStatus;
+  submittedAt: Date;
+  verified: boolean;
+  verifiedAt: Date | null;
+  verifiedByAdminId: string | null;
+}
+
+// Response Letter with relations
+export interface ResponseLetterWithDetails extends ResponseLetter {
+  submission?: Submission;
+  memberUser?: User & { mahasiswaProfile?: Mahasiswa };
+  verifiedBy?: User;
+  leader?: User & { mahasiswaProfile?: Mahasiswa };
+  members?: Array<User & { mahasiswaProfile?: Mahasiswa; role?: string }>;
 }

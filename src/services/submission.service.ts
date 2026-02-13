@@ -349,6 +349,7 @@ export class SubmissionService {
     return await this.submissionRepo.update(submissionId, {
       status: 'DRAFT',
       rejectionReason: null,
+      documentReviews: {}, // ✅ Clear document reviews on re-submission
       statusHistory: newHistory,
     });
   }

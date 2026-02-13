@@ -20,7 +20,7 @@ const generateLetterSchema = z.object({
 const updateSubmissionStatusSchema = z.object({
   status: z.enum(['APPROVED', 'REJECTED']).describe('Status to update to'),
   rejectionReason: z.string().optional().describe('Reason for rejection (required if status is REJECTED)'),
-  documentReviews: z.record(z.string()).optional().describe('Optional document review statuses'),
+  documentReviews: z.record(z.string(), z.enum(['approved', 'rejected'])).optional().describe('Document review statuses per document ID'),
 });
 
 export class AdminController {

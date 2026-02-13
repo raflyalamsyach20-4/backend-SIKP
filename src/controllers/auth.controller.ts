@@ -2,53 +2,27 @@ import { Context } from 'hono';
 import { AuthService } from '@/services/auth.service';
 import { UserRepository } from '@/repositories/user.repository';
 import { createResponse, handleError } from '@/utils/helpers';
-import { z } from 'zod';
+import {
+  registerMahasiswaSchema,
+  registerAdminSchema,
+  registerDosenSchema,
+  loginSchema,
+} from '@/validation';
+import { SuccessMessages, ErrorMessages, ValidationRules } from '@/constants';
 
-const registerMahasiswaSchema = z.object({
-  nim: z.string().min(1),
-  nama: z.string().min(1),
-  email: z.string().email(),
-  password: z.string().min(6),
-  fakultas: z.string().optional(),
-  prodi: z.string().optional(),
-  semester: z.number().optional(),
-  angkatan: z.string().optional(),
-  phone: z.string().optional(),
-});
-
-const registerAdminSchema = z.object({
-  nip: z.string().min(1),
-  nama: z.string().min(1),
-  email: z.string().email(),
-  password: z.string().min(6),
-  role: z.enum(['ADMIN', 'KAPRODI', 'WAKIL_DEKAN']),
-  fakultas: z.string().optional(),
-  prodi: z.string().optional(),
-  phone: z.string().optional(),
-});
-
-const registerDosenSchema = z.object({
-  nip: z.string().min(1),
-  nama: z.string().min(1),
-  email: z.string().email(),
-  password: z.string().min(6),
-  jabatan: z.string().optional(),
-  fakultas: z.string().optional(),
-  prodi: z.string().optional(),
-  phone: z.string().optional(),
-});
-
-const loginSchema = z.object({
-  email: z.string().email(),
-  password: z.string().min(1),
-});
-
+/**
+ * Auth Controller
+ * Handles authentication and user management endpoints
+ */
 export class AuthController {
   constructor(
     private authService: AuthService,
     private userRepository: UserRepository
   ) {}
 
+  /**
+   * Register a new mahasiswa
+   */
   registerMahasiswa = async (c: Context) => {
     try {
       const body = await c.req.json();
@@ -56,12 +30,18 @@ export class AuthController {
 
       const result = await this.authService.registerMahasiswa(validated);
 
-      return c.json(createResponse(true, 'Registration successful', result), 201);
+      return c.json(
+        createResponse(true, SuccessMessages.REGISTRATION_SUCCESS, result),
+        201
+      );
     } catch (error: any) {
-      return handleError(c, error, 'Registration failed');
+      return handleError(c, error, ErrorMessages.REGISTRATION_FAILED);
     }
   };
 
+  /**
+   * Register a new admin/kaprodi/wakil dekan
+   */
   registerAdmin = async (c: Context) => {
     try {
       const body = await c.req.json();
@@ -69,12 +49,18 @@ export class AuthController {
 
       const result = await this.authService.registerAdmin(validated);
 
-      return c.json(createResponse(true, 'Registration successful', result), 201);
+      return c.json(
+        createResponse(true, SuccessMessages.REGISTRATION_SUCCESS, result),
+        201
+      );
     } catch (error: any) {
-      return handleError(c, error, 'Registration failed');
+      return handleError(c, error, ErrorMessages.REGISTRATION_FAILED);
     }
   };
 
+  /**
+   * Register a new dosen
+   */
   registerDosen = async (c: Context) => {
     try {
       const body = await c.req.json();
@@ -82,49 +68,72 @@ export class AuthController {
 
       const result = await this.authService.registerDosen(validated);
 
-      return c.json(createResponse(true, 'Registration successful', result), 201);
+      return c.json(
+        createResponse(true, SuccessMessages.REGISTRATION_SUCCESS, result),
+        201
+      );
     } catch (error: any) {
-      return handleError(c, error, 'Registration failed');
+      return handleError(c, error, ErrorMessages.REGISTRATION_FAILED);
     }
   };
 
+  /**
+   * Login user
+   */
   login = async (c: Context) => {
     try {
       const body = await c.req.json();
       const validated = loginSchema.parse(body);
 
-      const result = await this.authService.login(validated.email, validated.password);
+      const result = await this.authService.login(
+        validated.email,
+        validated.password
+      );
 
-      return c.json(createResponse(true, 'Login successful', result));
+      return c.json(createResponse(true, SuccessMessages.LOGIN_SUCCESS, result));
     } catch (error: any) {
-      return handleError(c, error, 'Login failed');
+      return handleError(c, error, ErrorMessages.LOGIN_FAILED);
     }
   };
 
+  /**
+   * Get current user information
+   */
   me = async (c: Context) => {
     try {
       const user = c.get('user');
-      return c.json(createResponse(true, 'User retrieved', user));
+      return c.json(createResponse(true, SuccessMessages.USER_RETRIEVED, user));
     } catch (error: any) {
-      return handleError(c, error, 'Failed to get user');
+      return handleError(c, error, ErrorMessages.USER_NOT_FOUND);
     }
   };
 
+  /**
+   * Search for mahasiswa by query
+   */
   searchMahasiswa = async (c: Context) => {
     try {
       const query = c.req.query('q');
-      
+
       if (!query) {
-        return c.json(createResponse(false, 'Search query cannot be empty'), 400);
+        return c.json(
+          createResponse(false, ErrorMessages.SEARCH_QUERY_EMPTY),
+          400
+        );
       }
 
-      if (query.length < 2) {
-        return c.json(createResponse(false, 'Search query must be at least 2 characters'), 400);
+      if (query.length < ValidationRules.SEARCH_QUERY_MIN_LENGTH) {
+        return c.json(
+          createResponse(false, ErrorMessages.SEARCH_QUERY_TOO_SHORT),
+          400
+        );
       }
 
       const results = await this.userRepository.searchMahasiswa(query);
-      
-      return c.json(createResponse(true, 'Mahasiswa search results', results));
+
+      return c.json(
+        createResponse(true, 'Mahasiswa search results', results)
+      );
     } catch (error: any) {
       return handleError(c, error, 'Failed to search mahasiswa');
     }

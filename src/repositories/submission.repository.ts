@@ -10,6 +10,76 @@ export class SubmissionRepository {
     return result[0] || null;
   }
 
+  /**
+   * Find submission by ID with team, members, and documents
+   * Used by admin to view submission details with documentReviews
+   */
+  async findByIdWithTeam(id: string) {
+    const submission = await this.findById(id);
+    if (!submission) {
+      return null;
+    }
+
+    // Get team with leader
+    const teamData = await this.db
+      .select()
+      .from(teams)
+      .where(eq(teams.id, submission.teamId))
+      .limit(1);
+
+    let team = teamData[0];
+    let teamMembers_list: any[] = [];
+
+    if (team) {
+      // Get team members with user info
+      const membersData = await this.db
+        .select({
+          id: teamMembers.id,
+          teamId: teamMembers.teamId,
+          userId: teamMembers.userId,
+          role: teamMembers.role,
+          status: teamMembers.invitationStatus,
+          invitedAt: teamMembers.invitedAt,
+          respondedAt: teamMembers.respondedAt,
+          user: {
+            id: users.id,
+            name: users.nama,
+            email: users.email,
+            nim: mahasiswa.nim,
+            prodi: mahasiswa.prodi,
+          },
+        })
+        .from(teamMembers)
+        .innerJoin(users, eq(teamMembers.userId, users.id))
+        .leftJoin(mahasiswa, eq(users.id, mahasiswa.id))
+        .where(eq(teamMembers.teamId, submission.teamId));
+
+      teamMembers_list = membersData;
+    }
+
+    // Get documents with user info
+    const docs = await this.findDocumentsBySubmissionId(submission.id);
+    
+    // Filter out invalid documents
+    const validDocs = docs.filter(doc => doc.documentType);
+
+    return {
+      ...submission, // ✅ This includes documentReviews from submissions table
+      team: team
+        ? {
+            ...team,
+            members: teamMembers_list.map((m) => ({
+              id: m.id,
+              user: m.user,
+              role: m.role,
+              status: m.status,
+            })),
+          }
+        : null,
+      documents: validDocs,
+    };
+  }
+
   async findByTeamId(teamId: string) {
     return await this.db.select().from(submissions).where(eq(submissions.teamId, teamId));
   }
@@ -267,5 +337,17 @@ export class SubmissionRepository {
     });
     
     return await this.addDocument(documentData);
+  }
+
+  /**
+   * Update response letter status on submission
+   */
+  async updateResponseLetterStatus(
+    submissionId: string,
+    status: 'pending' | 'submitted' | 'verified'
+  ) {
+    return await this.update(submissionId, {
+      responseLetterStatus: status,
+    });
   }
 }

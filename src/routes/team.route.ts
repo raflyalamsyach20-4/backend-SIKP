@@ -1,24 +1,85 @@
-import { Hono } from 'hono';
-import { TeamController } from '@/controllers/team.controller';
+import { Hono, Context } from 'hono';
+import { DIContainer } from '@/core';
 import { authMiddleware, mahasiswaOnly } from '@/middlewares/auth.middleware';
+import { CloudflareBindings } from '@/config';
 
-export const createTeamRoutes = (teamController: TeamController) => {
-  const team = new Hono();
+/**
+ * Extended context variables
+ */
+type Variables = {
+  container: DIContainer;
+};
+
+/**
+ * Team Routes
+ * Handles team management endpoints
+ */
+export const createTeamRoutes = () => {
+  const team = new Hono<{ Bindings: CloudflareBindings; Variables: Variables }>();
 
   // Apply auth middleware to all team routes
   team.use('*', authMiddleware);
   team.use('*', mahasiswaOnly);
 
-  team.post('/', teamController.createTeam);
-  team.get('/my-teams', teamController.getMyTeams);
-  team.get('/my-invitations', teamController.getMyInvitations);
-  team.post('/:teamId/invite', teamController.inviteMember);
-  team.post('/invitations/:memberId/respond', teamController.respondToInvitation);
-  team.get('/:teamId/members', teamController.getTeamMembers);
-  team.post('/:teamId/finalize', teamController.finalizeTeam); // ✅ Finalize team (PENDING → FIXED)
-  team.post('/:teamId/leave', teamController.leaveTeam); // ✅ Endpoint for members to leave team
-  team.post('/:teamId/members/:memberId/remove', teamController.removeMember); // ✅ Endpoint for leader to remove member
-  team.delete('/:teamId', teamController.deleteTeam); // Only for leaders
+  team.post('/', async (c: Context) => {
+    const container = c.get('container') as DIContainer;
+    return container.teamController.createTeam(c);
+  });
+
+  team.get('/my-teams', async (c: Context) => {
+    const container = c.get('container') as DIContainer;
+    return container.teamController.getMyTeams(c);
+  });
+
+  team.get('/my-invitations', async (c: Context) => {
+    const container = c.get('container') as DIContainer;
+    return container.teamController.getMyInvitations(c);
+  });
+
+  team.post('/:teamId/invite', async (c: Context) => {
+    const container = c.get('container') as DIContainer;
+    return container.teamController.inviteMember(c);
+  });
+
+  team.post('/invitations/:memberId/respond', async (c: Context) => {
+    const container = c.get('container') as DIContainer;
+    return container.teamController.respondToInvitation(c);
+  });
+
+  team.post('/invitations/:memberId/cancel', async (c: Context) => {
+    const container = c.get('container') as DIContainer;
+    return container.teamController.cancelInvitation(c);
+  });
+
+  team.post('/:teamCode/join', async (c: Context) => {
+    const container = c.get('container') as DIContainer;
+    return container.teamController.joinTeam(c);
+  });
+
+  team.get('/:teamId/members', async (c: Context) => {
+    const container = c.get('container') as DIContainer;
+    return container.teamController.getTeamMembers(c);
+  });
+
+  team.post('/:teamId/finalize', async (c: Context) => {
+    const container = c.get('container') as DIContainer;
+    return container.teamController.finalizeTeam(c);
+  });
+
+  team.post('/:teamId/leave', async (c: Context) => {
+    const container = c.get('container') as DIContainer;
+    return container.teamController.leaveTeam(c);
+  });
+
+  team.post('/:teamId/members/:memberId/remove', async (c: Context) => {
+    const container = c.get('container') as DIContainer;
+    return container.teamController.removeMember(c);
+  });
+
+  team.post('/:teamId/delete', async (c: Context) => {
+    const container = c.get('container') as DIContainer;
+    return container.teamController.deleteTeam(c);
+  });
 
   return team;
 };

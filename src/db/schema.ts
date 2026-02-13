@@ -7,6 +7,8 @@ export const teamStatusEnum = pgEnum('team_status', ['PENDING', 'FIXED']);
 export const invitationStatusEnum = pgEnum('invitation_status', ['PENDING', 'ACCEPTED', 'REJECTED']);
 export const submissionStatusEnum = pgEnum('submission_status', ['DRAFT', 'PENDING_REVIEW', 'APPROVED', 'REJECTED']);
 export const documentTypeEnum = pgEnum('document_type', ['PROPOSAL_KETUA', 'SURAT_KESEDIAAN', 'FORM_PERMOHONAN', 'KRS_SEMESTER_4', 'DAFTAR_KUMPULAN_NILAI', 'BUKTI_PEMBAYARAN_UKT', 'SURAT_PENGANTAR']);
+export const letterStatusEnum = pgEnum('letter_status', ['approved', 'rejected']);
+export const responseLetterStatusEnum = pgEnum('response_letter_status', ['pending', 'submitted', 'verified']);
 
 // Users Table (Base table untuk semua user)
 export const users = pgTable('users', {
@@ -89,7 +91,12 @@ export const submissions = pgTable('submissions', {
   submittedAt: timestamp('submitted_at'),
   approvedAt: timestamp('approved_at'),
   approvedBy: text('approved_by').references(() => users.id, { onDelete: 'set null' }),
+  documentReviews: json('document_reviews').default('{}'), // ✅ NEW: Stores individual document review status
   statusHistory: json('status_history').notNull().default('[]'),
+  
+  // Response letter tracking
+  responseLetterStatus: responseLetterStatusEnum('response_letter_status').default('pending'),
+  
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 });
@@ -149,6 +156,36 @@ export const templates = pgTable('templates', {
     idxType: index('idx_templates_type').on(table.type),
     idxIsActive: index('idx_templates_is_active').on(table.isActive),
     idxCreatedAt: index('idx_templates_created_at').on(table.createdAt),
+  };
+});
+
+// Response Letters Table
+export const responseLetters = pgTable('response_letters', {
+  id: text('id').primaryKey(),
+  submissionId: text('submission_id').notNull().references(() => submissions.id, { onDelete: 'cascade' }),
+  
+  // File information
+  originalName: varchar('original_name', { length: 255 }),
+  fileName: varchar('file_name', { length: 255 }),
+  fileType: varchar('file_type', { length: 100 }),
+  fileSize: bigint('file_size', { mode: 'number' }),
+  fileUrl: text('file_url'),
+  memberUserId: text('member_user_id').references(() => users.id, { onDelete: 'set null' }),
+  
+  // Letter status from company
+  letterStatus: letterStatusEnum('letter_status').notNull(),
+  
+  // Submission tracking
+  submittedAt: timestamp('submitted_at').defaultNow().notNull(),
+  
+  // Admin verification
+  verified: boolean('verified').notNull().default(false),
+  verifiedAt: timestamp('verified_at'),
+  verifiedByAdminId: text('verified_by_admin_id').references(() => users.id, { onDelete: 'set null' }),
+}, (table) => {
+  return {
+    idxSubmissionId: index('idx_response_letters_submission_id').on(table.submissionId),
+    idxVerified: index('idx_response_letters_verified').on(table.verified),
   };
 });
 
@@ -222,6 +259,22 @@ export const submissionsRelations = relations(submissions, ({ one, many }) => ({
   }),
   documents: many(submissionDocuments),
   letters: many(generatedLetters),
+  responseLetters: many(responseLetters),
+}));
+
+export const responseLettersRelations = relations(responseLetters, ({ one }) => ({
+  submission: one(submissions, {
+    fields: [responseLetters.submissionId],
+    references: [submissions.id],
+  }),
+  memberUser: one(users, {
+    fields: [responseLetters.memberUserId],
+    references: [users.id],
+  }),
+  verifiedBy: one(users, {
+    fields: [responseLetters.verifiedByAdminId],
+    references: [users.id],
+  }),
 }));
 
 export const submissionDocumentsRelations = relations(submissionDocuments, ({ one }) => ({
