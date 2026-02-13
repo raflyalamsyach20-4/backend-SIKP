@@ -139,6 +139,14 @@ export class ResponseLetterService {
   }
 
   /**
+   * Get my response letter (current user)
+   */
+  async getMyResponseLetter(userId: string): Promise<ResponseLetter | null> {
+    const responseLetter = await this.responseLetterRepo.findByUserId(userId);
+    return responseLetter;
+  }
+
+  /**
    * Verify response letter (Admin only)
    */
   async verifyResponseLetter(

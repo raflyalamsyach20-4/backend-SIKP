@@ -101,6 +101,37 @@ export class ResponseLetterController {
   };
 
   /**
+   * Mahasiswa: Get my response letter (current user)
+   * GET /api/response-letters/my
+   */
+  getMyResponseLetter = async (c: Context) => {
+    try {
+      const user = c.get('user') as JWTPayload;
+
+      if (!user || !user.userId) {
+        return c.json(
+          createResponse(false, 'Unauthorized'),
+          401
+        );
+      }
+
+      const responseLetter = await this.responseLetterService.getMyResponseLetter(user.userId);
+
+      if (!responseLetter) {
+        return c.json(
+          createResponse(true, 'No response letter found', null)
+        );
+      }
+
+      return c.json(
+        createResponse(true, 'Response letter retrieved successfully', responseLetter)
+      );
+    } catch (error: any) {
+      return handleError(c, error, 'Failed to retrieve response letter');
+    }
+  };
+
+  /**
    * Mahasiswa: Get response letter by ID (own team only)
    * Admin: Get any response letter by ID
    * GET /api/response-letters/:id

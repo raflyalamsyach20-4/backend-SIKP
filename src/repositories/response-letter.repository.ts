@@ -83,6 +83,21 @@ export class ResponseLetterRepository {
   }
 
   /**
+   * Find response letter by user ID (memberUserId)
+   * Returns the most recent response letter for the user
+   */
+  async findByUserId(userId: string): Promise<ResponseLetter | null> {
+    const [responseLetter] = await this.db
+      .select()
+      .from(responseLetters)
+      .where(eq(responseLetters.memberUserId, userId))
+      .orderBy(desc(responseLetters.submittedAt))
+      .limit(1);
+
+    return (responseLetter as ResponseLetter) || null;
+  }
+
+  /**
    * Get response letter with full details
    */
   async findByIdWithDetails(id: string): Promise<ResponseLetterWithDetails | null> {

@@ -43,6 +43,16 @@ export const createResponseLetterRoutes = () => {
   });
 
   /**
+   * Mahasiswa: Get my response letter (current user)
+   * GET /api/response-letters/my
+   * Auth: Required
+   */
+  router.get('/my', async (c: Context) => {
+    const container = c.get('container') as DIContainer;
+    return container.responseLetterController.getMyResponseLetter(c);
+  });
+
+  /**
    * Mahasiswa: Get response letter by ID (own team only)
    * Admin: Get any response letter by ID
    * GET /api/response-letters/:id
