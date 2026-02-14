@@ -2,6 +2,15 @@
 
 Backend API untuk aplikasi Kerja Praktik Universitas, dibangun dengan Hono dan Cloudflare Workers.
 
+## 📌 Aturan Wajib Sinkronisasi Dokumentasi
+
+Setiap kali ada perubahan kode backend (endpoint, request/response, validasi, auth flow, business logic), **WAJIB** lakukan update berikut dalam commit/PR yang sama:
+
+1. `RINGKASAN_BACKEND_SIKP.md`
+2. `postman/postman_collection_sso.json`
+
+Checklist ini bersifat mandatory agar dokumentasi dan koleksi testing selalu sesuai implementasi terbaru.
+
 ## 📋 Tech Stack
 
 - **Runtime**: Cloudflare Workers (Edge Computing)

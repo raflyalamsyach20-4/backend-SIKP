@@ -1,7 +1,7 @@
 ﻿{
   "info": {
     "name": "Backend SIKP API (SSO Integrated)",
-    "description": "Collection untuk testing Backend SIKP dengan SSO Identity Gateway Integration.\n\nCatatan: Backend SIKP hanya berkomunikasi dengan SSO, tidak langsung ke Profile Service.",
+    "description": "Collection untuk testing Backend SIKP dengan SSO Identity Gateway Integration.\n\nCatatan: Backend SIKP hanya berkomunikasi dengan SSO, tidak langsung ke Profile Service.\n\nAturan wajib: setiap perubahan kode backend harus diikuti update collection ini dan RINGKASAN_BACKEND_SIKP.md pada commit/PR yang sama.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
     "version": "2.1.0"
   },
