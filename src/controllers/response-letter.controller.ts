@@ -24,10 +24,12 @@ export class ResponseLetterController {
       
       const file = formData.get('file') as File | null;
       const submissionId = formData.get('submissionId') as string;
+      const letterStatus = formData.get('letterStatus') as string | null;
 
       // Validate request data
       const validationResult = submitResponseLetterSchema.safeParse({
         submissionId,
+        letterStatus: letterStatus ?? undefined,
         file,
       });
 
@@ -44,7 +46,8 @@ export class ResponseLetterController {
       const responseLetter = await this.responseLetterService.submitResponseLetter(
         data.submissionId,
         user.userId,
-        data.file as File
+        data.file as File,
+        data.letterStatus
       );
 
       return c.json(

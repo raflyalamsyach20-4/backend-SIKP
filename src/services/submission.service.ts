@@ -188,7 +188,7 @@ export class SubmissionService {
 
     // Upload file
     const uniqueFileName = this.storageService.generateUniqueFileName(file.name);
-    const { url, key } = await this.storageService.uploadFile(file, uniqueFileName, 'documents');
+    const { url, key } = await this.storageService.uploadFile(file, uniqueFileName, 'submissions');
 
     // ✅ Sanitize fileType: trim MIME type to base type (remove charset and other params)
     let sanitizedFileType = file.type || 'application/octet-stream';

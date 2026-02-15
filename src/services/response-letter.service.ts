@@ -23,7 +23,8 @@ export class ResponseLetterService {
   async submitResponseLetter(
     submissionId: string,
     userId: string,
-    file: File | { name: string; type: string; size: number; arrayBuffer: () => Promise<ArrayBuffer> }
+    file: File | { name: string; type: string; size: number; arrayBuffer: () => Promise<ArrayBuffer> },
+    letterStatus: 'approved' | 'rejected' = 'approved'
   ): Promise<ResponseLetter> {
     // Validate submission exists
     const submission = await this.submissionRepo.findById(submissionId);
@@ -72,13 +73,14 @@ export class ResponseLetterService {
     const uploadResult = await this.storageService.uploadFile(
       Buffer.from(fileBuffer),
       fileName,
-      file.type
+      'response-letters',
+      'application/pdf'
     );
 
     // Create response letter record - initially set to 'approved' status
     const responseLetter = await this.responseLetterRepo.create({
       submissionId,
-      letterStatus: 'approved', // Default to approved when submitted
+      letterStatus,
       originalName: file.name,
       fileName: fileName,
       fileType: file.type,
@@ -140,9 +142,11 @@ export class ResponseLetterService {
 
   /**
    * Get my response letter (current user)
+   * Retrieves response letter for the user's team
+   * Returns null if user has no team or team has no submission/response letter
    */
-  async getMyResponseLetter(userId: string): Promise<ResponseLetter | null> {
-    const responseLetter = await this.responseLetterRepo.findByUserId(userId);
+  async getMyResponseLetter(userId: string): Promise<(ResponseLetterWithDetails & { isLeader: boolean }) | null> {
+    const responseLetter = await this.responseLetterRepo.findByUserTeamWithDetails(userId);
     return responseLetter;
   }
 

@@ -317,4 +317,103 @@ export class ResponseLetterRepository {
 
     return !!member;
   }
+
+  /**
+   * Find response letter for user's team with details and isLeader flag
+   * This is used by the getMyResponseLetter endpoint
+   */
+  async findByUserTeamWithDetails(
+    userId: string
+  ): Promise<(ResponseLetterWithDetails & { isLeader: boolean }) | null> {
+    // 1. Get user's team (only accepted members)
+    const teamMembersResult = await this.db
+      .select({
+        member: teamMembers,
+        team: teams,
+      })
+      .from(teamMembers)
+      .innerJoin(teams, eq(teamMembers.teamId, teams.id))
+      .where(and(
+        eq(teamMembers.userId, userId),
+        eq(teamMembers.invitationStatus, 'ACCEPTED')
+      ))
+      .limit(1);
+
+    if (!teamMembersResult || teamMembersResult.length === 0) {
+      return null;
+    }
+
+    const userTeamMember = teamMembersResult[0];
+    const teamId = userTeamMember.team.id;
+    const isLeader = userTeamMember.member.role === 'KETUA';
+
+    // 2. Get the most recent submission for this team
+    const submissionsResult = await this.db
+      .select()
+      .from(submissions)
+      .where(eq(submissions.teamId, teamId))
+      .orderBy(desc(submissions.createdAt))
+      .limit(1);
+
+    if (!submissionsResult || submissionsResult.length === 0) {
+      return null;
+    }
+
+    const submission = submissionsResult[0];
+
+    // 3. Get response letter with full details
+    const responseLettersResult = await this.db
+      .select({
+        responseLetter: responseLetters,
+        submission: submissions,
+        team: teams,
+        leader: users,
+        leaderMahasiswa: mahasiswa,
+      })
+      .from(responseLetters)
+      .innerJoin(submissions, eq(responseLetters.submissionId, submissions.id))
+      .innerJoin(teams, eq(submissions.teamId, teams.id))
+      .leftJoin(users, eq(teams.leaderId, users.id))
+      .leftJoin(mahasiswa, eq(users.id, mahasiswa.id))
+      .where(eq(responseLetters.submissionId, submission.id))
+      .limit(1);
+
+    if (!responseLettersResult || responseLettersResult.length === 0) {
+      return null;
+    }
+
+    const data = responseLettersResult[0];
+
+    // 4. Get team members with details
+    const membersResult = await this.db
+      .select({
+        user: users,
+        mahasiswaProfile: mahasiswa,
+        member: teamMembers,
+      })
+      .from(teamMembers)
+      .innerJoin(users, eq(teamMembers.userId, users.id))
+      .leftJoin(mahasiswa, eq(users.id, mahasiswa.id))
+      .where(eq(teamMembers.teamId, teamId));
+
+    return {
+      ...data.responseLetter,
+      submission: data.submission
+        ? (data.submission as any)
+        : undefined,
+      team: data.team || undefined,
+      leader: data.leader
+        ? {
+            ...data.leader,
+            mahasiswaProfile: data.leaderMahasiswa || undefined,
+          }
+        : undefined,
+      members: membersResult.map((m) => ({
+        ...m.user,
+        mahasiswaProfile: m.mahasiswaProfile || undefined,
+        role: m.member.role || 'ANGGOTA',
+      })),
+      isLeader,
+    } as ResponseLetterWithDetails & { isLeader: boolean };
+  }
 }

@@ -27,7 +27,8 @@ export class StorageService {
   async uploadFile(
     file: File | Buffer,
     fileName: string,
-    folder: string = 'documents'
+    folder: string = 'documents',
+    contentType?: string
   ): Promise<{ url: string; key: string }> {
     const fileKey = `${folder}/${Date.now()}-${nanoid(10)}-${fileName}`;
     
@@ -49,22 +50,22 @@ export class StorageService {
 
       // Normalize file body for R2.put
       let body: ArrayBuffer | Uint8Array | string | ReadableStream<any> | any = file as any;
-      let contentType = 'application/octet-stream';
+      let resolvedContentType = contentType || 'application/octet-stream';
 
       try {
         if (typeof (file as any)?.arrayBuffer === 'function') {
           // File/Blob in Workers
-          contentType = (file as any).type || 'application/octet-stream';
+          resolvedContentType = contentType || (file as any).type || 'application/octet-stream';
           body = await (file as any).arrayBuffer();
           console.log(`[StorageService] Normalized to ArrayBuffer, size=${(body as ArrayBuffer).byteLength} bytes`);
         } else if (typeof (file as any)?.stream === 'function') {
           // Fallback to stream if available
           body = (file as any).stream();
-          contentType = (file as any).type || 'application/octet-stream';
-          console.log(`[StorageService] Using stream body, contentType=${contentType}`);
+          resolvedContentType = contentType || (file as any).type || 'application/octet-stream';
+          console.log(`[StorageService] Using stream body, contentType=${resolvedContentType}`);
         } else if ((file as any)?.byteLength !== undefined) {
           // Already an ArrayBuffer/TypedArray
-          contentType = (file as any).type || 'application/octet-stream';
+          resolvedContentType = contentType || (file as any).type || 'application/octet-stream';
           console.log(`[StorageService] Using provided buffer, size=${(file as any).byteLength}`);
         }
       } catch (normalizeErr) {
@@ -73,9 +74,10 @@ export class StorageService {
 
       // Upload to R2
       console.log('[StorageService] Calling r2Bucket.put()...');
+      console.log(`[StorageService] Content-Type: ${resolvedContentType}`);
       const uploadResult = await this.r2Bucket.put(fileKey, body, {
         httpMetadata: {
-          contentType,
+          contentType: resolvedContentType,
           contentDisposition: 'inline',
         },
       });

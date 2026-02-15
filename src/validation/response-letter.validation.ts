@@ -5,6 +5,7 @@ import { z } from 'zod';
  */
 export const submitResponseLetterSchema = z.object({
   submissionId: z.string().min(1, 'Submission ID is required'),
+  letterStatus: z.enum(['approved', 'rejected']).optional().default('approved'),
   file: z.any().refine((file) => file instanceof File || (file && typeof file.arrayBuffer === 'function'), {
     message: 'Valid file is required',
   }),
