@@ -81,5 +81,15 @@ export const createTeamRoutes = () => {
     return container.teamController.deleteTeam(c);
   });
 
+  /**
+   * Student: Reset team (delete submissions and reset to PENDING)
+   * POST /api/teams/reset
+   * Auth: Required (Mahasiswa only)
+   */
+  team.post('/reset', async (c: Context) => {
+    const container = c.get('container') as DIContainer;
+    return container.teamController.resetTeam(c);
+  });
+
   return team;
 };

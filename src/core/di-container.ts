@@ -17,6 +17,7 @@ import { StorageService } from '@/services/storage.service';
 import { LetterService } from '@/services/letter.service';
 import { TemplateService } from '@/services/template.service';
 import { ResponseLetterService } from '@/services/response-letter.service';
+import { TeamResetService } from '@/services/team-reset.service';
 import { MockR2Bucket } from '@/services/mock-r2-bucket';
 
 // Controllers
@@ -48,6 +49,7 @@ export class DIContainer {
   private _letterService?: LetterService;
   private _templateService?: TemplateService;
   private _responseLetterService?: ResponseLetterService;
+  private _teamResetService?: TeamResetService;
 
   // Controllers
   private _authController?: AuthController;
@@ -184,12 +186,26 @@ export class DIContainer {
     return this._templateService;
   }
 
+  get teamResetService(): TeamResetService {
+    if (!this._teamResetService) {
+      this._teamResetService = new TeamResetService(
+        this.db,
+        this.submissionRepository,
+        this.teamRepository,
+        this.responseLetterRepository,
+        this.storageService
+      );
+    }
+    return this._teamResetService;
+  }
+
   get responseLetterService(): ResponseLetterService {
     if (!this._responseLetterService) {
       this._responseLetterService = new ResponseLetterService(
         this.responseLetterRepository,
         this.submissionRepository,
-        this.storageService
+        this.storageService,
+        this.teamResetService
       );
     }
     return this._responseLetterService;
@@ -274,6 +290,7 @@ export class DIContainer {
     this._letterService = undefined;
     this._templateService = undefined;
     this._responseLetterService = undefined;
+    this._teamResetService = undefined;
     this._authController = undefined;
     this._teamController = undefined;
     this._submissionController = undefined;

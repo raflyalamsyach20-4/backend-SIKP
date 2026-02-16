@@ -3,6 +3,7 @@ import { ErrorMessages, SuccessMessages } from '@/constants';
 import { ResponseLetterRepository } from '@/repositories/response-letter.repository';
 import { SubmissionRepository } from '@/repositories/submission.repository';
 import { StorageService } from './storage.service';
+import { TeamResetService } from './team-reset.service';
 import type { ResponseLetter, ResponseLetterWithDetails } from '@/types';
 import { generateId } from '@/utils/helpers';
 
@@ -14,7 +15,8 @@ export class ResponseLetterService {
   constructor(
     private responseLetterRepo: ResponseLetterRepository,
     private submissionRepo: SubmissionRepository,
-    private storageService: StorageService
+    private storageService: StorageService,
+    private teamResetService: TeamResetService
   ) {}
 
   /**
@@ -152,12 +154,13 @@ export class ResponseLetterService {
 
   /**
    * Verify response letter (Admin only)
+   * If rejected, triggers team reset workflow
    */
   async verifyResponseLetter(
     id: string,
     adminId: string,
     letterStatus: 'approved' | 'rejected'
-  ): Promise<ResponseLetter> {
+  ): Promise<{ responseLetter: ResponseLetter; resetTeam: boolean }> {
     const responseLetter = await this.responseLetterRepo.findById(id);
 
     if (!responseLetter) {
@@ -174,13 +177,33 @@ export class ResponseLetterService {
     // Update the letterStatus based on admin decision
     await this.responseLetterRepo.update(id, { letterStatus });
 
-    // Update submission status to verified
-    await this.submissionRepo.updateResponseLetterStatus(
-      responseLetter.submissionId,
-      'verified'
-    );
+    let resetTeam = false;
 
-    return verified;
+    // Check if rejected - trigger reset workflow
+    if (letterStatus === 'rejected') {
+      resetTeam = true;
+      
+      try {
+        console.log(`[ResponseLetterService] Response letter rejected, triggering team reset workflow`);
+        await this.teamResetService.resetTeamWorkflow(responseLetter.submissionId);
+        console.log(`[ResponseLetterService] Team reset workflow completed successfully`);
+      } catch (resetError) {
+        console.error('[ResponseLetterService] Warning: Team reset failed:', resetError);
+        // Don't fail verification if reset fails, just log warning
+        // The verification itself succeeded, reset is a side effect
+      }
+    } else {
+      // Update submission status to verified only if approved
+      await this.submissionRepo.updateResponseLetterStatus(
+        responseLetter.submissionId,
+        'verified'
+      );
+    }
+
+    return {
+      responseLetter: verified,
+      resetTeam,
+    };
   }
 
   /**
@@ -247,6 +270,64 @@ export class ResponseLetterService {
         role: 'Anggota',
       })) || [],
       responseFileUrl: responseLetter.fileUrl || null,
+    };
+  }
+
+  /**
+   * Get response letter status (for polling team reset status)
+   * Returns whether team was reset after rejection
+   */
+  async getResponseLetterStatus(
+    id: string,
+    userId: string,
+    userRole: string
+  ): Promise<{
+    id: string;
+    verified: boolean;
+    letterStatus: 'approved' | 'rejected';
+    teamWasReset: boolean;
+    verifiedAt: Date | null;
+  }> {
+    const responseLetter = await this.responseLetterRepo.findById(id);
+
+    if (!responseLetter) {
+      throw new NotFoundError(ErrorMessages.RESPONSE_LETTER_NOT_FOUND);
+    }
+
+    // Authorization check for mahasiswa
+    if (userRole === 'MAHASISWA') {
+      const submission = await this.submissionRepo.findById(responseLetter.submissionId);
+      if (!submission) {
+        // If submission doesn't exist but response letter does, team was reset
+        return {
+          id: responseLetter.id,
+          verified: responseLetter.verified,
+          letterStatus: responseLetter.letterStatus,
+          teamWasReset: true,
+          verifiedAt: responseLetter.verifiedAt,
+        };
+      }
+      
+      const isMember = await this.responseLetterRepo.isUserMemberOfTeam(
+        userId,
+        submission.teamId
+      );
+      if (!isMember) {
+        throw new ForbiddenError(ErrorMessages.FORBIDDEN);
+      }
+    }
+
+    // Check if team was reset
+    const teamWasReset = await this.teamResetService.checkTeamWasReset(
+      responseLetter.submissionId
+    );
+
+    return {
+      id: responseLetter.id,
+      verified: responseLetter.verified,
+      letterStatus: responseLetter.letterStatus,
+      teamWasReset: teamWasReset && responseLetter.verified && responseLetter.letterStatus === 'rejected',
+      verifiedAt: responseLetter.verifiedAt,
     };
   }
 }

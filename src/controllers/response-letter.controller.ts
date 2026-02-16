@@ -211,14 +211,18 @@ export class ResponseLetterController {
       }
 
       const data = bodyValidation.data;
-      const responseLetter = await this.responseLetterService.verifyResponseLetter(
+      const result = await this.responseLetterService.verifyResponseLetter(
         id,
         user.userId,
         data.letterStatus
       );
 
       return c.json(
-        createResponse(true, 'Response letter verified successfully', responseLetter)
+        createResponse(true, 'Response letter verified successfully', {
+          ...result.responseLetter,
+          resetTeam: result.resetTeam,
+          resetReason: result.resetTeam ? 'rejected' : null,
+        })
       );
     } catch (error: any) {
       return handleError(c, error, 'Failed to verify response letter');
@@ -261,6 +265,41 @@ export class ResponseLetterController {
       );
     } catch (error: any) {
       return handleError(c, error, 'Failed to delete response letter');
+    }
+  };
+
+  /**
+   * Get response letter status (for polling team reset status)
+   * GET /api/response-letters/:id/status
+   * Auth: Required
+   */
+  getResponseLetterStatus = async (c: Context) => {
+    try {
+      const user = c.get('user') as JWTPayload;
+      const id = c.req.param('id');
+
+      // Validate parameter
+      const validationResult = responseLetterIdParamSchema.safeParse({ id });
+      if (!validationResult.success) {
+        return c.json(
+          createResponse(false, 'Validation failed', {
+            errors: validationResult.error.errors,
+          }),
+          400
+        );
+      }
+
+      const status = await this.responseLetterService.getResponseLetterStatus(
+        id,
+        user.userId,
+        user.role as string
+      );
+
+      return c.json(
+        createResponse(true, 'Response letter status retrieved successfully', status)
+      );
+    } catch (error: any) {
+      return handleError(c, error, 'Failed to retrieve response letter status');
     }
   };
 }

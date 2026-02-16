@@ -53,6 +53,16 @@ export const createResponseLetterRoutes = () => {
   });
 
   /**
+   * Get response letter status (for polling team reset status)
+   * GET /api/response-letters/:id/status
+   * Auth: Required
+   */
+  router.get('/:id/status', async (c: Context) => {
+    const container = c.get('container') as DIContainer;
+    return container.responseLetterController.getResponseLetterStatus(c);
+  });
+
+  /**
    * Mahasiswa: Get response letter by ID (own team only)
    * Admin: Get any response letter by ID
    * GET /api/response-letters/:id
