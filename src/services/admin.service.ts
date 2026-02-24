@@ -106,6 +106,51 @@ export class AdminService {
       }
     }
 
+    // ✅ NEW: Validate document reviews
+    if (status === 'APPROVED') {
+      // When approving, all documents must be marked as "approved"
+      if (!documentReviews || Object.keys(documentReviews).length === 0) {
+        throw new Error('documentReviews is required. Must specify status for each document');
+      }
+
+      const hasRejected = Object.values(documentReviews).some(
+        (docStatus) => docStatus === 'rejected'
+      );
+
+      if (hasRejected) {
+        throw new Error(
+          'Tidak dapat approve submission jika ada dokumen yang di-reject. Harap review dokumentasi.'
+        );
+      }
+
+      const hasPending = Object.values(documentReviews).some(
+        (docStatus) => docStatus === 'pending' || docStatus !== 'approved'
+      );
+
+      if (hasPending) {
+        throw new Error(
+          'Semua dokumen harus di-approve sebelum approval submission'
+        );
+      }
+    }
+
+    if (status === 'REJECTED') {
+      // When rejecting, at least one document must be marked as "rejected"
+      if (!documentReviews || Object.keys(documentReviews).length === 0) {
+        throw new Error('documentReviews is required. Must specify status for each document');
+      }
+
+      const hasRejected = Object.values(documentReviews).some(
+        (docStatus) => docStatus === 'rejected'
+      );
+
+      if (!hasRejected) {
+        throw new Error(
+          'Harus ada minimal 1 dokumen yang di-reject saat menolak submission'
+        );
+      }
+    }
+
     // ✅ Prepare status history entry
     const now = new Date();
     const historyEntry: any = {
@@ -129,6 +174,14 @@ export class AdminService {
       documentReviews: documentReviews || {}, // ✅ Save document reviews
       updatedAt: new Date(),
     };
+
+    // ✅ NEW: Update document status based on documentReviews mapping
+    if (documentReviews && Object.keys(documentReviews).length > 0) {
+      for (const [docId, docStatus] of Object.entries(documentReviews)) {
+        const dbStatus = docStatus === 'approved' ? 'APPROVED' : 'REJECTED';
+        await this.submissionRepo.updateDocumentStatus(docId, dbStatus);
+      }
+    }
 
     if (status === 'APPROVED') {
       updateData.approvedAt = new Date();

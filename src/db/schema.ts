@@ -7,6 +7,7 @@ export const teamStatusEnum = pgEnum('team_status', ['PENDING', 'FIXED']);
 export const invitationStatusEnum = pgEnum('invitation_status', ['PENDING', 'ACCEPTED', 'REJECTED']);
 export const submissionStatusEnum = pgEnum('submission_status', ['DRAFT', 'PENDING_REVIEW', 'APPROVED', 'REJECTED']);
 export const documentTypeEnum = pgEnum('document_type', ['PROPOSAL_KETUA', 'SURAT_KESEDIAAN', 'FORM_PERMOHONAN', 'KRS_SEMESTER_4', 'DAFTAR_KUMPULAN_NILAI', 'BUKTI_PEMBAYARAN_UKT', 'SURAT_PENGANTAR']);
+export const documentStatusEnum = pgEnum('document_status', ['PENDING', 'APPROVED', 'REJECTED']);
 export const letterStatusEnum = pgEnum('letter_status', ['approved', 'rejected']);
 export const responseLetterStatusEnum = pgEnum('response_letter_status', ['pending', 'submitted', 'verified']);
 
@@ -113,10 +114,16 @@ export const submissionDocuments = pgTable('submission_documents', {
   fileType: varchar('file_type', { length: 100 }).notNull(),
   fileSize: integer('file_size').notNull(),
   fileUrl: text('file_url').notNull(),
+  // ✅ NEW: Document status tracking
+  status: documentStatusEnum('status').notNull().default('PENDING'),
+  statusUpdatedAt: timestamp('status_updated_at').defaultNow().notNull(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 }, (table) => {
   return {
     uqDocPerMember: uniqueIndex('uq_document_per_member').on(table.submissionId, table.documentType, table.memberUserId),
+    // ✅ NEW: Indexes for document status queries
+    idxSubmissionStatus: index('idx_submission_status').on(table.submissionId, table.status),
+    idxStatusUpdated: index('idx_status_updated').on(table.statusUpdatedAt),
   };
 });
 

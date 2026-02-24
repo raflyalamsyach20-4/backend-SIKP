@@ -121,6 +121,9 @@ export class SubmissionRepository {
         fileType: submissionDocuments.fileType,
         fileSize: submissionDocuments.fileSize,
         fileUrl: submissionDocuments.fileUrl,
+        // ✅ NEW: Document status fields
+        status: submissionDocuments.status,
+        statusUpdatedAt: submissionDocuments.statusUpdatedAt,
         createdAt: submissionDocuments.createdAt,
       });
     return result[0];
@@ -139,6 +142,9 @@ export class SubmissionRepository {
         fileType: submissionDocuments.fileType,
         fileSize: submissionDocuments.fileSize,
         fileUrl: submissionDocuments.fileUrl,
+        // ✅ NEW: Document status fields
+        status: submissionDocuments.status,
+        statusUpdatedAt: submissionDocuments.statusUpdatedAt,
         createdAt: submissionDocuments.createdAt,
         uploadedByUser: {
           id: users.id,
@@ -149,7 +155,7 @@ export class SubmissionRepository {
       .from(submissionDocuments)
       .leftJoin(users, eq(submissionDocuments.uploadedByUserId, users.id))
       .where(eq(submissionDocuments.submissionId, submissionId))
-      .orderBy(asc(submissionDocuments.documentType), asc(submissionDocuments.createdAt));
+      .orderBy(desc(submissionDocuments.createdAt));
   }
 
   async findDocumentById(id: string) {
@@ -165,6 +171,9 @@ export class SubmissionRepository {
         fileType: submissionDocuments.fileType,
         fileSize: submissionDocuments.fileSize,
         fileUrl: submissionDocuments.fileUrl,
+        // ✅ NEW: Document status fields
+        status: submissionDocuments.status,
+        statusUpdatedAt: submissionDocuments.statusUpdatedAt,
         createdAt: submissionDocuments.createdAt,
         uploadedByUser: {
           id: users.id,
@@ -176,6 +185,19 @@ export class SubmissionRepository {
       .leftJoin(users, eq(submissionDocuments.uploadedByUserId, users.id))
       .where(eq(submissionDocuments.id, id))
       .limit(1);
+    return result[0] || null;
+  }
+
+  // ✅ NEW: Update document status
+  async updateDocumentStatus(documentId: string, newStatus: 'PENDING' | 'APPROVED' | 'REJECTED') {
+    const result = await this.db
+      .update(submissionDocuments)
+      .set({
+        status: newStatus as any,
+        statusUpdatedAt: new Date(),
+      })
+      .where(eq(submissionDocuments.id, documentId))
+      .returning();
     return result[0] || null;
   }
 

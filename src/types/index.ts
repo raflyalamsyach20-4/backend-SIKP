@@ -3,6 +3,8 @@ export type TeamStatus = 'PENDING' | 'FIXED';
 export type InvitationStatus = 'PENDING' | 'ACCEPTED' | 'REJECTED';
 export type SubmissionStatus = 'DRAFT' | 'MENUNGGU' | 'DITOLAK' | 'DITERIMA';
 export type DocumentType = 'KTP' | 'TRANSKRIP' | 'KRS' | 'PROPOSAL' | 'OTHER';
+// ✅ NEW: Document status type
+export type DocumentStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
 export type ResponseLetterStatus = 'approved' | 'rejected';
 export type ResponseLetterTrackingStatus = 'pending' | 'submitted' | 'verified';
 
@@ -95,6 +97,9 @@ export interface SubmissionDocument {
   fileUrl: string;
   documentType: DocumentType;
   uploadedBy: string;
+  // ✅ NEW: Document status fields
+  status?: DocumentStatus;
+  statusUpdatedAt?: Date;
   createdAt: Date;
 }
 
