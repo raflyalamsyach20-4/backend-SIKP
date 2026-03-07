@@ -1,10 +1,9 @@
 import { NotFoundError } from '@/errors';
-import { ResponseLetterRepository } from '@/repositories/response-letter.repository';
 import { SubmissionRepository } from '@/repositories/submission.repository';
 import { TeamRepository } from '@/repositories/team.repository';
 import { StorageService } from './storage.service';
 import type { DbClient } from '@/db';
-import { submissions, submissionDocuments, responseLetters, generatedLetters } from '@/db/schema';
+import { submissions } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 
 /**
@@ -22,7 +21,6 @@ export class TeamResetService {
     private db: DbClient,
     private submissionRepo: SubmissionRepository,
     private teamRepo: TeamRepository,
-    private responseLetterRepo: ResponseLetterRepository,
     private storageService: StorageService
   ) {}
 
@@ -65,21 +63,7 @@ export class TeamResetService {
         }
       }
 
-      // 4. Get response letter for file deletion
-      const responseLetter = await this.responseLetterRepo.findBySubmissionId(submissionId);
-      if (responseLetter && responseLetter.fileUrl) {
-        try {
-          const urlParts = responseLetter.fileUrl.split('/');
-          const fileName = urlParts[urlParts.length - 1];
-          await this.storageService.deleteFile(`response-letters/${fileName}`);
-          console.log(`[TeamResetService] Deleted response letter file: ${fileName}`);
-        } catch (error) {
-          console.warn(`[TeamResetService] Failed to delete response letter file:`, error);
-          // Continue even if file deletion fails
-        }
-      }
-
-      // 5. Get generated letters for file deletion
+      // 4. Get generated letters for file deletion
       const generatedLettersList = await this.submissionRepo.findLettersBySubmissionId(submissionId);
       for (const letter of generatedLettersList) {
         try {
@@ -95,11 +79,11 @@ export class TeamResetService {
         }
       }
 
-      // 6. Delete submission (cascade deletes: documents, response letters, generated letters)
+      // 5. Delete submission (cascade deletes: documents, generated letters)
       await this.db.delete(submissions).where(eq(submissions.id, submissionId));
       console.log(`[TeamResetService] Deleted submission ${submissionId} (cascade delete triggered)`);
 
-      // 7. Reset team status to PENDING
+      // 6. Reset team status to PENDING
       await this.teamRepo.update(teamId, { status: 'PENDING' });
       console.log(`[TeamResetService] Reset team ${teamId} status to PENDING`);
 
@@ -164,19 +148,6 @@ export class TeamResetService {
             }
           } catch (error) {
             console.warn(`[TeamResetService] Failed to delete file for document ${doc.id}:`, error);
-          }
-        }
-
-        // Delete response letter file if exists
-        const responseLetter = await this.responseLetterRepo.findBySubmissionId(submission.id);
-        if (responseLetter && responseLetter.fileUrl) {
-          try {
-            const urlParts = responseLetter.fileUrl.split('/');
-            const fileName = urlParts[urlParts.length - 1];
-            await this.storageService.deleteFile(`response-letters/${fileName}`);
-            console.log(`[TeamResetService] Deleted response letter file: ${fileName}`);
-          } catch (error) {
-            console.warn(`[TeamResetService] Failed to delete response letter file:`, error);
           }
         }
 

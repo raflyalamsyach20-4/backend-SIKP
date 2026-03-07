@@ -223,6 +223,30 @@ export class SubmissionController {
   };
 
   /**
+   * Delete a submission document
+   * Endpoint: DELETE /api/submissions/documents/:documentId
+   * Only allowed for REJECTED documents or documents in DRAFT submissions
+   */
+  deleteDocument = async (c: Context) => {
+    try {
+      const user = c.get('user') as JWTPayload;
+      const documentId = c.req.param('documentId');
+
+      console.log('[SubmissionController.deleteDocument] Request:', {
+        documentId,
+        userId: user.userId,
+      });
+
+      const result = await this.submissionService.deleteDocument(documentId, user.userId);
+
+      console.log('[SubmissionController.deleteDocument] Success');
+      return c.json(createResponse(true, result.message, null));
+    } catch (error: any) {
+      return handleError(c, error, 'Failed to delete document');
+    }
+  };
+
+  /**
    * Reset submission from REJECTED to DRAFT
    * Allows team members to resubmit after rejection
    * Endpoint: PUT /api/submissions/{id}/status/reset-draft

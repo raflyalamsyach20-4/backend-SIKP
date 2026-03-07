@@ -79,6 +79,19 @@ export class ResponseLetterService {
       'application/pdf'
     );
 
+    // Build snapshot for history preservation
+    let snapshot = null;
+    try {
+      snapshot = await this.buildSnapshot(submissionId);
+      if (!snapshot) {
+        console.warn(`[ResponseLetterService] Snapshot is null for submission ${submissionId}`);
+      } else {
+        console.log(`[ResponseLetterService] Snapshot created: ${snapshot.studentName} (${snapshot.memberCount} members)`);
+      }
+    } catch (error) {
+      console.error(`[ResponseLetterService] Failed to build snapshot for submission ${submissionId}:`, error);
+    }
+
     // Create response letter record - initially set to 'approved' status
     const responseLetter = await this.responseLetterRepo.create({
       submissionId,
@@ -89,6 +102,13 @@ export class ResponseLetterService {
       fileSize: file.size,
       fileUrl: uploadResult.url,
       memberUserId: userId,
+      studentName: snapshot?.studentName ?? null,
+      studentNim: snapshot?.studentNim ?? null,
+      companyName: snapshot?.companyName ?? null,
+      supervisorName: snapshot?.supervisorName ?? null,
+      memberCount: snapshot?.memberCount ?? null,
+      roleLabel: snapshot?.roleLabel ?? null,
+      membersSnapshot: snapshot?.membersSnapshot ?? null,
     });
 
     // Update submission status
@@ -126,6 +146,10 @@ export class ResponseLetterService {
 
     // Authorization check
     if (userRole === 'MAHASISWA') {
+      if (!responseLetter.submissionId) {
+        throw new NotFoundError(ErrorMessages.SUBMISSION_NOT_FOUND);
+      }
+
       const submission = await this.submissionRepo.findById(responseLetter.submissionId);
       if (!submission) {
         throw new NotFoundError(ErrorMessages.SUBMISSION_NOT_FOUND);
@@ -171,6 +195,21 @@ export class ResponseLetterService {
       throw new BadRequestError(ErrorMessages.RESPONSE_LETTER_ALREADY_VERIFIED);
     }
 
+    if (this.needsSnapshotRefresh(responseLetter) && responseLetter.submissionId) {
+      const snapshot = await this.buildSnapshot(responseLetter.submissionId);
+      if (snapshot) {
+        await this.responseLetterRepo.update(id, {
+          studentName: snapshot.studentName,
+          studentNim: snapshot.studentNim,
+          companyName: snapshot.companyName,
+          supervisorName: snapshot.supervisorName,
+          memberCount: snapshot.memberCount,
+          roleLabel: snapshot.roleLabel,
+          membersSnapshot: snapshot.membersSnapshot,
+        });
+      }
+    }
+
     // Verify response letter
     const verified = await this.responseLetterRepo.verify(id, adminId);
     
@@ -185,7 +224,9 @@ export class ResponseLetterService {
       
       try {
         console.log(`[ResponseLetterService] Response letter rejected, triggering team reset workflow`);
-        await this.teamResetService.resetTeamWorkflow(responseLetter.submissionId);
+        if (responseLetter.submissionId) {
+          await this.teamResetService.resetTeamWorkflow(responseLetter.submissionId);
+        }
         console.log(`[ResponseLetterService] Team reset workflow completed successfully`);
       } catch (resetError) {
         console.error('[ResponseLetterService] Warning: Team reset failed:', resetError);
@@ -194,10 +235,12 @@ export class ResponseLetterService {
       }
     } else {
       // Update submission status to verified only if approved
-      await this.submissionRepo.updateResponseLetterStatus(
-        responseLetter.submissionId,
-        'verified'
-      );
+      if (responseLetter.submissionId) {
+        await this.submissionRepo.updateResponseLetterStatus(
+          responseLetter.submissionId,
+          'verified'
+        );
+      }
     }
 
     return {
@@ -237,10 +280,12 @@ export class ResponseLetterService {
     await this.responseLetterRepo.delete(id);
 
     // Update submission status back to pending
-    await this.submissionRepo.updateResponseLetterStatus(
-      responseLetter.submissionId,
-      'pending'
-    );
+    if (responseLetter.submissionId) {
+      await this.submissionRepo.updateResponseLetterStatus(
+        responseLetter.submissionId,
+        'pending'
+      );
+    }
   }
 
   /**
@@ -250,27 +295,127 @@ export class ResponseLetterService {
     const leader = responseLetter.leader;
     const leaderMahasiswa = leader?.mahasiswaProfile;
     const submission = responseLetter.submission;
+    const snapshotMembers = responseLetter.membersSnapshot || [];
+    const resolvedMembers = snapshotMembers.length > 0
+      ? snapshotMembers.map((member, index) => ({
+          id: Number.isFinite(Number(member.id)) ? Number(member.id) : index + 1,
+          name: member.name || 'Unknown',
+          nim: member.nim || 'Unknown',
+          prodi: 'Unknown',
+          role: member.role || 'Anggota',
+        }))
+      : responseLetter.members?.map((member, index) => ({
+          id: parseInt(member.id) || index + 1,
+          name: member.nama || 'Unknown',
+          nim: member.mahasiswaProfile?.nim || 'Unknown',
+          prodi: member.mahasiswaProfile?.prodi || 'Unknown',
+          role: member.role === 'KETUA' ? 'Ketua' : 'Anggota',
+        })) || [];
+
+    const memberCount = responseLetter.memberCount ?? resolvedMembers.length;
+    const roleLabel = responseLetter.roleLabel
+      ? responseLetter.roleLabel
+      : memberCount > 1
+        ? 'Tim'
+        : 'Individu';
 
     return {
       id: responseLetter.id,
-      name: leader?.nama || 'Unknown',
-      nim: leaderMahasiswa?.nim || 'Unknown',
+      name: responseLetter.studentName || leader?.nama || 'Unknown',
+      nim: responseLetter.studentNim || leaderMahasiswa?.nim || 'Unknown',
       tanggal: responseLetter.submittedAt.toISOString().split('T')[0],
-      company: submission?.companyName || 'Unknown',
-      role: 'Tim',
-      memberCount: responseLetter.members?.length || 0,
+      company: responseLetter.companyName || submission?.companyName || 'Unknown',
+      role: roleLabel,
+      memberCount: memberCount,
       status: responseLetter.letterStatus === 'approved' ? 'Disetujui' : 'Ditolak',
       adminApproved: responseLetter.verified,
-      supervisor: 'Dr. Ahmad Santoso, M.Kom', // TODO: Get from submission
-      members: responseLetter.members?.map((member) => ({
-        id: parseInt(member.id) || 0,
-        name: member.nama || 'Unknown',
-        nim: member.mahasiswaProfile?.nim || 'Unknown',
-        prodi: member.mahasiswaProfile?.prodi || 'Unknown',
-        role: 'Anggota',
-      })) || [],
+      supervisor: responseLetter.supervisorName || null,
+      members: resolvedMembers,
       responseFileUrl: responseLetter.fileUrl || null,
     };
+  }
+
+  private needsSnapshotRefresh(responseLetter: ResponseLetter): boolean {
+    return !responseLetter.studentName &&
+      !responseLetter.studentNim &&
+      !responseLetter.companyName &&
+      (!responseLetter.membersSnapshot || responseLetter.membersSnapshot.length === 0);
+  }
+
+  private async buildSnapshot(submissionId: string): Promise<{
+    studentName: string | null;
+    studentNim: string | null;
+    companyName: string | null;
+    supervisorName: string | null;
+    memberCount: number;
+    roleLabel: string;
+    membersSnapshot: Array<{ id: number; name: string; nim: string; role: string }>;
+  } | null> {
+    try {
+      console.log(`[buildSnapshot] Building snapshot for submission ${submissionId}`);
+      
+      const submission = await this.submissionRepo.findByIdWithTeam(submissionId);
+      
+      if (!submission) {
+        console.warn(`[buildSnapshot] Submission ${submissionId} not found`);
+        return null;
+      }
+      
+      if (!submission.team) {
+        console.warn(`[buildSnapshot] Submission ${submissionId} has no team`);
+        return null;
+      }
+
+      const members = submission.team.members || [];
+      console.log(`[buildSnapshot] Found ${members.length} team members`);
+      
+      if (members.length === 0) {
+        console.warn(`[buildSnapshot] No members found for team ${submission.team.id}`);
+        // Return minimal snapshot with company info
+        return {
+          studentName: 'Unknown',
+          studentNim: 'Unknown',
+          companyName: submission.companyName || 'Unknown',
+          supervisorName: null,
+          memberCount: 0,
+          roleLabel: 'Individu',
+          membersSnapshot: [],
+        };
+      }
+      
+      const acceptedMembers = members.filter((member) => member.status === 'ACCEPTED');
+      const effectiveMembers = acceptedMembers.length > 0 ? acceptedMembers : members;
+      const leaderMember = effectiveMembers.find((member) => member.role === 'KETUA') || effectiveMembers[0];
+
+      console.log(`[buildSnapshot] Leader: ${leaderMember?.user?.name || 'Unknown'}`);
+      console.log(`[buildSnapshot] Effective members: ${effectiveMembers.length}`);
+
+      const membersSnapshot = effectiveMembers.map((member, index) => ({
+        id: index + 1,
+        name: member.user?.name || 'Unknown',
+        nim: member.user?.nim || 'Unknown',
+        role: member.role === 'KETUA' ? 'Ketua' : 'Anggota',
+      }));
+
+      const memberCount = membersSnapshot.length;
+
+      const snapshot = {
+        studentName: leaderMember?.user?.name || 'Unknown',
+        studentNim: leaderMember?.user?.nim || 'Unknown',
+        companyName: submission.companyName || 'Unknown',
+        supervisorName: null,
+        memberCount,
+        roleLabel: memberCount > 1 ? 'Tim' : 'Individu',
+        membersSnapshot,
+      };
+      
+      console.log(`[buildSnapshot] Snapshot created successfully:`, JSON.stringify(snapshot, null, 2));
+      return snapshot;
+      
+    } catch (error) {
+      console.error(`[buildSnapshot] Error building snapshot:`, error);
+      return null;
+    }
   }
 
   /**
@@ -296,6 +441,16 @@ export class ResponseLetterService {
 
     // Authorization check for mahasiswa
     if (userRole === 'MAHASISWA') {
+      if (!responseLetter.submissionId) {
+        return {
+          id: responseLetter.id,
+          verified: responseLetter.verified,
+          letterStatus: responseLetter.letterStatus,
+          teamWasReset: true,
+          verifiedAt: responseLetter.verifiedAt,
+        };
+      }
+
       const submission = await this.submissionRepo.findById(responseLetter.submissionId);
       if (!submission) {
         // If submission doesn't exist but response letter does, team was reset
@@ -318,9 +473,9 @@ export class ResponseLetterService {
     }
 
     // Check if team was reset
-    const teamWasReset = await this.teamResetService.checkTeamWasReset(
-      responseLetter.submissionId
-    );
+    const teamWasReset = responseLetter.submissionId
+      ? await this.teamResetService.checkTeamWasReset(responseLetter.submissionId)
+      : true;
 
     return {
       id: responseLetter.id,

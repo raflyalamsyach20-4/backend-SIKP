@@ -11,6 +11,7 @@ UPDATE "submission_documents"
   )
   WHERE "member_user_id" IS NULL;
 
+--> statement-breakpoint
 UPDATE "submission_documents"
   SET "uploaded_by_user_id" = COALESCE("uploaded_by", (
     SELECT "user_id" FROM "submissions" 
@@ -20,10 +21,12 @@ UPDATE "submission_documents"
   WHERE "uploaded_by_user_id" IS NULL;
 
 -- Step 2: Add NOT NULL constraint
+--> statement-breakpoint
 ALTER TABLE "submission_documents"
   ALTER COLUMN "member_user_id" SET NOT NULL,
   ALTER COLUMN "uploaded_by_user_id" SET NOT NULL;
 
 -- Step 3: Drop the old uploaded_by column
+--> statement-breakpoint
 ALTER TABLE "submission_documents"
   DROP COLUMN IF EXISTS "uploaded_by" CASCADE;

@@ -6,6 +6,8 @@ FROM "teams" t
 WHERE tm.team_id = t.id
   AND tm.user_id = t.leader_id;
 
+--> statement-breakpoint
+
 -- Set non-leaders to ANGGOTA
 UPDATE "team_members" tm
 SET "role" = 'ANGGOTA'

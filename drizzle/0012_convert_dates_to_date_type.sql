@@ -4,5 +4,6 @@
 ALTER TABLE submissions 
 ALTER COLUMN start_date TYPE date USING start_date::date;
 
+--> statement-breakpoint
 ALTER TABLE submissions 
 ALTER COLUMN end_date TYPE date USING end_date::date;

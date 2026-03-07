@@ -75,6 +75,13 @@ export const createSubmissionRoutes = () => {
     return container.submissionController.getDocuments(c);
   });
 
+  // Delete document (mahasiswa only)
+  // ✅ NEW: Support frontend delete before reupload
+  submission.delete('/documents/:documentId', mahasiswaOnly, async (c: Context) => {
+    const container = c.get('container') as DIContainer;
+    return container.submissionController.deleteDocument(c);
+  });
+
   // Reset to draft (mahasiswa only)
   submission.put('/:submissionId/reset', mahasiswaOnly, async (c: Context) => {
     const container = c.get('container') as DIContainer;

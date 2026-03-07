@@ -169,7 +169,7 @@ export const templates = pgTable('templates', {
 // Response Letters Table
 export const responseLetters = pgTable('response_letters', {
   id: text('id').primaryKey(),
-  submissionId: text('submission_id').notNull().references(() => submissions.id, { onDelete: 'cascade' }),
+  submissionId: text('submission_id').references(() => submissions.id, { onDelete: 'set null' }),
   
   // File information
   originalName: varchar('original_name', { length: 255 }),
@@ -181,6 +181,15 @@ export const responseLetters = pgTable('response_letters', {
   
   // Letter status from company
   letterStatus: letterStatusEnum('letter_status').notNull(),
+
+  // Snapshot fields for history
+  studentName: varchar('student_name', { length: 255 }),
+  studentNim: varchar('student_nim', { length: 50 }),
+  companyName: varchar('company_name', { length: 255 }),
+  supervisorName: varchar('supervisor_name', { length: 255 }),
+  memberCount: integer('member_count'),
+  roleLabel: varchar('role_label', { length: 50 }),
+  membersSnapshot: json('members_snapshot'),
   
   // Submission tracking
   submittedAt: timestamp('submitted_at').defaultNow().notNull(),

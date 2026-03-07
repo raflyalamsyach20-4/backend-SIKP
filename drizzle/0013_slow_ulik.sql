@@ -1,1 +1,1 @@
-ALTER TABLE "teams" ADD COLUMN "academic_supervisor" varchar(255);
+ALTER TABLE "teams" ADD COLUMN IF NOT EXISTS "academic_supervisor" varchar(255);

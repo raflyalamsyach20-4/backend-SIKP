@@ -23,6 +23,13 @@ export class ResponseLetterRepository {
     fileUrl?: string;
     memberUserId?: string;
     letterStatus: 'approved' | 'rejected';
+    studentName?: string | null;
+    studentNim?: string | null;
+    companyName?: string | null;
+    supervisorName?: string | null;
+    memberCount?: number | null;
+    roleLabel?: string | null;
+    membersSnapshot?: Array<{ id: number | string; name: string; nim: string; role?: string }> | null;
   }): Promise<ResponseLetter> {
     const id = generateId();
 
@@ -38,6 +45,13 @@ export class ResponseLetterRepository {
         fileUrl: data.fileUrl || null,
         memberUserId: data.memberUserId || null,
         letterStatus: data.letterStatus,
+        studentName: data.studentName ?? null,
+        studentNim: data.studentNim ?? null,
+        companyName: data.companyName ?? null,
+        supervisorName: data.supervisorName ?? null,
+        memberCount: data.memberCount ?? null,
+        roleLabel: data.roleLabel ?? null,
+        membersSnapshot: data.membersSnapshot ?? null,
         submittedAt: new Date(),
         verified: false,
       })
@@ -287,6 +301,14 @@ export class ResponseLetterRepository {
       fileUrl: string;
       memberUserId: string;
       letterStatus: 'approved' | 'rejected';
+      submissionId: string | null;
+      studentName: string | null;
+      studentNim: string | null;
+      companyName: string | null;
+      supervisorName: string | null;
+      memberCount: number | null;
+      roleLabel: string | null;
+      membersSnapshot: Array<{ id: number | string; name: string; nim: string; role?: string }> | null;
     }>
   ): Promise<ResponseLetter> {
     const [updated] = await this.db

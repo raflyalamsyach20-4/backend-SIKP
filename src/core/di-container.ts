@@ -192,7 +192,6 @@ export class DIContainer {
         this.db,
         this.submissionRepository,
         this.teamRepository,
-        this.responseLetterRepository,
         this.storageService
       );
     }

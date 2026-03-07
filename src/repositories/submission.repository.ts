@@ -1,4 +1,4 @@
-import { asc, eq, desc, inArray } from 'drizzle-orm';
+import { asc, eq, desc, inArray, and } from 'drizzle-orm';
 import type { DbClient } from '@/db';
 import { submissions, submissionDocuments, generatedLetters, teams, teamMembers, users, mahasiswa } from '@/db/schema';
 
@@ -196,6 +196,45 @@ export class SubmissionRepository {
         status: newStatus as any,
         statusUpdatedAt: new Date(),
       })
+      .where(eq(submissionDocuments.id, documentId))
+      .returning();
+    return result[0] || null;
+  }
+
+  // ✅ NEW: Find existing document by submissionId, documentType, and memberUserId
+  async findExistingDocument(submissionId: string, documentType: string, memberUserId: string) {
+    const result = await this.db
+      .select({
+        id: submissionDocuments.id,
+        submissionId: submissionDocuments.submissionId,
+        documentType: submissionDocuments.documentType,
+        memberUserId: submissionDocuments.memberUserId,
+        uploadedByUserId: submissionDocuments.uploadedByUserId,
+        originalName: submissionDocuments.originalName,
+        fileName: submissionDocuments.fileName,
+        fileType: submissionDocuments.fileType,
+        fileSize: submissionDocuments.fileSize,
+        fileUrl: submissionDocuments.fileUrl,
+        status: submissionDocuments.status,
+        statusUpdatedAt: submissionDocuments.statusUpdatedAt,
+        createdAt: submissionDocuments.createdAt,
+      })
+      .from(submissionDocuments)
+      .where(
+        and(
+          eq(submissionDocuments.submissionId, submissionId),
+          eq(submissionDocuments.documentType, documentType),
+          eq(submissionDocuments.memberUserId, memberUserId)
+        )
+      )
+      .limit(1);
+    return result[0] || null;
+  }
+
+  // ✅ NEW: Delete document from database
+  async deleteDocument(documentId: string) {
+    const result = await this.db
+      .delete(submissionDocuments)
       .where(eq(submissionDocuments.id, documentId))
       .returning();
     return result[0] || null;

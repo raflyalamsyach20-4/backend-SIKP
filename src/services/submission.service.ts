@@ -175,6 +175,48 @@ export class SubmissionService {
       throw new Error('Storage service not configured');
     }
 
+    // ✅ STEP 1: Check if document already exists for this member and document type
+    const existingDoc = await this.submissionRepo.findExistingDocument(
+      submissionId,
+      documentType,
+      memberUserId
+    );
+
+    if (existingDoc) {
+      console.log(`📄 [SubmissionService] Found existing document:`, {
+        id: existingDoc.id,
+        status: existingDoc.status,
+        documentType: existingDoc.documentType,
+        fileName: existingDoc.fileName,
+      });
+
+      // ✅ STEP 2: If REJECTED, allow reupload (delete old doc and file)
+      if (existingDoc.status === 'REJECTED') {
+        console.log(`🗑️ [SubmissionService] Deleting old REJECTED document (${existingDoc.id})...`);
+        
+        // Delete file from R2 storage
+        try {
+          await this.storageService.deleteFile(existingDoc.fileName);
+          console.log(`✅ [SubmissionService] Old file deleted from R2: ${existingDoc.fileName}`);
+        } catch (err) {
+          console.warn('⚠️ [SubmissionService] Failed to delete old file from storage:', err);
+          // Continue anyway - file might already be deleted
+        }
+
+        // Delete document record from database
+        await this.submissionRepo.deleteDocument(existingDoc.id);
+        console.log('✅ [SubmissionService] Old REJECTED document deleted from database');
+      }
+      // ✅ STEP 3: If APPROVED or PENDING, don't allow reupload
+      else {
+        const error: any = new Error(
+          `Dokumen ${documentType} sudah diupload dengan status ${existingDoc.status}. Tidak dapat upload ulang.`
+        );
+        error.statusCode = 409;
+        throw error;
+      }
+    }
+
     // Validate file
     const allowedTypes = ['pdf', 'docx', 'doc'];
     if (!this.storageService.validateFileType(file.name, allowedTypes)) {
@@ -186,9 +228,11 @@ export class SubmissionService {
       throw new Error(`File size exceeds ${maxSizeMB}MB limit`);
     }
 
-    // Upload file
+    // ✅ STEP 4: Upload new file to R2
+    console.log(`📤 [SubmissionService] Uploading new file to R2...`);
     const uniqueFileName = this.storageService.generateUniqueFileName(file.name);
     const { url, key } = await this.storageService.uploadFile(file, uniqueFileName, 'submissions');
+    console.log(`✅ [SubmissionService] New file uploaded to R2: ${key}`);
 
     // ✅ Sanitize fileType: trim MIME type to base type (remove charset and other params)
     let sanitizedFileType = file.type || 'application/octet-stream';
@@ -196,8 +240,9 @@ export class SubmissionService {
       sanitizedFileType = sanitizedFileType.split(';')[0].trim();
     }
 
-    // Save to database - handles unique constraint per member
-    return await this.submissionRepo.addDocument({
+    // ✅ STEP 5: Insert new document with status PENDING
+    console.log(`💾 [SubmissionService] Saving document to database with status PENDING...`);
+    const newDocument = await this.submissionRepo.addDocument({
       id: generateId(),
       submissionId,
       documentType,
@@ -209,6 +254,14 @@ export class SubmissionService {
       fileSize: file.size,
       fileUrl: url,
     });
+    
+    console.log(`✅ [SubmissionService] Document uploaded successfully:`, {
+      id: newDocument.id,
+      status: newDocument.status,
+      documentType: newDocument.documentType,
+    });
+    
+    return newDocument;
   }
 
   async getDocuments(submissionId: string, userId: string) {
@@ -227,6 +280,68 @@ export class SubmissionService {
     }
 
     return await this.submissionRepo.findDocumentsBySubmissionId(submissionId);
+  }
+
+  /**
+   * Delete a submission document
+   * Only allowed for documents with REJECTED status or DRAFT submissions
+   */
+  async deleteDocument(documentId: string, userId: string) {
+    // Get document info
+    const document = await this.submissionRepo.findDocumentById(documentId);
+    if (!document) {
+      const notFound: any = new Error('Document not found');
+      notFound.statusCode = 404;
+      throw notFound;
+    }
+
+    // Get submission
+    const submission = await this.submissionRepo.findById(document.submissionId);
+    if (!submission) {
+      const notFound: any = new Error('Submission not found');
+      notFound.statusCode = 404;
+      throw notFound;
+    }
+
+    // Verify user is team member
+    const membership = await this.teamRepo.findMemberByTeamAndUser(submission.teamId, userId);
+    if (!membership || membership.invitationStatus !== 'ACCEPTED') {
+      const unauthorized: any = new Error('Unauthorized - not team member');
+      unauthorized.statusCode = 403;
+      throw unauthorized;
+    }
+
+    // ✅ Only allow delete for:
+    // 1. REJECTED documents (for reupload)
+    // 2. Documents in DRAFT submissions (before submit)
+    const canDelete = 
+      document.status === 'REJECTED' || 
+      submission.status === 'DRAFT';
+
+    if (!canDelete) {
+      const forbidden: any = new Error(
+        `Cannot delete document with status ${document.status} in ${submission.status} submission`
+      );
+      forbidden.statusCode = 403;
+      throw forbidden;
+    }
+
+    // Delete file from R2 storage
+    if (this.storageService) {
+      try {
+        await this.storageService.deleteFile(document.fileName);
+        console.log(`✅ [SubmissionService] File deleted from R2: ${document.fileName}`);
+      } catch (err) {
+        console.warn('⚠️ [SubmissionService] Failed to delete file from storage:', err);
+        // Continue anyway - file might already be deleted
+      }
+    }
+
+    // Delete document record from database
+    await this.submissionRepo.deleteDocument(documentId);
+    console.log(`✅ [SubmissionService] Document deleted from database: ${documentId}`);
+
+    return { success: true, message: 'Document deleted successfully' };
   }
 
   async getSubmissionById(submissionId: string) {

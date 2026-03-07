@@ -162,7 +162,7 @@ export interface Template {
 // Response Letter interface
 export interface ResponseLetter {
   id: string;
-  submissionId: string;
+  submissionId: string | null;
   originalName: string | null;
   fileName: string | null;
   fileType: string | null;
@@ -170,6 +170,13 @@ export interface ResponseLetter {
   fileUrl: string | null;
   memberUserId: string | null;
   letterStatus: ResponseLetterStatus;
+  studentName: string | null;
+  studentNim: string | null;
+  companyName: string | null;
+  supervisorName: string | null;
+  memberCount: number | null;
+  roleLabel: string | null;
+  membersSnapshot: Array<{ id: number | string; name: string; nim: string; role?: string }> | null;
   submittedAt: Date;
   verified: boolean;
   verifiedAt: Date | null;
