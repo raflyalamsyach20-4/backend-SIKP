@@ -19,6 +19,7 @@ import { TemplateService } from '@/services/template.service';
 import { ResponseLetterService } from '@/services/response-letter.service';
 import { TeamResetService } from '@/services/team-reset.service';
 import { MockR2Bucket } from '@/services/mock-r2-bucket';
+import { DosenService } from '@/services/dosen.service';
 
 // Controllers
 import { AuthController } from '@/controllers/auth.controller';
@@ -27,6 +28,7 @@ import { SubmissionController } from '@/controllers/submission.controller';
 import { AdminController } from '@/controllers/admin.controller';
 import { TemplateController } from '@/controllers/template.controller';
 import { ResponseLetterController } from '@/controllers/response-letter.controller';
+import { DosenController } from '@/controllers/dosen.controller';
 
 /**
  * Dependency Injection Container
@@ -50,6 +52,7 @@ export class DIContainer {
   private _templateService?: TemplateService;
   private _responseLetterService?: ResponseLetterService;
   private _teamResetService?: TeamResetService;
+  private _dosenService?: DosenService;
 
   // Controllers
   private _authController?: AuthController;
@@ -58,6 +61,7 @@ export class DIContainer {
   private _adminController?: AdminController;
   private _templateController?: TemplateController;
   private _responseLetterController?: ResponseLetterController;
+  private _dosenController?: DosenController;
 
   constructor(private config: AppConfig) {}
 
@@ -210,6 +214,16 @@ export class DIContainer {
     return this._responseLetterService;
   }
 
+  get dosenService(): DosenService {
+    if (!this._dosenService) {
+      this._dosenService = new DosenService(
+        this.userRepository,
+        this.storageService
+      );
+    }
+    return this._dosenService;
+  }
+
   // Controllers
   get authController(): AuthController {
     if (!this._authController) {
@@ -272,6 +286,13 @@ export class DIContainer {
     return this._responseLetterController;
   }
 
+  get dosenController(): DosenController {
+    if (!this._dosenController) {
+      this._dosenController = new DosenController(this.dosenService);
+    }
+    return this._dosenController;
+  }
+
   /**
    * Reset all cached instances (useful for testing)
    */
@@ -290,11 +311,13 @@ export class DIContainer {
     this._templateService = undefined;
     this._responseLetterService = undefined;
     this._teamResetService = undefined;
+    this._dosenService = undefined;
     this._authController = undefined;
     this._teamController = undefined;
     this._submissionController = undefined;
     this._adminController = undefined;
     this._templateController = undefined;
     this._responseLetterController = undefined;
+    this._dosenController = undefined;
   }
 }

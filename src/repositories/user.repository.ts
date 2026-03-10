@@ -87,6 +87,39 @@ export class UserRepository {
     return result[0];
   }
 
+  async updateDosenByUserId(userId: string, data: Partial<typeof dosen.$inferInsert>) {
+    const result = await this.db
+      .update(dosen)
+      .set(data)
+      .where(eq(dosen.id, userId))
+      .returning();
+    return result[0] || null;
+  }
+
+  async getDosenMe(userId: string) {
+    const result = await this.db
+      .select({
+        id: users.id,
+        nama: users.nama,
+        email: users.email,
+        role: users.role,
+        phone: users.phone,
+        nip: dosen.nip,
+        jabatan: dosen.jabatan,
+        fakultas: dosen.fakultas,
+        prodi: dosen.prodi,
+        esignatureUrl: dosen.esignatureUrl,
+        esignatureKey: dosen.esignatureKey,
+        esignatureUploadedAt: dosen.esignatureUploadedAt,
+      })
+      .from(users)
+      .innerJoin(dosen, eq(users.id, dosen.id))
+      .where(eq(users.id, userId))
+      .limit(1);
+
+    return result[0] || null;
+  }
+
   // Pembimbing Lapangan operations
   async findPembimbingLapanganByUserId(userId: string) {
     const result = await this.db.select().from(pembimbingLapangan).where(eq(pembimbingLapangan.id, userId)).limit(1);

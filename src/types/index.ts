@@ -44,6 +44,9 @@ export interface Dosen {
   jabatan: string | null;
   fakultas: string | null;
   prodi: string | null;
+  esignatureUrl?: string | null;
+  esignatureKey?: string | null;
+  esignatureUploadedAt?: Date | null;
 }
 
 // Pembimbing Lapangan interface

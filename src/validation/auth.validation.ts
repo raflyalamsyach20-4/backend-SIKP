@@ -70,6 +70,23 @@ export const loginSchema = z.object({
 export type LoginInput = z.infer<typeof loginSchema>;
 
 /**
+ * Update Dosen Profile Schema
+ */
+export const updateDosenProfileSchema = z.object({
+  nama: z.string().min(1, 'Name is required').max(255).optional(),
+  email: emailSchema.optional(),
+  phone: phoneSchema,
+  jabatan: z.string().max(100).optional().nullable(),
+  fakultas: z.string().max(100).optional().nullable(),
+  prodi: z.string().max(100).optional().nullable(),
+}).refine((data) => {
+  // At least one field should be provided
+  return Object.values(data).some(value => value !== undefined && value !== null);
+}, 'At least one field must be provided for update');
+
+export type UpdateDosenProfileInput = z.infer<typeof updateDosenProfileSchema>;
+
+/**
  * Search Query Schema
  */
 export const searchQuerySchema = z.object({

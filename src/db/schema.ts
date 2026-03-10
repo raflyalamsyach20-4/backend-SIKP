@@ -47,6 +47,9 @@ export const dosen = pgTable('dosen', {
   jabatan: varchar('jabatan', { length: 100 }),
   fakultas: varchar('fakultas', { length: 100 }),
   prodi: varchar('prodi', { length: 100 }),
+  esignatureUrl: text('esignature_url'),
+  esignatureKey: varchar('esignature_key', { length: 255 }),
+  esignatureUploadedAt: timestamp('esignature_uploaded_at'),
 });
 
 // Pembimbing Lapangan Table
