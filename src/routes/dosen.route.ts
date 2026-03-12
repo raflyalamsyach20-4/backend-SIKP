@@ -2,6 +2,7 @@ import { Hono, Context } from 'hono';
 import { DIContainer } from '@/core';
 import { authMiddleware, dosenOnly } from '@/middlewares/auth.middleware';
 import { CloudflareBindings } from '@/config';
+import { createDosenSuratKesediaanRoutes } from './surat-kesediaan.route';
 
 type Variables = {
   container: DIContainer;
@@ -31,6 +32,9 @@ export const createDosenRoutes = () => {
     const container = c.get('container') as DIContainer;
     return container.dosenController.deleteESignature(c);
   });
+
+  // Surat Kesediaan Routes (nested)
+  dosen.route('/surat-kesediaan', createDosenSuratKesediaanRoutes());
 
   return dosen;
 };

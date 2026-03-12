@@ -7,6 +7,7 @@ import { TeamRepository } from '@/repositories/team.repository';
 import { SubmissionRepository } from '@/repositories/submission.repository';
 import { TemplateRepository } from '@/repositories/template.repository';
 import { ResponseLetterRepository } from '@/repositories/response-letter.repository';
+import { SuratKesediaanRepository } from '@/repositories/surat-kesediaan.repository';
 
 // Services
 import { AuthService } from '@/services/auth.service';
@@ -20,6 +21,7 @@ import { ResponseLetterService } from '@/services/response-letter.service';
 import { TeamResetService } from '@/services/team-reset.service';
 import { MockR2Bucket } from '@/services/mock-r2-bucket';
 import { DosenService } from '@/services/dosen.service';
+import { SuratKesediaanService } from '@/services/surat-kesediaan.service';
 
 // Controllers
 import { AuthController } from '@/controllers/auth.controller';
@@ -29,6 +31,7 @@ import { AdminController } from '@/controllers/admin.controller';
 import { TemplateController } from '@/controllers/template.controller';
 import { ResponseLetterController } from '@/controllers/response-letter.controller';
 import { DosenController } from '@/controllers/dosen.controller';
+import { SuratKesediaanController } from '@/controllers/surat-kesediaan.controller';
 
 /**
  * Dependency Injection Container
@@ -41,6 +44,7 @@ export class DIContainer {
   private _submissionRepository?: SubmissionRepository;
   private _templateRepository?: TemplateRepository;
   private _responseLetterRepository?: ResponseLetterRepository;
+  private _suratKesediaanRepository?: SuratKesediaanRepository;
 
   // Services
   private _authService?: AuthService;
@@ -53,6 +57,7 @@ export class DIContainer {
   private _responseLetterService?: ResponseLetterService;
   private _teamResetService?: TeamResetService;
   private _dosenService?: DosenService;
+  private _suratKesediaanService?: SuratKesediaanService;
 
   // Controllers
   private _authController?: AuthController;
@@ -62,6 +67,7 @@ export class DIContainer {
   private _templateController?: TemplateController;
   private _responseLetterController?: ResponseLetterController;
   private _dosenController?: DosenController;
+  private _suratKesediaanController?: SuratKesediaanController;
 
   constructor(private config: AppConfig) {}
 
@@ -104,6 +110,13 @@ export class DIContainer {
       this._responseLetterRepository = new ResponseLetterRepository(this.db);
     }
     return this._responseLetterRepository;
+  }
+
+  get suratKesediaanRepository(): SuratKesediaanRepository {
+    if (!this._suratKesediaanRepository) {
+      this._suratKesediaanRepository = new SuratKesediaanRepository(this.db);
+    }
+    return this._suratKesediaanRepository;
   }
 
   // Services
@@ -224,6 +237,18 @@ export class DIContainer {
     return this._dosenService;
   }
 
+  get suratKesediaanService(): SuratKesediaanService {
+    if (!this._suratKesediaanService) {
+      this._suratKesediaanService = new SuratKesediaanService(
+        this.suratKesediaanRepository,
+        this.teamRepository,
+        this.userRepository,
+        this.storageService
+      );
+    }
+    return this._suratKesediaanService;
+  }
+
   // Controllers
   get authController(): AuthController {
     if (!this._authController) {
@@ -293,6 +318,13 @@ export class DIContainer {
     return this._dosenController;
   }
 
+  get suratKesediaanController(): SuratKesediaanController {
+    if (!this._suratKesediaanController) {
+      this._suratKesediaanController = new SuratKesediaanController(this.suratKesediaanService);
+    }
+    return this._suratKesediaanController;
+  }
+
   /**
    * Reset all cached instances (useful for testing)
    */
@@ -302,6 +334,7 @@ export class DIContainer {
     this._submissionRepository = undefined;
     this._templateRepository = undefined;
     this._responseLetterRepository = undefined;
+    this._suratKesediaanRepository = undefined;
     this._authService = undefined;
     this._teamService = undefined;
     this._submissionService = undefined;
@@ -312,6 +345,7 @@ export class DIContainer {
     this._responseLetterService = undefined;
     this._teamResetService = undefined;
     this._dosenService = undefined;
+    this._suratKesediaanService = undefined;
     this._authController = undefined;
     this._teamController = undefined;
     this._submissionController = undefined;
@@ -319,5 +353,6 @@ export class DIContainer {
     this._templateController = undefined;
     this._responseLetterController = undefined;
     this._dosenController = undefined;
+    this._suratKesediaanController = undefined;
   }
 }

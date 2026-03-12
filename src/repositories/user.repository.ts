@@ -1,4 +1,4 @@
-import { eq, or, ilike, sql } from 'drizzle-orm';
+import { eq, or, ilike, sql, and } from 'drizzle-orm';
 import type { DbClient } from '@/db';
 import { users, mahasiswa, admin, dosen, pembimbingLapangan } from '@/db/schema';
 
@@ -79,6 +79,35 @@ export class UserRepository {
 
   async findDosenByUserId(userId: string) {
     const result = await this.db.select().from(dosen).where(eq(dosen.id, userId)).limit(1);
+    return result[0] || null;
+  }
+
+  async findActiveDosenByProdi(prodi: string) {
+    const result = await this.db
+      .select({
+        id: users.id,
+        role: users.role,
+        isActive: users.isActive,
+      })
+      .from(users)
+      .innerJoin(dosen, eq(users.id, dosen.id))
+      .where(and(eq(users.role, 'DOSEN'), eq(users.isActive, true), eq(dosen.prodi, prodi)))
+      .limit(1);
+
+    return result[0] || null;
+  }
+
+  async findAnyActiveDosen() {
+    const result = await this.db
+      .select({
+        id: users.id,
+        role: users.role,
+        isActive: users.isActive,
+      })
+      .from(users)
+      .where(and(eq(users.role, 'DOSEN'), eq(users.isActive, true)))
+      .limit(1);
+
     return result[0] || null;
   }
 

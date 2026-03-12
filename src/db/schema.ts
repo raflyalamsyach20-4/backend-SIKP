@@ -10,6 +10,7 @@ export const documentTypeEnum = pgEnum('document_type', ['PROPOSAL_KETUA', 'SURA
 export const documentStatusEnum = pgEnum('document_status', ['PENDING', 'APPROVED', 'REJECTED']);
 export const letterStatusEnum = pgEnum('letter_status', ['approved', 'rejected']);
 export const responseLetterStatusEnum = pgEnum('response_letter_status', ['pending', 'submitted', 'verified']);
+export const suratKesediaanStatusEnum = pgEnum('surat_kesediaan_status', ['MENUNGGU', 'DISETUJUI', 'DITOLAK']);
 
 // Users Table (Base table untuk semua user)
 export const users = pgTable('users', {
@@ -208,6 +209,26 @@ export const responseLetters = pgTable('response_letters', {
   };
 });
 
+// Surat Kesediaan Requests Table
+export const suratKesediaanRequests = pgTable('surat_kesediaan_requests', {
+  id: text('id').primaryKey(),
+  memberUserId: text('member_user_id').notNull().references(() => users.id),
+  dosenUserId: text('dosen_user_id').notNull().references(() => users.id),
+  status: suratKesediaanStatusEnum('status').notNull().default('MENUNGGU'),
+  approvedBy: text('approved_by').references(() => users.id, { onDelete: 'set null' }),
+  approvedAt: timestamp('approved_at'),
+  signedFileUrl: text('signed_file_url'),
+  signedFileKey: text('signed_file_key'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (table) => {
+  return {
+    uqRequest: uniqueIndex('uq_surat_kesediaan_request').on(table.memberUserId, table.dosenUserId),
+    idxDosenStatus: index('idx_surat_kesediaan_dosen_status').on(table.dosenUserId, table.status),
+    idxMemberStatus: index('idx_surat_kesediaan_member_status').on(table.memberUserId, table.status),
+    idxCreatedAt: index('idx_surat_kesediaan_created_at').on(table.createdAt),
+  };
+});
+
 // Relations
 export const usersRelations = relations(users, ({ one, many }) => ({
   mahasiswaProfile: one(mahasiswa),
@@ -221,6 +242,9 @@ export const usersRelations = relations(users, ({ one, many }) => ({
   generatedLetters: many(generatedLetters),
   createdTemplates: many(templates),
   updatedTemplates: many(templates),
+  suratKesediaanRequestsAsMembers: many(suratKesediaanRequests, { relationName: 'memberUser' }),
+  suratKesediaanRequestsAsDosen: many(suratKesediaanRequests, { relationName: 'dosenUser' }),
+  suratKesediaanRequestsApprovedBy: many(suratKesediaanRequests, { relationName: 'approver' }),
 }));
 
 export const mahasiswaRelations = relations(mahasiswa, ({ one }) => ({
@@ -329,5 +353,23 @@ export const templatesRelations = relations(templates, ({ one }) => ({
   updater: one(users, {
     fields: [templates.updatedBy],
     references: [users.id],
+  }),
+}));
+
+export const suratKesediaanRequestsRelations = relations(suratKesediaanRequests, ({ one }) => ({
+  memberUser: one(users, {
+    fields: [suratKesediaanRequests.memberUserId],
+    references: [users.id],
+    relationName: 'memberUser',
+  }),
+  dosenUser: one(users, {
+    fields: [suratKesediaanRequests.dosenUserId],
+    references: [users.id],
+    relationName: 'dosenUser',
+  }),
+  approver: one(users, {
+    fields: [suratKesediaanRequests.approvedBy],
+    references: [users.id],
+    relationName: 'approver',
   }),
 }));

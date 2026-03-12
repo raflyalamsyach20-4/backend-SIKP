@@ -127,6 +127,27 @@
       "when": 1773123317520,
       "tag": "0017_melodic_prodigy",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "5",
+      "when": 1773238853971,
+      "tag": "0018_romantic_vance_astro",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "5",
+      "when": 1773242244958,
+      "tag": "0019_sparkling_mindworm",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "5",
+      "when": 1773323730573,
+      "tag": "0020_absurd_the_anarchist",
+      "breakpoints": true
     }
   ]
 }

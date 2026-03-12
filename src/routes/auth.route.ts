@@ -2,6 +2,7 @@ import { Hono, Context } from 'hono';
 import { DIContainer } from '@/core';
 import { authMiddleware } from '@/middlewares/auth.middleware';
 import { CloudflareBindings } from '@/config';
+import { createMahasiswaSuratKesediaanRoutes } from './surat-kesediaan.route';
 
 /**
  * Extended context variables
@@ -60,6 +61,8 @@ export const createMahasiswaRoutes = () => {
     const container = c.get('container') as DIContainer;
     return container.authController.searchMahasiswa(c);
   });
+
+  mahasiswa.route('/surat-kesediaan', createMahasiswaSuratKesediaanRoutes());
 
   return mahasiswa;
 };

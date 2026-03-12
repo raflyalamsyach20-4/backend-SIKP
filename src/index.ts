@@ -19,6 +19,7 @@ import { createTemplateRoutes } from '@/routes/template.route';
 import { createUtilRoutes } from '@/routes/utils.route';
 import { createResponseLetterRoutes } from '@/routes/response-letter.routes';
 import { createDosenRoutes } from '@/routes/dosen.route';
+import { createSuratKesediaanFallbackRoutes } from '@/routes/surat-kesediaan.route';
 
 /**
  * Extended context variables
@@ -90,6 +91,7 @@ app.route('/api/templates', createTemplateRoutes());
 app.route('/api/utils', createUtilRoutes());
 app.route('/api/response-letters', createResponseLetterRoutes());
 app.route('/api/dosen', createDosenRoutes());
+app.route('/api/surat-kesediaan', createSuratKesediaanFallbackRoutes());
 
 /**
  * 404 Not Found Handler
