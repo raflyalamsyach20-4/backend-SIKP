@@ -75,6 +75,12 @@ export const createSubmissionRoutes = () => {
     return container.submissionController.getDocuments(c);
   });
 
+  // Backward compatibility for frontend status endpoint
+  submission.get('/:submissionId/letter-request-status', mahasiswaOnly, async (c: Context) => {
+    const container = c.get('container') as DIContainer;
+    return container.submissionController.getLetterRequestStatus(c);
+  });
+
   // Delete document (mahasiswa only)
   // ✅ NEW: Support frontend delete before reupload
   submission.delete('/documents/:documentId', mahasiswaOnly, async (c: Context) => {

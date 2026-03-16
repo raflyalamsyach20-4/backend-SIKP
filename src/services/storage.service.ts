@@ -3,12 +3,14 @@ import { nanoid } from 'nanoid';
 export class StorageService {
   private r2Domain: string;
   private r2BucketName: string;
+  private apiBaseUrl: string;
   private r2Bucket: R2Bucket | null;
 
-  constructor(r2Bucket: R2Bucket | undefined, r2Domain?: string, r2BucketName?: string) {
+  constructor(r2Bucket: R2Bucket | undefined, r2Domain?: string, r2BucketName?: string, apiBaseUrl?: string) {
     // Get from parameters (passed from index.ts) or fall back to environment variables
     this.r2Domain = r2Domain || process.env.R2_DOMAIN || '';
     this.r2BucketName = r2BucketName || process.env.R2_BUCKET_NAME || '';
+    this.apiBaseUrl = (apiBaseUrl || process.env.API_BASE_URL || '').replace(/\/$/, '');
     this.r2Bucket = r2Bucket || null;
 
     if (!this.r2Domain) {
@@ -16,6 +18,9 @@ export class StorageService {
     }
     if (!this.r2BucketName) {
       throw new Error('R2_BUCKET_NAME is not set. Please set R2_BUCKET_NAME in wrangler.jsonc or environment variables');
+    }
+    if (!this.apiBaseUrl) {
+      throw new Error('API_BASE_URL is not set. Please set API_BASE_URL in wrangler.jsonc or environment variables');
     }
 
     // In production, ensure R2 bucket binding exists to avoid silent mock usage
@@ -123,6 +128,22 @@ export class StorageService {
     // If your bucket is public, no signing needed
     // If bucket is private, you'd need to use S3-compatible signing
     return `${this.r2Domain}/${key}`;
+  }
+
+  getEsignatureAssetProxyUrlFromPublicUrl(publicUrl: string | null | undefined): string | null {
+    if (!publicUrl) return null;
+
+    const normalizedDomain = this.r2Domain.replace(/\/$/, '');
+    if (!publicUrl.startsWith(`${normalizedDomain}/`)) {
+      return publicUrl;
+    }
+
+    const key = publicUrl.slice(normalizedDomain.length + 1);
+    if (!key) {
+      return publicUrl;
+    }
+
+    return `${this.apiBaseUrl}/api/assets/r2/${encodeURIComponent(key)}`;
   }
 
   validateFileType(fileName: string, allowedTypes: string[]): boolean {

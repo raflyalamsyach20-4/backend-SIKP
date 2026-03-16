@@ -1,62 +1,208 @@
 import { SubmissionRepository } from '@/repositories/submission.repository';
 import { TeamRepository } from '@/repositories/team.repository';
+import { SuratKesediaanRepository } from '@/repositories/surat-kesediaan.repository';
+import { SuratPermohonanRepository } from '@/repositories/surat-permohonan.repository';
 import { StorageService } from './storage.service';
 import { generateId } from '@/utils/helpers';
+
+type LetterDocumentType = 'SURAT_KESEDIAAN' | 'FORM_PERMOHONAN';
+type LetterRequestStatus = 'MENUNGGU' | 'DISETUJUI' | 'DITOLAK' | null;
 
 export class SubmissionService {
   constructor(
     private submissionRepo: SubmissionRepository,
     private teamRepo: TeamRepository,
+    private suratKesediaanRepo: SuratKesediaanRepository,
+    private suratPermohonanRepo: SuratPermohonanRepository,
     private storageService?: StorageService
   ) {}
+
+  private createServiceError(message: string, code: string, statusCode: number) {
+    const error: any = new Error(message);
+    error.code = code;
+    error.statusCode = statusCode;
+    return error;
+  }
+
+  private buildDefaultDraftPayload(teamCode: string) {
+    const now = new Date();
+    const today = now.toISOString().split('T')[0];
+
+    return {
+      letterPurpose: `Belum diisi`,
+      companyName: 'Belum diisi',
+      companyAddress: 'Belum diisi',
+      companyPhone: null,
+      companyBusinessType: null,
+      division: 'Belum diisi',
+      startDate: today,
+      endDate: today,
+    };
+  }
+
+  async ensureDraftSubmissionForTeam(teamId: string, userId: string) {
+    const team = await this.teamRepo.findById(teamId);
+    if (!team) {
+      throw this.createServiceError('Team not found', 'TEAM_NOT_FOUND', 404);
+    }
+
+    if (team.status !== 'FIXED') {
+      throw this.createServiceError(
+        'Draft submission belum tersedia. Tetapkan tim terlebih dahulu.',
+        'TEAM_NOT_FIXED',
+        400
+      );
+    }
+
+    const membership = await this.teamRepo.findMemberByTeamAndUser(teamId, userId);
+    if (!membership || membership.invitationStatus !== 'ACCEPTED') {
+      throw this.createServiceError('Forbidden', 'FORBIDDEN', 403);
+    }
+
+    const existingSubmissions = await this.submissionRepo.findByTeamId(teamId);
+    if (existingSubmissions.length > 0) {
+      console.log('[SubmissionService] SUBMISSION_CREATE_IDEMPOTENT_HIT', {
+        teamId,
+        submissionId: existingSubmissions[0].id,
+      });
+      return {
+        submission: existingSubmissions[0],
+        alreadyExists: true,
+      };
+    }
+
+    const defaults = this.buildDefaultDraftPayload(team.code);
+    let submission;
+    try {
+      submission = await this.submissionRepo.create({
+        id: generateId(),
+        teamId,
+        status: 'DRAFT',
+        ...defaults,
+      });
+    } catch {
+      const racedSubmissions = await this.submissionRepo.findByTeamId(teamId);
+      if (racedSubmissions.length > 0) {
+        console.log('[SubmissionService] SUBMISSION_CREATE_IDEMPOTENT_HIT', {
+          teamId,
+          submissionId: racedSubmissions[0].id,
+        });
+        return {
+          submission: racedSubmissions[0],
+          alreadyExists: true,
+        };
+      }
+      throw this.createServiceError('Failed to create submission', 'INTERNAL_ERROR', 500);
+    }
+
+    console.log('[SubmissionService] SUBMISSION_CREATED', {
+      teamId,
+      submissionId: submission.id,
+    });
+
+    return {
+      submission,
+      alreadyExists: false,
+    };
+  }
 
   async createSubmission(
     teamId: string, 
     userId: string,
     data: {
-      letterPurpose: string;
-      companyName: string;
-      companyAddress: string;
-      division: string;
-      startDate: string;
-      endDate: string;
+      letterPurpose?: string;
+      companyName?: string;
+      companyAddress?: string;
+      companyPhone?: string;
+      companyBusinessType?: string;
+      division?: string;
+      startDate?: Date;
+      endDate?: Date;
     }
   ) {
-    // Verify team exists and is FIXED
     const team = await this.teamRepo.findById(teamId);
     if (!team) {
-      throw new Error('Team not found');
+      throw this.createServiceError('Team not found', 'TEAM_NOT_FOUND', 404);
     }
 
     if (team.status !== 'FIXED') {
-      throw new Error('Team must be fixed before creating submission');
+      throw this.createServiceError(
+        'Draft submission belum tersedia. Tetapkan tim terlebih dahulu.',
+        'TEAM_NOT_FIXED',
+        400
+      );
     }
 
-    // Verify user is team leader
-    if (team.leaderId !== userId) {
-      throw new Error('Only team leader can create submission');
+    // Caller must be an accepted member of the team
+    const membership = await this.teamRepo.findMemberByTeamAndUser(teamId, userId);
+    if (!membership || membership.invitationStatus !== 'ACCEPTED') {
+      throw this.createServiceError('Forbidden', 'FORBIDDEN', 403);
     }
 
-    // Create draft submission with all data
-    const submission = await this.submissionRepo.create({
-      id: generateId(),
+    const existingSubmissions = await this.submissionRepo.findByTeamId(teamId);
+    if (existingSubmissions.length > 0) {
+      console.log('[SubmissionService] SUBMISSION_CREATE_IDEMPOTENT_HIT', {
+        teamId,
+        submissionId: existingSubmissions[0].id,
+      });
+      return {
+        submission: existingSubmissions[0],
+        alreadyExists: true,
+      };
+    }
+
+    const defaults = this.buildDefaultDraftPayload(team.code);
+    let submission;
+    try {
+      submission = await this.submissionRepo.create({
+        id: generateId(),
+        teamId,
+        status: 'DRAFT',
+        letterPurpose: data.letterPurpose || defaults.letterPurpose,
+        companyName: data.companyName || defaults.companyName,
+        companyAddress: data.companyAddress || defaults.companyAddress,
+        companyPhone: data.companyPhone ?? defaults.companyPhone,
+        companyBusinessType: data.companyBusinessType ?? defaults.companyBusinessType,
+        division: data.division || defaults.division,
+        startDate: data.startDate
+          ? data.startDate.toISOString().split('T')[0]
+          : defaults.startDate,
+        endDate: data.endDate
+          ? data.endDate.toISOString().split('T')[0]
+          : defaults.endDate,
+      });
+    } catch {
+      const racedSubmissions = await this.submissionRepo.findByTeamId(teamId);
+      if (racedSubmissions.length > 0) {
+        console.log('[SubmissionService] SUBMISSION_CREATE_IDEMPOTENT_HIT', {
+          teamId,
+          submissionId: racedSubmissions[0].id,
+        });
+        return {
+          submission: racedSubmissions[0],
+          alreadyExists: true,
+        };
+      }
+      throw this.createServiceError('Failed to create submission', 'INTERNAL_ERROR', 500);
+    }
+
+    console.log('[SubmissionService] SUBMISSION_CREATED', {
       teamId,
-      letterPurpose: data.letterPurpose,
-      companyName: data.companyName,
-      companyAddress: data.companyAddress,
-      division: data.division,
-      startDate: data.startDate,
-      endDate: data.endDate,
-      status: 'DRAFT',
+      submissionId: submission.id,
     });
 
-    return submission;
+    return {
+      submission,
+      alreadyExists: false,
+    };
   }
 
   async updateSubmission(submissionId: string, userId: string, data: {
     letterPurpose?: string;
     companyName?: string;
     companyAddress?: string;
+    companyPhone?: string;
+    companyBusinessType?: string;
     division?: string;
     startDate?: string;
     endDate?: string;
@@ -82,7 +228,7 @@ export class SubmissionService {
   async submitForReview(submissionId: string, userId: string) {
     const submission = await this.submissionRepo.findById(submissionId);
     if (!submission) {
-      throw new Error('Pengajuan tidak ditemukan.');
+      throw this.createServiceError('Pengajuan tidak ditemukan.', 'SUBMISSION_NOT_FOUND', 404);
     }
 
     if (submission.status !== 'DRAFT') {
@@ -132,9 +278,11 @@ export class SubmissionService {
   ) {
     const submission = await this.submissionRepo.findById(submissionId);
     if (!submission) {
-      const notFound: any = new Error('Pengajuan tidak ditemukan.');
-      notFound.statusCode = 404;
-      throw notFound;
+      throw this.createServiceError(
+        'Draft submission belum tersedia. Tetapkan tim terlebih dahulu.',
+        'SUBMISSION_NOT_FOUND',
+        404
+      );
     }
 
     if (submission.status !== 'DRAFT') {
@@ -280,6 +428,140 @@ export class SubmissionService {
     }
 
     return await this.submissionRepo.findDocumentsBySubmissionId(submissionId);
+  }
+
+  async getLetterRequestStatus(submissionId: string, userId: string) {
+    const submission = await this.submissionRepo.findById(submissionId);
+    if (!submission) {
+      const error: any = new Error('Submission tidak ditemukan.');
+      error.statusCode = 404;
+      throw error;
+    }
+
+    const requesterMembership = await this.teamRepo.findMemberByTeamAndUser(submission.teamId, userId);
+    if (!requesterMembership || requesterMembership.invitationStatus !== 'ACCEPTED') {
+      const error: any = new Error('Anda tidak memiliki akses ke submission ini');
+      error.statusCode = 403;
+      throw error;
+    }
+
+    const teamMembers = await this.teamRepo.findMembersByTeamId(submission.teamId);
+    const acceptedMemberUserIds = Array.from(
+      new Set(
+        teamMembers
+          .filter((member) => member.invitationStatus === 'ACCEPTED')
+          .map((member) => member.userId)
+      )
+    );
+
+    const [kesediaanRows, permohonanRows] = await Promise.all([
+      this.suratKesediaanRepo.findLatestByMemberIds(acceptedMemberUserIds),
+      // Scope surat permohonan status to current submission.
+      // This ensures after team reset (new submission), dropdown returns to
+      // initial "Ajukan" state instead of inheriting old submission history.
+      this.suratPermohonanRepo.findLatestByMemberIds(acceptedMemberUserIds, submissionId),
+    ]);
+
+    const latestKesediaanByMember = new Map<string, {
+      id: string;
+      status: string;
+      dosenName: string | null;
+      signedFileUrl: string | null;
+      rejectionReason: string | null;
+      submittedAt: Date | null;
+    }>();
+    for (const row of kesediaanRows) {
+      if (!latestKesediaanByMember.has(row.memberUserId)) {
+        latestKesediaanByMember.set(row.memberUserId, {
+          id: row.id,
+          status: row.status,
+          dosenName: row.dosenName,
+          signedFileUrl: row.signedFileUrl,
+          rejectionReason: row.rejectionReason,
+          submittedAt: row.submittedAt,
+        });
+      }
+    }
+
+    const latestPermohonanByMember = new Map<string, {
+      id: string;
+      status: string;
+      dosenName: string | null;
+      signedFileUrl: string | null;
+      rejectionReason: string | null;
+      submittedAt: Date | null;
+    }>();
+    for (const row of permohonanRows) {
+      if (!latestPermohonanByMember.has(row.memberUserId)) {
+        latestPermohonanByMember.set(row.memberUserId, {
+          id: row.id,
+          status: row.status,
+          dosenName: row.dosenName,
+          signedFileUrl: row.signedFileUrl,
+          rejectionReason: row.rejectionReason,
+          submittedAt: row.submittedAt,
+        });
+      }
+    }
+
+    const documentTypes: LetterDocumentType[] = ['SURAT_KESEDIAAN', 'FORM_PERMOHONAN'];
+    const response: Array<{
+      memberUserId: string;
+      documentType: LetterDocumentType;
+      isAlreadySubmitted: boolean;
+      latestStatus: LetterRequestStatus;
+      latestRequestId: string | null;
+      dosenName: string | null;
+      signedFileUrl: string | null;
+      rejectionReason: string | null;
+      submittedAt: string | null;
+    }> = [];
+
+    for (const memberUserId of acceptedMemberUserIds) {
+      for (const documentType of documentTypes) {
+        const latestRequest = documentType === 'SURAT_KESEDIAAN'
+          ? latestKesediaanByMember.get(memberUserId)
+          : latestPermohonanByMember.get(memberUserId);
+
+        response.push({
+          memberUserId,
+          documentType,
+          isAlreadySubmitted: Boolean(latestRequest),
+          latestStatus: latestRequest ? this.normalizeLetterStatus(latestRequest.status) : null,
+          latestRequestId: latestRequest?.id || null,
+          dosenName: latestRequest?.dosenName || null,
+          signedFileUrl: latestRequest?.signedFileUrl || null,
+          rejectionReason: latestRequest?.rejectionReason || null,
+          submittedAt: this.toISOStringOrNull(latestRequest?.submittedAt),
+        });
+      }
+    }
+
+    return response;
+  }
+
+  private normalizeLetterStatus(status: string | null | undefined): LetterRequestStatus {
+    if (!status) return null;
+
+    const normalized = status.toUpperCase();
+    if (normalized === 'MENUNGGU' || normalized === 'DISETUJUI' || normalized === 'DITOLAK') {
+      return normalized;
+    }
+
+    if (normalized === 'PENDING') return 'MENUNGGU';
+    if (normalized === 'APPROVED') return 'DISETUJUI';
+    if (normalized === 'REJECTED') return 'DITOLAK';
+
+    return null;
+  }
+
+  private toISOStringOrNull(value: Date | string | null | undefined): string | null {
+    if (!value) return null;
+    if (value instanceof Date) return value.toISOString();
+
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return null;
+    return date.toISOString();
   }
 
   /**

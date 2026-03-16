@@ -148,6 +148,104 @@
       "when": 1773323730573,
       "tag": "0020_absurd_the_anarchist",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "5",
+      "when": 1773389587381,
+      "tag": "0021_aberrant_demogoblin",
+      "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "5",
+      "when": 1773413481835,
+      "tag": "0022_lying_risque",
+      "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "5",
+      "when": 1773470215678,
+      "tag": "0023_aromatic_romulus",
+      "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "5",
+      "when": 1773472244572,
+      "tag": "0024_gifted_iron_lad",
+      "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "5",
+      "when": 1773472301077,
+      "tag": "0025_serious_tombstone",
+      "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "5",
+      "when": 1773474506165,
+      "tag": "0026_petite_bug",
+      "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "5",
+      "when": 1773488200000,
+      "tag": "0032_remove_surat_permohonan_rejection_reason",
+      "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "5",
+      "when": 1773530000000,
+      "tag": "0033_add_rejection_reason_columns",
+      "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "5",
+      "when": 1773582321015,
+      "tag": "0029_real_norrin_radd",
+      "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "5",
+      "when": 1742000000000,
+      "tag": "0034_add_mahasiswa_esignature_columns",
+      "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "5",
+      "when": 1742000001000,
+      "tag": "0035_add_mahasiswa_esignature_snapshot_to_surat_permohonan",
+      "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "5",
+      "when": 1773588824780,
+      "tag": "0032_eager_pride",
+      "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "5",
+      "when": 1773641600000,
+      "tag": "0036_archive_submissions",
+      "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "5",
+      "when": 1773647122861,
+      "tag": "0034_wide_ghost_rider",
+      "breakpoints": true
     }
   ]
 }

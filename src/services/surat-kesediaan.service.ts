@@ -110,7 +110,7 @@ export class SuratKesediaanService {
     
     return requests.map(req => ({
       id: req.id,
-      tanggal: req.tanggal,
+      tanggal: this.formatDateOnly(req.tanggal),
       nim: req.nim,
       namaMahasiswa: req.namaMahasiswa,
       programStudi: req.programStudi,
@@ -124,9 +124,90 @@ export class SuratKesediaanService {
       dosenNip: req.dosenNip,
       dosenJabatan: req.dosenJabatan,
       dosenEsignatureUrl: req.dosenEsignatureUrl,
+      rejectedAt: req.status === 'DITOLAK' ? req.approvedAt : null,
+      rejectionReason: req.status === 'DITOLAK' ? (req.rejectionReason ?? null) : null,
       approvedAt: req.approvedAt,
       signedFileUrl: req.signedFileUrl,
     }));
+  }
+
+  async rejectRequest(requestId: string, dosenUserId: string, reason: string) {
+    const request = await this.suratKesediaanRepo.findById(requestId);
+    if (!request) {
+      const error: any = new Error('Pengajuan tidak ditemukan.');
+      error.statusCode = 404;
+      throw error;
+    }
+
+    if (request.dosenUserId !== dosenUserId) {
+      const error: any = new Error('Anda tidak berhak mengubah pengajuan ini.');
+      error.statusCode = 403;
+      throw error;
+    }
+
+    if (request.status !== 'MENUNGGU') {
+      const error: any = new Error('Pengajuan sudah diproses.');
+      error.statusCode = 409;
+      throw error;
+    }
+
+    const updated = await this.suratKesediaanRepo.rejectPending(requestId, dosenUserId, reason);
+    if (!updated) {
+      const error: any = new Error('Pengajuan sudah diproses.');
+      error.statusCode = 409;
+      throw error;
+    }
+
+    return {
+      requestId: updated.id,
+      status: 'DITOLAK' as const,
+      rejectionReason: updated.rejectionReason ?? null,
+      rejectedAt: updated.approvedAt,
+    };
+  }
+
+  /**
+   * Mahasiswa ajukan ulang request yang sudah ditolak.
+   * Requirement: update existing row, bukan create row baru.
+   */
+  async reapplyRequest(requestId: string, memberUserId: string, authUserId: string) {
+    if (memberUserId !== authUserId) {
+      const error: any = new Error('Anda tidak memiliki akses untuk request ini.');
+      error.statusCode = 403;
+      throw error;
+    }
+
+    const request = await this.suratKesediaanRepo.findById(requestId);
+    if (!request) {
+      const error: any = new Error('Request tidak ditemukan.');
+      error.statusCode = 404;
+      throw error;
+    }
+
+    if (request.memberUserId !== memberUserId) {
+      const error: any = new Error('Anda tidak memiliki akses untuk request ini.');
+      error.statusCode = 403;
+      throw error;
+    }
+
+    const normalizedStatus = String(request.status || '').toUpperCase();
+    if (normalizedStatus !== 'DITOLAK' && normalizedStatus !== 'REJECTED') {
+      const error: any = new Error('Ajuan ulang hanya diperbolehkan untuk request yang ditolak.');
+      error.statusCode = 409;
+      throw error;
+    }
+
+    const updated = await this.suratKesediaanRepo.reapplyRejected(requestId, memberUserId);
+    if (!updated) {
+      const error: any = new Error('Ajuan ulang hanya diperbolehkan untuk request yang ditolak.');
+      error.statusCode = 409;
+      throw error;
+    }
+
+    return {
+      requestId: updated.id,
+      status: updated.status,
+    };
   }
 
   /**
@@ -503,5 +584,18 @@ export class SuratKesediaanService {
       month: 'long',
       year: 'numeric',
     }).format(date);
+  }
+
+  private formatDateOnly(value: string | Date | null | undefined): string | null {
+    const date = this.toDate(value);
+    if (!date) return null;
+    return new Intl.DateTimeFormat('sv-SE').format(date);
+  }
+
+  private toDate(value: string | Date | null | undefined): Date | null {
+    if (!value) return null;
+    if (value instanceof Date) return value;
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? null : date;
   }
 }

@@ -3,6 +3,7 @@ import { DIContainer } from '@/core';
 import { authMiddleware, dosenOnly } from '@/middlewares/auth.middleware';
 import { CloudflareBindings } from '@/config';
 import { createDosenSuratKesediaanRoutes } from './surat-kesediaan.route';
+import { createDosenSuratPermohonanRoutes } from './surat-permohonan.route';
 
 type Variables = {
   container: DIContainer;
@@ -35,6 +36,7 @@ export const createDosenRoutes = () => {
 
   // Surat Kesediaan Routes (nested)
   dosen.route('/surat-kesediaan', createDosenSuratKesediaanRoutes());
+  dosen.route('/surat-permohonan', createDosenSuratPermohonanRoutes());
 
   return dosen;
 };

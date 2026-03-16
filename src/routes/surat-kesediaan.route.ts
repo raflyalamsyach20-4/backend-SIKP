@@ -22,6 +22,12 @@ export const createMahasiswaSuratKesediaanRoutes = () => {
     return container.suratKesediaanController.requestSuratKesediaan(c);
   });
 
+  // PUT /api/mahasiswa/surat-kesediaan/requests/:requestId/reapply
+  routes.put('/requests/:requestId/reapply', async (c: Context) => {
+    const container = c.get('container') as DIContainer;
+    return container.suratKesediaanController.reapplyRequest(c);
+  });
+
   return routes;
 };
 
@@ -38,6 +44,12 @@ export const createSuratKesediaanFallbackRoutes = () => {
   routes.post('/requests', async (c: Context) => {
     const container = c.get('container') as DIContainer;
     return container.suratKesediaanController.requestSuratKesediaan(c);
+  });
+
+  // PUT /api/surat-kesediaan/requests/:requestId/reapply
+  routes.put('/requests/:requestId/reapply', async (c: Context) => {
+    const container = c.get('container') as DIContainer;
+    return container.suratKesediaanController.reapplyRequest(c);
   });
 
   // POST /api/surat-kesediaan/request
@@ -68,6 +80,12 @@ export const createDosenSuratKesediaanRoutes = () => {
   routes.put('/requests/:requestId/approve', async (c: Context) => {
     const container = c.get('container') as DIContainer;
     return container.suratKesediaanController.approveSingle(c);
+  });
+
+  // PUT /api/dosen/surat-kesediaan/requests/:requestId/reject
+  routes.put('/requests/:requestId/reject', async (c: Context) => {
+    const container = c.get('container') as DIContainer;
+    return container.suratKesediaanController.reject(c);
   });
 
   // PUT /api/dosen/surat-kesediaan/requests/approve-bulk

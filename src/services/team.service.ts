@@ -1,12 +1,30 @@
 import { TeamRepository } from '@/repositories/team.repository';
 import { UserRepository } from '@/repositories/user.repository';
+import { SubmissionRepository } from '@/repositories/submission.repository';
 import { generateId, generateTeamCode } from '@/utils/helpers';
 
 export class TeamService {
   constructor(
     private teamRepo: TeamRepository,
-    private userRepo: UserRepository
+    private userRepo: UserRepository,
+    private submissionRepo: SubmissionRepository
   ) {}
+
+  private buildDefaultDraftPayload(teamCode: string) {
+    const now = new Date();
+    const today = now.toISOString().split('T')[0];
+
+    return {
+      letterPurpose: `Belum diisi`,
+      companyName: 'Belum diisi',
+      companyAddress: 'Belum diisi',
+      companyPhone: null,
+      companyBusinessType: null,
+      division: 'Belum diisi',
+      startDate: today,
+      endDate: today,
+    };
+  }
 
   async createTeam(leaderId: string) {
     console.log(`[createTeam] 🚀 Starting team creation for leaderId=${leaderId}`);
@@ -253,12 +271,10 @@ export class TeamService {
       throw err;
     }
 
-    // 2. Check if team is already FIXED
-    if (team.status === 'FIXED') {
-      console.warn(`[finalizeTeam] ⚠️ Team already finalized: ${teamId}`);
-      const err: any = new Error('Tim sudah difinalisasi sebelumnya');
-      err.statusCode = 409;
-      throw err;
+    // 2. Check if team is already FIXED (idempotent path)
+    const alreadyFixed = team.status === 'FIXED';
+    if (alreadyFixed) {
+      console.warn(`[finalizeTeam] ⚠️ Team already finalized, continue idempotently: ${teamId}`);
     }
 
     // 3. Get all members (validation removed - team can be finalized with just the leader)
@@ -271,15 +287,61 @@ export class TeamService {
     console.log(`[finalizeTeam] Allowing finalization even with just the leader`);
 
     // 4. Update team status to FIXED
-    console.log(`[finalizeTeam] Updating team status to FIXED...`);
-    const updatedTeam = await this.teamRepo.update(teamId, { status: 'FIXED' });
-    console.log(`[finalizeTeam] ✅ Team finalized successfully`);
+    let updatedTeam = team;
+    if (!alreadyFixed) {
+      console.log(`[finalizeTeam] Updating team status to FIXED...`);
+      updatedTeam = await this.teamRepo.update(teamId, { status: 'FIXED' });
+      console.log('[finalizeTeam] TEAM_FINALIZED', { teamId, requesterId });
+    }
+
+    // 5. Ensure submission draft exists (idempotent)
+    const existingSubmissions = await this.submissionRepo.findByTeamId(teamId);
+    let submission = existingSubmissions[0] || null;
+    let submissionAlreadyExists = !!submission;
+
+    if (!submission) {
+      const defaults = this.buildDefaultDraftPayload(updatedTeam?.code || team.code);
+      let createdByThisRequest = true;
+      try {
+        submission = await this.submissionRepo.create({
+          id: generateId(),
+          teamId,
+          status: 'DRAFT',
+          ...defaults,
+        });
+      } catch {
+        const racedSubmissions = await this.submissionRepo.findByTeamId(teamId);
+        submission = racedSubmissions[0] || null;
+        createdByThisRequest = false;
+      }
+
+      if (!submission) {
+        throw new Error('Failed to create draft submission after team finalization');
+      }
+
+      submissionAlreadyExists = !createdByThisRequest;
+      if (createdByThisRequest) {
+        console.log('[finalizeTeam] SUBMISSION_CREATED', { teamId, submissionId: submission.id });
+      } else {
+        console.log('[finalizeTeam] SUBMISSION_CREATE_IDEMPOTENT_HIT', {
+          teamId,
+          submissionId: submission.id,
+        });
+      }
+    } else {
+      console.log('[finalizeTeam] SUBMISSION_CREATE_IDEMPOTENT_HIT', {
+        teamId,
+        submissionId: submission.id,
+      });
+    }
 
     return {
       id: updatedTeam?.id,
       code: updatedTeam?.code,
       status: updatedTeam?.status,
-      message: 'Tim berhasil difinalisasi dan siap untuk pengajuan'
+      message: 'Tim berhasil difinalisasi dan siap untuk pengajuan',
+      submission,
+      submissionAlreadyExists,
     };
   }
 

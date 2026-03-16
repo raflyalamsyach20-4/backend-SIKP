@@ -75,6 +75,7 @@ export class SuratKesediaanRepository {
         status: suratKesediaanRequests.status,
         approvedAt: suratKesediaanRequests.approvedAt,
         signedFileUrl: suratKesediaanRequests.signedFileUrl,
+        rejectionReason: suratKesediaanRequests.rejectionReason,
         dosenNip: dosen.nip,
         dosenJabatan: dosen.jabatan,
         dosenEsignatureUrl: dosen.esignatureUrl,
@@ -156,6 +157,50 @@ export class SuratKesediaanRepository {
     return result[0] || null;
   }
 
+  async rejectPending(id: string, dosenUserId: string, reason: string) {
+    const result = await this.db
+      .update(suratKesediaanRequests)
+      .set({
+        status: 'DITOLAK',
+        approvedBy: dosenUserId,
+        approvedAt: new Date(),
+        rejectionReason: reason,
+      })
+      .where(
+        and(
+          eq(suratKesediaanRequests.id, id),
+          eq(suratKesediaanRequests.dosenUserId, dosenUserId),
+          eq(suratKesediaanRequests.status, 'MENUNGGU')
+        )
+      )
+      .returning();
+
+    return result[0] || null;
+  }
+
+  async reapplyRejected(id: string, memberUserId: string) {
+    const result = await this.db
+      .update(suratKesediaanRequests)
+      .set({
+        status: 'MENUNGGU',
+        rejectionReason: null,
+        approvedAt: null,
+        approvedBy: null,
+        signedFileUrl: null,
+        signedFileKey: null,
+      })
+      .where(
+        and(
+          eq(suratKesediaanRequests.id, id),
+          eq(suratKesediaanRequests.memberUserId, memberUserId),
+          sql`${suratKesediaanRequests.status}::text in ('DITOLAK', 'REJECTED')`
+        )
+      )
+      .returning();
+
+    return result[0] || null;
+  }
+
   async updateBulk(ids: string[], data: Partial<typeof suratKesediaanRequests.$inferInsert>) {
     const result = await this.db
       .update(suratKesediaanRequests)
@@ -182,5 +227,28 @@ export class SuratKesediaanRepository {
       .limit(1);
 
     return result[0] || null;
+  }
+
+  async findLatestByMemberIds(memberUserIds: string[]) {
+    if (memberUserIds.length === 0) return [];
+
+    return await this.db
+      .select({
+        id: suratKesediaanRequests.id,
+        memberUserId: suratKesediaanRequests.memberUserId,
+        status: suratKesediaanRequests.status,
+        dosenName: sql<string | null>`(
+          select u_dosen.nama
+          from users u_dosen
+          where u_dosen.id = ${suratKesediaanRequests.dosenUserId}
+          limit 1
+        )`,
+        signedFileUrl: suratKesediaanRequests.signedFileUrl,
+        rejectionReason: suratKesediaanRequests.rejectionReason,
+        submittedAt: suratKesediaanRequests.createdAt,
+      })
+      .from(suratKesediaanRequests)
+      .where(inArray(suratKesediaanRequests.memberUserId, memberUserIds))
+      .orderBy(desc(suratKesediaanRequests.createdAt));
   }
 }

@@ -55,6 +55,41 @@ export class UserRepository {
     return result[0];
   }
 
+  async updateMahasiswaByUserId(userId: string, data: Partial<typeof mahasiswa.$inferInsert>) {
+    const result = await this.db
+      .update(mahasiswa)
+      .set(data)
+      .where(eq(mahasiswa.id, userId))
+      .returning();
+    return result[0] || null;
+  }
+
+  async getMahasiswaMe(userId: string) {
+    const result = await this.db
+      .select({
+        id: users.id,
+        nama: users.nama,
+        email: users.email,
+        role: users.role,
+        phone: users.phone,
+        nim: mahasiswa.nim,
+        fakultas: mahasiswa.fakultas,
+        prodi: mahasiswa.prodi,
+        semester: mahasiswa.semester,
+        jumlahSksSelesai: mahasiswa.jumlahSksSelesai,
+        angkatan: mahasiswa.angkatan,
+        esignatureUrl: mahasiswa.esignatureUrl,
+        esignatureKey: mahasiswa.esignatureKey,
+        esignatureUploadedAt: mahasiswa.esignatureUploadedAt,
+      })
+      .from(users)
+      .innerJoin(mahasiswa, eq(users.id, mahasiswa.id))
+      .where(eq(users.id, userId))
+      .limit(1);
+
+    return result[0] || null;
+  }
+
   // Admin operations
   async findAdminByNip(nip: string) {
     const result = await this.db.select().from(admin).where(eq(admin.nip, nip)).limit(1);
@@ -200,6 +235,7 @@ export class UserRepository {
         prodi: mahasiswa.prodi,
         fakultas: mahasiswa.fakultas,
         semester: mahasiswa.semester,
+        jumlahSksSelesai: mahasiswa.jumlahSksSelesai,
         angkatan: mahasiswa.angkatan,
       })
       .from(users)

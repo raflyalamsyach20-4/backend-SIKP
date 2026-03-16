@@ -11,6 +11,7 @@ export const documentStatusEnum = pgEnum('document_status', ['PENDING', 'APPROVE
 export const letterStatusEnum = pgEnum('letter_status', ['approved', 'rejected']);
 export const responseLetterStatusEnum = pgEnum('response_letter_status', ['pending', 'submitted', 'verified']);
 export const suratKesediaanStatusEnum = pgEnum('surat_kesediaan_status', ['MENUNGGU', 'DISETUJUI', 'DITOLAK']);
+export const suratPermohonanStatusEnum = pgEnum('surat_permohonan_status', ['MENUNGGU', 'DISETUJUI', 'DITOLAK']);
 
 // Users Table (Base table untuk semua user)
 export const users = pgTable('users', {
@@ -30,7 +31,11 @@ export const mahasiswa = pgTable('mahasiswa', {
   fakultas: varchar('fakultas', { length: 100 }),
   prodi: varchar('prodi', { length: 100 }),
   semester: integer('semester'),
+  jumlahSksSelesai: integer('jumlah_sks_selesai'),
   angkatan: varchar('angkatan', { length: 10 }),
+  esignatureUrl: text('esignature_url'),
+  esignatureKey: varchar('esignature_key', { length: 255 }),
+  esignatureUploadedAt: timestamp('esignature_uploaded_at'),
 });
 
 // Admin Table
@@ -88,6 +93,8 @@ export const submissions = pgTable('submissions', {
   letterPurpose: varchar('letter_purpose', { length: 255 }).notNull(),
   companyName: varchar('company_name', { length: 255 }).notNull(),
   companyAddress: text('company_address').notNull(),
+  companyPhone: varchar('company_phone', { length: 50 }),
+  companyBusinessType: varchar('company_business_type', { length: 255 }),
   division: varchar('division', { length: 255 }).notNull(),
   startDate: date('start_date').notNull(),
   endDate: date('end_date').notNull(),
@@ -101,9 +108,18 @@ export const submissions = pgTable('submissions', {
   
   // Response letter tracking
   responseLetterStatus: responseLetterStatusEnum('response_letter_status').default('pending'),
-  
+
+  // Soft-archive support: when a team resets ("Mulai Ulang"), the submission is
+  // archived instead of deleted so admin/dosen history is preserved.
+  // NULL = active submission; non-null = archived (superseded by a later attempt).
+  archivedAt: timestamp('archived_at'),
+
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (table) => {
+  // Unique constraint is enforced at application layer (only one non-archived
+  // submission per team). DB-level unique index was dropped in migration 0036.
+  return {};
 });
 
 // Submission Documents Table
@@ -219,6 +235,7 @@ export const suratKesediaanRequests = pgTable('surat_kesediaan_requests', {
   approvedAt: timestamp('approved_at'),
   signedFileUrl: text('signed_file_url'),
   signedFileKey: text('signed_file_key'),
+  rejectionReason: text('rejection_reason'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 }, (table) => {
   return {
@@ -226,6 +243,31 @@ export const suratKesediaanRequests = pgTable('surat_kesediaan_requests', {
     idxDosenStatus: index('idx_surat_kesediaan_dosen_status').on(table.dosenUserId, table.status),
     idxMemberStatus: index('idx_surat_kesediaan_member_status').on(table.memberUserId, table.status),
     idxCreatedAt: index('idx_surat_kesediaan_created_at').on(table.createdAt),
+  };
+});
+
+// Surat Permohonan Requests Table
+export const suratPermohonanRequests = pgTable('surat_permohonan_requests', {
+  id: text('id').primaryKey(),
+  memberUserId: text('member_user_id').notNull().references(() => users.id),
+  dosenUserId: text('dosen_user_id').notNull().references(() => users.id),
+  submissionId: text('submission_id').notNull().references(() => submissions.id),
+  status: suratPermohonanStatusEnum('status').notNull().default('MENUNGGU'),
+  mahasiswaEsignatureUrl: text('mahasiswa_esignature_url'),
+  mahasiswaEsignatureSnapshotAt: timestamp('mahasiswa_esignature_snapshot_at'),
+  signedFileUrl: text('signed_file_url'),
+  signedFileKey: text('signed_file_key'),
+  requestedAt: timestamp('requested_at').defaultNow().notNull(),
+  approvedAt: timestamp('approved_at'),
+  approvedBy: text('approved_by').references(() => users.id, { onDelete: 'set null' }),
+  rejectionReason: text('rejection_reason'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (table) => {
+  return {
+    idxDosenStatusRequestedAt: index('idx_permohonan_dosen').on(table.dosenUserId, table.status, table.requestedAt),
+    idxRequestedAt: index('idx_surat_permohonan_requested_at').on(table.requestedAt),
+    idxMemberDosenStatus: index('idx_surat_permohonan_member_dosen_status').on(table.memberUserId, table.dosenUserId, table.status),
   };
 });
 
@@ -245,6 +287,9 @@ export const usersRelations = relations(users, ({ one, many }) => ({
   suratKesediaanRequestsAsMembers: many(suratKesediaanRequests, { relationName: 'memberUser' }),
   suratKesediaanRequestsAsDosen: many(suratKesediaanRequests, { relationName: 'dosenUser' }),
   suratKesediaanRequestsApprovedBy: many(suratKesediaanRequests, { relationName: 'approver' }),
+  suratPermohonanRequestsAsMembers: many(suratPermohonanRequests, { relationName: 'permohonanMemberUser' }),
+  suratPermohonanRequestsAsDosen: many(suratPermohonanRequests, { relationName: 'permohonanDosenUser' }),
+  suratPermohonanRequestsApprovedBy: many(suratPermohonanRequests, { relationName: 'permohonanApprover' }),
 }));
 
 export const mahasiswaRelations = relations(mahasiswa, ({ one }) => ({
@@ -371,5 +416,27 @@ export const suratKesediaanRequestsRelations = relations(suratKesediaanRequests,
     fields: [suratKesediaanRequests.approvedBy],
     references: [users.id],
     relationName: 'approver',
+  }),
+}));
+
+export const suratPermohonanRequestsRelations = relations(suratPermohonanRequests, ({ one }) => ({
+  memberUser: one(users, {
+    fields: [suratPermohonanRequests.memberUserId],
+    references: [users.id],
+    relationName: 'permohonanMemberUser',
+  }),
+  dosenUser: one(users, {
+    fields: [suratPermohonanRequests.dosenUserId],
+    references: [users.id],
+    relationName: 'permohonanDosenUser',
+  }),
+  submission: one(submissions, {
+    fields: [suratPermohonanRequests.submissionId],
+    references: [submissions.id],
+  }),
+  approver: one(users, {
+    fields: [suratPermohonanRequests.approvedBy],
+    references: [users.id],
+    relationName: 'permohonanApprover',
   }),
 }));

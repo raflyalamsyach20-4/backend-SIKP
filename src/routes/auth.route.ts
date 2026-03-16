@@ -1,8 +1,9 @@
 import { Hono, Context } from 'hono';
 import { DIContainer } from '@/core';
-import { authMiddleware } from '@/middlewares/auth.middleware';
+import { authMiddleware, mahasiswaOnly } from '@/middlewares/auth.middleware';
 import { CloudflareBindings } from '@/config';
 import { createMahasiswaSuratKesediaanRoutes } from './surat-kesediaan.route';
+import { createMahasiswaSuratPermohonanRoutes } from './surat-permohonan.route';
 
 /**
  * Extended context variables
@@ -63,6 +64,12 @@ export const createMahasiswaRoutes = () => {
   });
 
   mahasiswa.route('/surat-kesediaan', createMahasiswaSuratKesediaanRoutes());
+  mahasiswa.route('/surat-permohonan', createMahasiswaSuratPermohonanRoutes());
+
+  mahasiswa.get('/submissions/:submissionId/letter-request-status', mahasiswaOnly, async (c: Context) => {
+    const container = c.get('container') as DIContainer;
+    return container.submissionController.getLetterRequestStatus(c);
+  });
 
   return mahasiswa;
 };

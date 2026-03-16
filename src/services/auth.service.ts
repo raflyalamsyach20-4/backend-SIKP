@@ -19,6 +19,7 @@ export class AuthService {
     fakultas?: string;
     prodi?: string;
     semester?: number;
+    jumlahSksSelesai?: number;
     angkatan?: string;
     phone?: string;
   }) {
@@ -55,6 +56,7 @@ export class AuthService {
       fakultas: data.fakultas || null,
       prodi: data.prodi || null,
       semester: data.semester || null,
+      jumlahSksSelesai: data.jumlahSksSelesai ?? null,
       angkatan: data.angkatan || null,
     });
 
@@ -75,6 +77,7 @@ export class AuthService {
         nim: mahasiswa.nim,
         fakultas: mahasiswa.fakultas,
         prodi: mahasiswa.prodi,
+        jumlahSksSelesai: mahasiswa.jumlahSksSelesai,
       },
       token,
     };

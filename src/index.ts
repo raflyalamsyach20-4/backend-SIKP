@@ -19,7 +19,10 @@ import { createTemplateRoutes } from '@/routes/template.route';
 import { createUtilRoutes } from '@/routes/utils.route';
 import { createResponseLetterRoutes } from '@/routes/response-letter.routes';
 import { createDosenRoutes } from '@/routes/dosen.route';
+import { createMahasiswaProfileRoutes } from '@/routes/mahasiswa.route';
 import { createSuratKesediaanFallbackRoutes } from '@/routes/surat-kesediaan.route';
+import { createSuratPermohonanFallbackRoutes } from '@/routes/surat-permohonan.route';
+import { createAssetRoutes } from '@/routes/assets.route';
 
 /**
  * Extended context variables
@@ -38,7 +41,7 @@ const app = new Hono<{ Bindings: CloudflareBindings; Variables: Variables }>();
  */
 app.use('*', logger());
 app.use('*', cors({
-  origin: '*',
+  origin: (origin) => origin || '*',
   allowMethods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowHeaders: ['Content-Type', 'Authorization'],
 }));
@@ -84,6 +87,7 @@ app.use('/api/*', async (c, next) => {
  */
 app.route('/api/auth', createAuthRoutes());
 app.route('/api/mahasiswa', createMahasiswaRoutes());
+app.route('/api/mahasiswa', createMahasiswaProfileRoutes());
 app.route('/api/teams', createTeamRoutes());
 app.route('/api/submissions', createSubmissionRoutes());
 app.route('/api/admin', createAdminRoutes());
@@ -92,6 +96,8 @@ app.route('/api/utils', createUtilRoutes());
 app.route('/api/response-letters', createResponseLetterRoutes());
 app.route('/api/dosen', createDosenRoutes());
 app.route('/api/surat-kesediaan', createSuratKesediaanFallbackRoutes());
+app.route('/api/surat-permohonan', createSuratPermohonanFallbackRoutes());
+app.route('/api/assets', createAssetRoutes());
 
 /**
  * 404 Not Found Handler

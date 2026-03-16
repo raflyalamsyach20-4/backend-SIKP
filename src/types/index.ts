@@ -26,6 +26,7 @@ export interface Mahasiswa {
   fakultas: string | null;
   prodi: string | null;
   semester: number | null;
+  jumlahSksSelesai: number | null;
   angkatan: string | null;
 }
 
@@ -78,6 +79,8 @@ export interface Submission {
   teamId: string;
   companyName: string;
   companyAddress: string;
+  companyPhone: string | null;
+  companyBusinessType: string | null;
   division: string | null;
   startDate: Date | null;
   endDate: Date | null;

@@ -12,6 +12,7 @@ export interface AppConfig {
     r2Bucket: R2Bucket | any;
     r2Domain: string;
     r2BucketName: string;
+    apiBaseUrl: string;
     useMockR2: boolean;
   };
 }
@@ -25,6 +26,7 @@ export interface CloudflareBindings {
   R2_BUCKET: R2Bucket;
   R2_DOMAIN: string;
   R2_BUCKET_NAME: string;
+  API_BASE_URL?: string;
   USE_MOCK_R2?: string | boolean;
 }
 
@@ -45,6 +47,7 @@ export const createAppConfig = (env: CloudflareBindings): AppConfig => {
       r2Bucket: env.R2_BUCKET,
       r2Domain: env.R2_DOMAIN,
       r2BucketName: env.R2_BUCKET_NAME,
+      apiBaseUrl: env.API_BASE_URL || 'https://backend-sikp.backend-sikp.workers.dev',
       useMockR2,
     },
   };

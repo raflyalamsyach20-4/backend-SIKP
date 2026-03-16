@@ -21,6 +21,7 @@ export const registerMahasiswaSchema = z.object({
   fakultas: z.string().optional(),
   prodi: z.string().optional(),
   semester: z.number().int().positive().optional(),
+  jumlahSksSelesai: z.number().int().nonnegative().optional(),
   angkatan: z.string().optional(),
   phone: phoneSchema,
 });
@@ -85,6 +86,24 @@ export const updateDosenProfileSchema = z.object({
 }, 'At least one field must be provided for update');
 
 export type UpdateDosenProfileInput = z.infer<typeof updateDosenProfileSchema>;
+
+/**
+ * Update Mahasiswa Profile Schema
+ */
+export const updateMahasiswaProfileSchema = z.object({
+  nama: z.string().min(1, 'Name is required').max(255).optional(),
+  email: emailSchema.optional(),
+  phone: phoneSchema,
+  fakultas: z.string().max(100).optional().nullable(),
+  prodi: z.string().max(100).optional().nullable(),
+  semester: z.number().int().positive().optional().nullable(),
+  jumlahSksSelesai: z.number().int().nonnegative().optional().nullable(),
+  angkatan: z.string().max(10).optional().nullable(),
+}).refine((data) => {
+  return Object.values(data).some(value => value !== undefined && value !== null);
+}, 'At least one field must be provided for update');
+
+export type UpdateMahasiswaProfileInput = z.infer<typeof updateMahasiswaProfileSchema>;
 
 /**
  * Search Query Schema

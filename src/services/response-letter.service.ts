@@ -178,7 +178,8 @@ export class ResponseLetterService {
 
   /**
    * Verify response letter (Admin only)
-   * If rejected, triggers team reset workflow
+    * Note: Team reset is NOT automatic when rejected.
+    * Student must explicitly click "Mulai Ulang" to trigger reset.
    */
   async verifyResponseLetter(
     id: string,
@@ -216,24 +217,10 @@ export class ResponseLetterService {
     // Update the letterStatus based on admin decision
     await this.responseLetterRepo.update(id, { letterStatus });
 
-    let resetTeam = false;
+    // Reset is now always manual by student action (button "Mulai Ulang").
+    const resetTeam = false;
 
-    // Check if rejected - trigger reset workflow
-    if (letterStatus === 'rejected') {
-      resetTeam = true;
-      
-      try {
-        console.log(`[ResponseLetterService] Response letter rejected, triggering team reset workflow`);
-        if (responseLetter.submissionId) {
-          await this.teamResetService.resetTeamWorkflow(responseLetter.submissionId);
-        }
-        console.log(`[ResponseLetterService] Team reset workflow completed successfully`);
-      } catch (resetError) {
-        console.error('[ResponseLetterService] Warning: Team reset failed:', resetError);
-        // Don't fail verification if reset fails, just log warning
-        // The verification itself succeeded, reset is a side effect
-      }
-    } else {
+    if (letterStatus === 'approved') {
       // Update submission status to verified only if approved
       if (responseLetter.submissionId) {
         await this.submissionRepo.updateResponseLetterStatus(
@@ -241,6 +228,8 @@ export class ResponseLetterService {
           'verified'
         );
       }
+    } else {
+      console.log('[ResponseLetterService] Response letter rejected. Waiting for student manual reset action.');
     }
 
     return {
@@ -452,8 +441,8 @@ export class ResponseLetterService {
       }
 
       const submission = await this.submissionRepo.findById(responseLetter.submissionId);
-      if (!submission) {
-        // If submission doesn't exist but response letter does, team was reset
+      if (!submission || submission.archivedAt) {
+        // If submission doesn't exist or was archived (team reset), return reset flag
         return {
           id: responseLetter.id,
           verified: responseLetter.verified,

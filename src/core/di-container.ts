@@ -8,6 +8,7 @@ import { SubmissionRepository } from '@/repositories/submission.repository';
 import { TemplateRepository } from '@/repositories/template.repository';
 import { ResponseLetterRepository } from '@/repositories/response-letter.repository';
 import { SuratKesediaanRepository } from '@/repositories/surat-kesediaan.repository';
+import { SuratPermohonanRepository } from '@/repositories/surat-permohonan.repository';
 
 // Services
 import { AuthService } from '@/services/auth.service';
@@ -21,7 +22,9 @@ import { ResponseLetterService } from '@/services/response-letter.service';
 import { TeamResetService } from '@/services/team-reset.service';
 import { MockR2Bucket } from '@/services/mock-r2-bucket';
 import { DosenService } from '@/services/dosen.service';
+import { MahasiswaService } from '@/services/mahasiswa.service';
 import { SuratKesediaanService } from '@/services/surat-kesediaan.service';
+import { SuratPermohonanService } from '@/services/surat-permohonan.service';
 
 // Controllers
 import { AuthController } from '@/controllers/auth.controller';
@@ -31,7 +34,9 @@ import { AdminController } from '@/controllers/admin.controller';
 import { TemplateController } from '@/controllers/template.controller';
 import { ResponseLetterController } from '@/controllers/response-letter.controller';
 import { DosenController } from '@/controllers/dosen.controller';
+import { MahasiswaController } from '@/controllers/mahasiswa.controller';
 import { SuratKesediaanController } from '@/controllers/surat-kesediaan.controller';
+import { SuratPermohonanController } from '@/controllers/surat-permohonan.controller';
 
 /**
  * Dependency Injection Container
@@ -45,6 +50,7 @@ export class DIContainer {
   private _templateRepository?: TemplateRepository;
   private _responseLetterRepository?: ResponseLetterRepository;
   private _suratKesediaanRepository?: SuratKesediaanRepository;
+  private _suratPermohonanRepository?: SuratPermohonanRepository;
 
   // Services
   private _authService?: AuthService;
@@ -57,7 +63,9 @@ export class DIContainer {
   private _responseLetterService?: ResponseLetterService;
   private _teamResetService?: TeamResetService;
   private _dosenService?: DosenService;
+  private _mahasiswaService?: MahasiswaService;
   private _suratKesediaanService?: SuratKesediaanService;
+  private _suratPermohonanService?: SuratPermohonanService;
 
   // Controllers
   private _authController?: AuthController;
@@ -67,7 +75,9 @@ export class DIContainer {
   private _templateController?: TemplateController;
   private _responseLetterController?: ResponseLetterController;
   private _dosenController?: DosenController;
+  private _mahasiswaController?: MahasiswaController;
   private _suratKesediaanController?: SuratKesediaanController;
+  private _suratPermohonanController?: SuratPermohonanController;
 
   constructor(private config: AppConfig) {}
 
@@ -119,6 +129,13 @@ export class DIContainer {
     return this._suratKesediaanRepository;
   }
 
+  get suratPermohonanRepository(): SuratPermohonanRepository {
+    if (!this._suratPermohonanRepository) {
+      this._suratPermohonanRepository = new SuratPermohonanRepository(this.db);
+    }
+    return this._suratPermohonanRepository;
+  }
+
   // Services
   get authService(): AuthService {
     if (!this._authService) {
@@ -134,7 +151,8 @@ export class DIContainer {
     if (!this._teamService) {
       this._teamService = new TeamService(
         this.teamRepository,
-        this.userRepository
+        this.userRepository,
+        this.submissionRepository
       );
     }
     return this._teamService;
@@ -149,7 +167,8 @@ export class DIContainer {
       this._storageService = new StorageService(
         r2Bucket as any,
         this.config.storage.r2Domain,
-        this.config.storage.r2BucketName
+        this.config.storage.r2BucketName,
+        this.config.storage.apiBaseUrl
       );
     }
     return this._storageService;
@@ -170,6 +189,8 @@ export class DIContainer {
       this._submissionService = new SubmissionService(
         this.submissionRepository,
         this.teamRepository,
+        this.suratKesediaanRepository,
+        this.suratPermohonanRepository,
         this.storageService
       );
     }
@@ -206,10 +227,8 @@ export class DIContainer {
   get teamResetService(): TeamResetService {
     if (!this._teamResetService) {
       this._teamResetService = new TeamResetService(
-        this.db,
         this.submissionRepository,
         this.teamRepository,
-        this.storageService
       );
     }
     return this._teamResetService;
@@ -237,6 +256,16 @@ export class DIContainer {
     return this._dosenService;
   }
 
+  get mahasiswaService(): MahasiswaService {
+    if (!this._mahasiswaService) {
+      this._mahasiswaService = new MahasiswaService(
+        this.userRepository,
+        this.storageService
+      );
+    }
+    return this._mahasiswaService;
+  }
+
   get suratKesediaanService(): SuratKesediaanService {
     if (!this._suratKesediaanService) {
       this._suratKesediaanService = new SuratKesediaanService(
@@ -247,6 +276,19 @@ export class DIContainer {
       );
     }
     return this._suratKesediaanService;
+  }
+
+  get suratPermohonanService(): SuratPermohonanService {
+    if (!this._suratPermohonanService) {
+      this._suratPermohonanService = new SuratPermohonanService(
+        this.suratPermohonanRepository,
+        this.teamRepository,
+        this.userRepository,
+        this.submissionRepository,
+        this.storageService
+      );
+    }
+    return this._suratPermohonanService;
   }
 
   // Controllers
@@ -318,11 +360,25 @@ export class DIContainer {
     return this._dosenController;
   }
 
+  get mahasiswaController(): MahasiswaController {
+    if (!this._mahasiswaController) {
+      this._mahasiswaController = new MahasiswaController(this.mahasiswaService);
+    }
+    return this._mahasiswaController;
+  }
+
   get suratKesediaanController(): SuratKesediaanController {
     if (!this._suratKesediaanController) {
       this._suratKesediaanController = new SuratKesediaanController(this.suratKesediaanService);
     }
     return this._suratKesediaanController;
+  }
+
+  get suratPermohonanController(): SuratPermohonanController {
+    if (!this._suratPermohonanController) {
+      this._suratPermohonanController = new SuratPermohonanController(this.suratPermohonanService);
+    }
+    return this._suratPermohonanController;
   }
 
   /**
@@ -335,6 +391,7 @@ export class DIContainer {
     this._templateRepository = undefined;
     this._responseLetterRepository = undefined;
     this._suratKesediaanRepository = undefined;
+    this._suratPermohonanRepository = undefined;
     this._authService = undefined;
     this._teamService = undefined;
     this._submissionService = undefined;
@@ -345,7 +402,9 @@ export class DIContainer {
     this._responseLetterService = undefined;
     this._teamResetService = undefined;
     this._dosenService = undefined;
+    this._mahasiswaService = undefined;
     this._suratKesediaanService = undefined;
+    this._suratPermohonanService = undefined;
     this._authController = undefined;
     this._teamController = undefined;
     this._submissionController = undefined;
@@ -353,6 +412,8 @@ export class DIContainer {
     this._templateController = undefined;
     this._responseLetterController = undefined;
     this._dosenController = undefined;
+    this._mahasiswaController = undefined;
     this._suratKesediaanController = undefined;
+    this._suratPermohonanController = undefined;
   }
 }

@@ -10,6 +10,7 @@
 		"JWT_SECRET": "change-this-in-production",
 		"R2_DOMAIN": "https://pub-34d108a4414048589cfe3d01fa4b5ed2.r2.dev",
 		"R2_BUCKET_NAME": "document-sikp-mi",
+		"API_BASE_URL": "https://backend-sikp.backend-sikp.workers.dev",
 		"USE_MOCK_R2": "false"
 	},
 	"r2_buckets": [

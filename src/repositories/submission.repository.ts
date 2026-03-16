@@ -1,4 +1,4 @@
-import { asc, eq, desc, inArray, and } from 'drizzle-orm';
+import { asc, eq, desc, inArray, and, isNull } from 'drizzle-orm';
 import type { DbClient } from '@/db';
 import { submissions, submissionDocuments, generatedLetters, teams, teamMembers, users, mahasiswa } from '@/db/schema';
 
@@ -80,7 +80,23 @@ export class SubmissionRepository {
     };
   }
 
+  /**
+   * Find active (non-archived) submissions for a team.
+   * Used by student-facing flows. Archived submissions (from previous reset
+   * attempts) are excluded so only the current active submission is returned.
+   */
   async findByTeamId(teamId: string) {
+    return await this.db
+      .select()
+      .from(submissions)
+      .where(and(eq(submissions.teamId, teamId), isNull(submissions.archivedAt)));
+  }
+
+  /**
+   * Find ALL submissions for a team, including archived ones.
+   * Used by admin/dosen to view full history of a team's KP attempts.
+   */
+  async findAllByTeamId(teamId: string) {
     return await this.db.select().from(submissions).where(eq(submissions.teamId, teamId));
   }
 
