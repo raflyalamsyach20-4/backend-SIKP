@@ -5,6 +5,23 @@ import { submissions, submissionDocuments, generatedLetters, teams, teamMembers,
 export class SubmissionRepository {
   constructor(private db: DbClient) {}
 
+  private async resolveAcademicSupervisorByLeaderId(leaderId?: string | null) {
+    if (!leaderId) {
+      return null;
+    }
+
+    const result = await this.db
+      .select({
+        academicSupervisor: users.nama,
+      })
+      .from(mahasiswa)
+      .leftJoin(users, eq(mahasiswa.dosenPaId, users.id))
+      .where(eq(mahasiswa.id, leaderId))
+      .limit(1);
+
+    return result[0]?.academicSupervisor ?? null;
+  }
+
   async findById(id: string) {
     const result = await this.db.select().from(submissions).where(eq(submissions.id, id)).limit(1);
     return result[0] || null;
@@ -30,7 +47,12 @@ export class SubmissionRepository {
     let team = teamData[0];
     let teamMembers_list: any[] = [];
 
+    let academicSupervisor: string | null = null;
+
     if (team) {
+      // Resolve real dosen PA from team leader's mahasiswa profile
+      academicSupervisor = await this.resolveAcademicSupervisorByLeaderId(team.leaderId);
+
       // Get team members with user info
       const membersData = await this.db
         .select({
@@ -68,6 +90,7 @@ export class SubmissionRepository {
       team: team
         ? {
             ...team,
+            academicSupervisor,
             members: teamMembers_list.map((m) => ({
               id: m.id,
               user: m.user,
@@ -319,7 +342,11 @@ export class SubmissionRepository {
         let team = teamData[0];
         let teamMembers_list: any[] = [];
 
+        let academicSupervisor: string | null = null;
+
         if (team) {
+          academicSupervisor = await this.resolveAcademicSupervisorByLeaderId(team.leaderId);
+
           // Get team members with user info
           const membersData = await this.db
             .select({
@@ -375,6 +402,7 @@ export class SubmissionRepository {
           team: team
             ? {
                 ...team,
+                academicSupervisor,
                 members: teamMembers_list.map((m) => ({
                   id: m.id,
                   user: m.user,
