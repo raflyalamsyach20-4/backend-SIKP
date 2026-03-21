@@ -5,10 +5,12 @@ import { z } from 'zod';
 import type { JWTPayload } from '@/types';
 
 const rejectSubmissionSchema = z.object({
+  documentReviews: z.record(z.string(), z.enum(['approved', 'rejected'])).optional(),
   reason: z.string().min(1),
 });
 
 const approveSubmissionSchema = z.object({
+  documentReviews: z.record(z.string(), z.enum(['approved', 'rejected'])).optional(),
   autoGenerateLetter: z.boolean().optional().default(false),
 });
 
@@ -124,9 +126,9 @@ export class AdminController {
       const validated = approveSubmissionSchema.parse(body);
 
       const submission = await this.adminService.approveSubmission(
-        submissionId, 
+        submissionId,
         user.userId,
-        validated.autoGenerateLetter
+        validated.documentReviews
       );
 
       return c.json(createResponse(true, 'Submission approved successfully', submission));
@@ -145,7 +147,8 @@ export class AdminController {
       const submission = await this.adminService.rejectSubmission(
         submissionId,
         user.userId,
-        validated.reason
+        validated.reason,
+        validated.documentReviews
       );
 
       return c.json(createResponse(true, 'Submission rejected', submission));

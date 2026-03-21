@@ -8,12 +8,38 @@ export class AdminService {
     private letterService?: LetterService
   ) {}
 
+  private getCurrentStage(submission: any) {
+    return submission.workflowStage ?? (submission.status === 'PENDING_REVIEW' ? 'PENDING_ADMIN_REVIEW' : submission.status);
+  }
+
+  private matchesStatusBucket(
+    submission: any,
+    status: 'DRAFT' | 'PENDING_REVIEW' | 'REJECTED' | 'APPROVED'
+  ) {
+    const currentStage = this.getCurrentStage(submission);
+
+    if (status === 'DRAFT') {
+      return currentStage === 'DRAFT';
+    }
+
+    if (status === 'PENDING_REVIEW') {
+      return currentStage === 'PENDING_ADMIN_REVIEW' || currentStage === 'PENDING_DOSEN_VERIFICATION';
+    }
+
+    if (status === 'APPROVED') {
+      return currentStage === 'COMPLETED';
+    }
+
+    return currentStage === 'REJECTED_ADMIN' || currentStage === 'REJECTED_DOSEN';
+  }
+
   async getAllSubmissions() {
     return await this.submissionRepo.findAllForAdmin();
   }
 
   async getSubmissionsByStatus(status: 'DRAFT' | 'PENDING_REVIEW' | 'REJECTED' | 'APPROVED') {
-    return await this.submissionRepo.findByStatus(status);
+    const submissions = await this.submissionRepo.findAllForAdmin();
+    return submissions.filter((submission) => this.matchesStatusBucket(submission, status));
   }
 
   async getSubmissionById(id: string) {
@@ -28,6 +54,11 @@ export class AdminService {
     return {
       ...submission,
       letters,
+      submissionStatus: submission.workflowStage ?? submission.status,
+      submission_status: submission.workflowStage ?? submission.status,
+      adminStatus: submission.adminVerificationStatus ?? 'PENDING',
+      admin_status: submission.adminVerificationStatus ?? 'PENDING',
+      isAdminApproved: (submission.adminVerificationStatus ?? 'PENDING') === 'APPROVED',
     };
   }
 
@@ -91,12 +122,14 @@ export class AdminService {
     }
 
     // Validate current status
-    if (submission.status !== 'PENDING_REVIEW') {
+    const currentStage = this.getCurrentStage(submission);
+    if (currentStage !== 'PENDING_ADMIN_REVIEW') {
       console.log('[updateSubmissionStatus] Invalid status:', {
         currentStatus: submission.status,
-        required: 'PENDING_REVIEW'
+        currentWorkflowStage: currentStage,
+        required: 'PENDING_ADMIN_REVIEW'
       });
-      throw new Error('Can only update submissions with PENDING_REVIEW status');
+      throw new Error('Can only update submissions with PENDING_ADMIN_REVIEW stage');
     }
 
     // Validate rejection reason when rejecting
@@ -155,6 +188,8 @@ export class AdminService {
     const now = new Date();
     const historyEntry: any = {
       status,
+      workflowStage: status === 'APPROVED' ? 'PENDING_DOSEN_VERIFICATION' : 'REJECTED_ADMIN',
+      actor: 'ADMIN',
       date: now.toISOString(),
     };
 
@@ -168,11 +203,13 @@ export class AdminService {
 
     // Build update data
     const updateData: any = {
-      status,
-      approvedBy: adminId, // ✅ Track admin yang approve/reject
+      status: 'PENDING_REVIEW',
+      approvedBy: null,
       statusHistory: newHistory,
       documentReviews: documentReviews || {}, // ✅ Save document reviews
       updatedAt: new Date(),
+      adminVerifiedBy: adminId,
+      adminVerifiedAt: now,
     };
 
     // ✅ NEW: Update document status based on documentReviews mapping
@@ -184,8 +221,16 @@ export class AdminService {
     }
 
     if (status === 'APPROVED') {
-      updateData.approvedAt = new Date();
+      updateData.approvedAt = null;
       updateData.rejectionReason = null;
+      updateData.adminVerificationStatus = 'APPROVED';
+      updateData.adminRejectionReason = null;
+      updateData.dosenVerificationStatus = 'PENDING';
+      updateData.dosenVerifiedAt = null;
+      updateData.dosenVerifiedBy = null;
+      updateData.dosenRejectionReason = null;
+      updateData.workflowStage = 'PENDING_DOSEN_VERIFICATION';
+      updateData.finalSignedFileUrl = null;
       
       // Perform update first
       const updated = await this.submissionRepo.update(submissionId, updateData);
@@ -193,15 +238,6 @@ export class AdminService {
       if (!updated) {
         throw new Error('Failed to update submission status');
       }
-      
-      // ✅ Auto-generate dummy SURAT_PENGANTAR document
-      const newDocument = await this.submissionRepo.createCoverLetterDocument(
-        submissionId, 
-        adminId, 
-        submission.teamId
-      );
-      
-      console.log('[updateSubmissionStatus] Created SURAT_PENGANTAR:', newDocument);
       
       // Get all documents for this submission
       const documents = await this.submissionRepo.findDocumentsBySubmissionId(submissionId);
@@ -215,6 +251,14 @@ export class AdminService {
       // REJECTED
       updateData.rejectionReason = rejectionReason;
       updateData.approvedAt = null;
+      updateData.adminVerificationStatus = 'REJECTED';
+      updateData.adminRejectionReason = rejectionReason;
+      updateData.dosenVerificationStatus = 'PENDING';
+      updateData.dosenVerifiedAt = null;
+      updateData.dosenVerifiedBy = null;
+      updateData.dosenRejectionReason = null;
+      updateData.workflowStage = 'REJECTED_ADMIN';
+      updateData.finalSignedFileUrl = null;
       
       // Perform update
       const updated = await this.submissionRepo.update(submissionId, updateData);
@@ -227,36 +271,45 @@ export class AdminService {
     }
   }
 
-  async approveSubmission(submissionId: string, adminId: string, autoGenerateLetter: boolean = false) {
+  async approveSubmission(submissionId: string, adminId: string, documentReviews?: Record<string, string>) {
     const submission = await this.submissionRepo.findById(submissionId);
     if (!submission) {
       throw new Error('Submission not found');
     }
 
-    if (submission.status !== 'PENDING_REVIEW') {
+    if (this.getCurrentStage(submission) !== 'PENDING_ADMIN_REVIEW') {
       throw new Error('Can only approve pending submissions');
     }
 
-    const updated = await this.submissionRepo.update(submissionId, {
-      status: 'APPROVED',
-      approvedAt: new Date(),
-    });
+    const docs = await this.submissionRepo.findDocumentsBySubmissionId(submissionId);
+    const normalizedDocumentReviews =
+      documentReviews && Object.keys(documentReviews).length > 0
+        ? documentReviews
+        : docs.reduce<Record<string, string>>((acc, doc) => {
+            acc[doc.id] = 'approved';
+            return acc;
+          }, {});
 
-    // Auto generate letter if requested
-    if (autoGenerateLetter && this.letterService) {
-      await this.letterService.generateLetter(submissionId, adminId, 'pdf');
+    if (Object.keys(normalizedDocumentReviews).length === 0) {
+      throw new Error('Tidak ada dokumen untuk diverifikasi.');
     }
 
-    return updated;
+    return await this.updateSubmissionStatus(
+      submissionId,
+      adminId,
+      'APPROVED',
+      undefined,
+      normalizedDocumentReviews
+    );
   }
 
-  async rejectSubmission(submissionId: string, adminId: string, reason: string) {
+  async rejectSubmission(submissionId: string, adminId: string, reason: string, documentReviews?: Record<string, string>) {
     const submission = await this.submissionRepo.findById(submissionId);
     if (!submission) {
       throw new Error('Submission not found');
     }
 
-    if (submission.status !== 'PENDING_REVIEW') {
+    if (this.getCurrentStage(submission) !== 'PENDING_ADMIN_REVIEW') {
       throw new Error('Can only reject pending submissions');
     }
 
@@ -264,16 +317,40 @@ export class AdminService {
       throw new Error('Rejection reason is required');
     }
 
-    return await this.submissionRepo.update(submissionId, {
-      status: 'REJECTED',
-      rejectionReason: reason,
-      approvedAt: null,
-    });
+    const docs = await this.submissionRepo.findDocumentsBySubmissionId(submissionId);
+    const normalizedDocumentReviews =
+      documentReviews && Object.keys(documentReviews).length > 0
+        ? documentReviews
+        : docs.reduce<Record<string, string>>((acc, doc, index) => {
+            acc[doc.id] = index === 0 ? 'rejected' : 'approved';
+            return acc;
+          }, {});
+
+    if (Object.keys(normalizedDocumentReviews).length === 0) {
+      throw new Error('Tidak ada dokumen untuk diverifikasi.');
+    }
+
+    return await this.updateSubmissionStatus(
+      submissionId,
+      adminId,
+      'REJECTED',
+      reason,
+      normalizedDocumentReviews
+    );
   }
 
   async generateLetterForSubmission(submissionId: string, adminId: string, format: 'pdf' | 'docx' = 'pdf') {
     if (!this.letterService) {
       throw new Error('Letter service not configured');
+    }
+
+    const submission = await this.submissionRepo.findById(submissionId);
+    if (!submission) {
+      throw new Error('Submission not found');
+    }
+
+    if (submission.workflowStage !== 'COMPLETED' || submission.dosenVerificationStatus !== 'APPROVED') {
+      throw new Error('Final letter can only be generated after dosen verification is completed');
     }
 
     return await this.letterService.generateLetter(submissionId, adminId, format);
@@ -284,10 +361,12 @@ export class AdminService {
     
     return {
       total: allSubmissions.length,
-      draft: allSubmissions.filter(s => s.status === 'DRAFT').length,
-      pending: allSubmissions.filter(s => s.status === 'PENDING_REVIEW').length,
-      approved: allSubmissions.filter(s => s.status === 'APPROVED').length,
-      rejected: allSubmissions.filter(s => s.status === 'REJECTED').length,
+      draft: allSubmissions.filter(s => this.matchesStatusBucket(s, 'DRAFT')).length,
+      pending: allSubmissions.filter(s => this.matchesStatusBucket(s, 'PENDING_REVIEW')).length,
+      pendingDosenVerification: allSubmissions.filter(s => s.workflowStage === 'PENDING_DOSEN_VERIFICATION').length,
+      completed: allSubmissions.filter(s => s.workflowStage === 'COMPLETED').length,
+      approved: allSubmissions.filter(s => this.matchesStatusBucket(s, 'APPROVED')).length,
+      rejected: allSubmissions.filter(s => this.matchesStatusBucket(s, 'REJECTED')).length,
     };
   }
 }

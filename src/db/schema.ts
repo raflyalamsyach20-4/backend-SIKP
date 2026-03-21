@@ -12,6 +12,8 @@ export const letterStatusEnum = pgEnum('letter_status', ['approved', 'rejected']
 export const responseLetterStatusEnum = pgEnum('response_letter_status', ['pending', 'submitted', 'verified']);
 export const suratKesediaanStatusEnum = pgEnum('surat_kesediaan_status', ['MENUNGGU', 'DISETUJUI', 'DITOLAK']);
 export const suratPermohonanStatusEnum = pgEnum('surat_permohonan_status', ['MENUNGGU', 'DISETUJUI', 'DITOLAK']);
+export const submissionVerificationStatusEnum = pgEnum('submission_verification_status', ['PENDING', 'APPROVED', 'REJECTED']);
+export const workflowStageEnum = pgEnum('workflow_stage', ['DRAFT', 'PENDING_ADMIN_REVIEW', 'PENDING_DOSEN_VERIFICATION', 'COMPLETED', 'REJECTED_ADMIN', 'REJECTED_DOSEN']);
 
 // Users Table (Base table untuk semua user)
 export const users = pgTable('users', {
@@ -28,6 +30,7 @@ export const users = pgTable('users', {
 export const mahasiswa = pgTable('mahasiswa', {
   nim: varchar('nim', { length: 20 }).primaryKey(),
   id: text('id').notNull().unique().references(() => users.id, { onDelete: 'cascade' }),
+  dosenPaId: text('dosen_pa_id').references(() => users.id, { onDelete: 'set null' }),
   fakultas: varchar('fakultas', { length: 100 }),
   prodi: varchar('prodi', { length: 100 }),
   semester: integer('semester'),
@@ -71,6 +74,7 @@ export const teams = pgTable('teams', {
   id: text('id').primaryKey(),
   code: varchar('code', { length: 50 }).notNull().unique(),
   leaderId: text('leader_id').notNull().references(() => users.id),
+  dosenKpId: text('dosen_kp_id').references(() => users.id, { onDelete: 'set null' }),
   status: teamStatusEnum('status').notNull().default('PENDING'),
 });
 
@@ -103,6 +107,16 @@ export const submissions = pgTable('submissions', {
   submittedAt: timestamp('submitted_at'),
   approvedAt: timestamp('approved_at'),
   approvedBy: text('approved_by').references(() => users.id, { onDelete: 'set null' }),
+  adminVerificationStatus: submissionVerificationStatusEnum('admin_verification_status').notNull().default('PENDING'),
+  adminVerifiedAt: timestamp('admin_verified_at'),
+  adminVerifiedBy: text('admin_verified_by').references(() => users.id, { onDelete: 'set null' }),
+  adminRejectionReason: text('admin_rejection_reason'),
+  dosenVerificationStatus: submissionVerificationStatusEnum('dosen_verification_status').notNull().default('PENDING'),
+  dosenVerifiedAt: timestamp('dosen_verified_at'),
+  dosenVerifiedBy: text('dosen_verified_by').references(() => users.id, { onDelete: 'set null' }),
+  dosenRejectionReason: text('dosen_rejection_reason'),
+  workflowStage: workflowStageEnum('workflow_stage').notNull().default('DRAFT'),
+  finalSignedFileUrl: text('final_signed_file_url'),
   documentReviews: json('document_reviews').default('{}'), // ✅ NEW: Stores individual document review status
   statusHistory: json('status_history').notNull().default('[]'),
   
@@ -119,7 +133,12 @@ export const submissions = pgTable('submissions', {
 }, (table) => {
   // Unique constraint is enforced at application layer (only one non-archived
   // submission per team). DB-level unique index was dropped in migration 0036.
-  return {};
+  return {
+    idxWorkflowStage: index('idx_submissions_workflow_stage').on(table.workflowStage),
+    idxAdminVerificationStatus: index('idx_submissions_admin_status').on(table.adminVerificationStatus),
+    idxDosenVerificationStatus: index('idx_submissions_dosen_status').on(table.dosenVerificationStatus),
+    idxDosenQueue: index('idx_submissions_dosen_queue').on(table.workflowStage, table.dosenVerifiedBy, table.createdAt),
+  };
 });
 
 // Submission Documents Table

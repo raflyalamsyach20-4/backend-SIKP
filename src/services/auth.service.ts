@@ -49,6 +49,9 @@ export class AuthService {
       isActive: true,
     });
 
+    // Get random dosen PA
+    const dosenPA = await this.userRepo.getRandomDosenPA();
+
     // Create mahasiswa profile
     const mahasiswa = await this.userRepo.createMahasiswa({
       nim: data.nim,
@@ -58,6 +61,7 @@ export class AuthService {
       semester: data.semester || null,
       jumlahSksSelesai: data.jumlahSksSelesai ?? null,
       angkatan: data.angkatan || null,
+      dosenPaId: dosenPA?.id || null,
     });
 
     // Generate token

@@ -236,7 +236,7 @@ export class SubmissionController {
       // Authorization check:
       // - ADMIN/KAPRODI/WAKIL_DEKAN can view any submission
       // - MAHASISWA can only view submissions from their own team
-      if (!['ADMIN', 'KAPRODI', 'WAKIL_DEKAN'].includes(user.role)) {
+      if (!['ADMIN', 'KAPRODI', 'WAKIL_DEKAN', 'DOSEN'].includes(user.role)) {
         // User is MAHASISWA - verify they're a member of the submission's team
         const submission_data = await (this.submissionService as any).submissionRepo.findById(submissionId);
         if (submission_data) {

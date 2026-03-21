@@ -108,6 +108,21 @@ export class SubmissionRepository {
     return await this.db.select().from(submissions).where(eq(submissions.status, status));
   }
 
+  async findByWorkflowStage(
+    workflowStage:
+      | 'DRAFT'
+      | 'PENDING_ADMIN_REVIEW'
+      | 'PENDING_DOSEN_VERIFICATION'
+      | 'COMPLETED'
+      | 'REJECTED_ADMIN'
+      | 'REJECTED_DOSEN'
+  ) {
+    return await this.db
+      .select()
+      .from(submissions)
+      .where(and(eq(submissions.workflowStage, workflowStage), isNull(submissions.archivedAt)));
+  }
+
   async create(data: typeof submissions.$inferInsert) {
     const result = await this.db.insert(submissions).values(data).returning();
     return result[0];
@@ -166,10 +181,13 @@ export class SubmissionRepository {
           id: users.id,
           name: users.nama,
           email: users.email,
+          nim: mahasiswa.nim,
+          prodi: mahasiswa.prodi,
         },
       })
       .from(submissionDocuments)
       .leftJoin(users, eq(submissionDocuments.uploadedByUserId, users.id))
+      .leftJoin(mahasiswa, eq(users.id, mahasiswa.id))
       .where(eq(submissionDocuments.submissionId, submissionId))
       .orderBy(desc(submissionDocuments.createdAt));
   }
@@ -195,10 +213,13 @@ export class SubmissionRepository {
           id: users.id,
           name: users.nama,
           email: users.email,
+          nim: mahasiswa.nim,
+          prodi: mahasiswa.prodi,
         },
       })
       .from(submissionDocuments)
       .leftJoin(users, eq(submissionDocuments.uploadedByUserId, users.id))
+      .leftJoin(mahasiswa, eq(users.id, mahasiswa.id))
       .where(eq(submissionDocuments.id, id))
       .limit(1);
     return result[0] || null;

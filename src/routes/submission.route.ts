@@ -34,7 +34,7 @@ export const createSubmissionRoutes = () => {
 
   // Get submission by ID (mahasiswa + admin)
   submission.get('/:submissionId', 
-    roleMiddleware(['MAHASISWA', 'ADMIN', 'KAPRODI', 'WAKIL_DEKAN']), 
+    roleMiddleware(['MAHASISWA', 'ADMIN', 'KAPRODI', 'WAKIL_DEKAN', 'DOSEN']), 
     async (c: Context) => {
       const container = c.get('container') as DIContainer;
       return container.submissionController.getSubmissionById(c);

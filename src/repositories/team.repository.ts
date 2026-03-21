@@ -57,8 +57,11 @@ export class TeamRepository {
           id: users.id,
           nama: users.nama,
           email: users.email,
+          phone: users.phone,
           nim: mahasiswa.nim,
           prodi: mahasiswa.prodi,
+          angkatan: mahasiswa.angkatan,
+          semester: mahasiswa.semester,
         },
       })
       .from(teamMembers)

@@ -25,6 +25,7 @@ import { DosenService } from '@/services/dosen.service';
 import { MahasiswaService } from '@/services/mahasiswa.service';
 import { SuratKesediaanService } from '@/services/surat-kesediaan.service';
 import { SuratPermohonanService } from '@/services/surat-permohonan.service';
+import { SuratPengantarDosenService } from '@/services/surat-pengantar-dosen.service';
 
 // Controllers
 import { AuthController } from '@/controllers/auth.controller';
@@ -37,6 +38,7 @@ import { DosenController } from '@/controllers/dosen.controller';
 import { MahasiswaController } from '@/controllers/mahasiswa.controller';
 import { SuratKesediaanController } from '@/controllers/surat-kesediaan.controller';
 import { SuratPermohonanController } from '@/controllers/surat-permohonan.controller';
+import { SuratPengantarDosenController } from '@/controllers/surat-pengantar-dosen.controller';
 
 /**
  * Dependency Injection Container
@@ -66,6 +68,7 @@ export class DIContainer {
   private _mahasiswaService?: MahasiswaService;
   private _suratKesediaanService?: SuratKesediaanService;
   private _suratPermohonanService?: SuratPermohonanService;
+  private _suratPengantarDosenService?: SuratPengantarDosenService;
 
   // Controllers
   private _authController?: AuthController;
@@ -78,6 +81,7 @@ export class DIContainer {
   private _mahasiswaController?: MahasiswaController;
   private _suratKesediaanController?: SuratKesediaanController;
   private _suratPermohonanController?: SuratPermohonanController;
+  private _suratPengantarDosenController?: SuratPengantarDosenController;
 
   constructor(private config: AppConfig) {}
 
@@ -152,7 +156,8 @@ export class DIContainer {
       this._teamService = new TeamService(
         this.teamRepository,
         this.userRepository,
-        this.submissionRepository
+        this.submissionRepository,
+        this.responseLetterRepository
       );
     }
     return this._teamService;
@@ -291,6 +296,18 @@ export class DIContainer {
     return this._suratPermohonanService;
   }
 
+  get suratPengantarDosenService(): SuratPengantarDosenService {
+    if (!this._suratPengantarDosenService) {
+      this._suratPengantarDosenService = new SuratPengantarDosenService(
+        this.submissionRepository,
+        this.teamRepository,
+        this.userRepository,
+        this.storageService
+      );
+    }
+    return this._suratPengantarDosenService;
+  }
+
   // Controllers
   get authController(): AuthController {
     if (!this._authController) {
@@ -381,6 +398,13 @@ export class DIContainer {
     return this._suratPermohonanController;
   }
 
+  get suratPengantarDosenController(): SuratPengantarDosenController {
+    if (!this._suratPengantarDosenController) {
+      this._suratPengantarDosenController = new SuratPengantarDosenController(this.suratPengantarDosenService);
+    }
+    return this._suratPengantarDosenController;
+  }
+
   /**
    * Reset all cached instances (useful for testing)
    */
@@ -405,6 +429,7 @@ export class DIContainer {
     this._mahasiswaService = undefined;
     this._suratKesediaanService = undefined;
     this._suratPermohonanService = undefined;
+    this._suratPengantarDosenService = undefined;
     this._authController = undefined;
     this._teamController = undefined;
     this._submissionController = undefined;
@@ -415,5 +440,6 @@ export class DIContainer {
     this._mahasiswaController = undefined;
     this._suratKesediaanController = undefined;
     this._suratPermohonanController = undefined;
+    this._suratPengantarDosenController = undefined;
   }
 }

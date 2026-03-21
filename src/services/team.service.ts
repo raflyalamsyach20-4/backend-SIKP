@@ -1,13 +1,15 @@
 import { TeamRepository } from '@/repositories/team.repository';
 import { UserRepository } from '@/repositories/user.repository';
 import { SubmissionRepository } from '@/repositories/submission.repository';
+  import { ResponseLetterRepository } from '@/repositories/response-letter.repository';
 import { generateId, generateTeamCode } from '@/utils/helpers';
 
 export class TeamService {
   constructor(
     private teamRepo: TeamRepository,
     private userRepo: UserRepository,
-    private submissionRepo: SubmissionRepository
+    private submissionRepo: SubmissionRepository,
+    private responseLetterRepo: ResponseLetterRepository
   ) {}
 
   private buildDefaultDraftPayload(teamCode: string) {
@@ -61,11 +63,22 @@ export class TeamService {
 
       console.log(`[createTeam] ✅ Validation passed, creating team...`);
 
+      // Get leader's dosen PA
+      const leaderMahasiswa = await this.userRepo.findMahasiswaByUserId(leaderId);
+      const dosenKpId = leaderMahasiswa?.dosenPaId || null;
+      if (!dosenKpId) {
+        const err: any = new Error('Dosen PA ketua belum ditetapkan. Tim tidak dapat dibuat.');
+        err.statusCode = 422;
+        throw err;
+      }
+      console.log(`[createTeam] Leader dosen PA: ${dosenKpId || 'null'}`);
+
       // Create team with auto-generated code
       const team = await this.teamRepo.create({
         id: generateId(),
         code: generateTeamCode(),
         leaderId,
+        dosenKpId,
         status: 'PENDING',
       });
 
@@ -237,6 +250,27 @@ export class TeamService {
       throw err;
     }
 
+    // Business rule: FIXED team can only be deleted after a response letter is submitted.
+    if (team.status === 'FIXED') {
+      const allSubmissions = await this.submissionRepo.findAllByTeamId(teamId);
+      const responseLetters = await Promise.all(
+        allSubmissions.map((submission) =>
+          this.responseLetterRepo.findBySubmissionId(submission.id)
+        )
+      );
+      const hasSubmittedResponseLetter = responseLetters.some(
+        (responseLetter) => !!responseLetter
+      );
+
+      if (!hasSubmittedResponseLetter) {
+        const err: any = new Error(
+          'Tim berstatus FIXED tidak dapat dibubarkan sebelum mengirim surat balasan.'
+        );
+        err.statusCode = 400;
+        throw err;
+      }
+    }
+
     // Count members affected before deletion
     const members = await this.teamRepo.findMembersByTeamId(teamId);
     const membersAffected = members.length;
@@ -286,15 +320,27 @@ export class TeamService {
     console.log(`[finalizeTeam] Team has ${members.length} total members, ${acceptedMembers.length} accepted (excluding leader)`);
     console.log(`[finalizeTeam] Allowing finalization even with just the leader`);
 
-    // 4. Update team status to FIXED
+    // 4. Ensure team has dosen_kp_id from leader's dosen_pa_id
+    const leaderMahasiswa = await this.userRepo.findMahasiswaByUserId(team.leaderId);
+    const resolvedDosenKpId = team.dosenKpId || leaderMahasiswa?.dosenPaId || null;
+    if (!resolvedDosenKpId) {
+      const err: any = new Error('Dosen PA ketua belum ditetapkan. Tim tidak dapat difinalisasi.');
+      err.statusCode = 422;
+      throw err;
+    }
+
+    // 5. Update team status to FIXED and normalize dosen_kp_id
     let updatedTeam = team;
-    if (!alreadyFixed) {
+    if (!alreadyFixed || team.dosenKpId !== resolvedDosenKpId) {
       console.log(`[finalizeTeam] Updating team status to FIXED...`);
-      updatedTeam = await this.teamRepo.update(teamId, { status: 'FIXED' });
+      updatedTeam = await this.teamRepo.update(teamId, {
+        status: 'FIXED',
+        dosenKpId: resolvedDosenKpId,
+      });
       console.log('[finalizeTeam] TEAM_FINALIZED', { teamId, requesterId });
     }
 
-    // 5. Ensure submission draft exists (idempotent)
+    // 6. Ensure submission draft exists (idempotent)
     const existingSubmissions = await this.submissionRepo.findByTeamId(teamId);
     let submission = existingSubmissions[0] || null;
     let submissionAlreadyExists = !!submission;

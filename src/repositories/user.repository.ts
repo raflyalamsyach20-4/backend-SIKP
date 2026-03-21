@@ -1,9 +1,25 @@
-import { eq, or, ilike, sql, and } from 'drizzle-orm';
+import { eq, or, ilike, sql, and, not } from 'drizzle-orm';
 import type { DbClient } from '@/db';
 import { users, mahasiswa, admin, dosen, pembimbingLapangan } from '@/db/schema';
 
 export class UserRepository {
   constructor(private db: DbClient) {}
+
+  async getRandomDosenPA() {
+    const dosenList = await this.db
+      .select({
+        id: dosen.id,
+        nama: users.nama,
+        jabatan: dosen.jabatan,
+      })
+      .from(dosen)
+      .innerJoin(users, eq(users.id, dosen.id))
+      .where(eq(users.isActive, true))
+      .orderBy(sql`RANDOM()`)
+      .limit(1);
+
+    return dosenList[0] || null;
+  }
 
   // User operations
   async findByEmail(email: string) {
@@ -126,7 +142,14 @@ export class UserRepository {
       })
       .from(users)
       .innerJoin(dosen, eq(users.id, dosen.id))
-      .where(and(eq(users.role, 'DOSEN'), eq(users.isActive, true), eq(dosen.prodi, prodi)))
+      .where(
+        and(
+          eq(users.role, 'DOSEN'),
+          eq(users.isActive, true),
+          eq(dosen.prodi, prodi),
+          not(ilike(dosen.jabatan, '%wakil dekan%'))
+        )
+      )
       .limit(1);
 
     return result[0] || null;
@@ -140,7 +163,14 @@ export class UserRepository {
         isActive: users.isActive,
       })
       .from(users)
-      .where(and(eq(users.role, 'DOSEN'), eq(users.isActive, true)))
+      .innerJoin(dosen, eq(users.id, dosen.id))
+      .where(
+        and(
+          eq(users.role, 'DOSEN'),
+          eq(users.isActive, true),
+          not(ilike(dosen.jabatan, '%wakil dekan%'))
+        )
+      )
       .limit(1);
 
     return result[0] || null;

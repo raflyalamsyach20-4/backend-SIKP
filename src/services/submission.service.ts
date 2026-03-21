@@ -40,6 +40,50 @@ export class SubmissionService {
     };
   }
 
+  private toStudentSubmissionView<T extends Record<string, any>>(submission: T): T & {
+    status: string;
+    legacyStatus: string;
+    submissionStatus: string;
+    submission_status: string;
+    adminStatus: string;
+    admin_status: string;
+    isAdminApproved: boolean;
+    finalSignedFileUrl: string | null;
+  } {
+    const legacyStatus = submission.status;
+    const rawWorkflowStage = submission.workflowStage ?? (legacyStatus === 'PENDING_REVIEW' ? 'PENDING_ADMIN_REVIEW' : legacyStatus);
+    const adminVerificationStatus =
+      submission.adminVerificationStatus === 'APPROVED' || submission.adminVerificationStatus === 'REJECTED'
+        ? submission.adminVerificationStatus
+        : legacyStatus === 'APPROVED'
+          ? 'APPROVED'
+          : legacyStatus === 'REJECTED'
+            ? 'REJECTED'
+            : 'PENDING';
+    const workflowStage =
+      rawWorkflowStage === 'DRAFT' && adminVerificationStatus === 'APPROVED'
+        ? 'PENDING_DOSEN_VERIFICATION'
+        : rawWorkflowStage === 'DRAFT' && adminVerificationStatus === 'REJECTED'
+          ? 'REJECTED_ADMIN'
+          : rawWorkflowStage;
+    const dosenVerificationStatus = submission.dosenVerificationStatus ?? 'PENDING';
+    const canSeeFinalLetter = workflowStage === 'COMPLETED'
+      && dosenVerificationStatus === 'APPROVED'
+      && Boolean(submission.finalSignedFileUrl);
+
+    return {
+      ...submission,
+      status: workflowStage,
+      legacyStatus,
+      submissionStatus: workflowStage,
+      submission_status: workflowStage,
+      adminStatus: adminVerificationStatus,
+      admin_status: adminVerificationStatus,
+      isAdminApproved: adminVerificationStatus === 'APPROVED',
+      finalSignedFileUrl: canSeeFinalLetter ? submission.finalSignedFileUrl ?? null : null,
+    };
+  }
+
   async ensureDraftSubmissionForTeam(teamId: string, userId: string) {
     const team = await this.teamRepo.findById(teamId);
     if (!team) {
@@ -78,6 +122,9 @@ export class SubmissionService {
         id: generateId(),
         teamId,
         status: 'DRAFT',
+        workflowStage: 'DRAFT',
+        adminVerificationStatus: 'PENDING',
+        dosenVerificationStatus: 'PENDING',
         ...defaults,
       });
     } catch {
@@ -158,6 +205,9 @@ export class SubmissionService {
         id: generateId(),
         teamId,
         status: 'DRAFT',
+        workflowStage: 'DRAFT',
+        adminVerificationStatus: 'PENDING',
+        dosenVerificationStatus: 'PENDING',
         letterPurpose: data.letterPurpose || defaults.letterPurpose,
         companyName: data.companyName || defaults.companyName,
         companyAddress: data.companyAddress || defaults.companyAddress,
@@ -249,7 +299,17 @@ export class SubmissionService {
 
     return await this.submissionRepo.update(submissionId, { 
       status: 'PENDING_REVIEW',
-      submittedAt: new Date()
+      workflowStage: 'PENDING_ADMIN_REVIEW',
+      submittedAt: new Date(),
+      adminVerificationStatus: 'PENDING',
+      adminVerifiedAt: null,
+      adminVerifiedBy: null,
+      adminRejectionReason: null,
+      dosenVerificationStatus: 'PENDING',
+      dosenVerifiedAt: null,
+      dosenVerifiedBy: null,
+      dosenRejectionReason: null,
+      finalSignedFileUrl: null,
     });
   }
 
@@ -265,7 +325,7 @@ export class SubmissionService {
       submissions.push(...teamSubmissions);
     }
 
-    return submissions;
+    return submissions.map((submission) => this.toStudentSubmissionView(submission));
   }
 
   async uploadDocument(
@@ -658,7 +718,7 @@ export class SubmissionService {
       }));
     }
 
-    return {
+    return this.toStudentSubmissionView({
       ...submission,
       team: team
         ? {
@@ -667,7 +727,7 @@ export class SubmissionService {
           }
         : null,
       documents,
-    };
+    });
   }
 
   async approveSubmission(submissionId: string, approvedByUserId: string) {
@@ -676,13 +736,25 @@ export class SubmissionService {
       throw new Error('Submission not found');
     }
 
-    if (submission.status !== 'PENDING_REVIEW') {
+    const currentStage = submission.workflowStage ?? (submission.status === 'PENDING_REVIEW' ? 'PENDING_ADMIN_REVIEW' : submission.status);
+    if (currentStage !== 'PENDING_ADMIN_REVIEW') {
       throw new Error('Only pending submissions can be approved');
     }
 
     return await this.submissionRepo.update(submissionId, {
-      status: 'APPROVED',
-      approvedAt: new Date(),
+      status: 'PENDING_REVIEW',
+      approvedAt: null,
+      approvedBy: null,
+      rejectionReason: null,
+      workflowStage: 'PENDING_DOSEN_VERIFICATION',
+      adminVerificationStatus: 'APPROVED',
+      adminVerifiedAt: new Date(),
+      adminVerifiedBy: approvedByUserId,
+      adminRejectionReason: null,
+      dosenVerificationStatus: 'PENDING',
+      dosenVerifiedAt: null,
+      dosenVerifiedBy: null,
+      dosenRejectionReason: null,
     });
   }
 
@@ -692,14 +764,25 @@ export class SubmissionService {
       throw new Error('Submission not found');
     }
 
-    if (submission.status !== 'PENDING_REVIEW') {
+    const currentStage = submission.workflowStage ?? (submission.status === 'PENDING_REVIEW' ? 'PENDING_ADMIN_REVIEW' : submission.status);
+    if (currentStage !== 'PENDING_ADMIN_REVIEW') {
       throw new Error('Only pending submissions can be rejected');
     }
 
     return await this.submissionRepo.update(submissionId, {
-      status: 'REJECTED',
+      status: 'PENDING_REVIEW',
       rejectionReason,
-      approvedAt: new Date(),
+      approvedAt: null,
+      approvedBy: null,
+      workflowStage: 'REJECTED_ADMIN',
+      adminVerificationStatus: 'REJECTED',
+      adminVerifiedAt: new Date(),
+      adminVerifiedBy: approvedByUserId,
+      adminRejectionReason: rejectionReason,
+      dosenVerificationStatus: 'PENDING',
+      dosenVerifiedAt: null,
+      dosenVerifiedBy: null,
+      dosenRejectionReason: null,
     });
   }
 
@@ -715,7 +798,8 @@ export class SubmissionService {
     }
 
     // ✅ Only REJECTED submissions can be reset to DRAFT
-    if (submission.status !== 'REJECTED') {
+    const rejectedStages = new Set(['REJECTED', 'REJECTED_ADMIN', 'REJECTED_DOSEN']);
+    if (!rejectedStages.has(submission.status) && !rejectedStages.has(submission.workflowStage)) {
       throw new Error('Hanya pengajuan yang ditolak yang dapat diajukan ulang.');
     }
 
@@ -745,7 +829,19 @@ export class SubmissionService {
     // Reset submission to DRAFT
     return await this.submissionRepo.update(submissionId, {
       status: 'DRAFT',
+      workflowStage: 'DRAFT',
       rejectionReason: null,
+      approvedAt: null,
+      approvedBy: null,
+      adminVerificationStatus: 'PENDING',
+      adminVerifiedAt: null,
+      adminVerifiedBy: null,
+      adminRejectionReason: null,
+      dosenVerificationStatus: 'PENDING',
+      dosenVerifiedAt: null,
+      dosenVerifiedBy: null,
+      dosenRejectionReason: null,
+      finalSignedFileUrl: null,
       documentReviews: {}, // ✅ Clear document reviews on re-submission
       statusHistory: newHistory,
     });

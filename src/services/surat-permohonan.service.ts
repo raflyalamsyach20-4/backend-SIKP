@@ -5,6 +5,7 @@ import { UserRepository } from '@/repositories/user.repository';
 import { SubmissionRepository } from '@/repositories/submission.repository';
 import { StorageService } from '@/services/storage.service';
 import { generateId } from '@/utils/helpers';
+import type { UserRole } from '@/types';
 
 const ALLOWED_SIGNATURE_MIME_TYPES = ['image/png', 'image/jpeg', 'image/jpg'];
 
@@ -58,13 +59,9 @@ export class SuratPermohonanService {
       throw error;
     }
 
-    let dosenUserId = await this.getDosenForTeamLeader(fixedTeam.leaderId);
+    const dosenUserId = fixedTeam.dosenKpId || null;
     if (!dosenUserId) {
-      dosenUserId = await this.getDosenForMember(memberUserId);
-    }
-
-    if (!dosenUserId) {
-      const error: any = new Error('Dosen pembimbing tidak ditemukan untuk mahasiswa ini. Silakan hubungi admin.');
+      const error: any = new Error('Dosen KP tim belum ditetapkan. Silakan hubungi admin.');
       error.statusCode = 422;
       throw error;
     }
@@ -102,8 +99,11 @@ export class SuratPermohonanService {
   /**
    * Dosen melihat list ajuan surat permohonan.
    */
-  async getRequestsForDosen(dosenUserId: string) {
-    const requests = await this.suratPermohonanRepo.findByDosenIdWithDetails(dosenUserId);
+  async getRequestsForDosen(dosenUserId: string, role: UserRole) {
+    const requests =
+      role === 'WAKIL_DEKAN'
+        ? await this.suratPermohonanRepo.findAllWithDetails()
+        : await this.suratPermohonanRepo.findByDosenIdWithDetails(dosenUserId);
 
     return requests.map((req) => {
       const proxiedMahasiswaEsignatureUrl = this.storageService.getEsignatureAssetProxyUrlFromPublicUrl(req.mahasiswaEsignatureUrl);
@@ -408,33 +408,6 @@ export class SuratPermohonanService {
     }
 
     return submission;
-  }
-
-  private async getDosenForTeamLeader(leaderUserId: string): Promise<string | null> {
-    const leaderProfile = await this.userRepo.findMahasiswaByUserId(leaderUserId);
-
-    if (leaderProfile?.prodi) {
-      const dosenByProdi = await this.userRepo.findActiveDosenByProdi(leaderProfile.prodi);
-      if (dosenByProdi) {
-        return dosenByProdi.id;
-      }
-    }
-
-    return null;
-  }
-
-  private async getDosenForMember(memberUserId: string): Promise<string | null> {
-    const mahasiswaProfile = await this.userRepo.findMahasiswaByUserId(memberUserId);
-
-    if (mahasiswaProfile?.prodi) {
-      const dosenByProdi = await this.userRepo.findActiveDosenByProdi(mahasiswaProfile.prodi);
-      if (dosenByProdi) {
-        return dosenByProdi.id;
-      }
-    }
-
-    const fallbackDosen = await this.userRepo.findAnyActiveDosen();
-    return fallbackDosen?.id || null;
   }
 
   private async resolveMahasiswaEsignatureUrl(memberUserId: string): Promise<string> {

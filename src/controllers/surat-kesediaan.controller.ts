@@ -70,7 +70,7 @@ export class SuratKesediaanController {
     try {
       const user = c.get('user') as JWTPayload;
 
-      const requests = await this.suratKesediaanService.getRequestsForDosen(user.userId);
+      const requests = await this.suratKesediaanService.getRequestsForDosen(user.userId, user.role);
 
       return c.json(
         createResponse(true, 'OK', requests)

@@ -90,6 +90,34 @@ export class SuratKesediaanRepository {
     return result;
   }
 
+  async findAllWithDetails() {
+    return await this.db
+      .select({
+        id: suratKesediaanRequests.id,
+        tanggal: suratKesediaanRequests.createdAt,
+        nim: mahasiswa.nim,
+        namaMahasiswa: users.nama,
+        programStudi: mahasiswa.prodi,
+        angkatan: mahasiswa.angkatan,
+        semester: mahasiswa.semester,
+        email: users.email,
+        noHp: users.phone,
+        jenisSurat: sql<string>`'Surat Kesediaan'`,
+        status: suratKesediaanRequests.status,
+        approvedAt: suratKesediaanRequests.approvedAt,
+        signedFileUrl: suratKesediaanRequests.signedFileUrl,
+        rejectionReason: suratKesediaanRequests.rejectionReason,
+        dosenNip: dosen.nip,
+        dosenJabatan: dosen.jabatan,
+        dosenEsignatureUrl: dosen.esignatureUrl,
+      })
+      .from(suratKesediaanRequests)
+      .innerJoin(users, eq(suratKesediaanRequests.memberUserId, users.id))
+      .innerJoin(mahasiswa, eq(users.id, mahasiswa.id))
+      .innerJoin(dosen, eq(suratKesediaanRequests.dosenUserId, dosen.id))
+      .orderBy(desc(suratKesediaanRequests.createdAt));
+  }
+
   /**
    * Check if request already exists with status MENUNGGU
    */

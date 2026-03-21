@@ -3,12 +3,32 @@
  */
 export const SubmissionStatus = {
   DRAFT: 'DRAFT',
-  PENDING: 'PENDING',
+  PENDING: 'PENDING_REVIEW',
+  PENDING_REVIEW: 'PENDING_REVIEW',
   APPROVED: 'APPROVED',
   REJECTED: 'REJECTED',
 } as const;
 
 export type SubmissionStatusType = typeof SubmissionStatus[keyof typeof SubmissionStatus];
+
+export const SubmissionVerificationStatus = {
+  PENDING: 'PENDING',
+  APPROVED: 'APPROVED',
+  REJECTED: 'REJECTED',
+} as const;
+
+export type SubmissionVerificationStatusType = typeof SubmissionVerificationStatus[keyof typeof SubmissionVerificationStatus];
+
+export const SubmissionWorkflowStage = {
+  DRAFT: 'DRAFT',
+  PENDING_ADMIN_REVIEW: 'PENDING_ADMIN_REVIEW',
+  PENDING_DOSEN_VERIFICATION: 'PENDING_DOSEN_VERIFICATION',
+  COMPLETED: 'COMPLETED',
+  REJECTED_ADMIN: 'REJECTED_ADMIN',
+  REJECTED_DOSEN: 'REJECTED_DOSEN',
+} as const;
+
+export type SubmissionWorkflowStageType = typeof SubmissionWorkflowStage[keyof typeof SubmissionWorkflowStage];
 
 /**
  * Team member statuses

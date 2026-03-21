@@ -1,6 +1,6 @@
 import { Hono, Context } from 'hono';
 import { DIContainer } from '@/core';
-import { authMiddleware, mahasiswaOnly, dosenOnly } from '@/middlewares/auth.middleware';
+import { authMiddleware, mahasiswaOnly, dosenOnly, roleMiddleware } from '@/middlewares/auth.middleware';
 import { CloudflareBindings } from '@/config';
 
 type Variables = {
@@ -68,28 +68,28 @@ export const createSuratKesediaanFallbackRoutes = () => {
 export const createDosenSuratKesediaanRoutes = () => {
   const routes = new Hono<{ Bindings: CloudflareBindings; Variables: Variables }>();
 
-  routes.use('*', authMiddleware, dosenOnly);
+  routes.use('*', authMiddleware);
 
   // GET /api/dosen/surat-kesediaan/requests
-  routes.get('/requests', async (c: Context) => {
+  routes.get('/requests', roleMiddleware(['DOSEN', 'WAKIL_DEKAN']), async (c: Context) => {
     const container = c.get('container') as DIContainer;
     return container.suratKesediaanController.getRequests(c);
   });
 
   // PUT /api/dosen/surat-kesediaan/requests/:requestId/approve
-  routes.put('/requests/:requestId/approve', async (c: Context) => {
+  routes.put('/requests/:requestId/approve', dosenOnly, async (c: Context) => {
     const container = c.get('container') as DIContainer;
     return container.suratKesediaanController.approveSingle(c);
   });
 
   // PUT /api/dosen/surat-kesediaan/requests/:requestId/reject
-  routes.put('/requests/:requestId/reject', async (c: Context) => {
+  routes.put('/requests/:requestId/reject', dosenOnly, async (c: Context) => {
     const container = c.get('container') as DIContainer;
     return container.suratKesediaanController.reject(c);
   });
 
   // PUT /api/dosen/surat-kesediaan/requests/approve-bulk
-  routes.put('/requests/approve-bulk', async (c: Context) => {
+  routes.put('/requests/approve-bulk', dosenOnly, async (c: Context) => {
     const container = c.get('container') as DIContainer;
     return container.suratKesediaanController.approveBulk(c);
   });

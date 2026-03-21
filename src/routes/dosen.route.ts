@@ -4,6 +4,7 @@ import { authMiddleware, dosenOnly } from '@/middlewares/auth.middleware';
 import { CloudflareBindings } from '@/config';
 import { createDosenSuratKesediaanRoutes } from './surat-kesediaan.route';
 import { createDosenSuratPermohonanRoutes } from './surat-permohonan.route';
+import { createDosenSuratPengantarRoutes } from './surat-pengantar-dosen.route';
 
 type Variables = {
   container: DIContainer;
@@ -12,8 +13,10 @@ type Variables = {
 export const createDosenRoutes = () => {
   const dosen = new Hono<{ Bindings: CloudflareBindings; Variables: Variables }>();
 
-  dosen.use('*', authMiddleware, dosenOnly);
+  dosen.use('*', authMiddleware);
 
+  dosen.use('/me/*', dosenOnly);
+  dosen.use('/me', dosenOnly);
   dosen.get('/me', async (c: Context) => {
     const container = c.get('container') as DIContainer;
     return container.dosenController.me(c);
@@ -37,6 +40,7 @@ export const createDosenRoutes = () => {
   // Surat Kesediaan Routes (nested)
   dosen.route('/surat-kesediaan', createDosenSuratKesediaanRoutes());
   dosen.route('/surat-permohonan', createDosenSuratPermohonanRoutes());
+  dosen.route('/surat-pengantar', createDosenSuratPengantarRoutes());
 
   return dosen;
 };

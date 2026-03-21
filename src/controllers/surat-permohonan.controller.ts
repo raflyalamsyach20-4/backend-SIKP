@@ -66,7 +66,7 @@ export class SuratPermohonanController {
   getRequests = async (c: Context) => {
     try {
       const user = c.get('user') as JWTPayload;
-      const requests = await this.suratPermohonanService.getRequestsForDosen(user.userId);
+      const requests = await this.suratPermohonanService.getRequestsForDosen(user.userId, user.role);
 
       return c.json(createResponse(true, 'OK', requests));
     } catch (error: any) {

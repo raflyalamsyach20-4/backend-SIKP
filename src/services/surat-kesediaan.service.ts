@@ -4,6 +4,7 @@ import { TeamRepository } from '@/repositories/team.repository';
 import { UserRepository } from '@/repositories/user.repository';
 import { StorageService } from '@/services/storage.service';
 import { generateId } from '@/utils/helpers';
+import type { UserRole } from '@/types';
 
 const ALLOWED_SIGNATURE_MIME_TYPES = ['image/png', 'image/jpeg', 'image/jpg'];
 
@@ -34,7 +35,7 @@ export class SuratKesediaanService {
   async requestSuratKesediaan(
     memberUserId: string,
     authUserId: string,
-    dosenUserId?: string
+    _dosenUserId?: string
   ) {
     // 1. Validate target member exists
     const memberUser = await this.userRepo.findById(memberUserId);
@@ -44,34 +45,29 @@ export class SuratKesediaanService {
       throw error;
     }
 
-    // 2. Auth mahasiswa can request for self, or teammate in at least one accepted team
-    if (memberUserId !== authUserId) {
-      const authTeams = await this.teamRepo.findTeamsByMemberId(authUserId);
-      const targetTeams = await this.teamRepo.findTeamsByMemberId(memberUserId);
-      const authTeamIds = new Set(authTeams.map((team) => team.id));
-      const hasSharedTeam = targetTeams.some((team) => authTeamIds.has(team.id));
+    // 2. Resolve team context for self/teammate request
+    const requestTeam = await this.resolveTeamForRequest(memberUserId, authUserId);
 
-      if (!hasSharedTeam) {
-        const error: any = new Error('Anda hanya dapat mengajukan untuk diri sendiri atau anggota tim yang valid.');
-        error.statusCode = 403;
-        throw error;
-      }
-    }
-
-    // 3. Resolve dosen pembimbing target
-    let dosenId: string | null = dosenUserId || null;
+    // 3. Target dosen must follow team-level dosen_kp_id
+    const dosenId = requestTeam?.dosenKpId || null;
     if (!dosenId) {
-      dosenId = await this.getDosenForMember(memberUserId);
-    }
-
-    if (!dosenId) {
-      throw new Error('Dosen pembimbing tidak ditemukan untuk mahasiswa ini. Silakan hubungi admin.');
+      const error: any = new Error('Dosen KP tim belum ditetapkan. Silakan hubungi admin.');
+      error.statusCode = 422;
+      throw error;
     }
 
     // 4. Validate dosen exists and active
     const dosenUser = await this.userRepo.findById(dosenId);
     if (!dosenUser || dosenUser.role !== 'DOSEN' || !dosenUser.isActive) {
       const error: any = new Error('Dosen tidak valid.');
+      error.statusCode = 400;
+      throw error;
+    }
+
+    // Guard: wakil dekan tidak menangani surat kesediaan
+    const dosenProfile = await this.userRepo.findDosenByUserId(dosenId);
+    if (dosenProfile?.jabatan && dosenProfile.jabatan.toLowerCase().includes('wakil dekan')) {
+      const error: any = new Error('Dosen ini tidak dapat menerima surat kesediaan.');
       error.statusCode = 400;
       throw error;
     }
@@ -102,8 +98,11 @@ export class SuratKesediaanService {
   /**
    * Dosen melihat list ajuan surat kesediaan
    */
-  async getRequestsForDosen(dosenUserId: string) {
-    const requests = await this.suratKesediaanRepo.findByDosenIdWithDetails(dosenUserId);
+  async getRequestsForDosen(dosenUserId: string, role: UserRole) {
+    const requests =
+      role === 'WAKIL_DEKAN'
+        ? await this.suratKesediaanRepo.findAllWithDetails()
+        : await this.suratKesediaanRepo.findByDosenIdWithDetails(dosenUserId);
     
     // Get dosen info for response
     const dosenUser = await this.userRepo.findById(dosenUserId);
@@ -261,22 +260,34 @@ export class SuratKesediaanService {
     };
   }
 
-  /**
-   * Helper: Get dosen for a member
-   * Tries by mahasiswa prodi first, then fallback to any active dosen.
-   */
-  private async getDosenForMember(memberUserId: string): Promise<string | null> {
-    const mahasiswaProfile = await this.userRepo.findMahasiswaByUserId(memberUserId);
-
-    if (mahasiswaProfile?.prodi) {
-      const dosenByProdi = await this.userRepo.findActiveDosenByProdi(mahasiswaProfile.prodi);
-      if (dosenByProdi) {
-        return dosenByProdi.id;
-      }
+  private async resolveTeamForRequest(memberUserId: string, authUserId: string) {
+    const memberTeams = await this.teamRepo.findTeamsByMemberId(memberUserId);
+    if (!memberTeams.length) {
+      const error: any = new Error('Mahasiswa belum tergabung dalam tim.');
+      error.statusCode = 422;
+      throw error;
     }
 
-    const fallbackDosen = await this.userRepo.findAnyActiveDosen();
-    return fallbackDosen?.id || null;
+    if (memberUserId === authUserId) {
+      return this.pickPreferredTeam(memberTeams);
+    }
+
+    const authTeams = await this.teamRepo.findTeamsByMemberId(authUserId);
+    const authTeamIds = new Set(authTeams.map((team) => team.id));
+    const sharedTeams = memberTeams.filter((team) => authTeamIds.has(team.id));
+
+    if (!sharedTeams.length) {
+      const error: any = new Error('Anda hanya dapat mengajukan untuk diri sendiri atau anggota tim yang valid.');
+      error.statusCode = 403;
+      throw error;
+    }
+
+    return this.pickPreferredTeam(sharedTeams);
+  }
+
+  private pickPreferredTeam<T extends { status: string }>(teams: T[]): T {
+    const fixedTeam = teams.find((team) => team.status === 'FIXED');
+    return fixedTeam || teams[0];
   }
 
   private async approveAndSignRequest(

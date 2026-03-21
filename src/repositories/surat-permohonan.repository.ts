@@ -243,6 +243,102 @@ export class SuratPermohonanRepository {
     }
   }
 
+  async findAllWithDetails() {
+    try {
+      return await this.db
+        .select({
+          id: suratPermohonanRequests.id,
+          tanggal: suratPermohonanRequests.requestedAt,
+          nim: mahasiswa.nim,
+          namaMahasiswa: users.nama,
+          programStudi: mahasiswa.prodi,
+          angkatan: mahasiswa.angkatan,
+          semester: mahasiswa.semester,
+          jumlahSks: mahasiswa.jumlahSksSelesai,
+          email: users.email,
+          noHp: users.phone,
+          jenisSurat: sql<string>`'Surat Permohonan'`,
+          status: suratPermohonanRequests.status,
+          mahasiswaEsignatureUrl: suratPermohonanRequests.mahasiswaEsignatureUrl,
+          mahasiswaEsignatureSnapshotAt: suratPermohonanRequests.mahasiswaEsignatureSnapshotAt,
+          signedFileUrl: suratPermohonanRequests.signedFileUrl,
+          approvedAt: suratPermohonanRequests.approvedAt,
+          rejectedAt: suratPermohonanRequests.approvedAt,
+          rejectionReason: suratPermohonanRequests.rejectionReason,
+          dosenNama: sql<string | null>`(
+            select u_dosen.nama
+            from users u_dosen
+            where u_dosen.id = ${suratPermohonanRequests.dosenUserId}
+            limit 1
+          )`,
+          dosenNip: dosen.nip,
+          dosenJabatan: dosen.jabatan,
+          dosenEsignatureUrl: dosen.esignatureUrl,
+          namaPerusahaan: submissions.companyName,
+          alamatPerusahaan: submissions.companyAddress,
+          teleponPerusahaan: submissions.companyPhone,
+          jenisProdukUsaha: submissions.companyBusinessType,
+          divisi: submissions.division,
+          tanggalMulai: submissions.startDate,
+          tanggalSelesai: submissions.endDate,
+        })
+        .from(suratPermohonanRequests)
+        .innerJoin(users, eq(suratPermohonanRequests.memberUserId, users.id))
+        .innerJoin(mahasiswa, eq(users.id, mahasiswa.id))
+        .innerJoin(submissions, eq(suratPermohonanRequests.submissionId, submissions.id))
+        .innerJoin(dosen, eq(suratPermohonanRequests.dosenUserId, dosen.id))
+        .orderBy(desc(suratPermohonanRequests.requestedAt));
+    } catch (error) {
+      if (!this.isMissingSnapshotColumnError(error)) {
+        throw error;
+      }
+
+      return await this.db
+        .select({
+          id: suratPermohonanRequests.id,
+          tanggal: suratPermohonanRequests.requestedAt,
+          nim: mahasiswa.nim,
+          namaMahasiswa: users.nama,
+          programStudi: mahasiswa.prodi,
+          angkatan: mahasiswa.angkatan,
+          semester: mahasiswa.semester,
+          jumlahSks: mahasiswa.jumlahSksSelesai,
+          email: users.email,
+          noHp: users.phone,
+          jenisSurat: sql<string>`'Surat Permohonan'`,
+          status: suratPermohonanRequests.status,
+          mahasiswaEsignatureUrl: mahasiswa.esignatureUrl,
+          mahasiswaEsignatureSnapshotAt: sql<Date | null>`null`,
+          signedFileUrl: suratPermohonanRequests.signedFileUrl,
+          approvedAt: suratPermohonanRequests.approvedAt,
+          rejectedAt: suratPermohonanRequests.approvedAt,
+          rejectionReason: suratPermohonanRequests.rejectionReason,
+          dosenNama: sql<string | null>`(
+            select u_dosen.nama
+            from users u_dosen
+            where u_dosen.id = ${suratPermohonanRequests.dosenUserId}
+            limit 1
+          )`,
+          dosenNip: dosen.nip,
+          dosenJabatan: dosen.jabatan,
+          dosenEsignatureUrl: dosen.esignatureUrl,
+          namaPerusahaan: submissions.companyName,
+          alamatPerusahaan: submissions.companyAddress,
+          teleponPerusahaan: submissions.companyPhone,
+          jenisProdukUsaha: submissions.companyBusinessType,
+          divisi: submissions.division,
+          tanggalMulai: submissions.startDate,
+          tanggalSelesai: submissions.endDate,
+        })
+        .from(suratPermohonanRequests)
+        .innerJoin(users, eq(suratPermohonanRequests.memberUserId, users.id))
+        .innerJoin(mahasiswa, eq(users.id, mahasiswa.id))
+        .innerJoin(submissions, eq(suratPermohonanRequests.submissionId, submissions.id))
+        .innerJoin(dosen, eq(suratPermohonanRequests.dosenUserId, dosen.id))
+        .orderBy(desc(suratPermohonanRequests.requestedAt));
+    }
+  }
+
   async findExistingPending(memberUserId: string, dosenUserId: string) {
     const result = await this.db
       .select({

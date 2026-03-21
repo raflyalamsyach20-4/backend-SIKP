@@ -1,7 +1,9 @@
 export type UserRole = 'MAHASISWA' | 'ADMIN' | 'DOSEN' | 'KAPRODI' | 'WAKIL_DEKAN' | 'PEMBIMBING_LAPANGAN';
 export type TeamStatus = 'PENDING' | 'FIXED';
 export type InvitationStatus = 'PENDING' | 'ACCEPTED' | 'REJECTED';
-export type SubmissionStatus = 'DRAFT' | 'MENUNGGU' | 'DITOLAK' | 'DITERIMA';
+export type SubmissionStatus = 'DRAFT' | 'PENDING_REVIEW' | 'APPROVED' | 'REJECTED';
+export type SubmissionVerificationStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
+export type SubmissionWorkflowStage = 'DRAFT' | 'PENDING_ADMIN_REVIEW' | 'PENDING_DOSEN_VERIFICATION' | 'COMPLETED' | 'REJECTED_ADMIN' | 'REJECTED_DOSEN';
 export type DocumentType = 'KTP' | 'TRANSKRIP' | 'KRS' | 'PROPOSAL' | 'OTHER';
 // ✅ NEW: Document status type
 export type DocumentStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
@@ -86,6 +88,16 @@ export interface Submission {
   endDate: Date | null;
   description: string | null;
   status: SubmissionStatus;
+  adminVerificationStatus: SubmissionVerificationStatus;
+  adminVerifiedAt?: Date | null;
+  adminVerifiedBy?: string | null;
+  adminRejectionReason?: string | null;
+  dosenVerificationStatus: SubmissionVerificationStatus;
+  dosenVerifiedAt?: Date | null;
+  dosenVerifiedBy?: string | null;
+  dosenRejectionReason?: string | null;
+  workflowStage: SubmissionWorkflowStage;
+  finalSignedFileUrl?: string | null;
   rejectionReason: string | null;
   approvedAt: Date | null;
   submittedAt: Date | null;
