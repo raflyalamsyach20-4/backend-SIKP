@@ -12,6 +12,7 @@ const rejectSubmissionSchema = z.object({
 const approveSubmissionSchema = z.object({
   documentReviews: z.record(z.string(), z.enum(['approved', 'rejected'])).optional(),
   autoGenerateLetter: z.boolean().optional().default(false),
+  letterNumber: z.string().optional(),
 });
 
 const generateLetterSchema = z.object({
@@ -22,6 +23,7 @@ const generateLetterSchema = z.object({
 const updateSubmissionStatusSchema = z.object({
   status: z.enum(['APPROVED', 'REJECTED']).describe('Status to update to'),
   rejectionReason: z.string().optional().describe('Reason for rejection (required if status is REJECTED)'),
+  letterNumber: z.string().optional().describe('Nomor surat (required if status is APPROVED)'),
   // ✅ NEW: Document review statuses per document ID
   documentReviews: z.record(z.string(), z.enum(['approved', 'rejected'])).describe('Document review statuses per document ID'),
 });
@@ -99,7 +101,8 @@ export class AdminController {
         user.userId, // ✅ Pass admin ID for audit trail
         validated.status,
         validated.rejectionReason,
-        validated.documentReviews
+        validated.documentReviews,
+        validated.letterNumber,
       );
 
       return c.json(
@@ -128,7 +131,8 @@ export class AdminController {
       const submission = await this.adminService.approveSubmission(
         submissionId,
         user.userId,
-        validated.documentReviews
+        validated.documentReviews,
+        validated.letterNumber,
       );
 
       return c.json(createResponse(true, 'Submission approved successfully', submission));

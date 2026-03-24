@@ -115,6 +115,7 @@ export const submissions = pgTable('submissions', {
   dosenVerifiedAt: timestamp('dosen_verified_at'),
   dosenVerifiedBy: text('dosen_verified_by').references(() => users.id, { onDelete: 'set null' }),
   dosenRejectionReason: text('dosen_rejection_reason'),
+  letterNumber: varchar('letter_number', { length: 100 }),
   workflowStage: workflowStageEnum('workflow_stage').notNull().default('DRAFT'),
   finalSignedFileUrl: text('final_signed_file_url'),
   documentReviews: json('document_reviews').default('{}'), // ✅ NEW: Stores individual document review status
@@ -138,6 +139,7 @@ export const submissions = pgTable('submissions', {
     idxAdminVerificationStatus: index('idx_submissions_admin_status').on(table.adminVerificationStatus),
     idxDosenVerificationStatus: index('idx_submissions_dosen_status').on(table.dosenVerificationStatus),
     idxDosenQueue: index('idx_submissions_dosen_queue').on(table.workflowStage, table.dosenVerifiedBy, table.createdAt),
+    uqLetterNumber: uniqueIndex('submissions_letter_number_unique').on(table.letterNumber),
   };
 });
 

@@ -274,6 +274,13 @@
       "when": 1774019643590,
       "tag": "0038_serious_joystick",
       "breakpoints": true
+    },
+    {
+      "idx": 39,
+      "version": "5",
+      "when": 1774332500000,
+      "tag": "0039_add_submissions_letter_number",
+      "breakpoints": true
     }
   ]
 }

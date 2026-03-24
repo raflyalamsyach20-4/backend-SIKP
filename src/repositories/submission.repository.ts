@@ -1,9 +1,62 @@
-import { asc, eq, desc, inArray, and, isNull } from 'drizzle-orm';
+import { asc, eq, desc, inArray, and, isNull, ilike } from 'drizzle-orm';
 import type { DbClient } from '@/db';
-import { submissions, submissionDocuments, generatedLetters, teams, teamMembers, users, mahasiswa } from '@/db/schema';
+import { submissions, submissionDocuments, generatedLetters, teams, teamMembers, users, mahasiswa, dosen } from '@/db/schema';
 
 export class SubmissionRepository {
   constructor(private db: DbClient) {}
+
+  private async findWakilDekanSignature() {
+    const baseSelect = {
+      id: users.id,
+      name: users.nama,
+      nip: dosen.nip,
+      position: dosen.jabatan,
+      fakultas: dosen.fakultas,
+      prodi: dosen.prodi,
+      esignatureUrl: dosen.esignatureUrl,
+      esignatureKey: dosen.esignatureKey,
+      esignatureUploadedAt: dosen.esignatureUploadedAt,
+    };
+
+    // Prefer explicit role-based signer.
+    let result = await this.db
+      .select(baseSelect)
+      .from(users)
+      .innerJoin(dosen, eq(users.id, dosen.id))
+      .where(eq(users.role, 'WAKIL_DEKAN'))
+      .orderBy(desc(dosen.esignatureUploadedAt))
+      .limit(1);
+
+    // Fallback for legacy data where role may not be WAKIL_DEKAN,
+    // but jabatan already contains Wakil Dekan.
+    if (result.length === 0) {
+      result = await this.db
+        .select(baseSelect)
+        .from(users)
+        .innerJoin(dosen, eq(users.id, dosen.id))
+        .where(ilike(dosen.jabatan, '%wakil dekan%'))
+        .orderBy(desc(dosen.esignatureUploadedAt))
+        .limit(1);
+    }
+
+    const signer = result[0];
+    if (!signer) {
+      console.warn('[SubmissionRepository] Wakil Dekan signer not found. Checked role=WAKIL_DEKAN and jabatan ILIKE %wakil dekan%.');
+      return null;
+    }
+
+    return {
+      id: signer.id,
+      name: signer.name || 'Wakil Dekan Bidang Akademik',
+      nip: signer.nip || '-',
+      position: signer.position || 'Wakil Dekan Bidang Akademik',
+      fakultas: signer.fakultas || undefined,
+      prodi: signer.prodi || undefined,
+      esignatureUrl: signer.esignatureUrl || undefined,
+      esignatureKey: signer.esignatureKey || undefined,
+      esignatureUploadedAt: signer.esignatureUploadedAt || undefined,
+    };
+  }
 
   private async resolveAcademicSupervisorByLeaderId(leaderId?: string | null) {
     if (!leaderId) {
@@ -36,6 +89,8 @@ export class SubmissionRepository {
     if (!submission) {
       return null;
     }
+
+    const wakilDekanSignature = await this.findWakilDekanSignature();
 
     // Get team with leader
     const teamData = await this.db
@@ -87,6 +142,7 @@ export class SubmissionRepository {
 
     return {
       ...submission, // ✅ This includes documentReviews from submissions table
+      wakilDekanSignature,
       team: team
         ? {
             ...team,
@@ -320,6 +376,8 @@ export class SubmissionRepository {
    * Sort by submittedAt DESC
    */
   async findAllForAdmin() {
+    const wakilDekanSignature = await this.findWakilDekanSignature();
+
     // Get all submissions with specified statuses
     const submissionList = await this.db
       .select()
@@ -399,6 +457,7 @@ export class SubmissionRepository {
 
         return {
           ...submission,
+          wakilDekanSignature,
           team: team
             ? {
                 ...team,

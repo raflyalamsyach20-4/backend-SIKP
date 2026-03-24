@@ -806,6 +806,7 @@ export class SubmissionService {
       dosenVerifiedAt: null,
       dosenVerifiedBy: null,
       dosenRejectionReason: null,
+      letterNumber: null,
       finalSignedFileUrl: null,
       documentReviews: {}, // ✅ Clear document reviews on re-submission
       statusHistory: newHistory,

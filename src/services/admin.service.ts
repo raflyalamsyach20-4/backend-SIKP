@@ -85,7 +85,8 @@ export class AdminService {
     adminId: string,
     status: 'APPROVED' | 'REJECTED',
     rejectionReason?: string,
-    documentReviews?: Record<string, string>
+    documentReviews?: Record<string, string>,
+    letterNumber?: string,
   ) {
     // Validate input
     if (!['APPROVED', 'REJECTED'].includes(status)) {
@@ -98,6 +99,7 @@ export class AdminService {
       adminId,
       status,
       rejectionReason,
+      letterNumber,
     });
 
     // Check submission exists
@@ -141,6 +143,10 @@ export class AdminService {
 
     // ✅ NEW: Validate document reviews
     if (status === 'APPROVED') {
+      if (!letterNumber || letterNumber.trim().length === 0) {
+        throw new Error('Nomor surat wajib diisi saat menyetujui submission');
+      }
+
       // When approving, all documents must be marked as "approved"
       if (!documentReviews || Object.keys(documentReviews).length === 0) {
         throw new Error('documentReviews is required. Must specify status for each document');
@@ -184,6 +190,8 @@ export class AdminService {
       }
     }
 
+    const normalizedLetterNumber = letterNumber?.trim();
+
     // ✅ Prepare status history entry
     const now = new Date();
     const historyEntry: any = {
@@ -195,6 +203,9 @@ export class AdminService {
 
     if (status === 'REJECTED') {
       historyEntry.reason = rejectionReason;
+    }
+    if (status === 'APPROVED' && normalizedLetterNumber) {
+      historyEntry.letterNumber = normalizedLetterNumber;
     }
 
     // ✅ Append to existing history
@@ -223,6 +234,7 @@ export class AdminService {
     if (status === 'APPROVED') {
       updateData.approvedAt = null;
       updateData.rejectionReason = null;
+      updateData.letterNumber = normalizedLetterNumber || null;
       updateData.adminVerificationStatus = 'APPROVED';
       updateData.adminRejectionReason = null;
       updateData.dosenVerificationStatus = 'PENDING';
@@ -251,6 +263,7 @@ export class AdminService {
       // REJECTED
       updateData.rejectionReason = rejectionReason;
       updateData.approvedAt = null;
+      updateData.letterNumber = null;
       updateData.adminVerificationStatus = 'REJECTED';
       updateData.adminRejectionReason = rejectionReason;
       updateData.dosenVerificationStatus = 'PENDING';
@@ -271,7 +284,12 @@ export class AdminService {
     }
   }
 
-  async approveSubmission(submissionId: string, adminId: string, documentReviews?: Record<string, string>) {
+  async approveSubmission(
+    submissionId: string,
+    adminId: string,
+    documentReviews?: Record<string, string>,
+    letterNumber?: string,
+  ) {
     const submission = await this.submissionRepo.findById(submissionId);
     if (!submission) {
       throw new Error('Submission not found');
@@ -299,7 +317,8 @@ export class AdminService {
       adminId,
       'APPROVED',
       undefined,
-      normalizedDocumentReviews
+      normalizedDocumentReviews,
+      letterNumber,
     );
   }
 
