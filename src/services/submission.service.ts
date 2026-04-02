@@ -92,7 +92,7 @@ export class SubmissionService {
 
     if (team.status !== 'FIXED') {
       throw this.createServiceError(
-        'Draft submission belum tersedia. Tetapkan tim terlebih dahulu.',
+        'Upload dokumen gagal. Tetapkan tim terlebih dahulu.',
         'TEAM_NOT_FIXED',
         400
       );
@@ -174,7 +174,7 @@ export class SubmissionService {
 
     if (team.status !== 'FIXED') {
       throw this.createServiceError(
-        'Draft submission belum tersedia. Tetapkan tim terlebih dahulu.',
+        'Upload dokumen gagal. Tetapkan tim terlebih dahulu.',
         'TEAM_NOT_FIXED',
         400
       );
@@ -339,7 +339,7 @@ export class SubmissionService {
     const submission = await this.submissionRepo.findById(submissionId);
     if (!submission) {
       throw this.createServiceError(
-        'Draft submission belum tersedia. Tetapkan tim terlebih dahulu.',
+        'Upload dokumen gagal. Tetapkan tim terlebih dahulu.',
         'SUBMISSION_NOT_FOUND',
         404
       );

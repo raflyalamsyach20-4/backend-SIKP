@@ -372,7 +372,7 @@ export class SuratPermohonanService {
     const memberTeams = (await this.teamRepo.findTeamsByMemberId(memberUserId)).filter((team) => team.status === 'FIXED');
 
     if (memberTeams.length === 0) {
-      const error: any = new Error('Mahasiswa belum memiliki tim FIXED.');
+      const error: any = new Error('Mahasiswa belum menetapkan tim.');
       error.statusCode = 422;
       throw error;
     }
