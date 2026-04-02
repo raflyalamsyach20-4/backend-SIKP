@@ -624,6 +624,16 @@ export class TeamService {
           console.warn(`[getMyTeams] ⚠️ Team not found: ${userMembership.teamId}`);
           return null;
         }
+
+        const dosenKpId =
+          (team as { dosenKpId?: string | null; dosen_kp_id?: string | null })
+            .dosenKpId ??
+          (team as { dosenKpId?: string | null; dosen_kp_id?: string | null })
+            .dosen_kp_id ??
+          null;
+        const dosenKpUser = dosenKpId
+          ? await this.userRepo.findById(dosenKpId)
+          : null;
         
         // Get all members of this team (ALL statuses)
         const members = await this.teamRepo.findMembersByTeamId(team.id);
@@ -658,6 +668,8 @@ export class TeamService {
         return {
           id: team.id,
           code: team.code,
+          dosen_kp_id: dosenKpId,
+          dosen_kp_name: dosenKpUser?.nama ?? null,
           leaderId: team.leaderId,
           isLeader: team.leaderId === userId, // ✅ Flag to indicate if current user is leader
           status: team.status,

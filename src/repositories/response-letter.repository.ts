@@ -29,7 +29,7 @@ export class ResponseLetterRepository {
     supervisorName?: string | null;
     memberCount?: number | null;
     roleLabel?: string | null;
-    membersSnapshot?: Array<{ id: number | string; name: string; nim: string; role?: string }> | null;
+    membersSnapshot?: Array<{ id: number | string; name: string; nim: string; prodi?: string; role?: string }> | null;
   }): Promise<ResponseLetter> {
     const id = generateId();
 
@@ -308,7 +308,7 @@ export class ResponseLetterRepository {
       supervisorName: string | null;
       memberCount: number | null;
       roleLabel: string | null;
-      membersSnapshot: Array<{ id: number | string; name: string; nim: string; role?: string }> | null;
+      membersSnapshot?: Array<{ id: number | string; name: string; nim: string; prodi?: string; role?: string }> | null;
     }>
   ): Promise<ResponseLetter> {
     const [updated] = await this.db

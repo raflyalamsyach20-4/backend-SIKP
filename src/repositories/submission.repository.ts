@@ -75,6 +75,23 @@ export class SubmissionRepository {
     return result[0]?.academicSupervisor ?? null;
   }
 
+  private async resolveTeamKpSupervisorByTeamId(teamId?: string | null) {
+    if (!teamId) {
+      return null;
+    }
+
+    const result = await this.db
+      .select({
+        dosenKpName: users.nama,
+      })
+      .from(teams)
+      .leftJoin(users, eq(teams.dosenKpId, users.id))
+      .where(eq(teams.id, teamId))
+      .limit(1);
+
+    return result[0]?.dosenKpName ?? null;
+  }
+
   async findById(id: string) {
     const result = await this.db.select().from(submissions).where(eq(submissions.id, id)).limit(1);
     return result[0] || null;
@@ -103,10 +120,12 @@ export class SubmissionRepository {
     let teamMembers_list: any[] = [];
 
     let academicSupervisor: string | null = null;
+    let dosenKpName: string | null = null;
 
     if (team) {
       // Resolve real dosen PA from team leader's mahasiswa profile
       academicSupervisor = await this.resolveAcademicSupervisorByLeaderId(team.leaderId);
+      dosenKpName = await this.resolveTeamKpSupervisorByTeamId(team.id);
 
       // Get team members with user info
       const membersData = await this.db
@@ -146,6 +165,7 @@ export class SubmissionRepository {
       team: team
         ? {
             ...team,
+            dosenKpName,
             academicSupervisor,
             members: teamMembers_list.map((m) => ({
               id: m.id,
@@ -401,9 +421,11 @@ export class SubmissionRepository {
         let teamMembers_list: any[] = [];
 
         let academicSupervisor: string | null = null;
+        let dosenKpName: string | null = null;
 
         if (team) {
           academicSupervisor = await this.resolveAcademicSupervisorByLeaderId(team.leaderId);
+          dosenKpName = await this.resolveTeamKpSupervisorByTeamId(team.id);
 
           // Get team members with user info
           const membersData = await this.db
@@ -461,6 +483,7 @@ export class SubmissionRepository {
           team: team
             ? {
                 ...team,
+                dosenKpName,
                 academicSupervisor,
                 members: teamMembers_list.map((m) => ({
                   id: m.id,

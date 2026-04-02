@@ -68,12 +68,10 @@ export class AdminService {
    * 
    * When APPROVED:
    * - Set status = APPROVED
-   * - Set approvedAt = current timestamp
-   * - Set approvedBy = admin user id (audit trail)
-   * - Auto-generate dummy SURAT_PENGANTAR document
-   * - Append to statusHistory
-   * 
-   * When REJECTED:
+      }
+    }
+
+    const normalizedLetterNumber = letterNumber?.trim();
    * - Set status = REJECTED
    * - Set rejectionReason
    * - Set approvedBy = admin user id (audit trail)
@@ -174,20 +172,11 @@ export class AdminService {
     }
 
     if (status === 'REJECTED') {
-      // When rejecting, at least one document must be marked as "rejected"
       if (!documentReviews || Object.keys(documentReviews).length === 0) {
         throw new Error('documentReviews is required. Must specify status for each document');
       }
 
-      const hasRejected = Object.values(documentReviews).some(
-        (docStatus) => docStatus === 'rejected'
-      );
 
-      if (!hasRejected) {
-        throw new Error(
-          'Harus ada minimal 1 dokumen yang di-reject saat menolak submission'
-        );
-      }
     }
 
     const normalizedLetterNumber = letterNumber?.trim();

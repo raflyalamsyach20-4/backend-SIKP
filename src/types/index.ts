@@ -64,6 +64,8 @@ export interface Team {
   id: string;
   code: string;
   leaderId: string;
+  dosenKpId?: string | null;
+  dosenKpName?: string | null;
   status: TeamStatus;
 }
 
@@ -194,7 +196,7 @@ export interface ResponseLetter {
   supervisorName: string | null;
   memberCount: number | null;
   roleLabel: string | null;
-  membersSnapshot: Array<{ id: number | string; name: string; nim: string; role?: string }> | null;
+  membersSnapshot: Array<{ id: number | string; name: string; nim: string; prodi?: string; role?: string }> | null;
   submittedAt: Date;
   verified: boolean;
   verifiedAt: Date | null;
@@ -204,6 +206,7 @@ export interface ResponseLetter {
 // Response Letter with relations
 export interface ResponseLetterWithDetails extends ResponseLetter {
   submission?: Submission;
+  team?: Team & { academicSupervisor?: string | null; dosenKpName?: string | null; members?: Array<{ id: string; user: User & { mahasiswaProfile?: Mahasiswa }; role?: string; status?: string }> };
   memberUser?: User & { mahasiswaProfile?: Mahasiswa };
   verifiedBy?: User;
   leader?: User & { mahasiswaProfile?: Mahasiswa };

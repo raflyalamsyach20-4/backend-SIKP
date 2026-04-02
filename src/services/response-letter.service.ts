@@ -284,13 +284,14 @@ export class ResponseLetterService {
     const leader = responseLetter.leader;
     const leaderMahasiswa = leader?.mahasiswaProfile;
     const submission = responseLetter.submission;
+    const supervisorName = responseLetter.team?.dosenKpName || null;
     const snapshotMembers = responseLetter.membersSnapshot || [];
     const resolvedMembers = snapshotMembers.length > 0
       ? snapshotMembers.map((member, index) => ({
           id: Number.isFinite(Number(member.id)) ? Number(member.id) : index + 1,
           name: member.name || 'Unknown',
           nim: member.nim || 'Unknown',
-          prodi: 'Unknown',
+          prodi: member.prodi || leaderMahasiswa?.prodi || 'Unknown',
           role: member.role || 'Anggota',
         }))
       : responseLetter.members?.map((member, index) => ({
@@ -312,13 +313,14 @@ export class ResponseLetterService {
       id: responseLetter.id,
       name: responseLetter.studentName || leader?.nama || 'Unknown',
       nim: responseLetter.studentNim || leaderMahasiswa?.nim || 'Unknown',
+      prodi: leaderMahasiswa?.prodi || resolvedMembers[0]?.prodi || 'Unknown',
       tanggal: responseLetter.submittedAt.toISOString().split('T')[0],
       company: responseLetter.companyName || submission?.companyName || 'Unknown',
       role: roleLabel,
       memberCount: memberCount,
       status: responseLetter.letterStatus === 'approved' ? 'Disetujui' : 'Ditolak',
       adminApproved: responseLetter.verified,
-      supervisor: responseLetter.supervisorName || null,
+      supervisor: responseLetter.supervisorName || supervisorName,
       members: resolvedMembers,
       responseFileUrl: responseLetter.fileUrl || null,
     };
@@ -334,11 +336,12 @@ export class ResponseLetterService {
   private async buildSnapshot(submissionId: string): Promise<{
     studentName: string | null;
     studentNim: string | null;
+    studentProdi: string | null;
     companyName: string | null;
     supervisorName: string | null;
     memberCount: number;
     roleLabel: string;
-    membersSnapshot: Array<{ id: number; name: string; nim: string; role: string }>;
+    membersSnapshot: Array<{ id: number; name: string; nim: string; prodi: string; role: string }>;
   } | null> {
     try {
       console.log(`[buildSnapshot] Building snapshot for submission ${submissionId}`);
@@ -364,8 +367,9 @@ export class ResponseLetterService {
         return {
           studentName: 'Unknown',
           studentNim: 'Unknown',
+          studentProdi: null,
           companyName: submission.companyName || 'Unknown',
-          supervisorName: null,
+          supervisorName: submission.team.dosenKpName || null,
           memberCount: 0,
           roleLabel: 'Individu',
           membersSnapshot: [],
@@ -383,6 +387,7 @@ export class ResponseLetterService {
         id: index + 1,
         name: member.user?.name || 'Unknown',
         nim: member.user?.nim || 'Unknown',
+        prodi: member.user?.prodi || 'Unknown',
         role: member.role === 'KETUA' ? 'Ketua' : 'Anggota',
       }));
 
@@ -391,8 +396,9 @@ export class ResponseLetterService {
       const snapshot = {
         studentName: leaderMember?.user?.name || 'Unknown',
         studentNim: leaderMember?.user?.nim || 'Unknown',
+        studentProdi: leaderMember?.user?.prodi || null,
         companyName: submission.companyName || 'Unknown',
-        supervisorName: null,
+        supervisorName: submission.team.dosenKpName || null,
         memberCount,
         roleLabel: memberCount > 1 ? 'Tim' : 'Individu',
         membersSnapshot,
