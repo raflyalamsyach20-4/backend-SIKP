@@ -265,7 +265,10 @@ export class DIContainer {
     if (!this._mahasiswaService) {
       this._mahasiswaService = new MahasiswaService(
         this.userRepository,
-        this.storageService
+        this.storageService,
+        this.teamRepository,
+        this.submissionRepository,
+        this.responseLetterRepository
       );
     }
     return this._mahasiswaService;

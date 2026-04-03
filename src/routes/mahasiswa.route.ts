@@ -12,6 +12,11 @@ export const createMahasiswaProfileRoutes = () => {
 
   mahasiswa.use('*', authMiddleware, mahasiswaOnly);
 
+  mahasiswa.get('/dashboard', async (c: Context) => {
+    const container = c.get('container') as DIContainer;
+    return container.mahasiswaController.dashboard(c);
+  });
+
   mahasiswa.get('/me', async (c: Context) => {
     const container = c.get('container') as DIContainer;
     return container.mahasiswaController.me(c);

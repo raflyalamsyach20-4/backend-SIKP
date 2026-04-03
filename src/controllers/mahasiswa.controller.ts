@@ -7,6 +7,17 @@ import { updateMahasiswaProfileSchema } from '@/validation/auth.validation';
 export class MahasiswaController {
   constructor(private mahasiswaService: MahasiswaService) {}
 
+  dashboard = async (c: Context) => {
+    try {
+      const user = c.get('user') as JWTPayload;
+      const dashboardData = await this.mahasiswaService.getDashboard(user.userId);
+
+      return c.json(createResponse(true, 'Mahasiswa dashboard retrieved', dashboardData));
+    } catch (error: any) {
+      return handleError(c, error, 'Failed to retrieve mahasiswa dashboard');
+    }
+  };
+
   me = async (c: Context) => {
     try {
       const user = c.get('user') as JWTPayload;
