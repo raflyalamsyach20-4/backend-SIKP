@@ -1,6 +1,6 @@
 import { Hono, Context } from 'hono';
 import { DIContainer } from '@/core';
-import { authMiddleware, dosenOnly } from '@/middlewares/auth.middleware';
+import { authMiddleware, dosenOnly, roleMiddleware } from '@/middlewares/auth.middleware';
 import { CloudflareBindings } from '@/config';
 import { createDosenSuratKesediaanRoutes } from './surat-kesediaan.route';
 import { createDosenSuratPermohonanRoutes } from './surat-permohonan.route';
@@ -17,6 +17,19 @@ export const createDosenRoutes = () => {
 
   dosen.use('/me/*', dosenOnly);
   dosen.use('/me', dosenOnly);
+  dosen.use('/dashboard', dosenOnly);
+  dosen.use('/dashboard/wakdek', roleMiddleware(['DOSEN', 'WAKIL_DEKAN']));
+
+  dosen.get('/dashboard', async (c: Context) => {
+    const container = c.get('container') as DIContainer;
+    return container.dosenController.dashboard(c);
+  });
+
+  dosen.get('/dashboard/wakdek', async (c: Context) => {
+    const container = c.get('container') as DIContainer;
+    return container.dosenController.wakdekDashboard(c);
+  });
+
   dosen.get('/me', async (c: Context) => {
     const container = c.get('container') as DIContainer;
     return container.dosenController.me(c);

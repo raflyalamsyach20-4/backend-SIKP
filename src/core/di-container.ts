@@ -255,7 +255,11 @@ export class DIContainer {
     if (!this._dosenService) {
       this._dosenService = new DosenService(
         this.userRepository,
-        this.storageService
+        this.storageService,
+        this.teamRepository,
+        this.suratKesediaanRepository,
+        this.suratPermohonanRepository,
+        this.suratPengantarDosenService
       );
     }
     return this._dosenService;

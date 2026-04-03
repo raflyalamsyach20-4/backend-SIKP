@@ -1,14 +1,150 @@
 import { UserRepository } from '@/repositories/user.repository';
+import { TeamRepository } from '@/repositories/team.repository';
+import { SuratKesediaanRepository } from '@/repositories/surat-kesediaan.repository';
+import { SuratPermohonanRepository } from '@/repositories/surat-permohonan.repository';
 import { StorageService } from '@/services/storage.service';
+import { SuratPengantarDosenService } from '@/services/surat-pengantar-dosen.service';
+import type { UserRole } from '@/types';
 
 const MAX_SIGNATURE_SIZE_MB = 2;
 const ALLOWED_SIGNATURE_MIME_TYPES = ['image/png', 'image/jpeg', 'image/jpg'];
 
+type DashboardActivity = {
+  action: string;
+  time: string;
+  status: 'success' | 'info';
+};
+
+type DosenDashboardPayload = {
+  totalMahasiswaBimbingan: number;
+  totalSuratAjuanMasuk: number;
+  activities: DashboardActivity[];
+};
+
+type WakdekDashboardPayload = {
+  totalAjuanSuratPengantarMasuk: number;
+  activities: DashboardActivity[];
+};
+
 export class DosenService {
   constructor(
     private userRepository: UserRepository,
-    private storageService: StorageService
+    private storageService: StorageService,
+    private teamRepository: TeamRepository,
+    private suratKesediaanRepository: SuratKesediaanRepository,
+    private suratPermohonanRepository: SuratPermohonanRepository,
+    private suratPengantarDosenService: SuratPengantarDosenService
   ) {}
+
+  private getDefaultActivities(): DashboardActivity[] {
+    return [
+      {
+        action: 'Memverifikasi dokumen pengajuan kerja praktik',
+        time: 'Hari ini',
+        status: 'success',
+      },
+      {
+        action: 'Meninjau progres verifikasi surat mahasiswa',
+        time: 'Kemarin',
+        status: 'info',
+      },
+      {
+        action: 'Monitoring aktivitas akademik kerja praktik',
+        time: '2 hari yang lalu',
+        status: 'info',
+      },
+    ];
+  }
+
+  private isWakilDekanAcademic(jabatan?: string | null): boolean {
+    return (jabatan || '').toLowerCase().includes('wakil dekan');
+  }
+
+  private isAdminApprovedForVerifierQueue(item: any): boolean {
+    if (typeof item?.isAdminApproved === 'boolean') {
+      return item.isAdminApproved;
+    }
+
+    const statusCandidates = [
+      item?.adminVerificationStatus,
+      item?.admin_status,
+      item?.adminStatus,
+      item?.submissionStatus,
+      item?.submission_status,
+    ]
+      .filter((value: unknown) => typeof value === 'string')
+      .map((value: string) => value.trim().toUpperCase());
+
+    return statusCandidates.includes('APPROVED') || statusCandidates.includes('DISETUJUI');
+  }
+
+  private async countTotalSuratPengantarMasuk(userId: string, role: UserRole): Promise<number> {
+    const requests = await this.suratPengantarDosenService.getRequestsForVerifier(userId, role);
+    return requests.filter((item: any) => this.isAdminApprovedForVerifierQueue(item)).length;
+  }
+
+  private async countMahasiswaBimbingan(dosenUserId: string): Promise<number> {
+    const supervisedTeams = await this.teamRepository.findByDosenKpId(dosenUserId);
+    if (supervisedTeams.length === 0) {
+      return 0;
+    }
+
+    const uniqueMahasiswaIds = new Set<string>();
+    const teamIds = supervisedTeams.map((team) => team.id);
+
+    supervisedTeams.forEach((team) => {
+      if (team.leaderId) {
+        uniqueMahasiswaIds.add(team.leaderId);
+      }
+    });
+
+    const acceptedMembers = await this.teamRepository.findAcceptedMembersByTeamIds(teamIds);
+    acceptedMembers.forEach((member) => {
+      if (member.userId) {
+        uniqueMahasiswaIds.add(member.userId);
+      }
+    });
+
+    return uniqueMahasiswaIds.size;
+  }
+
+  private async countTotalSuratMasuk(dosenUserId: string): Promise<number> {
+    const [kesediaan, permohonan] = await Promise.all([
+      this.suratKesediaanRepository.findByDosenIdWithDetails(dosenUserId),
+      this.suratPermohonanRepository.findByDosenIdWithDetails(dosenUserId),
+    ]);
+
+    return kesediaan.length + permohonan.length;
+  }
+
+  async getDashboard(userId: string): Promise<DosenDashboardPayload> {
+    const [totalMahasiswaBimbingan, totalSuratAjuanMasuk] = await Promise.all([
+      this.countMahasiswaBimbingan(userId),
+      this.countTotalSuratMasuk(userId),
+    ]);
+
+    return {
+      totalMahasiswaBimbingan,
+      totalSuratAjuanMasuk,
+      activities: this.getDefaultActivities(),
+    };
+  }
+
+  async getWakdekDashboard(userId: string, role: UserRole): Promise<WakdekDashboardPayload> {
+    const profile = await this.getMe(userId);
+    if (!this.isWakilDekanAcademic(profile.jabatan)) {
+      const forbidden: any = new Error('Dashboard ini khusus wakil dekan bidang akademik.');
+      forbidden.statusCode = 403;
+      throw forbidden;
+    }
+
+    const totalAjuanSuratPengantarMasuk = await this.countTotalSuratPengantarMasuk(userId, role);
+
+    return {
+      totalAjuanSuratPengantarMasuk,
+      activities: this.getDefaultActivities(),
+    };
+  }
 
   async getMe(userId: string) {
     const profile = await this.userRepository.getDosenMe(userId);

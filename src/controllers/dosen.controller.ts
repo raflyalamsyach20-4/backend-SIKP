@@ -7,6 +7,28 @@ import { updateDosenProfileSchema } from '@/validation/auth.validation';
 export class DosenController {
   constructor(private dosenService: DosenService) {}
 
+  dashboard = async (c: Context) => {
+    try {
+      const user = c.get('user') as JWTPayload;
+      const dashboard = await this.dosenService.getDashboard(user.userId);
+
+      return c.json(createResponse(true, 'Dosen dashboard retrieved', dashboard));
+    } catch (error: any) {
+      return handleError(c, error, 'Failed to retrieve dosen dashboard');
+    }
+  };
+
+  wakdekDashboard = async (c: Context) => {
+    try {
+      const user = c.get('user') as JWTPayload;
+      const dashboard = await this.dosenService.getWakdekDashboard(user.userId, user.role);
+
+      return c.json(createResponse(true, 'Wakil dekan dashboard retrieved', dashboard));
+    } catch (error: any) {
+      return handleError(c, error, 'Failed to retrieve wakil dekan dashboard');
+    }
+  };
+
   me = async (c: Context) => {
     try {
       const user = c.get('user') as JWTPayload;

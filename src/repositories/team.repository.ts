@@ -1,4 +1,4 @@
-import { eq, and } from 'drizzle-orm';
+import { eq, and, inArray } from 'drizzle-orm';
 import type { DbClient } from '@/db';
 import { teams, teamMembers, submissions, users, mahasiswa } from '@/db/schema';
 
@@ -17,6 +17,10 @@ export class TeamRepository {
 
   async findByLeaderId(leaderId: string) {
     return await this.db.select().from(teams).where(eq(teams.leaderId, leaderId));
+  }
+
+  async findByDosenKpId(dosenKpId: string) {
+    return await this.db.select().from(teams).where(eq(teams.dosenKpId, dosenKpId));
   }
 
   async create(data: typeof teams.$inferInsert) {
@@ -128,6 +132,25 @@ export class TeamRepository {
 
   async findMembershipByUserId(userId: string) {
     return await this.db.select().from(teamMembers).where(eq(teamMembers.userId, userId));
+  }
+
+  async findAcceptedMembersByTeamIds(teamIds: string[]) {
+    if (teamIds.length === 0) {
+      return [];
+    }
+
+    return await this.db
+      .select({
+        teamId: teamMembers.teamId,
+        userId: teamMembers.userId,
+      })
+      .from(teamMembers)
+      .where(
+        and(
+          inArray(teamMembers.teamId, teamIds),
+          eq(teamMembers.invitationStatus, 'ACCEPTED')
+        )
+      );
   }
 
   async deleteTeam(id: string) {
