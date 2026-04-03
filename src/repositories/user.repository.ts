@@ -57,6 +57,11 @@ export class UserRepository {
     return result[0] || null;
   }
 
+  async countMahasiswaBySemester(semester: number) {
+    const result = await this.db.select().from(mahasiswa).where(eq(mahasiswa.semester, semester));
+    return result.length;
+  }
+
   async createMahasiswa(data: typeof mahasiswa.$inferInsert) {
     const result = await this.db.insert(mahasiswa).values(data).returning();
     return result[0];

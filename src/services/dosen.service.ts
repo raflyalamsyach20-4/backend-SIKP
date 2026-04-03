@@ -36,26 +36,6 @@ export class DosenService {
     private suratPengantarDosenService: SuratPengantarDosenService
   ) {}
 
-  private getDefaultActivities(): DashboardActivity[] {
-    return [
-      {
-        action: 'Memverifikasi dokumen pengajuan kerja praktik',
-        time: 'Hari ini',
-        status: 'success',
-      },
-      {
-        action: 'Meninjau progres verifikasi surat mahasiswa',
-        time: 'Kemarin',
-        status: 'info',
-      },
-      {
-        action: 'Monitoring aktivitas akademik kerja praktik',
-        time: '2 hari yang lalu',
-        status: 'info',
-      },
-    ];
-  }
-
   private isWakilDekanAcademic(jabatan?: string | null): boolean {
     return (jabatan || '').toLowerCase().includes('wakil dekan');
   }
@@ -126,7 +106,7 @@ export class DosenService {
     return {
       totalMahasiswaBimbingan,
       totalSuratAjuanMasuk,
-      activities: this.getDefaultActivities(),
+      activities: [],
     };
   }
 
@@ -142,7 +122,7 @@ export class DosenService {
 
     return {
       totalAjuanSuratPengantarMasuk,
-      activities: this.getDefaultActivities(),
+      activities: [],
     };
   }
 

@@ -31,6 +31,15 @@ const updateSubmissionStatusSchema = z.object({
 export class AdminController {
   constructor(private adminService: AdminService) {}
 
+  getDashboard = async (c: Context) => {
+    try {
+      const dashboard = await this.adminService.getDashboard();
+      return c.json(createResponse(true, 'Admin dashboard retrieved', dashboard));
+    } catch (error: any) {
+      return handleError(c, error, 'Failed to get admin dashboard');
+    }
+  };
+
   getAllSubmissions = async (c: Context) => {
     try {
       const submissions = await this.adminService.getAllSubmissions();

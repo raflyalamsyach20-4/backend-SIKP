@@ -76,5 +76,10 @@ export class TemplateRepository {
     const result = await this.db.select().from(templates).where(eq(templates.fileName, fileName)).limit(1);
     return (result[0] as any as Template) || null;
   }
+
+  async countAll() {
+    const result = await this.db.select().from(templates);
+    return result.length;
+  }
 }
 

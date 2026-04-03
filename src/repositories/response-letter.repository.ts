@@ -320,6 +320,29 @@ export class ResponseLetterRepository {
     return updated as ResponseLetter;
   }
 
+  async countApproved() {
+    const result = await this.db
+      .select()
+      .from(responseLetters)
+      .where(eq(responseLetters.letterStatus, 'approved'));
+
+    return result.length;
+  }
+
+  async countApprovedAndVerified() {
+    const result = await this.db
+      .select()
+      .from(responseLetters)
+      .where(
+        and(
+          eq(responseLetters.letterStatus, 'approved'),
+          eq(responseLetters.verified, true)
+        )
+      );
+
+    return result.length;
+  }
+
   /**
    * Delete response letter
    */

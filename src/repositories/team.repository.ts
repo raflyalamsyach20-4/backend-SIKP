@@ -23,6 +23,24 @@ export class TeamRepository {
     return await this.db.select().from(teams).where(eq(teams.dosenKpId, dosenKpId));
   }
 
+  async countFixedTeams() {
+    const result = await this.db.select().from(teams).where(eq(teams.status, 'FIXED'));
+    return result.length;
+  }
+
+  async countDistinctDosenKpInFixedTeams() {
+    const fixedTeams = await this.db.select().from(teams).where(eq(teams.status, 'FIXED'));
+    const uniqueDosen = new Set<string>();
+
+    fixedTeams.forEach((team) => {
+      if (team.dosenKpId) {
+        uniqueDosen.add(team.dosenKpId);
+      }
+    });
+
+    return uniqueDosen.size;
+  }
+
   async create(data: typeof teams.$inferInsert) {
     const result = await this.db.insert(teams).values(data).returning();
     return result[0];

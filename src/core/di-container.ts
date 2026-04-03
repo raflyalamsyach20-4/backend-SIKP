@@ -206,7 +206,11 @@ export class DIContainer {
     if (!this._adminService) {
       this._adminService = new AdminService(
         this.submissionRepository,
-        this.letterService
+        this.letterService,
+        this.responseLetterRepository,
+        this.teamRepository,
+        this.userRepository,
+        this.templateRepository
       );
     }
     return this._adminService;

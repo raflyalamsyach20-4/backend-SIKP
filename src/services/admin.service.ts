@@ -1,12 +1,163 @@
 import { SubmissionRepository } from '@/repositories/submission.repository';
+import { ResponseLetterRepository } from '@/repositories/response-letter.repository';
+import { TeamRepository } from '@/repositories/team.repository';
+import { UserRepository } from '@/repositories/user.repository';
+import { TemplateRepository } from '@/repositories/template.repository';
 import { LetterService } from './letter.service';
 import { z } from 'zod';
+
+type AdminActivity = {
+  action: string;
+  time: string;
+  status: 'success' | 'info';
+};
+
+type MonthlySubmissionStat = {
+  month: string;
+  submissions: number;
+  approved: number;
+  approvalRate: number;
+};
+
+type AdminDashboardPayload = {
+  totalMahasiswaKp: number;
+  jumlahTimKp: number;
+  mahasiswaAktifSemester4: number;
+  totalPengajuanSuratPengantar: number;
+  totalSuratBalasanDisetujuiTerverifikasi: number;
+  totalDosenPembimbingKp: number;
+  totalTemplateDokumen: number;
+  statistikPengajuan: MonthlySubmissionStat[];
+  activities: AdminActivity[];
+};
 
 export class AdminService {
   constructor(
     private submissionRepo: SubmissionRepository,
-    private letterService?: LetterService
+    private letterService?: LetterService,
+    private responseLetterRepo?: ResponseLetterRepository,
+    private teamRepo?: TeamRepository,
+    private userRepo?: UserRepository,
+    private templateRepo?: TemplateRepository
   ) {}
+
+  private getLastFourMonths(): Array<{ monthDate: Date; monthKey: string; monthLabel: string }> {
+    const formatter = new Intl.DateTimeFormat('id-ID', { month: 'short' });
+    const current = new Date();
+    const startOfCurrent = new Date(current.getFullYear(), current.getMonth(), 1);
+    const months: Array<{ monthDate: Date; monthKey: string; monthLabel: string }> = [];
+
+    for (let offset = 3; offset >= 0; offset -= 1) {
+      const monthDate = new Date(startOfCurrent.getFullYear(), startOfCurrent.getMonth() - offset, 1);
+      const year = monthDate.getFullYear();
+      const month = `${monthDate.getMonth() + 1}`.padStart(2, '0');
+      const monthKey = `${year}-${month}`;
+      const monthLabel = formatter.format(monthDate);
+      months.push({ monthDate, monthKey, monthLabel });
+    }
+
+    return months;
+  }
+
+  private resolveSubmissionDate(submission: any): Date | null {
+    const rawDate = submission.submittedAt || submission.createdAt;
+    if (!rawDate) {
+      return null;
+    }
+
+    const parsed = rawDate instanceof Date ? rawDate : new Date(rawDate);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+  }
+
+  private resolveMonthKey(date: Date): string {
+    const year = date.getFullYear();
+    const month = `${date.getMonth() + 1}`.padStart(2, '0');
+    return `${year}-${month}`;
+  }
+
+  private buildMonthlyStats(submissions: any[]): MonthlySubmissionStat[] {
+    const monthBuckets = this.getLastFourMonths();
+    const allowedKeys = new Set(monthBuckets.map((item) => item.monthKey));
+
+    const aggregation = new Map<string, { submissions: number; approved: number }>();
+    monthBuckets.forEach((item) => {
+      aggregation.set(item.monthKey, { submissions: 0, approved: 0 });
+    });
+
+    submissions.forEach((submission) => {
+      const date = this.resolveSubmissionDate(submission);
+      if (!date) {
+        return;
+      }
+
+      const monthKey = this.resolveMonthKey(date);
+      if (!allowedKeys.has(monthKey)) {
+        return;
+      }
+
+      const bucket = aggregation.get(monthKey);
+      if (!bucket) {
+        return;
+      }
+
+      bucket.submissions += 1;
+      if (submission.status === 'APPROVED') {
+        bucket.approved += 1;
+      }
+    });
+
+    return monthBuckets.map(({ monthKey, monthLabel }) => {
+      const bucket = aggregation.get(monthKey) || { submissions: 0, approved: 0 };
+      const approvalRate = bucket.submissions > 0
+        ? Math.round((bucket.approved / bucket.submissions) * 100)
+        : 0;
+
+      return {
+        month: monthLabel,
+        submissions: bucket.submissions,
+        approved: bucket.approved,
+        approvalRate,
+      };
+    });
+  }
+
+  async getDashboard(): Promise<AdminDashboardPayload> {
+    if (!this.responseLetterRepo || !this.teamRepo || !this.userRepo || !this.templateRepo) {
+      throw new Error('Admin dashboard dependencies are not configured');
+    }
+
+    const [
+      totalMahasiswaKp,
+      jumlahTimKp,
+      mahasiswaAktifSemester4,
+      submissionsForAdmin,
+      totalSuratBalasanDisetujuiTerverifikasi,
+      totalDosenPembimbingKp,
+      totalTemplateDokumen,
+      allSubmissions,
+    ] = await Promise.all([
+      this.responseLetterRepo.countApproved(),
+      this.teamRepo.countFixedTeams(),
+      this.userRepo.countMahasiswaBySemester(4),
+      this.submissionRepo.findAllForAdmin(),
+      this.responseLetterRepo.countApprovedAndVerified(),
+      this.teamRepo.countDistinctDosenKpInFixedTeams(),
+      this.templateRepo.countAll(),
+      this.submissionRepo.findAll(),
+    ]);
+
+    return {
+      totalMahasiswaKp,
+      jumlahTimKp,
+      mahasiswaAktifSemester4,
+      totalPengajuanSuratPengantar: submissionsForAdmin.length,
+      totalSuratBalasanDisetujuiTerverifikasi,
+      totalDosenPembimbingKp,
+      totalTemplateDokumen,
+      statistikPengajuan: this.buildMonthlyStats(allSubmissions),
+      activities: [],
+    };
+  }
 
   private getCurrentStage(submission: any) {
     return submission.workflowStage ?? (submission.status === 'PENDING_REVIEW' ? 'PENDING_ADMIN_REVIEW' : submission.status);

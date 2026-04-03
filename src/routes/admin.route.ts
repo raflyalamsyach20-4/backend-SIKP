@@ -21,6 +21,11 @@ export const createAdminRoutes = () => {
   admin.use('*', authMiddleware);
   admin.use('*', adminOnly);
 
+  admin.get('/dashboard', async (c: Context) => {
+    const container = c.get('container') as DIContainer;
+    return container.adminController.getDashboard(c);
+  });
+
   // Get submissions by status (more specific route first)
   admin.get('/submissions/status/:status', async (c: Context) => {
     const container = c.get('container') as DIContainer;
