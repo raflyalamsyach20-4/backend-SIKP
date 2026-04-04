@@ -53,3 +53,4 @@ export const mahasiswaOnly = roleMiddleware(['MAHASISWA']);
 export const adminOnly = roleMiddleware(['ADMIN', 'KAPRODI', 'WAKIL_DEKAN']);
 export const dosenOnly = roleMiddleware(['DOSEN']);
 export const staffOnly = roleMiddleware(['ADMIN', 'KAPRODI', 'WAKIL_DEKAN', 'DOSEN']);
+export const pembimbingLapanganOnly = roleMiddleware(['PEMBIMBING_LAPANGAN']);
