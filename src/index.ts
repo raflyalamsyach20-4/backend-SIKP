@@ -8,6 +8,10 @@ import { UserRepository } from '@/repositories/user.repository';
 import { TeamRepository } from '@/repositories/team.repository';
 import { SubmissionRepository } from '@/repositories/submission.repository';
 import { TemplateRepository } from '@/repositories/template.repository';
+import { MahasiswaRepository } from '@/repositories/mahasiswa.repository';
+import { LogbookRepository } from '@/repositories/logbook.repository';
+import { MentorRepository } from '@/repositories/mentor.repository';
+import { MentorWorkflowRepository } from '@/repositories/mentor-workflow.repository';
 
 // Services
 import { AuthService } from '@/services/auth.service';
@@ -18,6 +22,10 @@ import { StorageService } from '@/services/storage.service';
 import { MockR2Bucket } from '@/services/mock-r2-bucket';
 import { LetterService } from '@/services/letter.service';
 import { TemplateService } from '@/services/template.service';
+import { MahasiswaService } from '@/services/mahasiswa.service';
+import { LogbookService } from '@/services/logbook.service';
+import { MentorService } from '@/services/mentor.service';
+import { MentorWorkflowService } from '@/services/mentor-workflow.service';
 
 // Controllers
 import { AuthController } from '@/controllers/auth.controller';
@@ -25,9 +33,14 @@ import { TeamController } from '@/controllers/team.controller';
 import { SubmissionController } from '@/controllers/submission.controller';
 import { AdminController } from '@/controllers/admin.controller';
 import { TemplateController } from '@/controllers/template.controller';
+import { MahasiswaController } from '@/controllers/mahasiswa.controller';
+import { LogbookController } from '@/controllers/logbook.controller';
+import { MentorController } from '@/controllers/mentor.controller';
+import { PenilaianController } from '@/controllers/penilaian.controller';
+import { MentorWorkflowController } from '@/controllers/mentor-workflow.controller';
 
 // Middlewares (MOVED TO TOP - must be imported before use)
-import { authMiddleware, mahasiswaOnly, adminOnly } from '@/middlewares/auth.middleware';
+import { authMiddleware, mahasiswaOnly, adminOnly, pembimbingLapanganOnly, staffOnly } from '@/middlewares/auth.middleware';
 
 // Routes
 import { createAuthRoutes } from '@/routes/auth.route';
@@ -80,10 +93,18 @@ app.use('/api/*', async (c, next) => {
   const userRepo = new UserRepository(db);
   const teamRepo = new TeamRepository(db);
   const submissionRepo = new SubmissionRepository(db);
+  const mahasiswaRepo = new MahasiswaRepository(db);
+  const logbookRepo = new LogbookRepository(db);
+  const mentorRepo = new MentorRepository(db);
+  const mentorWorkflowRepo = new MentorWorkflowRepository(db);
 
   // Initialize services
   const authService = new AuthService(userRepo, c.env.JWT_SECRET);
   const teamService = new TeamService(teamRepo, userRepo);
+  const mahasiswaService = new MahasiswaService(mahasiswaRepo);
+  const logbookService = new LogbookService(logbookRepo);
+  const mentorService = new MentorService(mentorRepo, logbookRepo);
+  const mentorWorkflowService = new MentorWorkflowService(mentorWorkflowRepo);
   
   // ✅ Require real R2 bucket binding in production; only allow mock when explicitly enabled
   const useMockR2Env = (c.env as any).USE_MOCK_R2;
@@ -104,6 +125,10 @@ app.use('/api/*', async (c, next) => {
   c.set('teamService', teamService);
   c.set('submissionService', submissionService);
   c.set('adminService', adminService);
+  c.set('mahasiswaService', mahasiswaService);
+  c.set('logbookService', logbookService);
+  c.set('mentorService', mentorService);
+  c.set('mentorWorkflowService', mentorWorkflowService);
   c.set('userRepo', userRepo);
 
   await next();
@@ -141,6 +166,25 @@ app.route('/api/auth', (() => {
     return controller.login(c);
   });
 
+  // Mentor onboarding/auth flow
+  route.post('/mentor/invite', authMiddleware, staffOnly, async (c) => {
+    const workflowService = c.get('mentorWorkflowService') as MentorWorkflowService;
+    const controller = new MentorWorkflowController(workflowService);
+    return controller.inviteMentor(c);
+  });
+
+  route.post('/mentor/activate', async (c) => {
+    const workflowService = c.get('mentorWorkflowService') as MentorWorkflowService;
+    const controller = new MentorWorkflowController(workflowService);
+    return controller.activateMentor(c);
+  });
+
+  route.post('/mentor/set-password', async (c) => {
+    const workflowService = c.get('mentorWorkflowService') as MentorWorkflowService;
+    const controller = new MentorWorkflowController(workflowService);
+    return controller.setMentorPassword(c);
+  });
+
   // Protected route - requires authentication
   route.get('/me', authMiddleware, async (c) => {
     const authService = c.get('authService') as AuthService;
@@ -164,6 +208,152 @@ app.route('/api/mahasiswa', (() => {
     const controller = new AuthController(authService, userRepo);
     return controller.searchMahasiswa(c);
   });
+
+  // Mahasiswa-only routes
+  route.get('/profile', mahasiswaOnly, async (c) => {
+    const mahasiswaService = c.get('mahasiswaService') as MahasiswaService;
+    const controller = new MahasiswaController(mahasiswaService);
+    return controller.getProfile(c);
+  });
+
+  route.put('/profile', mahasiswaOnly, async (c) => {
+    const mahasiswaService = c.get('mahasiswaService') as MahasiswaService;
+    const controller = new MahasiswaController(mahasiswaService);
+    return controller.updateProfile(c);
+  });
+
+  route.get('/internship', mahasiswaOnly, async (c) => {
+    const mahasiswaService = c.get('mahasiswaService') as MahasiswaService;
+    const controller = new MahasiswaController(mahasiswaService);
+    return controller.getInternship(c);
+  });
+
+  // Logbook routes (mahasiswaOnly)
+  route.post('/logbook', mahasiswaOnly, async (c) => {
+    const logbookService = c.get('logbookService') as LogbookService;
+    const controller = new LogbookController(logbookService);
+    return controller.createLogbook(c);
+  });
+
+  route.get('/logbook/stats', mahasiswaOnly, async (c) => {
+    const logbookService = c.get('logbookService') as LogbookService;
+    const controller = new LogbookController(logbookService);
+    return controller.getLogbookStats(c);
+  });
+
+  route.get('/logbook', mahasiswaOnly, async (c) => {
+    const logbookService = c.get('logbookService') as LogbookService;
+    const controller = new LogbookController(logbookService);
+    return controller.getLogbooks(c);
+  });
+
+  route.get('/logbook/:id', mahasiswaOnly, async (c) => {
+    const logbookService = c.get('logbookService') as LogbookService;
+    const controller = new LogbookController(logbookService);
+    return controller.getLogbookById(c);
+  });
+
+  route.put('/logbook/:id', mahasiswaOnly, async (c) => {
+    const logbookService = c.get('logbookService') as LogbookService;
+    const controller = new LogbookController(logbookService);
+    return controller.updateLogbook(c);
+  });
+
+  route.delete('/logbook/:id', mahasiswaOnly, async (c) => {
+    const logbookService = c.get('logbookService') as LogbookService;
+    const controller = new LogbookController(logbookService);
+    return controller.deleteLogbook(c);
+  });
+
+  route.post('/logbook/:id/submit', mahasiswaOnly, async (c) => {
+    const logbookService = c.get('logbookService') as LogbookService;
+    const controller = new LogbookController(logbookService);
+    return controller.submitLogbook(c);
+  });
+
+  // Mentor approval request submission by mahasiswa
+  route.post('/pembimbing-lapangan/request', mahasiswaOnly, async (c) => {
+    const workflowService = c.get('mentorWorkflowService') as MentorWorkflowService;
+    const controller = new MentorWorkflowController(workflowService);
+    return controller.submitMentorApprovalRequest(c);
+  });
+
+  return route;
+})());
+
+// ─── Mentor Routes ──────────────────────────────────────────────────────────
+app.route('/api/mentor', (() => {
+  const route = new Hono<{ Bindings: Bindings }>();
+  route.use('*', authMiddleware);
+  route.use('*', pembimbingLapanganOnly);
+
+  const getCtrl = (c: any) => new MentorController(c.get('mentorService') as MentorService);
+
+  // Profile
+  route.get('/profile', async (c) => getCtrl(c).getProfile(c));
+  route.put('/profile', async (c) => getCtrl(c).updateProfile(c));
+
+  // Signature
+  route.get('/signature', async (c) => getCtrl(c).getSignature(c));
+  route.put('/signature', async (c) => getCtrl(c).updateSignature(c));
+  route.post('/signature/delete', async (c) => getCtrl(c).deleteSignature(c));
+
+  // Mentor email change request
+  route.post('/email-change-requests', async (c) => {
+    const workflowService = c.get('mentorWorkflowService') as MentorWorkflowService;
+    const controller = new MentorWorkflowController(workflowService);
+    return controller.createMentorEmailChangeRequest(c);
+  });
+
+  // Mentees
+  route.get('/mentees', async (c) => getCtrl(c).getMentees(c));
+  route.get('/mentees/:studentId', async (c) => getCtrl(c).getMenteeById(c));
+
+  // Logbooks
+  route.get('/logbook/:studentId', async (c) => getCtrl(c).getStudentLogbooks(c));
+  route.post('/logbook/:logbookId/approve', async (c) => getCtrl(c).approveLogbook(c));
+  route.post('/logbook/:logbookId/reject', async (c) => getCtrl(c).rejectLogbook(c));
+  route.post('/logbook/:studentId/approve-all', async (c) => getCtrl(c).approveAllLogbooks(c));
+
+  // Assessments
+  route.post('/assessment', async (c) => getCtrl(c).createAssessment(c));
+  route.get('/assessment/:studentId', async (c) => getCtrl(c).getAssessmentByStudent(c));
+  route.put('/assessment/:assessmentId', async (c) => getCtrl(c).updateAssessment(c));
+
+  return route;
+})());
+
+// ─── Dosen / Staff workflow routes ───────────────────────────────────────────
+app.route('/api/dosen', (() => {
+  const route = new Hono<{ Bindings: Bindings }>();
+  route.use('*', authMiddleware);
+  route.use('*', staffOnly);
+
+  const getCtrl = (c: any) => new MentorWorkflowController(c.get('mentorWorkflowService') as MentorWorkflowService);
+
+  // Pembimbing lapangan request review
+  route.get('/pembimbing-lapangan/requests', async (c) => getCtrl(c).getMentorApprovalRequests(c));
+  route.post('/pembimbing-lapangan/:id/approve', async (c) => getCtrl(c).approveMentorApprovalRequest(c));
+  route.post('/pembimbing-lapangan/:id/reject', async (c) => getCtrl(c).rejectMentorApprovalRequest(c));
+
+  // Mentor email change request review
+  route.get('/mentor-email-change-requests', async (c) => getCtrl(c).getMentorEmailChangeRequests(c));
+  route.post('/mentor-email-change-requests/:id/approve', async (c) => getCtrl(c).approveMentorEmailChangeRequest(c));
+  route.post('/mentor-email-change-requests/:id/reject', async (c) => getCtrl(c).rejectMentorEmailChangeRequest(c));
+
+  // Logbook monitoring (read-only)
+  route.get('/logbook-monitor', async (c) => getCtrl(c).getDosenLogbookMonitor(c));
+  route.get('/logbook-monitor/:studentId', async (c) => getCtrl(c).getDosenLogbookMonitorByStudent(c));
+
+  return route;
+})());
+
+// ─── Penilaian Kriteria (public read, admin write) ───────────────────────────
+app.route('/api/penilaian', (() => {
+  const route = new Hono<{ Bindings: Bindings }>();
+  const getCtrl = () => new PenilaianController();
+
+  route.get('/kriteria', async (c) => getCtrl().getKriteria(c));
 
   return route;
 })());
@@ -244,6 +434,11 @@ app.route('/api/admin', (() => {
   route.post('/submissions/:submissionId/reject', async (c) => getController(c).rejectSubmission(c));
   route.post('/submissions/:submissionId/generate-letter', async (c) => getController(c).generateLetter(c));
   route.get('/statistics', async (c) => getController(c).getStatistics(c));
+
+  // Penilaian kriteria (admin)
+  route.put('/penilaian/kriteria', async (c) => {
+    return new PenilaianController().updateKriteria(c);
+  });
 
   return route;
 })());
