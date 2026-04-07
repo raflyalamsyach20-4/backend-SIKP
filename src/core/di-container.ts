@@ -3,6 +3,7 @@ import { AppConfig } from '@/config';
 
 // Repositories
 import { UserRepository } from '@/repositories/user.repository';
+import { AuthSessionRepository } from '@/repositories/auth-session.repository';
 import { TeamRepository } from '@/repositories/team.repository';
 import { SubmissionRepository } from '@/repositories/submission.repository';
 import { TemplateRepository } from '@/repositories/template.repository';
@@ -47,6 +48,7 @@ import { SuratPengantarDosenController } from '@/controllers/surat-pengantar-dos
 export class DIContainer {
   // Repositories
   private _userRepository?: UserRepository;
+  private _authSessionRepository?: AuthSessionRepository;
   private _teamRepository?: TeamRepository;
   private _submissionRepository?: SubmissionRepository;
   private _templateRepository?: TemplateRepository;
@@ -105,6 +107,13 @@ export class DIContainer {
     return this._teamRepository;
   }
 
+  get authSessionRepository(): AuthSessionRepository {
+    if (!this._authSessionRepository) {
+      this._authSessionRepository = new AuthSessionRepository(this.db);
+    }
+    return this._authSessionRepository;
+  }
+
   get submissionRepository(): SubmissionRepository {
     if (!this._submissionRepository) {
       this._submissionRepository = new SubmissionRepository(this.db);
@@ -145,7 +154,8 @@ export class DIContainer {
     if (!this._authService) {
       this._authService = new AuthService(
         this.userRepository,
-        this.config.jwt.secret
+        this.authSessionRepository,
+        this.config
       );
     }
     return this._authService;
@@ -421,6 +431,7 @@ export class DIContainer {
    */
   reset(): void {
     this._userRepository = undefined;
+    this._authSessionRepository = undefined;
     this._teamRepository = undefined;
     this._submissionRepository = undefined;
     this._templateRepository = undefined;

@@ -21,9 +21,45 @@ export const users = pgTable('users', {
   nama: varchar('nama', { length: 255 }),
   email: varchar('email', { length: 255 }).notNull().unique(),
   password: text('password').notNull(),
+  authUserId: varchar('auth_user_id', { length: 255 }).notNull().unique(),
+  authProvider: varchar('auth_provider', { length: 50 }).notNull().default('SSO_UNSRI'),
   role: roleEnum('role').notNull().default('MAHASISWA'),
   phone: varchar('phone', { length: 20 }),
   isActive: boolean('is_active').notNull().default(true),
+});
+
+export const userActiveIdentitySessions = pgTable('user_active_identity_sessions', {
+  sessionId: text('session_id').primaryKey(),
+  authUserId: varchar('auth_user_id', { length: 255 }).notNull().references(() => users.authUserId, { onDelete: 'cascade' }),
+  activeIdentity: varchar('active_identity', { length: 100 }),
+  effectiveRoles: json('effective_roles').notNull().default('[]'),
+  availableIdentities: json('available_identities').notNull().default('[]'),
+  accessToken: text('access_token'),
+  refreshToken: text('refresh_token'),
+  idToken: text('id_token'),
+  expiresAt: timestamp('expires_at').notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (table) => {
+  return {
+    idxAuthUserId: index('idx_user_active_identity_sessions_auth_user_id').on(table.authUserId),
+    idxExpiresAt: index('idx_user_active_identity_sessions_expires_at').on(table.expiresAt),
+  };
+});
+
+export const userIdentityCache = pgTable('user_identity_cache', {
+  id: text('id').primaryKey(),
+  authUserId: varchar('auth_user_id', { length: 255 }).notNull().references(() => users.authUserId, { onDelete: 'cascade' }),
+  identityType: varchar('identity_type', { length: 100 }).notNull(),
+  roleName: varchar('role_name', { length: 100 }).notNull(),
+  metadata: json('metadata').notNull().default('{}'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (table) => {
+  return {
+    idxAuthUserId: index('idx_user_identity_cache_auth_user_id').on(table.authUserId),
+    uqIdentityCache: uniqueIndex('uq_user_identity_cache').on(table.authUserId, table.identityType, table.roleName),
+  };
 });
 
 // Mahasiswa Table (Extended data untuk mahasiswa)
@@ -298,6 +334,8 @@ export const usersRelations = relations(users, ({ one, many }) => ({
   adminProfile: one(admin),
   dosenProfile: one(dosen),
   pembimbingLapanganProfile: one(pembimbingLapangan),
+  activeIdentitySessions: many(userActiveIdentitySessions),
+  identityCacheEntries: many(userIdentityCache),
   teamsLed: many(teams),
   teamMemberships: many(teamMembers),
   approvedSubmissions: many(submissions),
@@ -311,6 +349,20 @@ export const usersRelations = relations(users, ({ one, many }) => ({
   suratPermohonanRequestsAsMembers: many(suratPermohonanRequests, { relationName: 'permohonanMemberUser' }),
   suratPermohonanRequestsAsDosen: many(suratPermohonanRequests, { relationName: 'permohonanDosenUser' }),
   suratPermohonanRequestsApprovedBy: many(suratPermohonanRequests, { relationName: 'permohonanApprover' }),
+}));
+
+export const userActiveIdentitySessionsRelations = relations(userActiveIdentitySessions, ({ one }) => ({
+  user: one(users, {
+    fields: [userActiveIdentitySessions.authUserId],
+    references: [users.authUserId],
+  }),
+}));
+
+export const userIdentityCacheRelations = relations(userIdentityCache, ({ one }) => ({
+  user: one(users, {
+    fields: [userIdentityCache.authUserId],
+    references: [users.authUserId],
+  }),
 }));
 
 export const mahasiswaRelations = relations(mahasiswa, ({ one }) => ({

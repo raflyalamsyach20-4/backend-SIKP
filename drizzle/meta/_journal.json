@@ -8,6 +8,13 @@
       "when": 1775571823983,
       "tag": "0000_fresh_migration",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1775575816616,
+      "tag": "0001_sso_auth_cutover",
+      "breakpoints": true
     }
   ]
 }

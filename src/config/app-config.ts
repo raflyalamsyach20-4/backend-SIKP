@@ -8,6 +8,24 @@ export interface AppConfig {
   jwt: {
     secret: string;
   };
+  sso: {
+    baseUrl: string;
+    issuer: string;
+    jwksUrl: string;
+    clientId: string;
+    clientSecret: string;
+    redirectUri: string;
+    tokenUrl: string;
+    userInfoUrl: string;
+    identitiesUrl: string;
+    revokeUrl: string;
+  };
+  authSession: {
+    ttlSeconds: number;
+    cookieName: string;
+    cookieSecure: boolean;
+    cookieSameSite: 'Lax' | 'Strict' | 'None';
+  };
   storage: {
     r2Bucket: R2Bucket | any;
     r2Domain: string;
@@ -28,6 +46,26 @@ export interface CloudflareBindings {
   R2_BUCKET_NAME: string;
   API_BASE_URL?: string;
   USE_MOCK_R2?: string | boolean;
+
+  // SSO UNSRI
+  SSO_BASE_URL?: string;
+  SSO_ISSUER?: string;
+  SSO_JWKS_URL?: string;
+  SSO_CLIENT_ID?: string;
+  SSO_CLIENT_SECRET?: string;
+  SSO_REDIRECT_URI?: string;
+
+  // Optional overrides for SSO gateway endpoints
+  SSO_TOKEN_URL?: string;
+  SSO_USERINFO_URL?: string;
+  SSO_IDENTITIES_URL?: string;
+  SSO_REVOKE_URL?: string;
+
+  // Session
+  AUTH_SESSION_TTL_SECONDS?: string;
+  AUTH_COOKIE_SECURE?: string | boolean;
+  AUTH_COOKIE_SAMESITE?: string;
+  AUTH_SESSION_COOKIE_NAME?: string;
 }
 
 /**
@@ -35,6 +73,14 @@ export interface CloudflareBindings {
  */
 export const createAppConfig = (env: CloudflareBindings): AppConfig => {
   const useMockR2 = env.USE_MOCK_R2 === true || env.USE_MOCK_R2 === 'true';
+  const ssoBaseUrl = (env.SSO_BASE_URL || '').replace(/\/$/, '');
+  const ssoSameSiteRaw = (env.AUTH_COOKIE_SAMESITE || 'Lax').toString().toLowerCase();
+  const cookieSameSite: 'Lax' | 'Strict' | 'None' =
+    ssoSameSiteRaw === 'strict'
+      ? 'Strict'
+      : ssoSameSiteRaw === 'none'
+        ? 'None'
+        : 'Lax';
   
   return {
     database: {
@@ -42,6 +88,24 @@ export const createAppConfig = (env: CloudflareBindings): AppConfig => {
     },
     jwt: {
       secret: env.JWT_SECRET,
+    },
+    sso: {
+      baseUrl: ssoBaseUrl,
+      issuer: env.SSO_ISSUER || '',
+      jwksUrl: env.SSO_JWKS_URL || `${ssoBaseUrl}/.well-known/jwks.json`,
+      clientId: env.SSO_CLIENT_ID || '',
+      clientSecret: env.SSO_CLIENT_SECRET || '',
+      redirectUri: env.SSO_REDIRECT_URI || '',
+      tokenUrl: env.SSO_TOKEN_URL || `${ssoBaseUrl}/oauth/token`,
+      userInfoUrl: env.SSO_USERINFO_URL || `${ssoBaseUrl}/oauth/userinfo`,
+      identitiesUrl: env.SSO_IDENTITIES_URL || `${ssoBaseUrl}/oauth/identities`,
+      revokeUrl: env.SSO_REVOKE_URL || `${ssoBaseUrl}/oauth/revoke`,
+    },
+    authSession: {
+      ttlSeconds: Number.parseInt(env.AUTH_SESSION_TTL_SECONDS || '43200', 10),
+      cookieName: env.AUTH_SESSION_COOKIE_NAME || 'sikp_session',
+      cookieSecure: env.AUTH_COOKIE_SECURE === true || env.AUTH_COOKIE_SECURE === 'true',
+      cookieSameSite,
     },
     storage: {
       r2Bucket: env.R2_BUCKET,

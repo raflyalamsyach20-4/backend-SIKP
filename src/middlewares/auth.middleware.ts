@@ -1,34 +1,54 @@
 import { Context, Next } from 'hono';
-import { verify } from 'jsonwebtoken';
+import { getCookie } from 'hono/cookie';
 import type { JWTPayload, UserRole } from '@/types';
+import { DIContainer } from '@/core';
 
 export interface AuthContext {
   user: JWTPayload;
+  sessionId: string;
 }
+
+const getSessionIdFromRequest = (c: Context): string | null => {
+  const cookieName = c.env.AUTH_SESSION_COOKIE_NAME || 'sikp_session';
+  const cookieSession = getCookie(c, cookieName);
+
+  if (cookieSession) {
+    return cookieSession;
+  }
+
+  const authHeader = c.req.header('Authorization');
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return null;
+  }
+
+  return authHeader.substring(7).trim() || null;
+};
 
 export const authMiddleware = async (c: Context, next: Next) => {
   try {
-    const authHeader = c.req.header('Authorization');
-    
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      return c.json({ success: false, message: 'Unauthorized: No token provided' }, 401);
+    const sessionId = getSessionIdFromRequest(c);
+    if (!sessionId) {
+      return c.json({ success: false, message: 'Unauthorized: No active session found' }, 401);
     }
 
-    const token = authHeader.substring(7);
-    const jwtSecret = c.env.JWT_SECRET;
-
-    if (!jwtSecret) {
+    const container = c.get('container') as DIContainer;
+    if (!container) {
       return c.json({ success: false, message: 'Server configuration error' }, 500);
     }
 
-    const decoded = verify(token, jwtSecret) as JWTPayload;
-    
-    // Store user info in context
-    c.set('user', decoded);
-    
+    const user = await container.authService.authenticateSession(sessionId);
+
+    const isAuthNamespaceRoute = c.req.path.startsWith('/api/auth/');
+    if (!isAuthNamespaceRoute && !user.activeIdentity) {
+      return c.json({ success: false, message: 'Identity selection is required before accessing this endpoint' }, 403);
+    }
+
+    c.set('user', user);
+    c.set('sessionId', sessionId);
+
     await next();
   } catch (error) {
-    return c.json({ success: false, message: 'Unauthorized: Invalid token' }, 401);
+    return c.json({ success: false, message: 'Unauthorized: Invalid or expired session' }, 401);
   }
 };
 
@@ -40,7 +60,12 @@ export const roleMiddleware = (allowedRoles: UserRole[]) => {
       return c.json({ success: false, message: 'Unauthorized' }, 401);
     }
 
-    if (!allowedRoles.includes(user.role)) {
+    const effectiveRoles = user.effectiveRoles && user.effectiveRoles.length > 0
+      ? user.effectiveRoles
+      : [user.role];
+
+    const allowed = allowedRoles.some((role) => effectiveRoles.includes(role));
+    if (!allowed) {
       return c.json({ success: false, message: 'Forbidden: Insufficient permissions' }, 403);
     }
 

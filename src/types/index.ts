@@ -1,4 +1,5 @@
 export type UserRole = 'MAHASISWA' | 'ADMIN' | 'DOSEN' | 'KAPRODI' | 'WAKIL_DEKAN' | 'PEMBIMBING_LAPANGAN';
+export type AuthProvider = 'SSO_UNSRI';
 export type TeamStatus = 'PENDING' | 'FIXED';
 export type InvitationStatus = 'PENDING' | 'ACCEPTED' | 'REJECTED';
 export type SubmissionStatus = 'DRAFT' | 'PENDING_REVIEW' | 'APPROVED' | 'REJECTED';
@@ -141,12 +142,36 @@ export interface ApiResponse<T = any> {
   data?: T;
 }
 
+export interface AuthIdentity {
+  identityType: string;
+  roleName: string;
+  identityId?: string | null;
+  displayName?: string | null;
+  identifier?: string | null;
+  metadata?: Record<string, any> | null;
+}
+
 export interface JWTPayload {
   userId: string;
+  authUserId?: string;
+  sessionId?: string;
   email: string;
   role: UserRole;
+  effectiveRoles?: UserRole[];
+  activeIdentity?: AuthIdentity | null;
+  availableIdentities?: AuthIdentity[];
   nim?: string; // Optional for mahasiswa
   nip?: string; // Optional for admin/dosen
+}
+
+export interface AuthSessionContext {
+  sessionId: string;
+  authUserId: string;
+  user: JWTPayload;
+  activeIdentity: AuthIdentity | null;
+  availableIdentities: AuthIdentity[];
+  effectiveRoles: UserRole[];
+  expiresAt: Date;
 }
 // Template Field interface
 export interface TemplateField {

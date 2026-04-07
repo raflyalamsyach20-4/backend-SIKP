@@ -1,6 +1,8 @@
 import { eq, or, ilike, sql, and, not } from 'drizzle-orm';
 import type { DbClient } from '@/db';
 import { users, mahasiswa, admin, dosen, pembimbingLapangan } from '@/db/schema';
+import { generateId } from '@/utils/helpers';
+import type { UserRole } from '@/types';
 
 export class UserRepository {
   constructor(private db: DbClient) {}
@@ -27,6 +29,11 @@ export class UserRepository {
     return result[0] || null;
   }
 
+  async findByAuthUserId(authUserId: string) {
+    const result = await this.db.select().from(users).where(eq(users.authUserId, authUserId)).limit(1);
+    return result[0] || null;
+  }
+
   async findById(id: string) {
     const result = await this.db.select().from(users).where(eq(users.id, id)).limit(1);
     return result[0] || null;
@@ -35,6 +42,48 @@ export class UserRepository {
   async create(data: typeof users.$inferInsert) {
     const result = await this.db.insert(users).values(data).returning();
     return result[0];
+  }
+
+  async upsertFromSSO(data: {
+    authUserId: string;
+    email: string;
+    nama?: string | null;
+    role: UserRole;
+    authProvider?: string;
+  }) {
+    const existingByAuth = await this.findByAuthUserId(data.authUserId);
+    if (existingByAuth) {
+      return this.update(existingByAuth.id, {
+        email: data.email,
+        nama: data.nama ?? existingByAuth.nama,
+        role: data.role,
+        isActive: true,
+        authProvider: data.authProvider || 'SSO_UNSRI',
+      });
+    }
+
+    const existingByEmail = await this.findByEmail(data.email);
+    if (existingByEmail) {
+      return this.update(existingByEmail.id, {
+        authUserId: data.authUserId,
+        authProvider: data.authProvider || 'SSO_UNSRI',
+        nama: data.nama ?? existingByEmail.nama,
+        role: data.role,
+        isActive: true,
+      });
+    }
+
+    return this.create({
+      id: generateId(),
+      nama: data.nama ?? null,
+      email: data.email,
+      password: 'SSO_MIGRATED_ACCOUNT',
+      authUserId: data.authUserId,
+      authProvider: data.authProvider || 'SSO_UNSRI',
+      role: data.role,
+      phone: null,
+      isActive: true,
+    });
   }
 
   async update(id: string, data: Partial<typeof users.$inferInsert>) {

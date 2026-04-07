@@ -7,9 +7,6 @@ import { createAppConfig, CloudflareBindings } from '@/config';
 import { DIContainer } from '@/core';
 import { errorHandler } from '@/errors';
 
-// Middlewares
-import { authMiddleware } from '@/middlewares/auth.middleware';
-
 // Routes
 import { createAuthRoutes, createMahasiswaRoutes } from '@/routes/auth.route';
 import { createTeamRoutes } from '@/routes/team.route';
@@ -44,6 +41,7 @@ app.use('*', cors({
   origin: (origin) => origin || '*',
   allowMethods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowHeaders: ['Content-Type', 'Authorization'],
+  credentials: true,
 }));
 
 /**
