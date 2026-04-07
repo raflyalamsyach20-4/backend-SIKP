@@ -60,7 +60,7 @@ JWT_SECRET=your-secret-key
 3. Siapkan database
 
 ```bash
-bun run db:push
+bun run db:migrate
 bun run db:seed
 ```
 
@@ -129,6 +129,13 @@ Mayoritas endpoint mengembalikan:
 Dokumentasi lengkap fitur, alur, endpoint, dan contoh payload tersedia di:
 
 - [RINGKASAN_BACKEND_SIKP.md](RINGKASAN_BACKEND_SIKP.md)
+
+## Catatan Baseline Migration (2026-04-07)
+
+- Histori migration lama telah diarsipkan ke folder [drizzle-archive-2026-04-07](drizzle-archive-2026-04-07).
+- Baseline aktif saat ini adalah migration tunggal [drizzle/0000_fresh_migration.sql](drizzle/0000_fresh_migration.sql).
+- Untuk environment dev/staging lama, lakukan reset schema `public` dan `drizzle` terlebih dahulu sebelum menjalankan baseline baru.
+- Gunakan `bun run db:migrate` sebagai jalur utama sinkronisasi schema.
 
 ## Catatan
 
