@@ -20,6 +20,7 @@ import { createMahasiswaProfileRoutes } from '@/routes/mahasiswa.route';
 import { createSuratKesediaanFallbackRoutes } from '@/routes/surat-kesediaan.route';
 import { createSuratPermohonanFallbackRoutes } from '@/routes/surat-permohonan.route';
 import { createAssetRoutes } from '@/routes/assets.route';
+import { createSsoSignatureRoutes } from '@/routes/profile.route';
 
 /**
  * Extended context variables
@@ -96,6 +97,7 @@ app.route('/api/dosen', createDosenRoutes());
 app.route('/api/surat-kesediaan', createSuratKesediaanFallbackRoutes());
 app.route('/api/surat-permohonan', createSuratPermohonanFallbackRoutes());
 app.route('/api/assets', createAssetRoutes());
+app.route('/api/profile', createSsoSignatureRoutes());
 
 /**
  * 404 Not Found Handler

@@ -94,22 +94,12 @@ export class DosenController {
 
   updateESignature = async (c: Context) => {
     try {
-      const user = c.get('user') as JWTPayload;
-      const formData = await c.req.formData();
-      const signatureFile = formData.get('signatureFile');
-
-      if (!signatureFile || typeof signatureFile === 'string') {
-        return c.json(createResponse(false, 'signatureFile is required'), 400);
-      }
-
-      const result = await this.dosenService.updateESignature(user.userId, signatureFile as File);
-
       return c.json(
-        createResponse(true, 'E-signature updated', {
-          url: result.url,
-          key: result.key,
-          uploadedAt: result.uploadedAt,
-        })
+        createResponse(
+          false,
+          'Legacy endpoint deprecated. Use /api/profile/signature instead.'
+        ),
+        410
       );
     } catch (error: any) {
       return handleError(c, error, 'Failed to update e-signature');
@@ -118,10 +108,13 @@ export class DosenController {
 
   deleteESignature = async (c: Context) => {
     try {
-      const user = c.get('user') as JWTPayload;
-      await this.dosenService.deleteESignature(user.userId);
-
-      return c.json(createResponse(true, 'E-signature deleted', null));
+      return c.json(
+        createResponse(
+          false,
+          'Legacy endpoint deprecated. Use /api/profile/signature/:id instead.'
+        ),
+        410
+      );
     } catch (error: any) {
       return handleError(c, error, 'Failed to delete e-signature');
     }

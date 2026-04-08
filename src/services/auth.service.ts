@@ -385,6 +385,8 @@ export class AuthService {
       availableIdentities,
       effectiveRoles,
       expiresAt: session.expiresAt,
+      accessToken: session.accessToken,
+      refreshToken: session.refreshToken,
     };
   }
 
@@ -586,6 +588,23 @@ export class AuthService {
     }
 
     return sessionContext.user;
+  }
+
+  async getSessionAccessToken(sessionId: string): Promise<string> {
+    const sessionContext = await this.loadSessionContext(sessionId);
+    if (!sessionContext) {
+      const error = new Error('Session not found or expired') as Error & { statusCode?: number };
+      error.statusCode = 401;
+      throw error;
+    }
+
+    if (!sessionContext.accessToken) {
+      const error = new Error('Session access token is not available') as Error & { statusCode?: number };
+      error.statusCode = 401;
+      throw error;
+    }
+
+    return sessionContext.accessToken;
   }
 
   async logout(sessionId: string) {

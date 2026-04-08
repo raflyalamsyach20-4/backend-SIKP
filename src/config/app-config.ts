@@ -19,6 +19,8 @@ export interface AppConfig {
     userInfoUrl: string;
     identitiesUrl: string;
     revokeUrl: string;
+    signaturePath: string;
+    proxyTimeoutMs: number;
   };
   authSession: {
     ttlSeconds: number;
@@ -66,6 +68,10 @@ export interface CloudflareBindings {
   AUTH_COOKIE_SECURE?: string | boolean;
   AUTH_COOKIE_SAMESITE?: string;
   AUTH_SESSION_COOKIE_NAME?: string;
+
+  // SSO proxy signature endpoint settings
+  SSO_SIGNATURE_PATH?: string;
+  SSO_PROXY_TIMEOUT_MS?: string;
 }
 
 /**
@@ -81,6 +87,7 @@ export const createAppConfig = (env: CloudflareBindings): AppConfig => {
       : ssoSameSiteRaw === 'none'
         ? 'None'
         : 'Lax';
+  const ssoSignaturePath = env.SSO_SIGNATURE_PATH || '/signature';
   
   return {
     database: {
@@ -100,6 +107,8 @@ export const createAppConfig = (env: CloudflareBindings): AppConfig => {
       userInfoUrl: env.SSO_USERINFO_URL || `${ssoBaseUrl}/oauth/userinfo`,
       identitiesUrl: env.SSO_IDENTITIES_URL || `${ssoBaseUrl}/oauth/identities`,
       revokeUrl: env.SSO_REVOKE_URL || `${ssoBaseUrl}/oauth/revoke`,
+      signaturePath: ssoSignaturePath.startsWith('/') ? ssoSignaturePath : `/${ssoSignaturePath}`,
+      proxyTimeoutMs: Number.parseInt(env.SSO_PROXY_TIMEOUT_MS || '10000', 10),
     },
     authSession: {
       ttlSeconds: Number.parseInt(env.AUTH_SESSION_TTL_SECONDS || '43200', 10),

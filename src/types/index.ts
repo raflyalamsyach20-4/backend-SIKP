@@ -172,6 +172,8 @@ export interface AuthSessionContext {
   availableIdentities: AuthIdentity[];
   effectiveRoles: UserRole[];
   expiresAt: Date;
+  accessToken?: string | null;
+  refreshToken?: string | null;
 }
 // Template Field interface
 export interface TemplateField {
