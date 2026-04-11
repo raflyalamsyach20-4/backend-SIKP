@@ -1,4 +1,4 @@
-export type UserRole = 'MAHASISWA' | 'ADMIN' | 'DOSEN' | 'KAPRODI' | 'WAKIL_DEKAN' | 'PEMBIMBING_LAPANGAN';
+export type UserRole = 'MAHASISWA' | 'ADMIN' | 'DOSEN' | 'KAPRODI' | 'WAKIL_DEKAN' | 'MENTOR';
 export type EffectivePermission = string;
 export type AuthProvider = 'SSO_UNSRI';
 export type TeamStatus = 'PENDING' | 'FIXED';

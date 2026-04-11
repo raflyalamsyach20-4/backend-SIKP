@@ -9,8 +9,8 @@ const SSO_ROLE_MAP: Record<string, UserRole> = {
   MAHASISWA: 'MAHASISWA',
   DOSEN: 'DOSEN',
   ADMIN: 'ADMIN',
-  MENTOR: 'PEMBIMBING_LAPANGAN',
-  PEMBIMBING_LAPANGAN: 'PEMBIMBING_LAPANGAN',
+  MENTOR: 'MENTOR',
+  PEMBIMBING_LAPANGAN: 'MENTOR',
   KAPRODI: 'KAPRODI',
   WAKIL_DEKAN: 'WAKIL_DEKAN',
 };
@@ -30,7 +30,7 @@ type TokenExchangeResponse = {
   id_token?: string;
 };
 
-const ROLE_PRIORITY: UserRole[] = ['ADMIN', 'WAKIL_DEKAN', 'KAPRODI', 'DOSEN', 'PEMBIMBING_LAPANGAN', 'MAHASISWA'];
+const ROLE_PRIORITY: UserRole[] = ['ADMIN', 'WAKIL_DEKAN', 'KAPRODI', 'DOSEN', 'MENTOR', 'MAHASISWA'];
 
 export class AuthService {
   private jwks?: ReturnType<typeof createRemoteJWKSet>;
@@ -430,11 +430,6 @@ export class AuthService {
       return null;
     }
 
-    const user = await this.userRepo.findByAuthUserId(session.authUserId);
-    if (!user || !user.isActive) {
-      return null;
-    }
-
     let availableIdentities = Array.isArray(session.availableIdentities)
       ? (session.availableIdentities as AuthIdentity[])
       : [];
@@ -461,13 +456,18 @@ export class AuthService {
     const effectivePermissions = persistedPermissions.length > 0
       ? persistedPermissions
       : this.effectivePermissions(activeIdentity, availableIdentities);
-    const primaryRole = this.pickPrimaryRole(effectiveRoles.length > 0 ? effectiveRoles : [user.role]);
+    const primaryRole = this.pickPrimaryRole(effectiveRoles.length > 0 ? effectiveRoles : ['MAHASISWA']);
+    const inferredEmail =
+      (activeIdentity?.metadata && typeof activeIdentity.metadata.email === 'string'
+        ? activeIdentity.metadata.email
+        : null) ||
+      `${session.authUserId}@sso.local`;
 
     const userPayload: JWTPayload = {
-      userId: user.id,
-      authUserId: user.authUserId,
+      userId: session.authUserId,
+      authUserId: session.authUserId,
       sessionId: session.sessionId,
-      email: user.email,
+      email: inferredEmail,
       role: primaryRole,
       effectiveRoles,
       effectivePermissions,
@@ -523,26 +523,6 @@ export class AuthService {
     }
 
     const authUserId = this.resolveAuthUserId(verifiedPayload, profile);
-    const fallbackRoles = this.effectiveRoles(null, identities);
-    const localUserRole = this.pickPrimaryRole(fallbackRoles);
-
-    const localUser = await this.userRepo.upsertFromSSO({
-      authUserId,
-      email: profile?.email || verifiedPayload?.email || `${authUserId}@sso.local`,
-      nama: profile?.name || profile?.nama || null,
-      role: localUserRole,
-      authProvider: 'SSO_UNSRI',
-    });
-
-    await this.authSessionRepo.replaceIdentityCache(
-      authUserId,
-      identities.map((identity) => ({
-        id: generateId(),
-        identityType: identity.identityType,
-        roleName: identity.roleName,
-        metadata: identity.metadata || {},
-      }))
-    );
 
     const activeIdentity = identities.length === 1 ? identities[0] : null;
     const effectiveRoles = activeIdentity ? this.effectiveRoles(activeIdentity, identities) : [];
@@ -567,12 +547,6 @@ export class AuthService {
       createdAt: new Date(),
       updatedAt: new Date(),
     });
-
-    if (activeIdentity) {
-      await this.userRepo.update(localUser.id, {
-        role: this.pickPrimaryRole(effectiveRoles),
-      });
-    }
 
     console.info('[AUTH][SSO_CALLBACK]', {
       authUserId,
@@ -639,13 +613,6 @@ export class AuthService {
       effectivePermissions,
     });
 
-    const user = await this.userRepo.findByAuthUserId(sessionContext.authUserId);
-    if (user) {
-      await this.userRepo.update(user.id, {
-        role: this.pickPrimaryRole(effectiveRoles),
-      });
-    }
-
     console.info('[AUTH][IDENTITY_SELECTED]', {
       authUserId: sessionContext.authUserId,
       sessionId,
@@ -669,22 +636,15 @@ export class AuthService {
       throw error;
     }
 
-    const user = await this.userRepo.findByAuthUserId(sessionContext.authUserId);
-    if (!user) {
-      const error = new Error('User not found') as Error & { statusCode?: number };
-      error.statusCode = 404;
-      throw error;
-    }
-
     return {
       user: {
-        id: user.id,
-        authUserId: user.authUserId,
-        authProvider: user.authProvider,
-        nama: user.nama,
-        email: user.email,
+        id: sessionContext.user.userId,
+        authUserId: sessionContext.authUserId,
+        authProvider: 'SSO_UNSRI',
+        nama: sessionContext.activeIdentity?.displayName || null,
+        email: sessionContext.user.email,
         role: sessionContext.user.role,
-        isActive: user.isActive,
+        isActive: true,
       },
       activeIdentity: sessionContext.activeIdentity,
       availableIdentities: sessionContext.availableIdentities,

@@ -16,7 +16,7 @@ const READ_ALLOWED_ROLES: UserRole[] = [
   'KAPRODI',
   'WAKIL_DEKAN',
   'ADMIN',
-  'PEMBIMBING_LAPANGAN',
+  'MENTOR',
 ];
 
 export class SsoSignatureProxyService {
@@ -39,7 +39,13 @@ export class SsoSignatureProxyService {
   private assertRole(user: JWTPayload, mode: 'read' | 'write') {
     const roles = user.effectiveRoles && user.effectiveRoles.length > 0
       ? user.effectiveRoles
-      : [user.role];
+      : [];
+
+    if (roles.length === 0) {
+      const error = new Error('Forbidden: missing effective roles in auth context') as Error & { statusCode?: number };
+      error.statusCode = 403;
+      throw error;
+    }
 
     const allowedRoles = mode === 'write' ? WRITE_ALLOWED_ROLES : READ_ALLOWED_ROLES;
     const allowed = roles.some((role) => allowedRoles.includes(role));
