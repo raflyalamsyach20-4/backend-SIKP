@@ -27,7 +27,7 @@ import { MahasiswaService } from '@/services/mahasiswa.service';
 import { SuratKesediaanService } from '@/services/surat-kesediaan.service';
 import { SuratPermohonanService } from '@/services/surat-permohonan.service';
 import { SuratPengantarDosenService } from '@/services/surat-pengantar-dosen.service';
-import { SsoSignatureProxyService } from '@/services/profile-signature.service';
+import { SsoSignatureProxyService } from '@/services/sso-signature-proxy.service';
 
 // Controllers
 import { AuthController } from '@/controllers/auth.controller';
@@ -41,7 +41,7 @@ import { MahasiswaController } from '@/controllers/mahasiswa.controller';
 import { SuratKesediaanController } from '@/controllers/surat-kesediaan.controller';
 import { SuratPermohonanController } from '@/controllers/surat-permohonan.controller';
 import { SuratPengantarDosenController } from '@/controllers/surat-pengantar-dosen.controller';
-import { SsoSignatureController } from '@/controllers/profile-signature.controller';
+import { SsoSignatureController } from '@/controllers/sso-signature.controller';
 
 /**
  * Dependency Injection Container

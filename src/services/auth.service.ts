@@ -2,7 +2,7 @@ import { createRemoteJWKSet, jwtVerify, type JWTPayload as JoseJWTPayload } from
 import type { AppConfig } from '@/config';
 import { AuthSessionRepository } from '@/repositories/auth-session.repository';
 import { UserRepository } from '@/repositories/user.repository';
-import type { AuthIdentity, AuthSessionContext, JWTPayload, UserRole } from '@/types';
+import type { AuthIdentity, AuthSessionContext, EffectivePermission, JWTPayload, UserRole } from '@/types';
 import { generateId } from '@/utils/helpers';
 
 const SSO_ROLE_MAP: Record<string, UserRole> = {
@@ -65,6 +65,26 @@ export class AuthService {
     return this.config.sso.redirectUri;
   }
 
+  get ssoProfileUrl(): string {
+    if (!this.config.sso.profileUrl) {
+      const error = new Error('SSO_PROFILE_URL is not configured') as Error & { statusCode?: number };
+      error.statusCode = 500;
+      throw error;
+    }
+
+    return this.config.sso.profileUrl;
+  }
+
+  get ssoProfileSignatureUrl(): string {
+    if (!this.config.sso.profileSignatureUrl) {
+      const error = new Error('SSO_PROFILE_SIGNATURE_URL is not configured') as Error & { statusCode?: number };
+      error.statusCode = 500;
+      throw error;
+    }
+
+    return this.config.sso.profileSignatureUrl;
+  }
+
   private getJwks() {
     if (!this.jwks) {
       this.assertSsoConfiguration();
@@ -82,6 +102,8 @@ export class AuthService {
       { key: 'SSO_CLIENT_ID', value: this.config.sso.clientId },
       { key: 'SSO_CLIENT_SECRET', value: this.config.sso.clientSecret },
       { key: 'SSO_REDIRECT_URI', value: this.config.sso.redirectUri },
+      { key: 'SSO_PROFILE_URL', value: this.config.sso.profileUrl },
+      { key: 'SSO_PROFILE_SIGNATURE_URL', value: this.config.sso.profileSignatureUrl },
     ];
 
     const missing = requiredConfig.filter((item) => !item.value || !item.value.trim());
@@ -131,6 +153,9 @@ export class AuthService {
 
     const roleNameRaw = String(rawIdentity.roleName || rawIdentity.role || identityType || '').trim();
     const roleName = this.parseRole(roleNameRaw);
+    const permissions = this.normalizePermissions(
+      rawIdentity.permissions || rawIdentity.permission || rawIdentity.scopes || rawIdentity.scope
+    );
 
     if (!identityType) {
       return null;
@@ -139,11 +164,48 @@ export class AuthService {
     return {
       identityType,
       roleName,
+      permissions,
       identityId: rawIdentity.identityId || rawIdentity.id || null,
       displayName: rawIdentity.displayName || rawIdentity.name || null,
       identifier: rawIdentity.identifier || rawIdentity.nim || rawIdentity.nip || rawIdentity.email || null,
       metadata: rawIdentity,
     };
+  }
+
+  private normalizePermissions(input: unknown): EffectivePermission[] {
+    const toList = Array.isArray(input)
+      ? input
+      : typeof input === 'string'
+        ? input.split(/[\s,]+/)
+        : [];
+
+    const normalized = toList
+      .map((item) => String(item || '').trim())
+      .filter((item) => item.length > 0);
+
+    return Array.from(new Set(normalized));
+  }
+
+  private extractTokenPermissions(payload: JoseJWTPayload | null): EffectivePermission[] {
+    if (!payload) {
+      return [];
+    }
+
+    const claimsCandidates: unknown[] = [
+      (payload as any).permissions,
+      (payload as any).permission,
+      (payload as any).scp,
+      payload.scope,
+    ];
+
+    for (const candidate of claimsCandidates) {
+      const permissions = this.normalizePermissions(candidate);
+      if (permissions.length > 0) {
+        return permissions;
+      }
+    }
+
+    return [];
   }
 
   private uniqueIdentities(identities: AuthIdentity[]): AuthIdentity[] {
@@ -288,6 +350,35 @@ export class AuthService {
     return roles.length > 0 ? roles : ['MAHASISWA'];
   }
 
+  private effectivePermissions(
+    activeIdentity: AuthIdentity | null,
+    identities: AuthIdentity[],
+    fallbackTokenPermissions: EffectivePermission[] = []
+  ): EffectivePermission[] {
+    if (!activeIdentity) {
+      return [];
+    }
+
+    const fromActive = this.normalizePermissions(activeIdentity?.permissions || activeIdentity?.metadata?.permissions);
+    if (fromActive.length > 0) {
+      return fromActive;
+    }
+
+    const mergedFromIdentities = Array.from(
+      new Set(
+        identities.flatMap((identity) =>
+          this.normalizePermissions(identity.permissions || identity.metadata?.permissions)
+        )
+      )
+    );
+
+    if (mergedFromIdentities.length > 0) {
+      return mergedFromIdentities;
+    }
+
+    return this.normalizePermissions(fallbackTokenPermissions);
+  }
+
   private ensureValidCallbackPayload(payload: CallbackPayload) {
     this.assertSsoConfiguration();
 
@@ -361,9 +452,15 @@ export class AuthService {
     const persistedRoles = Array.isArray(session.effectiveRoles)
       ? (session.effectiveRoles as UserRole[])
       : [];
+    const persistedPermissions = Array.isArray(session.effectivePermissions)
+      ? (session.effectivePermissions as EffectivePermission[])
+      : [];
     const effectiveRoles = persistedRoles.length > 0
       ? persistedRoles
       : this.effectiveRoles(activeIdentity, availableIdentities);
+    const effectivePermissions = persistedPermissions.length > 0
+      ? persistedPermissions
+      : this.effectivePermissions(activeIdentity, availableIdentities);
     const primaryRole = this.pickPrimaryRole(effectiveRoles.length > 0 ? effectiveRoles : [user.role]);
 
     const userPayload: JWTPayload = {
@@ -373,6 +470,7 @@ export class AuthService {
       email: user.email,
       role: primaryRole,
       effectiveRoles,
+      effectivePermissions,
       activeIdentity,
       availableIdentities,
     };
@@ -384,6 +482,7 @@ export class AuthService {
       activeIdentity,
       availableIdentities,
       effectiveRoles,
+      effectivePermissions,
       expiresAt: session.expiresAt,
       accessToken: session.accessToken,
       refreshToken: session.refreshToken,
@@ -415,6 +514,7 @@ export class AuthService {
     }
 
     const { profile, identities } = await this.fetchProfileAndIdentities(tokens.access_token);
+    const tokenPermissions = this.extractTokenPermissions(verifiedPayload);
 
     if (identities.length === 0) {
       const error = new Error('No identities returned by SSO') as Error & { statusCode?: number };
@@ -446,6 +546,9 @@ export class AuthService {
 
     const activeIdentity = identities.length === 1 ? identities[0] : null;
     const effectiveRoles = activeIdentity ? this.effectiveRoles(activeIdentity, identities) : [];
+    const effectivePermissions = activeIdentity
+      ? this.effectivePermissions(activeIdentity, identities, tokenPermissions)
+      : [];
 
     const sessionId = generateId();
     const expiresAt = new Date(Date.now() + this.sessionTtlSeconds * 1000);
@@ -455,6 +558,7 @@ export class AuthService {
       authUserId,
       activeIdentity: activeIdentity?.identityType || null,
       effectiveRoles,
+      effectivePermissions,
       availableIdentities: identities,
       accessToken: tokens.access_token,
       refreshToken: tokens.refresh_token || null,
@@ -485,6 +589,7 @@ export class AuthService {
       activeIdentity,
       identities,
       effectiveRoles,
+      effectivePermissions,
     };
   }
 
@@ -522,10 +627,16 @@ export class AuthService {
     }
 
     const effectiveRoles = this.effectiveRoles(selectedIdentity, sessionContext.availableIdentities);
+    const effectivePermissions = this.effectivePermissions(
+      selectedIdentity,
+      sessionContext.availableIdentities,
+      sessionContext.effectivePermissions
+    );
 
     await this.authSessionRepo.updateSession(sessionId, {
       activeIdentity: selectedIdentity.identityType,
       effectiveRoles,
+      effectivePermissions,
     });
 
     const user = await this.userRepo.findByAuthUserId(sessionContext.authUserId);
@@ -540,11 +651,13 @@ export class AuthService {
       sessionId,
       identityType: selectedIdentity.identityType,
       effectiveRoles,
+      effectivePermissions,
     });
 
     return {
       activeIdentity: selectedIdentity,
       effectiveRoles,
+      effectivePermissions,
     };
   }
 
@@ -576,6 +689,8 @@ export class AuthService {
       activeIdentity: sessionContext.activeIdentity,
       availableIdentities: sessionContext.availableIdentities,
       effectiveRoles: sessionContext.effectiveRoles,
+      effectivePermissions: sessionContext.effectivePermissions,
+      authzSource: 'ACCESS_TOKEN_CLAIMS',
     };
   }
 

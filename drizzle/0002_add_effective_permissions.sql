@@ -1,0 +1,1 @@
+ALTER TABLE "user_active_identity_sessions" ADD COLUMN "effective_permissions" json DEFAULT '[]' NOT NULL;

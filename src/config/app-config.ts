@@ -15,6 +15,8 @@ export interface AppConfig {
     clientId: string;
     clientSecret: string;
     redirectUri: string;
+    profileUrl: string;
+    profileSignatureUrl: string;
     tokenUrl: string;
     userInfoUrl: string;
     identitiesUrl: string;
@@ -56,6 +58,8 @@ export interface CloudflareBindings {
   SSO_CLIENT_ID?: string;
   SSO_CLIENT_SECRET?: string;
   SSO_REDIRECT_URI?: string;
+  SSO_PROFILE_URL?: string;
+  SSO_PROFILE_SIGNATURE_URL?: string;
 
   // Optional overrides for SSO gateway endpoints
   SSO_TOKEN_URL?: string;
@@ -103,6 +107,8 @@ export const createAppConfig = (env: CloudflareBindings): AppConfig => {
       clientId: env.SSO_CLIENT_ID || '',
       clientSecret: env.SSO_CLIENT_SECRET || '',
       redirectUri: env.SSO_REDIRECT_URI || '',
+      profileUrl: env.SSO_PROFILE_URL || '',
+      profileSignatureUrl: env.SSO_PROFILE_SIGNATURE_URL || '',
       tokenUrl: env.SSO_TOKEN_URL || `${ssoBaseUrl}/oauth/token`,
       userInfoUrl: env.SSO_USERINFO_URL || `${ssoBaseUrl}/oauth/userinfo`,
       identitiesUrl: env.SSO_IDENTITIES_URL || `${ssoBaseUrl}/oauth/identities`,

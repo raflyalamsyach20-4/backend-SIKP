@@ -2,7 +2,6 @@ import { Context } from 'hono';
 import { MahasiswaService } from '@/services/mahasiswa.service';
 import type { JWTPayload } from '@/types';
 import { createResponse, handleError } from '@/utils/helpers';
-import { updateMahasiswaProfileSchema } from '@/validation/auth.validation';
 
 export class MahasiswaController {
   constructor(private mahasiswaService: MahasiswaService) {}
@@ -51,33 +50,15 @@ export class MahasiswaController {
 
   updateProfile = async (c: Context) => {
     try {
-      const user = c.get('user') as JWTPayload;
-      const body = await c.req.json();
-
-      const validated = updateMahasiswaProfileSchema.parse(body);
-
-      const updatedProfile = await this.mahasiswaService.updateProfile(user.userId, validated);
-
       return c.json(
-        createResponse(true, 'Profile updated successfully', {
-          id: updatedProfile.id,
-          nama: updatedProfile.nama,
-          email: updatedProfile.email,
-          phone: updatedProfile.phone,
-          nim: updatedProfile.nim,
-          fakultas: updatedProfile.fakultas,
-          prodi: updatedProfile.prodi,
-          semester: updatedProfile.semester,
-          jumlahSksSelesai: updatedProfile.jumlahSksSelesai,
-          angkatan: updatedProfile.angkatan,
-          esignature: updatedProfile.esignatureUrl
-            ? {
-                url: updatedProfile.esignatureUrl,
-                key: updatedProfile.esignatureKey,
-                uploadedAt: updatedProfile.esignatureUploadedAt,
-              }
-            : null,
-        })
+        createResponse(
+          false,
+          'Local profile update is not available in SIKP. Please manage your profile in SSO.',
+          {
+            manageUrl: c.env.SSO_PROFILE_URL || null,
+          }
+        ),
+        410
       );
     } catch (error: any) {
       return handleError(c, error, 'Failed to update profile');

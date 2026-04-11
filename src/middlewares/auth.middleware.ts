@@ -62,11 +62,40 @@ export const roleMiddleware = (allowedRoles: UserRole[]) => {
 
     const effectiveRoles = user.effectiveRoles && user.effectiveRoles.length > 0
       ? user.effectiveRoles
-      : [user.role];
+      : [];
+
+    if (effectiveRoles.length === 0) {
+      return c.json({ success: false, message: 'Forbidden: Missing effective roles in auth context' }, 403);
+    }
 
     const allowed = allowedRoles.some((role) => effectiveRoles.includes(role));
     if (!allowed) {
       return c.json({ success: false, message: 'Forbidden: Insufficient permissions' }, 403);
+    }
+
+    await next();
+  };
+};
+
+export const permissionMiddleware = (requiredPermissions: string[]) => {
+  return async (c: Context, next: Next) => {
+    const user = c.get('user') as JWTPayload;
+
+    if (!user) {
+      return c.json({ success: false, message: 'Unauthorized' }, 401);
+    }
+
+    const effectivePermissions = user.effectivePermissions && user.effectivePermissions.length > 0
+      ? user.effectivePermissions
+      : [];
+
+    if (effectivePermissions.length === 0) {
+      return c.json({ success: false, message: 'Forbidden: Missing effective permissions in auth context' }, 403);
+    }
+
+    const allowed = requiredPermissions.some((permission) => effectivePermissions.includes(permission));
+    if (!allowed) {
+      return c.json({ success: false, message: 'Forbidden: Missing required permission' }, 403);
     }
 
     await next();

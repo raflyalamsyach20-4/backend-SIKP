@@ -12,6 +12,16 @@ export const createSsoSignatureRoutes = () => {
 
   profile.use('*', authMiddleware);
 
+  profile.get('/manage-url', async (c: Context) => {
+    const container = c.get('container') as DIContainer;
+    return container.ssoSignatureController.getManageProfileUrl(c);
+  });
+
+  profile.get('/signature/manage-url', async (c: Context) => {
+    const container = c.get('container') as DIContainer;
+    return container.ssoSignatureController.getManageSignatureUrl(c);
+  });
+
   profile.get('/signature', async (c: Context) => {
     const container = c.get('container') as DIContainer;
     return container.ssoSignatureController.getActive(c);

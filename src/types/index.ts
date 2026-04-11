@@ -1,4 +1,5 @@
 export type UserRole = 'MAHASISWA' | 'ADMIN' | 'DOSEN' | 'KAPRODI' | 'WAKIL_DEKAN' | 'PEMBIMBING_LAPANGAN';
+export type EffectivePermission = string;
 export type AuthProvider = 'SSO_UNSRI';
 export type TeamStatus = 'PENDING' | 'FIXED';
 export type InvitationStatus = 'PENDING' | 'ACCEPTED' | 'REJECTED';
@@ -145,6 +146,7 @@ export interface ApiResponse<T = any> {
 export interface AuthIdentity {
   identityType: string;
   roleName: string;
+  permissions?: EffectivePermission[];
   identityId?: string | null;
   displayName?: string | null;
   identifier?: string | null;
@@ -158,6 +160,7 @@ export interface JWTPayload {
   email: string;
   role: UserRole;
   effectiveRoles?: UserRole[];
+  effectivePermissions?: EffectivePermission[];
   activeIdentity?: AuthIdentity | null;
   availableIdentities?: AuthIdentity[];
   nim?: string; // Optional for mahasiswa
@@ -171,6 +174,7 @@ export interface AuthSessionContext {
   activeIdentity: AuthIdentity | null;
   availableIdentities: AuthIdentity[];
   effectiveRoles: UserRole[];
+  effectivePermissions: EffectivePermission[];
   expiresAt: Date;
   accessToken?: string | null;
   refreshToken?: string | null;

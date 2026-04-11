@@ -33,6 +33,7 @@ export const userActiveIdentitySessions = pgTable('user_active_identity_sessions
   authUserId: varchar('auth_user_id', { length: 255 }).notNull().references(() => users.authUserId, { onDelete: 'cascade' }),
   activeIdentity: varchar('active_identity', { length: 100 }),
   effectiveRoles: json('effective_roles').notNull().default('[]'),
+  effectivePermissions: json('effective_permissions').notNull().default('[]'),
   availableIdentities: json('available_identities').notNull().default('[]'),
   accessToken: text('access_token'),
   refreshToken: text('refresh_token'),

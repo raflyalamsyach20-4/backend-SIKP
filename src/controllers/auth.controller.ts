@@ -128,6 +128,7 @@ export class AuthController {
           sessionEstablished: false,
           requiresIdentitySelection: true,
           identities: result.identities,
+          effectivePermissions: result.effectivePermissions,
         }));
       }
 
@@ -136,6 +137,7 @@ export class AuthController {
         requiresIdentitySelection: false,
         activeIdentity: result.activeIdentity,
         effectiveRoles: result.effectiveRoles,
+        effectivePermissions: result.effectivePermissions,
       }));
     } catch (error: any) {
       return handleError(c, error, ErrorMessages.LOGIN_FAILED);
@@ -172,6 +174,7 @@ export class AuthController {
       return c.json(createResponse(true, 'Identity selected', {
         activeIdentity: result.activeIdentity,
         effectiveRoles: result.effectiveRoles,
+        effectivePermissions: result.effectivePermissions,
       }));
     } catch (error: any) {
       return handleError(c, error, ErrorMessages.BAD_REQUEST);

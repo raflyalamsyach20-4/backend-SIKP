@@ -20,7 +20,7 @@ import { createMahasiswaProfileRoutes } from '@/routes/mahasiswa.route';
 import { createSuratKesediaanFallbackRoutes } from '@/routes/surat-kesediaan.route';
 import { createSuratPermohonanFallbackRoutes } from '@/routes/surat-permohonan.route';
 import { createAssetRoutes } from '@/routes/assets.route';
-import { createSsoSignatureRoutes } from '@/routes/profile.route';
+import { createSsoSignatureRoutes } from '@/routes/sso-signature.route';
 
 /**
  * Extended context variables
