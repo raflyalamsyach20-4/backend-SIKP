@@ -116,10 +116,16 @@ export class StorageService {
   }
 
   async getFile(key: string): Promise<R2ObjectBody | null> {
+    if (!this.r2Bucket) {
+      return null;
+    }
     return await this.r2Bucket.get(key);
   }
 
   async deleteFile(key: string): Promise<void> {
+    if (!this.r2Bucket) {
+      return;
+    }
     await this.r2Bucket.delete(key);
   }
 

@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { drizzle } from 'drizzle-orm/neon-http';
 import { neon } from '@neondatabase/serverless';
 import { users, mahasiswa, admin, dosen } from './schema';

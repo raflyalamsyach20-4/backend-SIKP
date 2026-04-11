@@ -157,7 +157,6 @@ export class DIContainer {
   get authService(): AuthService {
     if (!this._authService) {
       this._authService = new AuthService(
-        this.userRepository,
         this.authSessionRepository,
         this.config
       );

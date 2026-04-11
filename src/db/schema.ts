@@ -14,6 +14,24 @@ export const suratPermohonanStatusEnum = pgEnum('surat_permohonan_status', ['MEN
 export const submissionVerificationStatusEnum = pgEnum('submission_verification_status', ['PENDING', 'APPROVED', 'REJECTED']);
 export const workflowStageEnum = pgEnum('workflow_stage', ['DRAFT', 'PENDING_ADMIN_REVIEW', 'PENDING_DOSEN_VERIFICATION', 'COMPLETED', 'REJECTED_ADMIN', 'REJECTED_DOSEN']);
 
+// Minimal auth session store for SSO cutover
+export const authSessions = pgTable('auth_sessions', {
+  sessionId: text('session_id').primaryKey(),
+  authUserId: varchar('auth_user_id', { length: 255 }).notNull(),
+  activeIdentity: varchar('active_identity', { length: 100 }),
+  accessToken: text('access_token'),
+  refreshToken: text('refresh_token'),
+  idToken: text('id_token'),
+  expiresAt: timestamp('expires_at').notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (table) => {
+  return {
+    idxAuthSessionsAuthUserId: index('idx_auth_sessions_auth_user_id').on(table.authUserId),
+    idxAuthSessionsExpiresAt: index('idx_auth_sessions_expires_at').on(table.expiresAt),
+  };
+});
+
 // Teams Table
 export const teams = pgTable('teams', {
   id: text('id').primaryKey(),

@@ -63,15 +63,10 @@ export class TeamService {
 
       console.log(`[createTeam] ✅ Validation passed, creating team...`);
 
-      // Get leader's dosen PA
-      const leaderMahasiswa = await this.userRepo.findMahasiswaByUserId(leaderId);
-      const dosenKpId = leaderMahasiswa?.dosenPaId || null;
-      if (!dosenKpId) {
-        const err: any = new Error('Dosen PA ketua belum ditetapkan. Tim tidak dapat dibuat.');
-        err.statusCode = 422;
-        throw err;
-      }
-      console.log(`[createTeam] Leader dosen PA: ${dosenKpId || 'null'}`);
+      // After SSO cutover local mahasiswa profile no longer stores dosen PA.
+      // Team can be created with dosenKpId null and assigned later.
+      const dosenKpId = null;
+      console.log('[createTeam] Leader dosen PA unresolved in local DB (SSO mode), set dosenKpId=null');
 
       // Create team with auto-generated code
       const team = await this.teamRepo.create({

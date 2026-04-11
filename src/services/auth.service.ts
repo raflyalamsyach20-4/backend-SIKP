@@ -1,7 +1,6 @@
 import { createRemoteJWKSet, jwtVerify, type JWTPayload as JoseJWTPayload } from 'jose';
 import type { AppConfig } from '@/config';
 import { AuthSessionRepository } from '@/repositories/auth-session.repository';
-import { UserRepository } from '@/repositories/user.repository';
 import type { AuthIdentity, AuthSessionContext, EffectivePermission, JWTPayload, UserRole } from '@/types';
 import { generateId } from '@/utils/helpers';
 
@@ -36,7 +35,6 @@ export class AuthService {
   private jwks?: ReturnType<typeof createRemoteJWKSet>;
 
   constructor(
-    private userRepo: UserRepository,
     private authSessionRepo: AuthSessionRepository,
     private config: AppConfig
   ) {}
@@ -430,36 +428,19 @@ export class AuthService {
       return null;
     }
 
-    let availableIdentities = Array.isArray(session.availableIdentities)
-      ? (session.availableIdentities as AuthIdentity[])
-      : [];
-
-    if (availableIdentities.length === 0) {
-      const cacheRows = await this.authSessionRepo.getIdentityCache(session.authUserId);
-      availableIdentities = cacheRows.map((row) => ({
-        identityType: row.identityType,
-        roleName: row.roleName,
-        metadata: row.metadata as Record<string, any>,
-      }));
+    if (!session.accessToken) {
+      return null;
     }
 
+    const { profile, identities } = await this.fetchProfileAndIdentities(session.accessToken);
+    const availableIdentities = identities;
     const activeIdentity = availableIdentities.find((item) => item.identityType === session.activeIdentity) || null;
-    const persistedRoles = Array.isArray(session.effectiveRoles)
-      ? (session.effectiveRoles as UserRole[])
-      : [];
-    const persistedPermissions = Array.isArray(session.effectivePermissions)
-      ? (session.effectivePermissions as EffectivePermission[])
-      : [];
-    const effectiveRoles = persistedRoles.length > 0
-      ? persistedRoles
-      : this.effectiveRoles(activeIdentity, availableIdentities);
-    const effectivePermissions = persistedPermissions.length > 0
-      ? persistedPermissions
-      : this.effectivePermissions(activeIdentity, availableIdentities);
+    const effectiveRoles = this.effectiveRoles(activeIdentity, availableIdentities);
+    const effectivePermissions = this.effectivePermissions(activeIdentity, availableIdentities);
     const primaryRole = this.pickPrimaryRole(effectiveRoles.length > 0 ? effectiveRoles : ['MAHASISWA']);
     const inferredEmail =
-      (activeIdentity?.metadata && typeof activeIdentity.metadata.email === 'string'
-        ? activeIdentity.metadata.email
+      (profile && typeof profile.email === 'string'
+        ? profile.email
         : null) ||
       `${session.authUserId}@sso.local`;
 
@@ -537,9 +518,6 @@ export class AuthService {
       sessionId,
       authUserId,
       activeIdentity: activeIdentity?.identityType || null,
-      effectiveRoles,
-      effectivePermissions,
-      availableIdentities: identities,
       accessToken: tokens.access_token,
       refreshToken: tokens.refresh_token || null,
       idToken: tokens.id_token || null,
@@ -609,8 +587,6 @@ export class AuthService {
 
     await this.authSessionRepo.updateSession(sessionId, {
       activeIdentity: selectedIdentity.identityType,
-      effectiveRoles,
-      effectivePermissions,
     });
 
     console.info('[AUTH][IDENTITY_SELECTED]', {

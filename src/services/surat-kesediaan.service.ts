@@ -66,7 +66,7 @@ export class SuratKesediaanService {
 
     // Guard: wakil dekan tidak menangani surat kesediaan
     const dosenProfile = await this.userRepo.findDosenByUserId(dosenId);
-    if (dosenProfile?.jabatan && dosenProfile.jabatan.toLowerCase().includes('wakil dekan')) {
+    if (String(dosenProfile?.jabatan || '').toLowerCase().includes('wakil dekan')) {
       const error: any = new Error('Dosen ini tidak dapat menerima surat kesediaan.');
       error.statusCode = 400;
       throw error;

@@ -146,9 +146,13 @@ export class LetterService {
             }),
             new Paragraph({ text: '' }),
             new Paragraph({
-              text: 'SURAT PENGANTAR KERJA PRAKTIK',
+              children: [
+                new TextRun({
+                  text: 'SURAT PENGANTAR KERJA PRAKTIK',
+                  bold: true,
+                }),
+              ],
               alignment: 'center',
-              bold: true,
             }),
             new Paragraph({ text: '' }),
             new Paragraph({ text: 'Kepada Yth.' }),

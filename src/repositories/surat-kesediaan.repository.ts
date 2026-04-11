@@ -1,6 +1,6 @@
 import { eq, desc, inArray, and, sql } from 'drizzle-orm';
 import type { DbClient } from '@/db';
-import { suratKesediaanRequests, users, mahasiswa, dosen } from '@/db/schema';
+import { suratKesediaanRequests } from '@/db/schema';
 
 export class SuratKesediaanRepository {
   constructor(private db: DbClient) {}
@@ -29,27 +29,19 @@ export class SuratKesediaanRepository {
         approvedBy: suratKesediaanRequests.approvedBy,
         signedFileUrl: suratKesediaanRequests.signedFileUrl,
         signedFileKey: suratKesediaanRequests.signedFileKey,
-        mahasiswaNama: users.nama,
-        mahasiswaNim: mahasiswa.nim,
-        mahasiswaProdi: mahasiswa.prodi,
-        mahasiswaAngkatan: mahasiswa.angkatan,
-        mahasiswaSemester: mahasiswa.semester,
-        mahasiswaEmail: users.email,
-        mahasiswaPhone: users.phone,
-        dosenNama: sql<string | null>`(
-          select u_dosen.nama
-          from users u_dosen
-          where u_dosen.id = ${suratKesediaanRequests.dosenUserId}
-          limit 1
-        )`,
-        dosenNip: dosen.nip,
-        dosenJabatan: dosen.jabatan,
-        dosenEsignatureUrl: dosen.esignatureUrl,
+        mahasiswaNama: sql<string | null>`null`,
+        mahasiswaNim: sql<string | null>`null`,
+        mahasiswaProdi: sql<string | null>`null`,
+        mahasiswaAngkatan: sql<number | null>`null`,
+        mahasiswaSemester: sql<number | null>`null`,
+        mahasiswaEmail: sql<string | null>`null`,
+        mahasiswaPhone: sql<string | null>`null`,
+        dosenNama: suratKesediaanRequests.dosenUserId,
+        dosenNip: sql<string | null>`null`,
+        dosenJabatan: sql<string | null>`null`,
+        dosenEsignatureUrl: sql<string | null>`null`,
       })
       .from(suratKesediaanRequests)
-      .innerJoin(users, eq(suratKesediaanRequests.memberUserId, users.id))
-      .innerJoin(mahasiswa, eq(users.id, mahasiswa.id))
-      .leftJoin(dosen, eq(suratKesediaanRequests.dosenUserId, dosen.id))
       .where(eq(suratKesediaanRequests.id, id))
       .limit(1);
 
@@ -64,26 +56,23 @@ export class SuratKesediaanRepository {
       .select({
         id: suratKesediaanRequests.id,
         tanggal: suratKesediaanRequests.createdAt,
-        nim: mahasiswa.nim,
-        namaMahasiswa: users.nama,
-        programStudi: mahasiswa.prodi,
-        angkatan: mahasiswa.angkatan,
-        semester: mahasiswa.semester,
-        email: users.email,
-        noHp: users.phone,
+        nim: sql<string | null>`null`,
+        namaMahasiswa: suratKesediaanRequests.memberUserId,
+        programStudi: sql<string | null>`null`,
+        angkatan: sql<number | null>`null`,
+        semester: sql<number | null>`null`,
+        email: sql<string | null>`null`,
+        noHp: sql<string | null>`null`,
         jenisSurat: sql<string>`'Surat Kesediaan'`,
         status: suratKesediaanRequests.status,
         approvedAt: suratKesediaanRequests.approvedAt,
         signedFileUrl: suratKesediaanRequests.signedFileUrl,
         rejectionReason: suratKesediaanRequests.rejectionReason,
-        dosenNip: dosen.nip,
-        dosenJabatan: dosen.jabatan,
-        dosenEsignatureUrl: dosen.esignatureUrl,
+        dosenNip: sql<string | null>`null`,
+        dosenJabatan: sql<string | null>`null`,
+        dosenEsignatureUrl: sql<string | null>`null`,
       })
       .from(suratKesediaanRequests)
-      .innerJoin(users, eq(suratKesediaanRequests.memberUserId, users.id))
-      .innerJoin(mahasiswa, eq(users.id, mahasiswa.id))
-      .innerJoin(dosen, eq(suratKesediaanRequests.dosenUserId, dosen.id))
       .where(eq(suratKesediaanRequests.dosenUserId, dosenUserId))
       .orderBy(desc(suratKesediaanRequests.createdAt));
 
@@ -95,26 +84,23 @@ export class SuratKesediaanRepository {
       .select({
         id: suratKesediaanRequests.id,
         tanggal: suratKesediaanRequests.createdAt,
-        nim: mahasiswa.nim,
-        namaMahasiswa: users.nama,
-        programStudi: mahasiswa.prodi,
-        angkatan: mahasiswa.angkatan,
-        semester: mahasiswa.semester,
-        email: users.email,
-        noHp: users.phone,
+        nim: sql<string | null>`null`,
+        namaMahasiswa: suratKesediaanRequests.memberUserId,
+        programStudi: sql<string | null>`null`,
+        angkatan: sql<number | null>`null`,
+        semester: sql<number | null>`null`,
+        email: sql<string | null>`null`,
+        noHp: sql<string | null>`null`,
         jenisSurat: sql<string>`'Surat Kesediaan'`,
         status: suratKesediaanRequests.status,
         approvedAt: suratKesediaanRequests.approvedAt,
         signedFileUrl: suratKesediaanRequests.signedFileUrl,
         rejectionReason: suratKesediaanRequests.rejectionReason,
-        dosenNip: dosen.nip,
-        dosenJabatan: dosen.jabatan,
-        dosenEsignatureUrl: dosen.esignatureUrl,
+        dosenNip: sql<string | null>`null`,
+        dosenJabatan: sql<string | null>`null`,
+        dosenEsignatureUrl: sql<string | null>`null`,
       })
       .from(suratKesediaanRequests)
-      .innerJoin(users, eq(suratKesediaanRequests.memberUserId, users.id))
-      .innerJoin(mahasiswa, eq(users.id, mahasiswa.id))
-      .innerJoin(dosen, eq(suratKesediaanRequests.dosenUserId, dosen.id))
       .orderBy(desc(suratKesediaanRequests.createdAt));
   }
 
@@ -265,12 +251,7 @@ export class SuratKesediaanRepository {
         id: suratKesediaanRequests.id,
         memberUserId: suratKesediaanRequests.memberUserId,
         status: suratKesediaanRequests.status,
-        dosenName: sql<string | null>`(
-          select u_dosen.nama
-          from users u_dosen
-          where u_dosen.id = ${suratKesediaanRequests.dosenUserId}
-          limit 1
-        )`,
+        dosenName: suratKesediaanRequests.dosenUserId,
         signedFileUrl: suratKesediaanRequests.signedFileUrl,
         rejectionReason: suratKesediaanRequests.rejectionReason,
         submittedAt: suratKesediaanRequests.createdAt,

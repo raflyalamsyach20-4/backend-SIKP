@@ -1,13 +1,13 @@
-import { and, eq, lte } from 'drizzle-orm';
+import { eq, lte } from 'drizzle-orm';
 import type { DbClient } from '@/db';
-import { userActiveIdentitySessions, userIdentityCache } from '@/db/schema';
+import { authSessions } from '@/db/schema';
 
 export class AuthSessionRepository {
   constructor(private db: DbClient) {}
 
-  async createSession(data: typeof userActiveIdentitySessions.$inferInsert) {
+  async createSession(data: typeof authSessions.$inferInsert) {
     const result = await this.db
-      .insert(userActiveIdentitySessions)
+      .insert(authSessions)
       .values(data)
       .returning();
 
@@ -17,21 +17,21 @@ export class AuthSessionRepository {
   async findSessionById(sessionId: string) {
     const result = await this.db
       .select()
-      .from(userActiveIdentitySessions)
-      .where(eq(userActiveIdentitySessions.sessionId, sessionId))
+      .from(authSessions)
+      .where(eq(authSessions.sessionId, sessionId))
       .limit(1);
 
     return result[0] || null;
   }
 
-  async updateSession(sessionId: string, data: Partial<typeof userActiveIdentitySessions.$inferInsert>) {
+  async updateSession(sessionId: string, data: Partial<typeof authSessions.$inferInsert>) {
     const result = await this.db
-      .update(userActiveIdentitySessions)
+      .update(authSessions)
       .set({
         ...data,
         updatedAt: new Date(),
       })
-      .where(eq(userActiveIdentitySessions.sessionId, sessionId))
+      .where(eq(authSessions.sessionId, sessionId))
       .returning();
 
     return result[0] || null;
@@ -39,36 +39,25 @@ export class AuthSessionRepository {
 
   async deleteSession(sessionId: string) {
     await this.db
-      .delete(userActiveIdentitySessions)
-      .where(eq(userActiveIdentitySessions.sessionId, sessionId));
+      .delete(authSessions)
+      .where(eq(authSessions.sessionId, sessionId));
   }
 
   async deleteExpiredSessions(now: Date = new Date()) {
     await this.db
-      .delete(userActiveIdentitySessions)
-      .where(lte(userActiveIdentitySessions.expiresAt, now));
+      .delete(authSessions)
+      .where(lte(authSessions.expiresAt, now));
   }
 
   async getIdentityCache(authUserId: string) {
-    return this.db
-      .select()
-      .from(userIdentityCache)
-      .where(eq(userIdentityCache.authUserId, authUserId));
+    void authUserId;
+    return [];
   }
 
   async findIdentity(authUserId: string, identityType: string) {
-    const result = await this.db
-      .select()
-      .from(userIdentityCache)
-      .where(
-        and(
-          eq(userIdentityCache.authUserId, authUserId),
-          eq(userIdentityCache.identityType, identityType)
-        )
-      )
-      .limit(1);
-
-    return result[0] || null;
+    void authUserId;
+    void identityType;
+    return null;
   }
 
   async replaceIdentityCache(authUserId: string, identities: Array<{
@@ -77,25 +66,7 @@ export class AuthSessionRepository {
     roleName: string;
     metadata?: Record<string, any>;
   }>) {
-    await this.db
-      .delete(userIdentityCache)
-      .where(eq(userIdentityCache.authUserId, authUserId));
-
-    if (identities.length === 0) {
-      return;
-    }
-
-    await this.db
-      .insert(userIdentityCache)
-      .values(
-        identities.map((identity) => ({
-          id: identity.id,
-          authUserId,
-          identityType: identity.identityType,
-          roleName: identity.roleName,
-          metadata: identity.metadata || {},
-          updatedAt: new Date(),
-        }))
-      );
+    void authUserId;
+    void identities;
   }
 }
