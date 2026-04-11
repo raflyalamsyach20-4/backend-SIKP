@@ -9,14 +9,15 @@
     "deploy": "wrangler deploy --minify",
     "cf-typegen": "wrangler types --env-interface CloudflareBindings",
     "db:generate": "drizzle-kit generate",
-    "db:migrate": "tsx src/db/migrate.ts",
+    "db:migrate": "drizzle-kit migrate",
     "db:backfill:workflow": "tsx src/db/backfill-submission-workflow.ts",
     "db:backfill:final-status": "tsx src/db/backfill-final-status-ownership.ts",
     "db:verify:workflow": "tsx src/db/verify-submission-workflow.ts",
     "db:studio": "drizzle-kit studio",
     "db:push": "drizzle-kit push",
     "db:seed": "tsx src/db/seed.ts",
-    "db:status": "tsx src/db/status.ts"
+    "db:status": "tsx src/db/status.ts",
+    "db:reset": "tsx src/db/db-reset.ts"
   },
   "dependencies": {
     "@neondatabase/serverless": "1.0.2",
@@ -36,6 +37,7 @@
     "@cloudflare/workers-types": "^4.20231218.0",
     "@types/bcryptjs": "^2.4.6",
     "@types/jsonwebtoken": "^9.0.5",
+    "@types/node": "^25.6.0",
     "@types/pdfkit": "^0.13.0",
     "dotenv": "^16.3.1",
     "drizzle-kit": "0.31.10",
