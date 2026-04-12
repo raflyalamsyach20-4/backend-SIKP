@@ -120,12 +120,21 @@ export class AuthService {
   }
 
   private parseRole(input?: string | null): UserRole {
+    const resolved = this.parseRoleOrNull(input);
+    if (resolved) {
+      return resolved;
+    }
+
+    return 'MAHASISWA';
+  }
+
+  private parseRoleOrNull(input?: string | null): UserRole | null {
     if (!input) {
-      return 'MAHASISWA';
+      return null;
     }
 
     const normalized = input.toUpperCase().replace(/[\s-]/g, '_');
-    return SSO_ROLE_MAP[normalized] || 'MAHASISWA';
+    return SSO_ROLE_MAP[normalized] || null;
   }
 
   private pickPrimaryRole(roles: UserRole[]): UserRole {
@@ -224,8 +233,8 @@ export class AuthService {
       verifiedTokenPayload?.sub,
       profile?.sub,
       profile?.userId,
-      profile?.id,
       profile?.authUserId,
+      profile?.id,
     ];
 
     for (const candidate of candidates) {
@@ -289,11 +298,111 @@ export class AuthService {
           ? input.data.identities
           : [];
 
-    return this.uniqueIdentities(
-      identitiesRaw
-        .map((raw: any) => this.normalizeIdentity(raw))
-        .filter((identity: AuthIdentity | null): identity is AuthIdentity => Boolean(identity))
-    );
+    if (identitiesRaw.length > 0) {
+      return this.uniqueIdentities(
+        identitiesRaw
+          .map((raw: any) => this.normalizeIdentity(raw))
+          .filter((identity: AuthIdentity | null): identity is AuthIdentity => Boolean(identity))
+      );
+    }
+
+    // New SSO profile contract:
+    // {
+    //   success: true,
+    //   data: {
+    //     profile: {
+    //       fullName,
+    //       email,
+    //       identities: { mahasiswa: {...}|null, dosen: {...}|null, ... },
+    //       roles: [{ role: 'DOSEN', ... }, ...]
+    //     }
+    //   }
+    // }
+    const profile = (input?.data?.profile || input?.profile || null) as Record<string, any> | null;
+    if (!profile || typeof profile !== 'object') {
+      return [];
+    }
+
+    const normalizedFromObjectMap: AuthIdentity[] = [];
+    const identityMap = profile.identities;
+
+    if (identityMap && typeof identityMap === 'object' && !Array.isArray(identityMap)) {
+      for (const [identityKey, identityValue] of Object.entries(identityMap as Record<string, any>)) {
+        if (!identityValue || typeof identityValue !== 'object') {
+          continue;
+        }
+
+        const keyRole = this.parseRoleOrNull(identityKey);
+        const payloadRole = this.parseRoleOrNull(
+          identityValue.roleName || identityValue.role || identityValue.identityType
+        );
+        const resolvedRole = payloadRole || keyRole;
+
+        if (!resolvedRole) {
+          continue;
+        }
+
+        const normalizedIdentity = this.normalizeIdentity({
+          ...identityValue,
+          identityType: resolvedRole,
+          roleName: resolvedRole,
+          displayName: identityValue.fullName || profile.fullName || identityValue.name || null,
+          identifier:
+            identityValue.nim ||
+            identityValue.nidn ||
+            identityValue.nip ||
+            identityValue.email ||
+            profile.email ||
+            null,
+          authUserId: profile.authUserId || null,
+          profileId: identityValue.profileId || profile.id || null,
+          profile,
+        });
+
+        if (normalizedIdentity) {
+          normalizedFromObjectMap.push(normalizedIdentity);
+        }
+      }
+    }
+
+    const roles = Array.isArray(profile.roles) ? profile.roles : [];
+    for (const roleEntry of roles) {
+      if (!roleEntry || typeof roleEntry !== 'object') {
+        continue;
+      }
+
+      const resolvedRole = this.parseRoleOrNull((roleEntry as any).role);
+      if (!resolvedRole) {
+        continue;
+      }
+
+      const alreadyExists = normalizedFromObjectMap.some(
+        (identity) =>
+          identity.identityType.toUpperCase() === resolvedRole ||
+          identity.roleName.toUpperCase() === resolvedRole
+      );
+
+      if (alreadyExists) {
+        continue;
+      }
+
+      const normalizedIdentity = this.normalizeIdentity({
+        identityType: resolvedRole,
+        roleName: resolvedRole,
+        identityId: (roleEntry as any).id || null,
+        displayName: profile.fullName || null,
+        identifier: profile.email || null,
+        authUserId: profile.authUserId || null,
+        profile,
+        roleMeta: roleEntry,
+      });
+
+      if (normalizedIdentity) {
+        normalizedFromObjectMap.push(normalizedIdentity);
+      }
+    }
+
+    return this.uniqueIdentities(normalizedFromObjectMap);
   }
 
   private async fetchProfileAndIdentities(accessToken: string) {
@@ -311,7 +420,7 @@ export class AuthService {
     }
 
     const profilePayload = (await profileResp.json()) as any;
-    const profile = profilePayload?.data || profilePayload;
+    let profile = profilePayload?.data || profilePayload;
 
     let identities = this.extractIdentities(profilePayload);
 
@@ -319,8 +428,13 @@ export class AuthService {
       const identitiesResp = await fetch(this.config.sso.identitiesUrl, { headers });
 
       if (identitiesResp.ok) {
-        const identitiesPayload = await identitiesResp.json();
+        const identitiesPayload = (await identitiesResp.json()) as any;
         identities = this.extractIdentities(identitiesPayload);
+
+        const profileFromIdentityPayload = identitiesPayload?.data?.profile || identitiesPayload?.profile;
+        if (profileFromIdentityPayload && typeof profileFromIdentityPayload === 'object') {
+          profile = profileFromIdentityPayload;
+        }
       }
     }
 
