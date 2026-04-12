@@ -936,13 +936,65 @@ export class AuthService {
       throw error;
     }
 
+    const resolveIdentityName = (identity: AuthIdentity | null | undefined): string | null => {
+      if (!identity) return null;
+
+      const metadataProfile = identity.metadata && typeof identity.metadata === 'object'
+        ? (identity.metadata as any).profile
+        : null;
+
+      return (
+        (typeof identity.displayName === 'string' && identity.displayName.trim()) ||
+        (metadataProfile && typeof metadataProfile.fullName === 'string' && metadataProfile.fullName.trim()) ||
+        (metadataProfile && typeof metadataProfile.nama === 'string' && metadataProfile.nama.trim()) ||
+        null
+      );
+    };
+
+    const resolveIdentityEmail = (identity: AuthIdentity | null | undefined): string | null => {
+      if (!identity) return null;
+
+      const metadataProfile = identity.metadata && typeof identity.metadata === 'object'
+        ? (identity.metadata as any).profile
+        : null;
+
+      if (metadataProfile && typeof metadataProfile.email === 'string' && metadataProfile.email.trim()) {
+        return metadataProfile.email.trim();
+      }
+
+      if (typeof identity.identifier === 'string' && identity.identifier.includes('@')) {
+        return identity.identifier.trim();
+      }
+
+      return null;
+    };
+
+    const fallbackIdentity =
+      sessionContext.activeIdentity ||
+      sessionContext.availableIdentities.find((identity) =>
+        Boolean(resolveIdentityName(identity) || resolveIdentityEmail(identity))
+      ) ||
+      null;
+
+    const resolvedNama =
+      resolveIdentityName(sessionContext.activeIdentity) ||
+      resolveIdentityName(fallbackIdentity);
+
+    const resolvedEmail =
+      (sessionContext.user.email && !sessionContext.user.email.endsWith('@sso.local')
+        ? sessionContext.user.email
+        : null) ||
+      resolveIdentityEmail(sessionContext.activeIdentity) ||
+      resolveIdentityEmail(fallbackIdentity) ||
+      sessionContext.user.email;
+
     return {
       user: {
         id: sessionContext.user.userId,
         authUserId: sessionContext.authUserId,
         authProvider: 'SSO_UNSRI',
-        nama: sessionContext.activeIdentity?.displayName || null,
-        email: sessionContext.user.email,
+        nama: resolvedNama,
+        email: resolvedEmail,
         role: sessionContext.user.role,
         isActive: true,
       },
