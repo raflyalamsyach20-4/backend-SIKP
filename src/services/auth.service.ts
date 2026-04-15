@@ -1,17 +1,27 @@
-import { createRemoteJWKSet, jwtVerify, type JWTPayload as JoseJWTPayload } from 'jose';
-import type { AppConfig } from '@/config';
-import { AuthSessionRepository } from '@/repositories/auth-session.repository';
-import type { AuthIdentity, AuthSessionContext, EffectivePermission, JWTPayload, UserRole } from '@/types';
-import { generateId } from '@/utils/helpers';
+import {
+  createRemoteJWKSet,
+  jwtVerify,
+  type JWTPayload as JoseJWTPayload,
+} from "jose";
+import type { AppConfig } from "@/config";
+import { AuthSessionRepository } from "@/repositories/auth-session.repository";
+import type {
+  AuthIdentity,
+  AuthSessionContext,
+  EffectivePermission,
+  JWTPayload,
+  UserRole,
+} from "@/types";
+import { generateId } from "@/utils/helpers";
 
 const SSO_ROLE_MAP: Record<string, UserRole> = {
-  MAHASISWA: 'MAHASISWA',
-  DOSEN: 'DOSEN',
-  ADMIN: 'ADMIN',
-  MENTOR: 'MENTOR',
-  PEMBIMBING_LAPANGAN: 'MENTOR',
-  KAPRODI: 'KAPRODI',
-  WAKIL_DEKAN: 'WAKIL_DEKAN',
+  MAHASISWA: "MAHASISWA",
+  DOSEN: "DOSEN",
+  ADMIN: "ADMIN",
+  MENTOR: "MENTOR",
+  PEMBIMBING_LAPANGAN: "MENTOR",
+  KAPRODI: "KAPRODI",
+  WAKIL_DEKAN: "WAKIL_DEKAN",
 };
 
 type CallbackPayload = {
@@ -29,16 +39,23 @@ type TokenExchangeResponse = {
   id_token?: string;
 };
 
-const ROLE_PRIORITY: UserRole[] = ['ADMIN', 'WAKIL_DEKAN', 'KAPRODI', 'DOSEN', 'MENTOR', 'MAHASISWA'];
-const BLOCKED_ONLY_SSO_ROLES = new Set(['USER', 'SUPERADMIN']);
-type IdentityRole = 'MAHASISWA' | 'DOSEN' | 'ADMIN' | 'MENTOR';
+const ROLE_PRIORITY: UserRole[] = [
+  "ADMIN",
+  "WAKIL_DEKAN",
+  "KAPRODI",
+  "DOSEN",
+  "MENTOR",
+  "MAHASISWA",
+];
+const BLOCKED_ONLY_SSO_ROLES = new Set(["USER", "SUPERADMIN"]);
+type IdentityRole = "MAHASISWA" | "DOSEN" | "ADMIN" | "MENTOR";
 
 export class AuthService {
   private jwks?: ReturnType<typeof createRemoteJWKSet>;
 
   constructor(
     private authSessionRepo: AuthSessionRepository,
-    private config: AppConfig
+    private config: AppConfig,
   ) {}
 
   get sessionCookieName(): string {
@@ -57,7 +74,7 @@ export class AuthService {
     return this.config.authSession.cookieSecure;
   }
 
-  get sessionCookieSameSite(): 'Lax' | 'Strict' | 'None' {
+  get sessionCookieSameSite(): "Lax" | "Strict" | "None" {
     return this.config.authSession.cookieSameSite;
   }
 
@@ -67,7 +84,9 @@ export class AuthService {
 
   get ssoProfileUrl(): string {
     if (!this.config.sso.profileUrl) {
-      const error = new Error('SSO_PROFILE_URL is not configured') as Error & { statusCode?: number };
+      const error = new Error("SSO_PROFILE_URL is not configured") as Error & {
+        statusCode?: number;
+      };
       error.statusCode = 500;
       throw error;
     }
@@ -77,7 +96,9 @@ export class AuthService {
 
   get ssoProfileSignatureUrl(): string {
     if (!this.config.sso.profileSignatureUrl) {
-      const error = new Error('SSO_PROFILE_SIGNATURE_URL is not configured') as Error & { statusCode?: number };
+      const error = new Error(
+        "SSO_PROFILE_SIGNATURE_URL is not configured",
+      ) as Error & { statusCode?: number };
       error.statusCode = 500;
       throw error;
     }
@@ -96,26 +117,35 @@ export class AuthService {
 
   private assertSsoConfiguration() {
     const requiredConfig: Array<{ key: string; value: string }> = [
-      { key: 'SSO_BASE_URL', value: this.config.sso.baseUrl },
-      { key: 'SSO_ISSUER', value: this.config.sso.issuer },
-      { key: 'SSO_JWKS_URL', value: this.config.sso.jwksUrl },
-      { key: 'SSO_CLIENT_ID', value: this.config.sso.clientId },
-      { key: 'SSO_CLIENT_SECRET', value: this.config.sso.clientSecret },
-      { key: 'SSO_REDIRECT_URI', value: this.config.sso.redirectUri },
-      { key: 'SSO_PROFILE_URL', value: this.config.sso.profileUrl },
-      { key: 'SSO_PROFILE_SIGNATURE_URL', value: this.config.sso.profileSignatureUrl },
+      { key: "SSO_BASE_URL", value: this.config.sso.baseUrl },
+      { key: "SSO_ISSUER", value: this.config.sso.issuer },
+      { key: "SSO_JWKS_URL", value: this.config.sso.jwksUrl },
+      { key: "SSO_CLIENT_ID", value: this.config.sso.clientId },
+      { key: "SSO_CLIENT_SECRET", value: this.config.sso.clientSecret },
+      { key: "SSO_REDIRECT_URI", value: this.config.sso.redirectUri },
+      { key: "SSO_PROFILE_URL", value: this.config.sso.profileUrl },
+      {
+        key: "SSO_PROFILE_SIGNATURE_URL",
+        value: this.config.sso.profileSignatureUrl,
+      },
     ];
 
-    const missing = requiredConfig.filter((item) => !item.value || !item.value.trim());
+    const missing = requiredConfig.filter(
+      (item) => !item.value || !item.value.trim(),
+    );
 
     if (missing.length > 0) {
-      const error = new Error(`Missing required SSO configuration: ${missing.map((item) => item.key).join(', ')}`) as Error & { statusCode?: number };
+      const error = new Error(
+        `Missing required SSO configuration: ${missing.map((item) => item.key).join(", ")}`,
+      ) as Error & { statusCode?: number };
       error.statusCode = 500;
       throw error;
     }
 
-    if (!this.config.sso.redirectUri.endsWith('/callback')) {
-      const error = new Error('SSO_REDIRECT_URI must end with /callback') as Error & { statusCode?: number };
+    if (!this.config.sso.redirectUri.endsWith("/callback")) {
+      const error = new Error(
+        "SSO_REDIRECT_URI must end with /callback",
+      ) as Error & { statusCode?: number };
       error.statusCode = 500;
       throw error;
     }
@@ -127,7 +157,7 @@ export class AuthService {
       return resolved;
     }
 
-    return 'MAHASISWA';
+    return "MAHASISWA";
   }
 
   private parseRoleOrNull(input?: string | null): UserRole | null {
@@ -135,36 +165,39 @@ export class AuthService {
       return null;
     }
 
-    const normalized = input.toUpperCase().replace(/[\s-]/g, '_');
+    const normalized = input.toUpperCase().replace(/[\s-]/g, "_");
     return SSO_ROLE_MAP[normalized] || null;
   }
 
   private mapRoleToIdentityRole(role: UserRole): UserRole {
-    if (role === 'DOSEN' || role === 'KAPRODI' || role === 'WAKIL_DEKAN') {
-      return 'DOSEN';
+    if (role === "DOSEN" || role === "KAPRODI" || role === "WAKIL_DEKAN") {
+      return "DOSEN";
     }
 
-    if (role === 'MENTOR') {
-      return 'MENTOR';
+    if (role === "MENTOR") {
+      return "MENTOR";
     }
 
-    if (role === 'ADMIN') {
-      return 'ADMIN';
+    if (role === "ADMIN") {
+      return "ADMIN";
     }
 
-    return 'MAHASISWA';
+    return "MAHASISWA";
   }
 
   private normalizeRawRoleTag(input: unknown): string | null {
-    if (typeof input !== 'string') {
+    if (typeof input !== "string") {
       return null;
     }
 
-    const normalized = input.trim().toUpperCase().replace(/[\s-]/g, '_');
+    const normalized = input.trim().toUpperCase().replace(/[\s-]/g, "_");
     return normalized.length > 0 ? normalized : null;
   }
 
-  private extractRawSsoRoleTags(profile: any, verifiedTokenPayload: JoseJWTPayload | null): string[] {
+  private extractRawSsoRoleTags(
+    profile: any,
+    verifiedTokenPayload: JoseJWTPayload | null,
+  ): string[] {
     const tags = new Set<string>();
 
     const pushTag = (value: unknown) => {
@@ -176,7 +209,7 @@ export class AuthService {
 
     const profileRoles = Array.isArray(profile?.roles) ? profile.roles : [];
     for (const roleEntry of profileRoles) {
-      if (roleEntry && typeof roleEntry === 'object') {
+      if (roleEntry && typeof roleEntry === "object") {
         pushTag((roleEntry as any).role);
       } else {
         pushTag(roleEntry);
@@ -212,7 +245,9 @@ export class AuthService {
       return false;
     }
 
-    const hasAllowedRole = rawRoleTags.some((roleTag) => Boolean(SSO_ROLE_MAP[roleTag]));
+    const hasAllowedRole = rawRoleTags.some((roleTag) =>
+      Boolean(SSO_ROLE_MAP[roleTag]),
+    );
     if (hasAllowedRole) {
       return false;
     }
@@ -247,8 +282,13 @@ export class AuthService {
     return Array.from(roles);
   }
 
-  private withIdentityRoles(identity: AuthIdentity, roles: UserRole[]): AuthIdentity {
-    const mergedRoles = Array.from(new Set([...this.collectIdentityRoles(identity), ...roles]));
+  private withIdentityRoles(
+    identity: AuthIdentity,
+    roles: UserRole[],
+  ): AuthIdentity {
+    const mergedRoles = Array.from(
+      new Set([...this.collectIdentityRoles(identity), ...roles]),
+    );
 
     return {
       ...identity,
@@ -266,50 +306,75 @@ export class AuthService {
       }
     }
 
-    return 'MAHASISWA';
+    return "MAHASISWA";
   }
 
   private normalizeIdentity(rawIdentity: any): AuthIdentity | null {
-    if (!rawIdentity || typeof rawIdentity !== 'object') {
+    if (!rawIdentity || typeof rawIdentity !== "object") {
       return null;
     }
 
     const identityTypeRaw = this.parseRoleOrNull(
       String(
-      rawIdentity.identityType || rawIdentity.type || rawIdentity.identity || rawIdentity.role || rawIdentity.roleName || ''
-    )
+        rawIdentity.identityType ||
+          rawIdentity.type ||
+          rawIdentity.identity ||
+          rawIdentity.role ||
+          rawIdentity.roleName ||
+          "",
+      ),
     );
 
-    const roleNameRaw = this.parseRoleOrNull(String(rawIdentity.roleName || rawIdentity.role || ''));
+    const roleNameRaw = this.parseRoleOrNull(
+      String(rawIdentity.roleName || rawIdentity.role || ""),
+    );
     const resolvedRole = roleNameRaw || identityTypeRaw;
 
     if (!resolvedRole) {
       return null;
     }
 
-    const identityRole = this.mapRoleToIdentityRole(identityTypeRaw || resolvedRole);
+    const identityRole = this.mapRoleToIdentityRole(
+      identityTypeRaw || resolvedRole,
+    );
     const roleName = this.mapRoleToIdentityRole(roleNameRaw || resolvedRole);
 
     const permissions = this.normalizePermissions(
-      rawIdentity.permissions || rawIdentity.permission || rawIdentity.scopes || rawIdentity.scope
+      rawIdentity.permissions ||
+        rawIdentity.permission ||
+        rawIdentity.scopes ||
+        rawIdentity.scope,
     );
 
-    const identityRoles = Array.from(new Set([
-      resolvedRole,
-      ...(Array.isArray(rawIdentity.effectiveRoles)
-        ? rawIdentity.effectiveRoles
-            .map((item: unknown) => this.parseRoleOrNull(String(item)))
-            .filter((item: UserRole | null): item is UserRole => Boolean(item))
-        : []),
-    ]));
+    const identityRoles = Array.from(
+      new Set([
+        resolvedRole,
+        ...(Array.isArray(rawIdentity.effectiveRoles)
+          ? rawIdentity.effectiveRoles
+              .map((item: unknown) => this.parseRoleOrNull(String(item)))
+              .filter((item: UserRole | null): item is UserRole =>
+                Boolean(item),
+              )
+          : []),
+      ]),
+    );
 
     return {
       identityType: identityRole,
       roleName,
       permissions,
       identityId: rawIdentity.identityId || rawIdentity.id || null,
-      displayName: rawIdentity.displayName || rawIdentity.fullName || rawIdentity.name || null,
-      identifier: rawIdentity.identifier || rawIdentity.nim || rawIdentity.nip || rawIdentity.email || null,
+      displayName:
+        rawIdentity.displayName ||
+        rawIdentity.fullName ||
+        rawIdentity.name ||
+        null,
+      identifier:
+        rawIdentity.identifier ||
+        rawIdentity.nim ||
+        rawIdentity.nip ||
+        rawIdentity.email ||
+        null,
       metadata: {
         ...rawIdentity,
         effectiveRoles: identityRoles,
@@ -320,18 +385,20 @@ export class AuthService {
   private normalizePermissions(input: unknown): EffectivePermission[] {
     const toList = Array.isArray(input)
       ? input
-      : typeof input === 'string'
+      : typeof input === "string"
         ? input.split(/[\s,]+/)
         : [];
 
     const normalized = toList
-      .map((item) => String(item || '').trim())
+      .map((item) => String(item || "").trim())
       .filter((item) => item.length > 0);
 
     return Array.from(new Set(normalized));
   }
 
-  private extractTokenPermissions(payload: JoseJWTPayload | null): EffectivePermission[] {
+  private extractTokenPermissions(
+    payload: JoseJWTPayload | null,
+  ): EffectivePermission[] {
     if (!payload) {
       return [];
     }
@@ -365,15 +432,19 @@ export class AuthService {
         continue;
       }
 
-      const mergedRoles = Array.from(new Set([
-        ...this.collectIdentityRoles(existing),
-        ...this.collectIdentityRoles(identity),
-      ]));
+      const mergedRoles = Array.from(
+        new Set([
+          ...this.collectIdentityRoles(existing),
+          ...this.collectIdentityRoles(identity),
+        ]),
+      );
 
-      const mergedPermissions = Array.from(new Set([
-        ...(existing.permissions || []),
-        ...(identity.permissions || []),
-      ]));
+      const mergedPermissions = Array.from(
+        new Set([
+          ...(existing.permissions || []),
+          ...(identity.permissions || []),
+        ]),
+      );
 
       dedup.set(key, {
         ...existing,
@@ -393,7 +464,10 @@ export class AuthService {
     return Array.from(dedup.values());
   }
 
-  private resolveAuthUserId(verifiedTokenPayload: JoseJWTPayload | null, profile: any): string {
+  private resolveAuthUserId(
+    verifiedTokenPayload: JoseJWTPayload | null,
+    profile: any,
+  ): string {
     const candidates = [
       verifiedTokenPayload?.sub,
       profile?.sub,
@@ -403,12 +477,14 @@ export class AuthService {
     ];
 
     for (const candidate of candidates) {
-      if (typeof candidate === 'string' && candidate.trim()) {
+      if (typeof candidate === "string" && candidate.trim()) {
         return candidate.trim();
       }
     }
 
-    const error = new Error('Unable to resolve authUserId from SSO response') as Error & { statusCode?: number };
+    const error = new Error(
+      "Unable to resolve authUserId from SSO response",
+    ) as Error & { statusCode?: number };
     error.statusCode = 401;
     throw error;
   }
@@ -422,9 +498,11 @@ export class AuthService {
     return verified.payload;
   }
 
-  private async exchangeAuthorizationCode(payload: CallbackPayload): Promise<TokenExchangeResponse> {
+  private async exchangeAuthorizationCode(
+    payload: CallbackPayload,
+  ): Promise<TokenExchangeResponse> {
     const form = new URLSearchParams({
-      grant_type: 'authorization_code',
+      grant_type: "AUTHORIZATION_CODE",
       code: payload.code,
       code_verifier: payload.codeVerifier,
       redirect_uri: payload.redirectUri,
@@ -433,16 +511,18 @@ export class AuthService {
     });
 
     const response = await fetch(this.config.sso.tokenUrl, {
-      method: 'POST',
+      method: "POST",
       headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
+        "Content-Type": "application/x-www-form-urlencoded",
       },
       body: form.toString(),
     });
 
     if (!response.ok) {
       const body = await response.text();
-      const error = new Error(`Failed to exchange authorization code with SSO (${response.status}): ${body}`) as Error & { statusCode?: number };
+      const error = new Error(
+        `Failed to exchange authorization code with SSO (${response.status}): ${body}`,
+      ) as Error & { statusCode?: number };
       error.statusCode = 401;
       throw error;
     }
@@ -467,7 +547,9 @@ export class AuthService {
       return this.uniqueIdentities(
         identitiesRaw
           .map((raw: any) => this.normalizeIdentity(raw))
-          .filter((identity: AuthIdentity | null): identity is AuthIdentity => Boolean(identity))
+          .filter((identity: AuthIdentity | null): identity is AuthIdentity =>
+            Boolean(identity),
+          ),
       );
     }
 
@@ -483,23 +565,34 @@ export class AuthService {
     //     }
     //   }
     // }
-    const profile = (input?.data?.profile || input?.profile || null) as Record<string, any> | null;
-    if (!profile || typeof profile !== 'object') {
+    const profile = (input?.data?.profile || input?.profile || null) as Record<
+      string,
+      any
+    > | null;
+    if (!profile || typeof profile !== "object") {
       return [];
     }
 
     const normalizedFromObjectMap: AuthIdentity[] = [];
     const identityMap = profile.identities;
 
-    if (identityMap && typeof identityMap === 'object' && !Array.isArray(identityMap)) {
-      for (const [identityKey, identityValue] of Object.entries(identityMap as Record<string, any>)) {
-        if (!identityValue || typeof identityValue !== 'object') {
+    if (
+      identityMap &&
+      typeof identityMap === "object" &&
+      !Array.isArray(identityMap)
+    ) {
+      for (const [identityKey, identityValue] of Object.entries(
+        identityMap as Record<string, any>,
+      )) {
+        if (!identityValue || typeof identityValue !== "object") {
           continue;
         }
 
         const keyRole = this.parseRoleOrNull(identityKey);
         const payloadRole = this.parseRoleOrNull(
-          identityValue.roleName || identityValue.role || identityValue.identityType
+          identityValue.roleName ||
+            identityValue.role ||
+            identityValue.identityType,
         );
         const resolvedRole = payloadRole || keyRole;
 
@@ -512,7 +605,11 @@ export class AuthService {
           identityType: this.mapRoleToIdentityRole(resolvedRole),
           roleName: this.mapRoleToIdentityRole(resolvedRole),
           effectiveRoles: [resolvedRole],
-          displayName: identityValue.fullName || profile.fullName || identityValue.name || null,
+          displayName:
+            identityValue.fullName ||
+            profile.fullName ||
+            identityValue.name ||
+            null,
           identifier:
             identityValue.nim ||
             identityValue.nidn ||
@@ -533,7 +630,7 @@ export class AuthService {
 
     const roles = Array.isArray(profile.roles) ? profile.roles : [];
     for (const roleEntry of roles) {
-      if (!roleEntry || typeof roleEntry !== 'object') {
+      if (!roleEntry || typeof roleEntry !== "object") {
         continue;
       }
 
@@ -542,9 +639,11 @@ export class AuthService {
         continue;
       }
 
-      const identityBucket = this.mapRoleToIdentityRole(resolvedRole) as IdentityRole;
+      const identityBucket = this.mapRoleToIdentityRole(
+        resolvedRole,
+      ) as IdentityRole;
       const alreadyExists = normalizedFromObjectMap.some(
-        (identity) => identity.identityType.toUpperCase() === identityBucket
+        (identity) => identity.identityType.toUpperCase() === identityBucket,
       );
 
       if (alreadyExists) {
@@ -574,7 +673,7 @@ export class AuthService {
       const rolesByIdentity = new Map<UserRole, Set<UserRole>>();
 
       for (const roleEntry of roles) {
-        if (!roleEntry || typeof roleEntry !== 'object') {
+        if (!roleEntry || typeof roleEntry !== "object") {
           continue;
         }
 
@@ -610,31 +709,48 @@ export class AuthService {
   private async fetchProfileAndIdentities(accessToken: string) {
     const headers = {
       Authorization: `Bearer ${accessToken}`,
-      Accept: 'application/json',
+      Accept: "application/json",
     };
 
     const profileResp = await fetch(this.config.sso.identitiesUrl, { headers });
     if (!profileResp.ok) {
       const body = await profileResp.text();
-      const error = new Error(`Failed to fetch user profile from SSO (${profileResp.status}): ${body}`) as Error & { statusCode?: number };
+      const error = new Error(
+        `Failed to fetch user profile from SSO (${profileResp.status}): ${body}`,
+      ) as Error & { statusCode?: number };
       error.statusCode = 401;
       throw error;
     }
 
     const profilePayload = (await profileResp.json()) as any;
-    let profile = profilePayload?.data?.profile || profilePayload?.profile || profilePayload?.data || profilePayload;
+    let profile =
+      profilePayload?.data?.profile ||
+      profilePayload?.profile ||
+      profilePayload?.data ||
+      profilePayload;
 
     let identities = this.extractIdentities(profilePayload);
 
-    if (identities.length === 0 && this.config.sso.userInfoUrl !== this.config.sso.identitiesUrl) {
-      const userInfoResp = await fetch(this.config.sso.userInfoUrl, { headers });
+    if (
+      identities.length === 0 &&
+      this.config.sso.userInfoUrl !== this.config.sso.identitiesUrl
+    ) {
+      const userInfoResp = await fetch(this.config.sso.userInfoUrl, {
+        headers,
+      });
       if (userInfoResp.ok) {
         const userInfoPayload = (await userInfoResp.json()) as any;
         const identitiesFromUserInfo = this.extractIdentities(userInfoPayload);
-        identities = this.uniqueIdentities([...identities, ...identitiesFromUserInfo]);
+        identities = this.uniqueIdentities([
+          ...identities,
+          ...identitiesFromUserInfo,
+        ]);
 
-        const profileFromUserInfo = userInfoPayload?.data?.profile || userInfoPayload?.profile || userInfoPayload?.data;
-        if (profileFromUserInfo && typeof profileFromUserInfo === 'object') {
+        const profileFromUserInfo =
+          userInfoPayload?.data?.profile ||
+          userInfoPayload?.profile ||
+          userInfoPayload?.data;
+        if (profileFromUserInfo && typeof profileFromUserInfo === "object") {
           profile = profileFromUserInfo;
         }
       }
@@ -642,8 +758,8 @@ export class AuthService {
 
     if (identities.length === 0) {
       const fallbackIdentity = this.normalizeIdentity({
-        identityType: profile?.identityType || profile?.role || 'MAHASISWA',
-        roleName: profile?.role || profile?.identityType || 'MAHASISWA',
+        identityType: profile?.identityType || profile?.role || "MAHASISWA",
+        roleName: profile?.role || profile?.identityType || "MAHASISWA",
         identifier: profile?.nim || profile?.nip || profile?.email || null,
       });
 
@@ -655,26 +771,35 @@ export class AuthService {
     return { profile, identities };
   }
 
-  private effectiveRoles(activeIdentity: AuthIdentity | null, identities: AuthIdentity[]): UserRole[] {
+  private effectiveRoles(
+    activeIdentity: AuthIdentity | null,
+    identities: AuthIdentity[],
+  ): UserRole[] {
     if (activeIdentity) {
       const roles = this.collectIdentityRoles(activeIdentity);
-      return roles.length > 0 ? roles : [this.parseRole(activeIdentity.roleName)];
+      return roles.length > 0
+        ? roles
+        : [this.parseRole(activeIdentity.roleName)];
     }
 
-    const roles = Array.from(new Set(identities.flatMap((item) => this.collectIdentityRoles(item))));
-    return roles.length > 0 ? roles : ['MAHASISWA'];
+    const roles = Array.from(
+      new Set(identities.flatMap((item) => this.collectIdentityRoles(item))),
+    );
+    return roles.length > 0 ? roles : ["MAHASISWA"];
   }
 
   private effectivePermissions(
     activeIdentity: AuthIdentity | null,
     identities: AuthIdentity[],
-    fallbackTokenPermissions: EffectivePermission[] = []
+    fallbackTokenPermissions: EffectivePermission[] = [],
   ): EffectivePermission[] {
     if (!activeIdentity) {
       return [];
     }
 
-    const fromActive = this.normalizePermissions(activeIdentity?.permissions || activeIdentity?.metadata?.permissions);
+    const fromActive = this.normalizePermissions(
+      activeIdentity?.permissions || activeIdentity?.metadata?.permissions,
+    );
     if (fromActive.length > 0) {
       return fromActive;
     }
@@ -682,9 +807,11 @@ export class AuthService {
     const mergedFromIdentities = Array.from(
       new Set(
         identities.flatMap((identity) =>
-          this.normalizePermissions(identity.permissions || identity.metadata?.permissions)
-        )
-      )
+          this.normalizePermissions(
+            identity.permissions || identity.metadata?.permissions,
+          ),
+        ),
+      ),
     );
 
     if (mergedFromIdentities.length > 0) {
@@ -697,42 +824,54 @@ export class AuthService {
   private ensureValidCallbackPayload(payload: CallbackPayload) {
     this.assertSsoConfiguration();
 
-    if (!payload.redirectUri.endsWith('/callback')) {
-      const error = new Error('redirectUri must end with /callback') as Error & { statusCode?: number };
+    if (!payload.redirectUri.endsWith("/callback")) {
+      const error = new Error(
+        "redirectUri must end with /callback",
+      ) as Error & { statusCode?: number };
       error.statusCode = 400;
       throw error;
     }
 
     if (payload.redirectUri !== this.config.sso.redirectUri) {
-      const error = new Error('redirectUri does not match configured SSO_REDIRECT_URI') as Error & { statusCode?: number };
+      const error = new Error(
+        "redirectUri does not match configured SSO_REDIRECT_URI",
+      ) as Error & { statusCode?: number };
       error.statusCode = 400;
       throw error;
     }
   }
 
-  buildAuthorizeUrl(state: string, codeChallenge: string, redirectUri?: string): string {
+  buildAuthorizeUrl(
+    state: string,
+    codeChallenge: string,
+    redirectUri?: string,
+  ): string {
     this.assertSsoConfiguration();
 
     const effectiveRedirectUri = redirectUri || this.config.sso.redirectUri;
     if (effectiveRedirectUri !== this.config.sso.redirectUri) {
-      const error = new Error('redirectUri does not match configured SSO_REDIRECT_URI') as Error & { statusCode?: number };
+      const error = new Error(
+        "redirectUri does not match configured SSO_REDIRECT_URI",
+      ) as Error & { statusCode?: number };
       error.statusCode = 400;
       throw error;
     }
 
     const url = new URL(`${this.config.sso.baseUrl}/oauth/authorize`);
-    url.searchParams.set('response_type', 'code');
-    url.searchParams.set('client_id', this.config.sso.clientId);
-    url.searchParams.set('redirect_uri', effectiveRedirectUri);
-    url.searchParams.set('scope', 'openid profile email');
-    url.searchParams.set('state', state);
-    url.searchParams.set('code_challenge', codeChallenge);
-    url.searchParams.set('code_challenge_method', 'S256');
+    url.searchParams.set("response_type", "code");
+    url.searchParams.set("client_id", this.config.sso.clientId);
+    url.searchParams.set("redirect_uri", effectiveRedirectUri);
+    url.searchParams.set("scope", "OPENID PROFILE EMAIL");
+    url.searchParams.set("state", state);
+    url.searchParams.set("code_challenge", codeChallenge);
+    url.searchParams.set("code_challenge_method", "S256");
 
     return url.toString();
   }
 
-  private async loadSessionContext(sessionId: string): Promise<AuthSessionContext | null> {
+  private async loadSessionContext(
+    sessionId: string,
+  ): Promise<AuthSessionContext | null> {
     await this.authSessionRepo.deleteExpiredSessions();
 
     const session = await this.authSessionRepo.findSessionById(sessionId);
@@ -749,16 +888,27 @@ export class AuthService {
       return null;
     }
 
-    const { profile, identities } = await this.fetchProfileAndIdentities(session.accessToken);
+    const { profile, identities } = await this.fetchProfileAndIdentities(
+      session.accessToken,
+    );
     const availableIdentities = identities;
-    const activeIdentity = availableIdentities.find((item) => item.identityType === session.activeIdentity) || null;
-    const effectiveRoles = this.effectiveRoles(activeIdentity, availableIdentities);
-    const effectivePermissions = this.effectivePermissions(activeIdentity, availableIdentities);
-    const primaryRole = this.pickPrimaryRole(effectiveRoles.length > 0 ? effectiveRoles : ['MAHASISWA']);
+    const activeIdentity =
+      availableIdentities.find(
+        (item) => item.identityType === session.activeIdentity,
+      ) || null;
+    const effectiveRoles = this.effectiveRoles(
+      activeIdentity,
+      availableIdentities,
+    );
+    const effectivePermissions = this.effectivePermissions(
+      activeIdentity,
+      availableIdentities,
+    );
+    const primaryRole = this.pickPrimaryRole(
+      effectiveRoles.length > 0 ? effectiveRoles : ["MAHASISWA"],
+    );
     const inferredEmail =
-      (profile && typeof profile.email === 'string'
-        ? profile.email
-        : null) ||
+      (profile && typeof profile.email === "string" ? profile.email : null) ||
       `${session.authUserId}@sso.local`;
 
     const userPayload: JWTPayload = {
@@ -787,17 +937,24 @@ export class AuthService {
     };
   }
 
-  async handleCallback(payload: CallbackPayload, expectedState?: string | null) {
+  async handleCallback(
+    payload: CallbackPayload,
+    expectedState?: string | null,
+  ) {
     this.ensureValidCallbackPayload(payload);
 
     if (!expectedState) {
-      const error = new Error('Missing OAuth state verification cookie. Call /api/auth/prepare before login.') as Error & { statusCode?: number };
+      const error = new Error(
+        "Missing OAuth state verification cookie. Call /api/auth/prepare before login.",
+      ) as Error & { statusCode?: number };
       error.statusCode = 401;
       throw error;
     }
 
     if (payload.state !== expectedState) {
-      const error = new Error('Invalid OAuth state') as Error & { statusCode?: number };
+      const error = new Error("Invalid OAuth state") as Error & {
+        statusCode?: number;
+      };
       error.statusCode = 401;
       throw error;
     }
@@ -807,22 +964,31 @@ export class AuthService {
     let verifiedPayload: JoseJWTPayload | null = null;
     if (tokens.id_token) {
       verifiedPayload = await this.verifyToken(tokens.id_token);
-    } else if (tokens.access_token && tokens.access_token.split('.').length === 3) {
+    } else if (
+      tokens.access_token &&
+      tokens.access_token.split(".").length === 3
+    ) {
       verifiedPayload = await this.verifyToken(tokens.access_token);
     }
 
-    const { profile, identities } = await this.fetchProfileAndIdentities(tokens.access_token);
+    const { profile, identities } = await this.fetchProfileAndIdentities(
+      tokens.access_token,
+    );
     const tokenPermissions = this.extractTokenPermissions(verifiedPayload);
 
     const rawSsoRoles = this.extractRawSsoRoleTags(profile, verifiedPayload);
     if (this.isBlockedOnlySsoRoleSet(rawSsoRoles)) {
-      const error = new Error('Role SSO Anda tidak diizinkan mengakses SIKP.') as Error & { statusCode?: number };
+      const error = new Error(
+        "Role SSO Anda tidak diizinkan mengakses SIKP.",
+      ) as Error & { statusCode?: number };
       error.statusCode = 403;
       throw error;
     }
 
     if (identities.length === 0) {
-      const error = new Error('No identities returned by SSO') as Error & { statusCode?: number };
+      const error = new Error("No identities returned by SSO") as Error & {
+        statusCode?: number;
+      };
       error.statusCode = 403;
       throw error;
     }
@@ -830,7 +996,9 @@ export class AuthService {
     const authUserId = this.resolveAuthUserId(verifiedPayload, profile);
 
     const activeIdentity = identities.length === 1 ? identities[0] : null;
-    const effectiveRoles = activeIdentity ? this.effectiveRoles(activeIdentity, identities) : [];
+    const effectiveRoles = activeIdentity
+      ? this.effectiveRoles(activeIdentity, identities)
+      : [];
     const effectivePermissions = activeIdentity
       ? this.effectivePermissions(activeIdentity, identities, tokenPermissions)
       : [];
@@ -850,7 +1018,7 @@ export class AuthService {
       updatedAt: new Date(),
     });
 
-    console.info('[AUTH][SSO_CALLBACK]', {
+    console.info("[AUTH][SSO_CALLBACK]", {
       authUserId,
       sessionId,
       requiresIdentitySelection: !activeIdentity,
@@ -869,14 +1037,18 @@ export class AuthService {
     };
   }
 
-  async getSessionContext(sessionId: string): Promise<AuthSessionContext | null> {
+  async getSessionContext(
+    sessionId: string,
+  ): Promise<AuthSessionContext | null> {
     return this.loadSessionContext(sessionId);
   }
 
   async getIdentities(sessionId: string): Promise<AuthIdentity[]> {
     const sessionContext = await this.loadSessionContext(sessionId);
     if (!sessionContext) {
-      const error = new Error('Session not found or expired') as Error & { statusCode?: number };
+      const error = new Error("Session not found or expired") as Error & {
+        statusCode?: number;
+      };
       error.statusCode = 401;
       throw error;
     }
@@ -887,33 +1059,41 @@ export class AuthService {
   async selectIdentity(sessionId: string, identityType: string) {
     const sessionContext = await this.loadSessionContext(sessionId);
     if (!sessionContext) {
-      const error = new Error('Session not found or expired') as Error & { statusCode?: number };
+      const error = new Error("Session not found or expired") as Error & {
+        statusCode?: number;
+      };
       error.statusCode = 401;
       throw error;
     }
 
     const selectedIdentity = sessionContext.availableIdentities.find(
-      (identity) => identity.identityType.toUpperCase() === identityType.toUpperCase()
+      (identity) =>
+        identity.identityType.toUpperCase() === identityType.toUpperCase(),
     );
 
     if (!selectedIdentity) {
-      const error = new Error('Selected identity is not available for this session') as Error & { statusCode?: number };
+      const error = new Error(
+        "Selected identity is not available for this session",
+      ) as Error & { statusCode?: number };
       error.statusCode = 400;
       throw error;
     }
 
-    const effectiveRoles = this.effectiveRoles(selectedIdentity, sessionContext.availableIdentities);
+    const effectiveRoles = this.effectiveRoles(
+      selectedIdentity,
+      sessionContext.availableIdentities,
+    );
     const effectivePermissions = this.effectivePermissions(
       selectedIdentity,
       sessionContext.availableIdentities,
-      sessionContext.effectivePermissions
+      sessionContext.effectivePermissions,
     );
 
     await this.authSessionRepo.updateSession(sessionId, {
       activeIdentity: selectedIdentity.identityType,
     });
 
-    console.info('[AUTH][IDENTITY_SELECTED]', {
+    console.info("[AUTH][IDENTITY_SELECTED]", {
       authUserId: sessionContext.authUserId,
       sessionId,
       identityType: selectedIdentity.identityType,
@@ -931,38 +1111,58 @@ export class AuthService {
   async getMe(sessionId: string) {
     const sessionContext = await this.loadSessionContext(sessionId);
     if (!sessionContext) {
-      const error = new Error('Session not found or expired') as Error & { statusCode?: number };
+      const error = new Error("Session not found or expired") as Error & {
+        statusCode?: number;
+      };
       error.statusCode = 401;
       throw error;
     }
 
-    const resolveIdentityName = (identity: AuthIdentity | null | undefined): string | null => {
+    const resolveIdentityName = (
+      identity: AuthIdentity | null | undefined,
+    ): string | null => {
       if (!identity) return null;
 
-      const metadataProfile = identity.metadata && typeof identity.metadata === 'object'
-        ? (identity.metadata as any).profile
-        : null;
+      const metadataProfile =
+        identity.metadata && typeof identity.metadata === "object"
+          ? (identity.metadata as any).profile
+          : null;
 
       return (
-        (typeof identity.displayName === 'string' && identity.displayName.trim()) ||
-        (metadataProfile && typeof metadataProfile.fullName === 'string' && metadataProfile.fullName.trim()) ||
-        (metadataProfile && typeof metadataProfile.nama === 'string' && metadataProfile.nama.trim()) ||
+        (typeof identity.displayName === "string" &&
+          identity.displayName.trim()) ||
+        (metadataProfile &&
+          typeof metadataProfile.fullName === "string" &&
+          metadataProfile.fullName.trim()) ||
+        (metadataProfile &&
+          typeof metadataProfile.nama === "string" &&
+          metadataProfile.nama.trim()) ||
         null
       );
     };
 
-    const resolveIdentityEmail = (identity: AuthIdentity | null | undefined): string | null => {
+    const resolveIdentityEmail = (
+      identity: AuthIdentity | null | undefined,
+    ): string | null => {
       if (!identity) return null;
 
-      const metadataProfile = identity.metadata && typeof identity.metadata === 'object'
-        ? (identity.metadata as any).profile
-        : null;
+      const metadataProfile =
+        identity.metadata && typeof identity.metadata === "object"
+          ? (identity.metadata as any).profile
+          : null;
 
-      if (metadataProfile && typeof metadataProfile.email === 'string' && metadataProfile.email.trim()) {
+      if (
+        metadataProfile &&
+        typeof metadataProfile.email === "string" &&
+        metadataProfile.email.trim()
+      ) {
         return metadataProfile.email.trim();
       }
 
-      if (typeof identity.identifier === 'string' && identity.identifier.includes('@')) {
+      if (
+        typeof identity.identifier === "string" &&
+        identity.identifier.includes("@")
+      ) {
         return identity.identifier.trim();
       }
 
@@ -972,7 +1172,9 @@ export class AuthService {
     const fallbackIdentity =
       sessionContext.activeIdentity ||
       sessionContext.availableIdentities.find((identity) =>
-        Boolean(resolveIdentityName(identity) || resolveIdentityEmail(identity))
+        Boolean(
+          resolveIdentityName(identity) || resolveIdentityEmail(identity),
+        ),
       ) ||
       null;
 
@@ -981,7 +1183,8 @@ export class AuthService {
       resolveIdentityName(fallbackIdentity);
 
     const resolvedEmail =
-      (sessionContext.user.email && !sessionContext.user.email.endsWith('@sso.local')
+      (sessionContext.user.email &&
+      !sessionContext.user.email.endsWith("@sso.local")
         ? sessionContext.user.email
         : null) ||
       resolveIdentityEmail(sessionContext.activeIdentity) ||
@@ -992,7 +1195,7 @@ export class AuthService {
       user: {
         id: sessionContext.user.userId,
         authUserId: sessionContext.authUserId,
-        authProvider: 'SSO_UNSRI',
+        authProvider: "SSO_UNSRI",
         nama: resolvedNama,
         email: resolvedEmail,
         role: sessionContext.user.role,
@@ -1002,14 +1205,16 @@ export class AuthService {
       availableIdentities: sessionContext.availableIdentities,
       effectiveRoles: sessionContext.effectiveRoles,
       effectivePermissions: sessionContext.effectivePermissions,
-      authzSource: 'ACCESS_TOKEN_CLAIMS',
+      authzSource: "ACCESS_TOKEN_CLAIMS",
     };
   }
 
   async authenticateSession(sessionId: string): Promise<JWTPayload> {
     const sessionContext = await this.loadSessionContext(sessionId);
     if (!sessionContext) {
-      const error = new Error('Session not found or expired') as Error & { statusCode?: number };
+      const error = new Error("Session not found or expired") as Error & {
+        statusCode?: number;
+      };
       error.statusCode = 401;
       throw error;
     }
@@ -1020,13 +1225,17 @@ export class AuthService {
   async getSessionAccessToken(sessionId: string): Promise<string> {
     const sessionContext = await this.loadSessionContext(sessionId);
     if (!sessionContext) {
-      const error = new Error('Session not found or expired') as Error & { statusCode?: number };
+      const error = new Error("Session not found or expired") as Error & {
+        statusCode?: number;
+      };
       error.statusCode = 401;
       throw error;
     }
 
     if (!sessionContext.accessToken) {
-      const error = new Error('Session access token is not available') as Error & { statusCode?: number };
+      const error = new Error(
+        "Session access token is not available",
+      ) as Error & { statusCode?: number };
       error.statusCode = 401;
       throw error;
     }
@@ -1046,45 +1255,56 @@ export class AuthService {
         });
 
         await fetch(this.config.sso.revokeUrl, {
-          method: 'POST',
+          method: "POST",
           headers: {
-            'Content-Type': 'application/x-www-form-urlencoded',
+            "Content-Type": "application/x-www-form-urlencoded",
           },
           body: revokeBody.toString(),
         });
       } catch (error) {
-        console.warn('Failed to revoke SSO refresh token during logout:', error);
+        console.warn(
+          "Failed to revoke SSO refresh token during logout:",
+          error,
+        );
       }
     }
 
     await this.authSessionRepo.deleteSession(sessionId);
 
-    console.info('[AUTH][LOGOUT]', {
+    console.info("[AUTH][LOGOUT]", {
       sessionId,
       authUserId: session?.authUserId || null,
     });
   }
 
   async registerMahasiswa() {
-    const error = new Error('Local registration has been disabled. Please login via SSO UNSRI.') as Error & { statusCode?: number };
+    const error = new Error(
+      "Local registration has been disabled. Please login via SSO UNSRI.",
+    ) as Error & { statusCode?: number };
     error.statusCode = 410;
     throw error;
   }
 
   async registerAdmin() {
-    const error = new Error('Local registration has been disabled. Please login via SSO UNSRI.') as Error & { statusCode?: number };
+    const error = new Error(
+      "Local registration has been disabled. Please login via SSO UNSRI.",
+    ) as Error & { statusCode?: number };
     error.statusCode = 410;
     throw error;
   }
 
   async registerDosen() {
-    const error = new Error('Local registration has been disabled. Please login via SSO UNSRI.') as Error & { statusCode?: number };
+    const error = new Error(
+      "Local registration has been disabled. Please login via SSO UNSRI.",
+    ) as Error & { statusCode?: number };
     error.statusCode = 410;
     throw error;
   }
 
   async login() {
-    const error = new Error('Local login has been disabled. Please login via SSO UNSRI.') as Error & { statusCode?: number };
+    const error = new Error(
+      "Local login has been disabled. Please login via SSO UNSRI.",
+    ) as Error & { statusCode?: number };
     error.statusCode = 410;
     throw error;
   }
