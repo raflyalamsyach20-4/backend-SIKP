@@ -39,9 +39,24 @@ type TokenExchangeResponse = {
   id_token?: string;
 };
 
+type SsoReferenceEntity = {
+  id?: string | null;
+  kode?: string | null;
+  nama?: string | null;
+  fakultasId?: string | null;
+};
+
 type SsoRoleEntry = {
   role?: string | null;
   id?: string | null;
+  profileId?: string | null;
+  fakultasId?: string | null;
+  prodiId?: string | null;
+  isActive?: boolean | null;
+  createdAt?: string | null;
+  updatedAt?: string | null;
+  prodi?: SsoReferenceEntity | null;
+  fakultas?: SsoReferenceEntity | null;
 };
 
 type SsoIdentityObject = {
@@ -65,8 +80,36 @@ type SsoIdentityObject = {
   nip?: string | null;
   nidn?: string | null;
   email?: string | null;
+  phone?: string | null;
+  noTelepon?: string | null;
+  instansi?: string | null;
+  jabatan?: string | null;
+  jabatanFungsional?: string | null;
+  jabatanStruktural?: string[] | null;
+  bidang?: string | null;
+  bidangKeahlian?: string | null;
+  angkatan?: number | null;
+  semester?: number | null;
+  semesterAktif?: number | null;
+  jumlahSksLulus?: number | null;
+  status?: string | null;
   authUserId?: string | null;
   profileId?: string | null;
+  dosenPAProfileId?: string | null;
+  prodiId?: string | null;
+  fakultasId?: string | null;
+  prodi?: SsoReferenceEntity | null;
+  fakultas?: SsoReferenceEntity | null;
+  dosenPA?: {
+    id?: string | null;
+    profileId?: string | null;
+    nidn?: string | null;
+    profile?: {
+      id?: string | null;
+      fullName?: string | null;
+      email?: string | null;
+    } | null;
+  } | null;
   profile?: SsoProfile | null;
   roleMeta?: SsoRoleEntry | null;
 };
@@ -79,12 +122,24 @@ type SsoProfile = {
   fullName?: string | null;
   nama?: string | null;
   email?: string | null;
+  phone?: string | null;
+  noTelepon?: string | null;
   role?: string | null;
   identityType?: string | null;
   identities?: Record<string, SsoIdentityObject | null> | null;
   roles?: Array<SsoRoleEntry | string> | null;
   nim?: string | null;
   nip?: string | null;
+  nidn?: string | null;
+  jabatan?: string | null;
+  jabatanFungsional?: string | null;
+  jabatanStruktural?: string[] | null;
+  angkatan?: number | null;
+  semester?: number | null;
+  semesterAktif?: number | null;
+  jumlahSksLulus?: number | null;
+  prodi?: SsoReferenceEntity | null;
+  fakultas?: SsoReferenceEntity | null;
 };
 
 type SsoEnvelope = {
@@ -873,7 +928,136 @@ export class AuthService {
     const roles = Array.from(
       new Set(identities.flatMap((item) => this.collectIdentityRoles(item))),
     );
-    return roles.length > 0 ? roles : ["MAHASISWA"];
+    return roles;
+  }
+
+  private getIdentityMetadataProfile(
+    identity: AuthIdentity | null | undefined,
+  ): SsoProfile | SsoIdentityObject | null {
+    if (
+      !identity?.metadata ||
+      typeof identity.metadata !== "object" ||
+      !("profile" in identity.metadata)
+    ) {
+      return null;
+    }
+
+    const metadataProfile = identity.metadata.profile;
+    if (!metadataProfile || typeof metadataProfile !== "object") {
+      return null;
+    }
+
+    return metadataProfile as SsoProfile | SsoIdentityObject;
+  }
+
+  private pickFirstString(
+    ...values: Array<string | null | undefined>
+  ): string | null {
+    for (const value of values) {
+      if (typeof value === "string" && value.trim()) {
+        return value.trim();
+      }
+    }
+
+    return null;
+  }
+
+  private pickFirstNumber(
+    ...values: Array<number | null | undefined>
+  ): number | null {
+    for (const value of values) {
+      if (typeof value === "number" && Number.isFinite(value)) {
+        return value;
+      }
+    }
+
+    return null;
+  }
+
+  private resolveIdentityRecord(
+    identity: AuthIdentity | null | undefined,
+  ): SsoIdentityObject | null {
+    if (!identity) {
+      return null;
+    }
+
+    const metadataProfile = this.getIdentityMetadataProfile(identity);
+    return metadataProfile && typeof metadataProfile === "object"
+      ? (metadataProfile as SsoIdentityObject)
+      : null;
+  }
+
+  private resolveIdentityDetail(identity: AuthIdentity | null | undefined) {
+    const metadataProfile = this.resolveIdentityRecord(identity);
+
+    return {
+      id: this.pickFirstString(
+        identity?.identityId || null,
+        metadataProfile?.id || null,
+        metadataProfile?.profileId || null,
+      ),
+      nama: this.pickFirstString(
+        identity?.displayName || null,
+        metadataProfile?.fullName || null,
+        metadataProfile?.name || null,
+        metadataProfile?.profile?.fullName || null,
+      ),
+      email: this.pickFirstString(
+        metadataProfile?.email || null,
+        metadataProfile?.profile?.email || null,
+        typeof identity?.identifier === "string" &&
+          identity.identifier.includes("@")
+          ? identity.identifier
+          : null,
+      ),
+      nim: this.pickFirstString(
+        metadataProfile?.nim || null,
+        identity?.identifier || null,
+      ),
+      nip: this.pickFirstString(metadataProfile?.nip || null),
+      nidn: this.pickFirstString(
+        metadataProfile?.nidn || null,
+        metadataProfile?.dosenPA?.nidn || null,
+      ),
+      phone: this.pickFirstString(
+        metadataProfile?.phone || null,
+        metadataProfile?.noTelepon || null,
+      ),
+      jabatan: this.pickFirstString(
+        metadataProfile?.jabatan || null,
+        metadataProfile?.jabatanFungsional || null,
+      ),
+      jabatanFungsional: this.pickFirstString(
+        metadataProfile?.jabatanFungsional || null,
+      ),
+      jabatanStruktural: Array.isArray(metadataProfile?.jabatanStruktural)
+        ? metadataProfile.jabatanStruktural.filter(
+            (item): item is string =>
+              typeof item === "string" && item.trim().length > 0,
+          )
+        : null,
+      angkatan: this.pickFirstNumber(metadataProfile?.angkatan || null),
+      semester: this.pickFirstNumber(
+        metadataProfile?.semester || null,
+        metadataProfile?.semesterAktif || null,
+      ),
+      semesterAktif: this.pickFirstNumber(
+        metadataProfile?.semesterAktif || null,
+        metadataProfile?.semester || null,
+      ),
+      jumlahSksLulus: this.pickFirstNumber(
+        metadataProfile?.jumlahSksLulus || null,
+      ),
+      prodi: this.pickFirstString(
+        metadataProfile?.prodi?.nama || null,
+        metadataProfile?.prodi?.kode || null,
+      ),
+      fakultas: this.pickFirstString(
+        metadataProfile?.fakultas?.nama || null,
+        metadataProfile?.fakultas?.kode || null,
+      ),
+      profile: metadataProfile,
+    };
   }
 
   private effectivePermissions(
@@ -992,12 +1176,13 @@ export class AuthService {
       activeIdentity,
       availableIdentities,
     );
-    const primaryRole = this.pickPrimaryRole(
-      effectiveRoles.length > 0 ? effectiveRoles : ["MAHASISWA"],
-    );
+    const primaryRole = this.pickPrimaryRole(effectiveRoles);
+    const activeIdentityDetail = this.resolveIdentityDetail(activeIdentity);
     const inferredEmail =
-      (profile && typeof profile.email === "string" ? profile.email : null) ||
-      `${session.authUserId}@sso.local`;
+      this.pickFirstString(
+        activeIdentityDetail.email,
+        profile && typeof profile.email === "string" ? profile.email : null,
+      ) || `${session.authUserId}@sso.local`;
 
     const userPayload: JWTPayload = {
       userId: session.authUserId,
@@ -1009,6 +1194,19 @@ export class AuthService {
       effectivePermissions,
       activeIdentity,
       availableIdentities,
+      nim: activeIdentityDetail.nim,
+      nip: activeIdentityDetail.nip,
+      nidn: activeIdentityDetail.nidn,
+      phone: activeIdentityDetail.phone,
+      jabatan: activeIdentityDetail.jabatan,
+      jabatanFungsional: activeIdentityDetail.jabatanFungsional,
+      jabatanStruktural: activeIdentityDetail.jabatanStruktural,
+      angkatan: activeIdentityDetail.angkatan,
+      semester: activeIdentityDetail.semester,
+      semesterAktif: activeIdentityDetail.semesterAktif,
+      jumlahSksLulus: activeIdentityDetail.jumlahSksLulus,
+      prodi: activeIdentityDetail.prodi,
+      fakultas: activeIdentityDetail.fakultas,
     };
 
     return {
@@ -1217,82 +1415,102 @@ export class AuthService {
       throw error;
     }
 
-    const resolveIdentityName = (
-      identity: AuthIdentity | null | undefined,
-    ): string | null => {
-      if (!identity) return null;
-
-      const metadataProfile =
-        identity.metadata &&
-        typeof identity.metadata === "object" &&
-        "profile" in identity.metadata
-          ? (identity.metadata.profile as SsoProfile | null | undefined) || null
-          : null;
-
-      return (
-        (typeof identity.displayName === "string" &&
-          identity.displayName.trim()) ||
-        (metadataProfile &&
-          typeof metadataProfile.fullName === "string" &&
-          metadataProfile.fullName.trim()) ||
-        (metadataProfile &&
-          typeof metadataProfile.nama === "string" &&
-          metadataProfile.nama.trim()) ||
-        null
-      );
-    };
-
-    const resolveIdentityEmail = (
-      identity: AuthIdentity | null | undefined,
-    ): string | null => {
-      if (!identity) return null;
-
-      const metadataProfile =
-        identity.metadata &&
-        typeof identity.metadata === "object" &&
-        "profile" in identity.metadata
-          ? (identity.metadata.profile as SsoProfile | null | undefined) || null
-          : null;
-
-      if (
-        metadataProfile &&
-        typeof metadataProfile.email === "string" &&
-        metadataProfile.email.trim()
-      ) {
-        return metadataProfile.email.trim();
-      }
-
-      if (
-        typeof identity.identifier === "string" &&
-        identity.identifier.includes("@")
-      ) {
-        return identity.identifier.trim();
-      }
-
-      return null;
-    };
-
     const fallbackIdentity =
       sessionContext.activeIdentity ||
-      sessionContext.availableIdentities.find((identity) =>
-        Boolean(
-          resolveIdentityName(identity) || resolveIdentityEmail(identity),
-        ),
-      ) ||
+      sessionContext.availableIdentities.find((identity) => {
+        const detail = this.resolveIdentityDetail(identity);
+        return Boolean(detail.nama || detail.email);
+      }) ||
       null;
 
-    const resolvedNama =
-      resolveIdentityName(sessionContext.activeIdentity) ||
-      resolveIdentityName(fallbackIdentity);
+    const activeIdentityDetail = this.resolveIdentityDetail(
+      sessionContext.activeIdentity,
+    );
+    const fallbackIdentityDetail = this.resolveIdentityDetail(fallbackIdentity);
+
+    const resolvedNama = this.pickFirstString(
+      activeIdentityDetail.nama,
+      fallbackIdentityDetail.nama,
+    );
 
     const resolvedEmail =
-      (sessionContext.user.email &&
-      !sessionContext.user.email.endsWith("@sso.local")
-        ? sessionContext.user.email
-        : null) ||
-      resolveIdentityEmail(sessionContext.activeIdentity) ||
-      resolveIdentityEmail(fallbackIdentity) ||
-      sessionContext.user.email;
+      this.pickFirstString(
+        sessionContext.user.email &&
+          !sessionContext.user.email.endsWith("@sso.local")
+          ? sessionContext.user.email
+          : null,
+        activeIdentityDetail.email,
+        fallbackIdentityDetail.email,
+        sessionContext.user.email,
+      ) || sessionContext.user.email;
+
+    const resolvedNim = this.pickFirstString(
+      sessionContext.user.nim,
+      activeIdentityDetail.nim,
+      fallbackIdentityDetail.nim,
+    );
+    const resolvedNip = this.pickFirstString(
+      sessionContext.user.nip,
+      activeIdentityDetail.nip,
+      fallbackIdentityDetail.nip,
+    );
+    const resolvedNidn = this.pickFirstString(
+      sessionContext.user.nidn,
+      activeIdentityDetail.nidn,
+      fallbackIdentityDetail.nidn,
+    );
+    const resolvedPhone = this.pickFirstString(
+      sessionContext.user.phone,
+      activeIdentityDetail.phone,
+      fallbackIdentityDetail.phone,
+    );
+    const resolvedJabatan = this.pickFirstString(
+      sessionContext.user.jabatan,
+      activeIdentityDetail.jabatan,
+      fallbackIdentityDetail.jabatan,
+    );
+    const resolvedJabatanFungsional = this.pickFirstString(
+      sessionContext.user.jabatanFungsional,
+      activeIdentityDetail.jabatanFungsional,
+      fallbackIdentityDetail.jabatanFungsional,
+    );
+    const resolvedJabatanStruktural =
+      sessionContext.user.jabatanStruktural &&
+      sessionContext.user.jabatanStruktural.length > 0
+        ? sessionContext.user.jabatanStruktural
+        : activeIdentityDetail.jabatanStruktural ||
+          fallbackIdentityDetail.jabatanStruktural ||
+          null;
+    const resolvedAngkatan =
+      sessionContext.user.angkatan ??
+      activeIdentityDetail.angkatan ??
+      fallbackIdentityDetail.angkatan ??
+      null;
+    const resolvedSemester =
+      sessionContext.user.semester ??
+      activeIdentityDetail.semester ??
+      fallbackIdentityDetail.semester ??
+      null;
+    const resolvedSemesterAktif =
+      sessionContext.user.semesterAktif ??
+      activeIdentityDetail.semesterAktif ??
+      fallbackIdentityDetail.semesterAktif ??
+      null;
+    const resolvedJumlahSksLulus =
+      sessionContext.user.jumlahSksLulus ??
+      activeIdentityDetail.jumlahSksLulus ??
+      fallbackIdentityDetail.jumlahSksLulus ??
+      null;
+    const resolvedProdi = this.pickFirstString(
+      sessionContext.user.prodi,
+      activeIdentityDetail.prodi,
+      fallbackIdentityDetail.prodi,
+    );
+    const resolvedFakultas = this.pickFirstString(
+      sessionContext.user.fakultas,
+      activeIdentityDetail.fakultas,
+      fallbackIdentityDetail.fakultas,
+    );
 
     return {
       user: {
@@ -1303,6 +1521,19 @@ export class AuthService {
         email: resolvedEmail,
         role: sessionContext.user.role,
         isActive: true,
+        nim: resolvedNim,
+        nip: resolvedNip,
+        nidn: resolvedNidn,
+        phone: resolvedPhone,
+        jabatan: resolvedJabatan,
+        jabatanFungsional: resolvedJabatanFungsional,
+        jabatanStruktural: resolvedJabatanStruktural,
+        angkatan: resolvedAngkatan,
+        semester: resolvedSemester,
+        semesterAktif: resolvedSemesterAktif,
+        jumlahSksLulus: resolvedJumlahSksLulus,
+        prodi: resolvedProdi,
+        fakultas: resolvedFakultas,
       },
       activeIdentity: sessionContext.activeIdentity,
       availableIdentities: sessionContext.availableIdentities,

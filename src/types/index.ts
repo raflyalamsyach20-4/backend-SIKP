@@ -1,16 +1,32 @@
-export type UserRole = 'MAHASISWA' | 'ADMIN' | 'DOSEN' | 'KAPRODI' | 'WAKIL_DEKAN' | 'MENTOR';
+export type UserRole =
+  | "MAHASISWA"
+  | "ADMIN"
+  | "DOSEN"
+  | "KAPRODI"
+  | "WAKIL_DEKAN"
+  | "MENTOR";
 export type EffectivePermission = string;
-export type AuthProvider = 'SSO_UNSRI';
-export type TeamStatus = 'PENDING' | 'FIXED';
-export type InvitationStatus = 'PENDING' | 'ACCEPTED' | 'REJECTED';
-export type SubmissionStatus = 'DRAFT' | 'PENDING_REVIEW' | 'APPROVED' | 'REJECTED';
-export type SubmissionVerificationStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
-export type SubmissionWorkflowStage = 'DRAFT' | 'PENDING_ADMIN_REVIEW' | 'PENDING_DOSEN_VERIFICATION' | 'COMPLETED' | 'REJECTED_ADMIN' | 'REJECTED_DOSEN';
-export type DocumentType = 'KTP' | 'TRANSKRIP' | 'KRS' | 'PROPOSAL' | 'OTHER';
+export type AuthProvider = "SSO_UNSRI";
+export type TeamStatus = "PENDING" | "FIXED";
+export type InvitationStatus = "PENDING" | "ACCEPTED" | "REJECTED";
+export type SubmissionStatus =
+  | "DRAFT"
+  | "PENDING_REVIEW"
+  | "APPROVED"
+  | "REJECTED";
+export type SubmissionVerificationStatus = "PENDING" | "APPROVED" | "REJECTED";
+export type SubmissionWorkflowStage =
+  | "DRAFT"
+  | "PENDING_ADMIN_REVIEW"
+  | "PENDING_DOSEN_VERIFICATION"
+  | "COMPLETED"
+  | "REJECTED_ADMIN"
+  | "REJECTED_DOSEN";
+export type DocumentType = "KTP" | "TRANSKRIP" | "KRS" | "PROPOSAL" | "OTHER";
 // ✅ NEW: Document status type
-export type DocumentStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
-export type ResponseLetterStatus = 'approved' | 'rejected';
-export type ResponseLetterTrackingStatus = 'pending' | 'submitted' | 'verified';
+export type DocumentStatus = "PENDING" | "APPROVED" | "REJECTED";
+export type ResponseLetterStatus = "approved" | "rejected";
+export type ResponseLetterTrackingStatus = "pending" | "submitted" | "verified";
 
 // Base User interface
 export interface User {
@@ -150,7 +166,7 @@ export interface AuthIdentity {
   identityId?: string | null;
   displayName?: string | null;
   identifier?: string | null;
-  metadata?: Record<string, any> | null;
+  metadata?: Record<string, unknown> | null;
 }
 
 export interface JWTPayload {
@@ -163,8 +179,19 @@ export interface JWTPayload {
   effectivePermissions?: EffectivePermission[];
   activeIdentity?: AuthIdentity | null;
   availableIdentities?: AuthIdentity[];
-  nim?: string; // Optional for mahasiswa
-  nip?: string; // Optional for admin/dosen
+  nim?: string | null;
+  nip?: string | null;
+  nidn?: string | null;
+  phone?: string | null;
+  jabatan?: string | null;
+  jabatanFungsional?: string | null;
+  jabatanStruktural?: string[] | null;
+  angkatan?: number | null;
+  semester?: number | null;
+  semesterAktif?: number | null;
+  jumlahSksLulus?: number | null;
+  prodi?: string | null;
+  fakultas?: string | null;
 }
 
 export interface AuthSessionContext {
@@ -183,7 +210,7 @@ export interface AuthSessionContext {
 export interface TemplateField {
   variable: string;
   label: string;
-  type: 'text' | 'textarea' | 'number' | 'date' | 'time' | 'email' | 'select';
+  type: "text" | "textarea" | "number" | "date" | "time" | "email" | "select";
   required: boolean;
   placeholder?: string;
   order: number;
@@ -194,7 +221,7 @@ export interface TemplateField {
 export interface Template {
   id: string;
   name: string;
-  type: 'Template Only' | 'Generate & Template';
+  type: "Template Only" | "Generate & Template";
   description?: string | null;
   fileName: string;
   fileUrl: string;
@@ -227,7 +254,13 @@ export interface ResponseLetter {
   supervisorName: string | null;
   memberCount: number | null;
   roleLabel: string | null;
-  membersSnapshot: Array<{ id: number | string; name: string; nim: string; prodi?: string; role?: string }> | null;
+  membersSnapshot: Array<{
+    id: number | string;
+    name: string;
+    nim: string;
+    prodi?: string;
+    role?: string;
+  }> | null;
   submittedAt: Date;
   verified: boolean;
   verifiedAt: Date | null;
@@ -237,7 +270,16 @@ export interface ResponseLetter {
 // Response Letter with relations
 export interface ResponseLetterWithDetails extends ResponseLetter {
   submission?: Submission;
-  team?: Team & { academicSupervisor?: string | null; dosenKpName?: string | null; members?: Array<{ id: string; user: User & { mahasiswaProfile?: Mahasiswa }; role?: string; status?: string }> };
+  team?: Team & {
+    academicSupervisor?: string | null;
+    dosenKpName?: string | null;
+    members?: Array<{
+      id: string;
+      user: User & { mahasiswaProfile?: Mahasiswa };
+      role?: string;
+      status?: string;
+    }>;
+  };
   memberUser?: User & { mahasiswaProfile?: Mahasiswa };
   verifiedBy?: User;
   leader?: User & { mahasiswaProfile?: Mahasiswa };
