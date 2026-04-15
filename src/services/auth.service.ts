@@ -39,6 +39,72 @@ type TokenExchangeResponse = {
   id_token?: string;
 };
 
+type SsoRoleEntry = {
+  role?: string | null;
+  id?: string | null;
+};
+
+type SsoIdentityObject = {
+  identityType?: string | null;
+  type?: string | null;
+  identity?: string | null;
+  role?: string | null;
+  roleName?: string | null;
+  permissions?: unknown;
+  permission?: unknown;
+  scopes?: unknown;
+  scope?: unknown;
+  effectiveRoles?: unknown;
+  identityId?: string | null;
+  id?: string | null;
+  displayName?: string | null;
+  fullName?: string | null;
+  name?: string | null;
+  identifier?: string | null;
+  nim?: string | null;
+  nip?: string | null;
+  nidn?: string | null;
+  email?: string | null;
+  authUserId?: string | null;
+  profileId?: string | null;
+  profile?: SsoProfile | null;
+  roleMeta?: SsoRoleEntry | null;
+};
+
+type SsoProfile = {
+  id?: string | null;
+  sub?: string | null;
+  userId?: string | null;
+  authUserId?: string | null;
+  fullName?: string | null;
+  nama?: string | null;
+  email?: string | null;
+  role?: string | null;
+  identityType?: string | null;
+  identities?: Record<string, SsoIdentityObject | null> | null;
+  roles?: Array<SsoRoleEntry | string> | null;
+  nim?: string | null;
+  nip?: string | null;
+};
+
+type SsoEnvelope = {
+  data?:
+    | {
+        profile?: SsoProfile | null;
+        identities?: unknown;
+      }
+    | SsoProfile
+    | null;
+  profile?: SsoProfile | null;
+  identities?: unknown;
+};
+
+type SsoAccessTokenPayload = JoseJWTPayload & {
+  scope?: string[];
+  roles?: string[];
+  permissions?: string[];
+};
+
 const ROLE_PRIORITY: UserRole[] = [
   "ADMIN",
   "WAKIL_DEKAN",
@@ -157,7 +223,7 @@ export class AuthService {
       return resolved;
     }
 
-    return "MAHASISWA";
+    throw new Error(`Unhandled role: ${input}`);
   }
 
   private parseRoleOrNull(input?: string | null): UserRole | null {
@@ -182,7 +248,11 @@ export class AuthService {
       return "ADMIN";
     }
 
-    return "MAHASISWA";
+    if (role === "MAHASISWA") {
+      return "MAHASISWA";
+    }
+
+    throw new Error(`Unhandled role: ${role}`);
   }
 
   private normalizeRawRoleTag(input: unknown): string | null {
@@ -195,8 +265,8 @@ export class AuthService {
   }
 
   private extractRawSsoRoleTags(
-    profile: any,
-    verifiedTokenPayload: JoseJWTPayload | null,
+    profile: SsoProfile | null,
+    accessTokenPayload: SsoAccessTokenPayload | null,
   ): string[] {
     const tags = new Set<string>();
 
@@ -210,7 +280,7 @@ export class AuthService {
     const profileRoles = Array.isArray(profile?.roles) ? profile.roles : [];
     for (const roleEntry of profileRoles) {
       if (roleEntry && typeof roleEntry === "object") {
-        pushTag((roleEntry as any).role);
+        pushTag(roleEntry.role);
       } else {
         pushTag(roleEntry);
       }
@@ -218,13 +288,7 @@ export class AuthService {
 
     pushTag(profile?.role);
 
-    const tokenRoleCandidates: unknown[] = [
-      (verifiedTokenPayload as any)?.role,
-      (verifiedTokenPayload as any)?.roles,
-      (verifiedTokenPayload as any)?.app_metadata?.roles,
-      (verifiedTokenPayload as any)?.realm_access?.roles,
-      (verifiedTokenPayload as any)?.resource_access?.roles,
-    ];
+    const tokenRoleCandidates: unknown[] = [accessTokenPayload?.roles];
 
     for (const candidate of tokenRoleCandidates) {
       if (Array.isArray(candidate)) {
@@ -306,10 +370,12 @@ export class AuthService {
       }
     }
 
-    return "MAHASISWA";
+    throw new Error(`Unhandled role: ${roles}`);
   }
 
-  private normalizeIdentity(rawIdentity: any): AuthIdentity | null {
+  private normalizeIdentity(
+    rawIdentity: SsoIdentityObject | null,
+  ): AuthIdentity | null {
     if (!rawIdentity || typeof rawIdentity !== "object") {
       return null;
     }
@@ -397,18 +463,13 @@ export class AuthService {
   }
 
   private extractTokenPermissions(
-    payload: JoseJWTPayload | null,
+    payload: SsoAccessTokenPayload | null,
   ): EffectivePermission[] {
     if (!payload) {
       return [];
     }
 
-    const claimsCandidates: unknown[] = [
-      (payload as any).permissions,
-      (payload as any).permission,
-      (payload as any).scp,
-      payload.scope,
-    ];
+    const claimsCandidates: unknown[] = [payload.permissions, payload.scope];
 
     for (const candidate of claimsCandidates) {
       const permissions = this.normalizePermissions(candidate);
@@ -466,7 +527,7 @@ export class AuthService {
 
   private resolveAuthUserId(
     verifiedTokenPayload: JoseJWTPayload | null,
-    profile: any,
+    profile: SsoProfile | null,
   ): string {
     const candidates = [
       verifiedTokenPayload?.sub,
@@ -530,23 +591,24 @@ export class AuthService {
     return (await response.json()) as TokenExchangeResponse;
   }
 
-  private extractIdentities(input: any): AuthIdentity[] {
+  private extractIdentities(input: unknown): AuthIdentity[] {
     if (!input) {
       return [];
     }
 
-    const identitiesRaw = Array.isArray(input)
-      ? input
-      : Array.isArray(input.identities)
-        ? input.identities
-        : Array.isArray(input.data?.identities)
-          ? input.data.identities
+    const payload = input as SsoEnvelope | SsoIdentityObject[];
+    const identitiesRaw = Array.isArray(payload)
+      ? payload
+      : Array.isArray(payload.identities)
+        ? payload.identities
+        : Array.isArray(payload.data?.identities)
+          ? payload.data.identities
           : [];
 
     if (identitiesRaw.length > 0) {
       return this.uniqueIdentities(
         identitiesRaw
-          .map((raw: any) => this.normalizeIdentity(raw))
+          .map((raw) => this.normalizeIdentity(raw as SsoIdentityObject))
           .filter((identity: AuthIdentity | null): identity is AuthIdentity =>
             Boolean(identity),
           ),
@@ -565,10 +627,14 @@ export class AuthService {
     //     }
     //   }
     // }
-    const profile = (input?.data?.profile || input?.profile || null) as Record<
-      string,
-      any
-    > | null;
+    const profile =
+      (payload as SsoEnvelope)?.data &&
+      typeof (payload as SsoEnvelope).data === "object" &&
+      !Array.isArray((payload as SsoEnvelope).data) &&
+      "profile" in ((payload as SsoEnvelope).data || {})
+        ? ((payload as SsoEnvelope).data as { profile?: SsoProfile | null })
+            .profile || null
+        : (payload as SsoEnvelope)?.profile || null;
     if (!profile || typeof profile !== "object") {
       return [];
     }
@@ -581,9 +647,7 @@ export class AuthService {
       typeof identityMap === "object" &&
       !Array.isArray(identityMap)
     ) {
-      for (const [identityKey, identityValue] of Object.entries(
-        identityMap as Record<string, any>,
-      )) {
+      for (const [identityKey, identityValue] of Object.entries(identityMap)) {
         if (!identityValue || typeof identityValue !== "object") {
           continue;
         }
@@ -634,7 +698,7 @@ export class AuthService {
         continue;
       }
 
-      const resolvedRole = this.parseRoleOrNull((roleEntry as any).role);
+      const resolvedRole = this.parseRoleOrNull(roleEntry.role);
       if (!resolvedRole) {
         continue;
       }
@@ -654,7 +718,7 @@ export class AuthService {
         identityType: identityBucket,
         roleName: identityBucket,
         effectiveRoles: [resolvedRole],
-        identityId: (roleEntry as any).id || null,
+        identityId: roleEntry.id || null,
         displayName: profile.fullName || null,
         identifier: profile.email || null,
         authUserId: profile.authUserId || null,
@@ -677,7 +741,7 @@ export class AuthService {
           continue;
         }
 
-        const resolvedRole = this.parseRoleOrNull((roleEntry as any).role);
+        const resolvedRole = this.parseRoleOrNull(roleEntry.role);
         if (!resolvedRole) {
           continue;
         }
@@ -722,12 +786,19 @@ export class AuthService {
       throw error;
     }
 
-    const profilePayload = (await profileResp.json()) as any;
+    const profilePayload = (await profileResp.json()) as SsoEnvelope;
     let profile =
-      profilePayload?.data?.profile ||
-      profilePayload?.profile ||
-      profilePayload?.data ||
-      profilePayload;
+      profilePayload?.data &&
+      typeof profilePayload.data === "object" &&
+      !Array.isArray(profilePayload.data) &&
+      "profile" in profilePayload.data
+        ? profilePayload.data.profile || null
+        : profilePayload?.profile ||
+          (profilePayload?.data &&
+          typeof profilePayload.data === "object" &&
+          !Array.isArray(profilePayload.data)
+            ? (profilePayload.data as SsoProfile)
+            : null);
 
     let identities = this.extractIdentities(profilePayload);
 
@@ -739,7 +810,7 @@ export class AuthService {
         headers,
       });
       if (userInfoResp.ok) {
-        const userInfoPayload = (await userInfoResp.json()) as any;
+        const userInfoPayload = (await userInfoResp.json()) as SsoEnvelope;
         const identitiesFromUserInfo = this.extractIdentities(userInfoPayload);
         identities = this.uniqueIdentities([
           ...identities,
@@ -747,24 +818,41 @@ export class AuthService {
         ]);
 
         const profileFromUserInfo =
-          userInfoPayload?.data?.profile ||
-          userInfoPayload?.profile ||
-          userInfoPayload?.data;
+          userInfoPayload?.data &&
+          typeof userInfoPayload.data === "object" &&
+          !Array.isArray(userInfoPayload.data) &&
+          "profile" in userInfoPayload.data
+            ? userInfoPayload.data.profile || null
+            : userInfoPayload?.profile ||
+              (userInfoPayload?.data &&
+              typeof userInfoPayload.data === "object" &&
+              !Array.isArray(userInfoPayload.data)
+                ? (userInfoPayload.data as SsoProfile)
+                : null);
         if (profileFromUserInfo && typeof profileFromUserInfo === "object") {
           profile = profileFromUserInfo;
         }
       }
     }
 
-    if (identities.length === 0) {
-      const fallbackIdentity = this.normalizeIdentity({
-        identityType: profile?.identityType || profile?.role || "MAHASISWA",
-        roleName: profile?.role || profile?.identityType || "MAHASISWA",
-        identifier: profile?.nim || profile?.nip || profile?.email || null,
-      });
+    if (identities.length === 0 && profile) {
+      const fallbackRole = this.parseRoleOrNull(
+        profile.identityType || profile.role || null,
+      );
 
-      if (fallbackIdentity) {
-        identities = [fallbackIdentity];
+      if (fallbackRole) {
+        const fallbackIdentity = this.normalizeIdentity({
+          identityType: this.mapRoleToIdentityRole(fallbackRole),
+          roleName: this.mapRoleToIdentityRole(fallbackRole),
+          effectiveRoles: [fallbackRole],
+          identifier: profile.nim || profile.nip || profile.email || null,
+          authUserId: profile.authUserId || null,
+          profile,
+        });
+
+        if (fallbackIdentity) {
+          identities = [fallbackIdentity];
+        }
       }
     }
 
@@ -962,21 +1050,32 @@ export class AuthService {
     const tokens = await this.exchangeAuthorizationCode(payload);
 
     let verifiedPayload: JoseJWTPayload | null = null;
+    let verifiedAccessTokenPayload: SsoAccessTokenPayload | null = null;
+
     if (tokens.id_token) {
       verifiedPayload = await this.verifyToken(tokens.id_token);
-    } else if (
-      tokens.access_token &&
-      tokens.access_token.split(".").length === 3
-    ) {
-      verifiedPayload = await this.verifyToken(tokens.access_token);
+    }
+
+    if (tokens.access_token && tokens.access_token.split(".").length === 3) {
+      verifiedAccessTokenPayload = (await this.verifyToken(
+        tokens.access_token,
+      )) as SsoAccessTokenPayload;
+      if (!verifiedPayload) {
+        verifiedPayload = verifiedAccessTokenPayload;
+      }
     }
 
     const { profile, identities } = await this.fetchProfileAndIdentities(
       tokens.access_token,
     );
-    const tokenPermissions = this.extractTokenPermissions(verifiedPayload);
+    const tokenPermissions = this.extractTokenPermissions(
+      verifiedAccessTokenPayload || verifiedPayload,
+    );
 
-    const rawSsoRoles = this.extractRawSsoRoleTags(profile, verifiedPayload);
+    const rawSsoRoles = this.extractRawSsoRoleTags(
+      profile,
+      verifiedAccessTokenPayload || verifiedPayload,
+    );
     if (this.isBlockedOnlySsoRoleSet(rawSsoRoles)) {
       const error = new Error(
         "Role SSO Anda tidak diizinkan mengakses SIKP.",
@@ -1124,8 +1223,10 @@ export class AuthService {
       if (!identity) return null;
 
       const metadataProfile =
-        identity.metadata && typeof identity.metadata === "object"
-          ? (identity.metadata as any).profile
+        identity.metadata &&
+        typeof identity.metadata === "object" &&
+        "profile" in identity.metadata
+          ? (identity.metadata.profile as SsoProfile | null | undefined) || null
           : null;
 
       return (
@@ -1147,8 +1248,10 @@ export class AuthService {
       if (!identity) return null;
 
       const metadataProfile =
-        identity.metadata && typeof identity.metadata === "object"
-          ? (identity.metadata as any).profile
+        identity.metadata &&
+        typeof identity.metadata === "object" &&
+        "profile" in identity.metadata
+          ? (identity.metadata.profile as SsoProfile | null | undefined) || null
           : null;
 
       if (
