@@ -58,7 +58,7 @@ const checkStatus = async () => {
     for (const tableName of mainTables) {
       try {
         const query = `SELECT COUNT(*) as count FROM "${tableName}"`;
-        const result = await sql(query);
+        const result = await sql.query(query);
         const count = result[0]?.count || 0;
         console.log(`   ${tableName.padEnd(20)} : ${count} records`);
       } catch (error: any) {
