@@ -6,11 +6,27 @@
 	"compatibility_flags": [
 		"nodejs_compat"
 	],
+	"dev": {
+		"port": 8789
+	},
 	"vars": {
 		"JWT_SECRET": "change-this-in-production",
 		"R2_DOMAIN": "https://pub-34d108a4414048589cfe3d01fa4b5ed2.r2.dev",
 		"R2_BUCKET_NAME": "document-sikp-mi",
-		"USE_MOCK_R2": "false"
+		"API_BASE_URL": "https://backend-sikp.backend-sikp.workers.dev",
+		"USE_MOCK_R2": "false",
+		"SSO_BASE_URL": "https://sso.unsri.ac.id",
+		"SSO_ISSUER": "https://sso.unsri.ac.id",
+		"SSO_JWKS_URL": "https://sso.unsri.ac.id/.well-known/jwks.json",
+		"SSO_CLIENT_ID": "your-client-id",
+		"SSO_CLIENT_SECRET": "your-client-secret",
+		"SSO_REDIRECT_URI": "https://your-frontend-domain/callback",
+		"AUTH_SESSION_TTL_SECONDS": "43200",
+		"AUTH_COOKIE_SECURE": "true",
+		"AUTH_COOKIE_SAMESITE": "Lax",
+		"AUTH_SESSION_COOKIE_NAME": "sikp_session",
+		"SSO_SIGNATURE_PATH": "/signature",
+		"SSO_PROXY_TIMEOUT_MS": "10000"
 	},
 	"r2_buckets": [
 		{

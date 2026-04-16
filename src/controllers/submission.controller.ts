@@ -6,21 +6,63 @@ import type { JWTPayload } from '@/types';
 
 const createSubmissionSchema = z.object({
   teamId: z.string().min(1),
-  letterPurpose: z.string().min(1),
-  companyName: z.string().min(1),
-  companyAddress: z.string().min(1),
-  division: z.string().min(1),
-  startDate: z.string().datetime(),
-  endDate: z.string().datetime(),
+  letterPurpose: z.string().min(1).optional(),
+  companyName: z.string().min(1).optional(),
+  companyAddress: z.string().min(1).optional(),
+  companyPhone: z.string().max(50).optional(),
+  companyBusinessType: z.string().max(255).optional(),
+  division: z.string().min(1).optional(),
+  startDate: z.string().datetime().optional(),
+  endDate: z.string().datetime().optional(),
+}).refine((value) => {
+  if (!value.companyPhone || value.companyPhone.trim() === '') {
+    return true;
+  }
+
+  return /^[0-9+\-()\s]{6,50}$/.test(value.companyPhone.trim());
+}, {
+  message: 'companyPhone format is invalid',
+  path: ['companyPhone'],
+}).refine((value) => {
+  if (!value.companyBusinessType || value.companyBusinessType.trim() === '') {
+    return true;
+  }
+
+  const length = value.companyBusinessType.trim().length;
+  return length >= 2 && length <= 255;
+}, {
+  message: 'companyBusinessType must be 2-255 characters when provided',
+  path: ['companyBusinessType'],
 });
 
 const updateSubmissionSchema = z.object({
   letterPurpose: z.string().optional(),
   companyName: z.string().optional(),
   companyAddress: z.string().optional(),
+  companyPhone: z.string().max(50).optional(),
+  companyBusinessType: z.string().max(255).optional(),
   division: z.string().optional(),
   startDate: z.string().optional(),
   endDate: z.string().optional(),
+}).refine((value) => {
+  if (!value.companyPhone || value.companyPhone.trim() === '') {
+    return true;
+  }
+
+  return /^[0-9+\-()\s]{6,50}$/.test(value.companyPhone.trim());
+}, {
+  message: 'companyPhone format is invalid',
+  path: ['companyPhone'],
+}).refine((value) => {
+  if (!value.companyBusinessType || value.companyBusinessType.trim() === '') {
+    return true;
+  }
+
+  const length = value.companyBusinessType.trim().length;
+  return length >= 2 && length <= 255;
+}, {
+  message: 'companyBusinessType must be 2-255 characters when provided',
+  path: ['companyBusinessType'],
 });
 
 const uploadDocumentSchema = z.object({
@@ -48,21 +90,53 @@ export class SubmissionController {
       }
 
       const data = validationResult.data;
-      const submission = await this.submissionService.createSubmission(
+      const normalizedCompanyPhone = data.companyPhone?.trim();
+      const normalizedCompanyBusinessType = data.companyBusinessType?.trim();
+      const result = await this.submissionService.createSubmission(
         data.teamId,
         user.userId,
         {
           letterPurpose: data.letterPurpose,
           companyName: data.companyName,
           companyAddress: data.companyAddress,
+          companyPhone: normalizedCompanyPhone || undefined,
+          companyBusinessType: normalizedCompanyBusinessType || undefined,
           division: data.division,
-          startDate: new Date(data.startDate),
-          endDate: new Date(data.endDate),
+          startDate: data.startDate ? new Date(data.startDate) : undefined,
+          endDate: data.endDate ? new Date(data.endDate) : undefined,
         }
       );
 
-      return c.json(createResponse(true, 'Submission created successfully', submission), 201);
+      if (result.alreadyExists) {
+        return c.json(
+          {
+            success: true,
+            message: 'Submission already exists',
+            data: result.submission,
+            meta: {
+              alreadyExists: true,
+            },
+          },
+          200
+        );
+      }
+
+      return c.json(createResponse(true, 'Submission created', result.submission), 201);
     } catch (error: any) {
+      if (error?.code) {
+        return c.json(
+          {
+            success: false,
+            message: error.message || 'Failed to create submission',
+            error: {
+              code: error.code,
+            },
+            data: null,
+          },
+          error.statusCode || 400
+        );
+      }
+
       return handleError(c, error, 'Failed to create submission');
     }
   };
@@ -86,6 +160,14 @@ export class SubmissionController {
 
       const validated = validationResult.data;
       const data: any = { ...validated };
+      if (validated.companyPhone !== undefined) {
+        const normalizedCompanyPhone = validated.companyPhone.trim();
+        data.companyPhone = normalizedCompanyPhone || null;
+      }
+      if (validated.companyBusinessType !== undefined) {
+        const normalizedCompanyBusinessType = validated.companyBusinessType.trim();
+        data.companyBusinessType = normalizedCompanyBusinessType || null;
+      }
       if (validated.startDate) data.startDate = new Date(validated.startDate);
       if (validated.endDate) data.endDate = new Date(validated.endDate);
 
@@ -113,6 +195,19 @@ export class SubmissionController {
 
       return c.json(createResponse(true, 'Submission submitted for review', submission));
     } catch (error: any) {
+      if (error?.code) {
+        return c.json(
+          {
+            success: false,
+            message: error.message || 'Failed to submit for review',
+            error: {
+              code: error.code,
+            },
+            data: null,
+          },
+          error.statusCode || 400
+        );
+      }
       return handleError(c, error, 'Failed to submit for review');
     }
   };
@@ -141,7 +236,7 @@ export class SubmissionController {
       // Authorization check:
       // - ADMIN/KAPRODI/WAKIL_DEKAN can view any submission
       // - MAHASISWA can only view submissions from their own team
-      if (!['ADMIN', 'KAPRODI', 'WAKIL_DEKAN'].includes(user.role)) {
+      if (!['ADMIN', 'KAPRODI', 'WAKIL_DEKAN', 'DOSEN'].includes(user.role)) {
         // User is MAHASISWA - verify they're a member of the submission's team
         const submission_data = await (this.submissionService as any).submissionRepo.findById(submissionId);
         if (submission_data) {
@@ -156,6 +251,27 @@ export class SubmissionController {
       return c.json(createResponse(true, 'Submission retrieved', submission));
     } catch (error: any) {
       return handleError(c, error, 'Failed to get submission');
+    }
+  };
+
+  /**
+   * Mahasiswa: Get latest surat request status matrix for all team members.
+   * GET /api/mahasiswa/submissions/:submissionId/letter-request-status
+   */
+  getLetterRequestStatus = async (c: Context) => {
+    try {
+      const user = c.get('user') as JWTPayload;
+      const submissionId = c.req.param('submissionId');
+
+      const result = await this.submissionService.getLetterRequestStatus(submissionId, user.userId);
+
+      return c.json(createResponse(true, 'Status ajuan surat berhasil diambil', result));
+    } catch (error: any) {
+      if (error?.statusCode === 403) {
+        return c.json(createResponse(false, error.message || 'Anda tidak memiliki akses ke submission ini', null), 403);
+      }
+
+      return handleError(c, error, 'Failed to get letter request status');
     }
   };
 
@@ -206,6 +322,19 @@ export class SubmissionController {
 
       return c.json(createResponse(true, 'Document uploaded successfully', document), 201);
     } catch (error: any) {
+      if (error?.code) {
+        return c.json(
+          {
+            success: false,
+            message: error.message || 'Failed to upload document',
+            error: {
+              code: error.code,
+            },
+            data: null,
+          },
+          error.statusCode || 400
+        );
+      }
       return handleError(c, error, 'Failed to upload document');
     }
   };
@@ -219,6 +348,30 @@ export class SubmissionController {
       return c.json(createResponse(true, 'Documents retrieved', documents));
     } catch (error: any) {
       return handleError(c, error, 'Failed to get documents');
+    }
+  };
+
+  /**
+   * Delete a submission document
+   * Endpoint: DELETE /api/submissions/documents/:documentId
+   * Only allowed for REJECTED documents or documents in DRAFT submissions
+   */
+  deleteDocument = async (c: Context) => {
+    try {
+      const user = c.get('user') as JWTPayload;
+      const documentId = c.req.param('documentId');
+
+      console.log('[SubmissionController.deleteDocument] Request:', {
+        documentId,
+        userId: user.userId,
+      });
+
+      const result = await this.submissionService.deleteDocument(documentId, user.userId);
+
+      console.log('[SubmissionController.deleteDocument] Success');
+      return c.json(createResponse(true, result.message, null));
+    } catch (error: any) {
+      return handleError(c, error, 'Failed to delete document');
     }
   };
 

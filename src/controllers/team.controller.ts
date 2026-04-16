@@ -209,4 +209,44 @@ export class TeamController {
       return handleError(c, error, 'Failed to join team');
     }
   };
+
+  /**
+   * Reset team (student-initiated)
+   * Deletes all submissions and resets team status to PENDING
+   * POST /api/teams/reset
+   */
+  resetTeam = async (c: Context) => {
+    try {
+      const user = c.get('user') as JWTPayload;
+      
+      console.log(`[TeamController.resetTeam] Request from userId=${user.userId}`);
+
+      // Get user's teams
+      const myTeams = await this.teamService.getMyTeams(user.userId);
+      
+      if (!myTeams || myTeams.length === 0) {
+        console.error(`[TeamController.resetTeam] ❌ User has no teams`);
+        return c.json(
+          createResponse(false, 'Anda tidak memiliki tim yang dapat direset'),
+          404
+        );
+      }
+
+      // Get the first team (user can only have one active team)
+      const team = myTeams[0];
+      console.log(`[TeamController.resetTeam] Found team: ${team.code} (${team.id})`);
+
+      // Access teamResetService from container
+      const container = c.get('container') as any;
+      const result = await container.teamResetService.resetTeamByTeamId(team.id);
+
+      console.log(`[TeamController.resetTeam] ✅ Success: Team reset completed`);
+      return c.json(
+        createResponse(true, 'Tim berhasil direset. Anda dapat membuat submission baru.', result)
+      );
+    } catch (error: any) {
+      console.error(`[TeamController.resetTeam] ❌ Error:`, error);
+      return handleError(c, error, 'Failed to reset team');
+    }
+  };
 }

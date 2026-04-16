@@ -16,8 +16,9 @@ export class LetterService {
       throw new Error('Submission not found');
     }
 
-    if (submission.status !== 'DITERIMA') {
-      throw new Error('Can only generate letter for approved submissions');
+    const adminApproved = submission.adminVerificationStatus === 'APPROVED' || submission.status === 'APPROVED';
+    if (!adminApproved) {
+      throw new Error('Can only generate letter for admin-approved submissions');
     }
 
     // Generate letter number
@@ -145,9 +146,13 @@ export class LetterService {
             }),
             new Paragraph({ text: '' }),
             new Paragraph({
-              text: 'SURAT PENGANTAR KERJA PRAKTIK',
+              children: [
+                new TextRun({
+                  text: 'SURAT PENGANTAR KERJA PRAKTIK',
+                  bold: true,
+                }),
+              ],
               alignment: 'center',
-              bold: true,
             }),
             new Paragraph({ text: '' }),
             new Paragraph({ text: 'Kepada Yth.' }),

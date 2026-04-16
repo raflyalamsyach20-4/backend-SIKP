@@ -1,12 +1,32 @@
 import { TeamRepository } from '@/repositories/team.repository';
 import { UserRepository } from '@/repositories/user.repository';
+import { SubmissionRepository } from '@/repositories/submission.repository';
+  import { ResponseLetterRepository } from '@/repositories/response-letter.repository';
 import { generateId, generateTeamCode } from '@/utils/helpers';
 
 export class TeamService {
   constructor(
     private teamRepo: TeamRepository,
-    private userRepo: UserRepository
+    private userRepo: UserRepository,
+    private submissionRepo: SubmissionRepository,
+    private responseLetterRepo: ResponseLetterRepository
   ) {}
+
+  private buildDefaultDraftPayload(teamCode: string) {
+    const now = new Date();
+    const today = now.toISOString().split('T')[0];
+
+    return {
+      letterPurpose: `Belum diisi`,
+      companyName: 'Belum diisi',
+      companyAddress: 'Belum diisi',
+      companyPhone: null,
+      companyBusinessType: null,
+      division: 'Belum diisi',
+      startDate: today,
+      endDate: today,
+    };
+  }
 
   async createTeam(leaderId: string) {
     console.log(`[createTeam] 🚀 Starting team creation for leaderId=${leaderId}`);
@@ -43,11 +63,17 @@ export class TeamService {
 
       console.log(`[createTeam] ✅ Validation passed, creating team...`);
 
+      // After SSO cutover local mahasiswa profile no longer stores dosen PA.
+      // Team can be created with dosenKpId null and assigned later.
+      const dosenKpId = null;
+      console.log('[createTeam] Leader dosen PA unresolved in local DB (SSO mode), set dosenKpId=null');
+
       // Create team with auto-generated code
       const team = await this.teamRepo.create({
         id: generateId(),
         code: generateTeamCode(),
         leaderId,
+        dosenKpId,
         status: 'PENDING',
       });
 
@@ -219,6 +245,27 @@ export class TeamService {
       throw err;
     }
 
+    // Business rule: FIXED team can only be deleted after a response letter is submitted.
+    if (team.status === 'FIXED') {
+      const allSubmissions = await this.submissionRepo.findAllByTeamId(teamId);
+      const responseLetters = await Promise.all(
+        allSubmissions.map((submission) =>
+          this.responseLetterRepo.findBySubmissionId(submission.id)
+        )
+      );
+      const hasSubmittedResponseLetter = responseLetters.some(
+        (responseLetter) => !!responseLetter
+      );
+
+      if (!hasSubmittedResponseLetter) {
+        const err: any = new Error(
+          'Tim berstatus FIXED tidak dapat dibubarkan sebelum mengirim surat balasan.'
+        );
+        err.statusCode = 400;
+        throw err;
+      }
+    }
+
     // Count members affected before deletion
     const members = await this.teamRepo.findMembersByTeamId(teamId);
     const membersAffected = members.length;
@@ -253,12 +300,10 @@ export class TeamService {
       throw err;
     }
 
-    // 2. Check if team is already FIXED
-    if (team.status === 'FIXED') {
-      console.warn(`[finalizeTeam] ⚠️ Team already finalized: ${teamId}`);
-      const err: any = new Error('Tim sudah difinalisasi sebelumnya');
-      err.statusCode = 409;
-      throw err;
+    // 2. Check if team is already FIXED (idempotent path)
+    const alreadyFixed = team.status === 'FIXED';
+    if (alreadyFixed) {
+      console.warn(`[finalizeTeam] ⚠️ Team already finalized, continue idempotently: ${teamId}`);
     }
 
     // 3. Get all members (validation removed - team can be finalized with just the leader)
@@ -270,16 +315,74 @@ export class TeamService {
     console.log(`[finalizeTeam] Team has ${members.length} total members, ${acceptedMembers.length} accepted (excluding leader)`);
     console.log(`[finalizeTeam] Allowing finalization even with just the leader`);
 
-    // 4. Update team status to FIXED
-    console.log(`[finalizeTeam] Updating team status to FIXED...`);
-    const updatedTeam = await this.teamRepo.update(teamId, { status: 'FIXED' });
-    console.log(`[finalizeTeam] ✅ Team finalized successfully`);
+    // 4. Ensure team has dosen_kp_id from leader's dosen_pa_id
+    const leaderMahasiswa = await this.userRepo.findMahasiswaByUserId(team.leaderId);
+    const resolvedDosenKpId = team.dosenKpId || leaderMahasiswa?.dosenPaId || null;
+    if (!resolvedDosenKpId) {
+      const err: any = new Error('Dosen PA ketua belum ditetapkan. Tim tidak dapat difinalisasi.');
+      err.statusCode = 422;
+      throw err;
+    }
+
+    // 5. Update team status to FIXED and normalize dosen_kp_id
+    let updatedTeam = team;
+    if (!alreadyFixed || team.dosenKpId !== resolvedDosenKpId) {
+      console.log(`[finalizeTeam] Updating team status to FIXED...`);
+      updatedTeam = await this.teamRepo.update(teamId, {
+        status: 'FIXED',
+        dosenKpId: resolvedDosenKpId,
+      });
+      console.log('[finalizeTeam] TEAM_FINALIZED', { teamId, requesterId });
+    }
+
+    // 6. Ensure submission draft exists (idempotent)
+    const existingSubmissions = await this.submissionRepo.findByTeamId(teamId);
+    let submission = existingSubmissions[0] || null;
+    let submissionAlreadyExists = !!submission;
+
+    if (!submission) {
+      const defaults = this.buildDefaultDraftPayload(updatedTeam?.code || team.code);
+      let createdByThisRequest = true;
+      try {
+        submission = await this.submissionRepo.create({
+          id: generateId(),
+          teamId,
+          status: 'DRAFT',
+          ...defaults,
+        });
+      } catch {
+        const racedSubmissions = await this.submissionRepo.findByTeamId(teamId);
+        submission = racedSubmissions[0] || null;
+        createdByThisRequest = false;
+      }
+
+      if (!submission) {
+        throw new Error('Failed to create draft submission after team finalization');
+      }
+
+      submissionAlreadyExists = !createdByThisRequest;
+      if (createdByThisRequest) {
+        console.log('[finalizeTeam] SUBMISSION_CREATED', { teamId, submissionId: submission.id });
+      } else {
+        console.log('[finalizeTeam] SUBMISSION_CREATE_IDEMPOTENT_HIT', {
+          teamId,
+          submissionId: submission.id,
+        });
+      }
+    } else {
+      console.log('[finalizeTeam] SUBMISSION_CREATE_IDEMPOTENT_HIT', {
+        teamId,
+        submissionId: submission.id,
+      });
+    }
 
     return {
       id: updatedTeam?.id,
       code: updatedTeam?.code,
       status: updatedTeam?.status,
-      message: 'Tim berhasil difinalisasi dan siap untuk pengajuan'
+      message: 'Tim berhasil difinalisasi dan siap untuk pengajuan',
+      submission,
+      submissionAlreadyExists,
     };
   }
 
@@ -516,6 +619,16 @@ export class TeamService {
           console.warn(`[getMyTeams] ⚠️ Team not found: ${userMembership.teamId}`);
           return null;
         }
+
+        const dosenKpId =
+          (team as { dosenKpId?: string | null; dosen_kp_id?: string | null })
+            .dosenKpId ??
+          (team as { dosenKpId?: string | null; dosen_kp_id?: string | null })
+            .dosen_kp_id ??
+          null;
+        const dosenKpUser = dosenKpId
+          ? await this.userRepo.findById(dosenKpId)
+          : null;
         
         // Get all members of this team (ALL statuses)
         const members = await this.teamRepo.findMembersByTeamId(team.id);
@@ -550,6 +663,8 @@ export class TeamService {
         return {
           id: team.id,
           code: team.code,
+          dosen_kp_id: dosenKpId,
+          dosen_kp_name: dosenKpUser?.nama ?? null,
           leaderId: team.leaderId,
           isLeader: team.leaderId === userId, // ✅ Flag to indicate if current user is leader
           status: team.status,

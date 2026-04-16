@@ -1,0 +1,2 @@
+CREATE UNIQUE INDEX IF NOT EXISTS uq_submission_per_team
+ON submissions (team_id);

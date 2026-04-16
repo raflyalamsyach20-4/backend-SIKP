@@ -1,16 +1,138 @@
-import { asc, eq, desc, inArray } from 'drizzle-orm';
+import { asc, eq, desc, inArray, and, isNull } from 'drizzle-orm';
 import type { DbClient } from '@/db';
-import { submissions, submissionDocuments, generatedLetters, teams, teamMembers, users, mahasiswa } from '@/db/schema';
+import { submissions, submissionDocuments, generatedLetters, teams, teamMembers } from '@/db/schema';
 
 export class SubmissionRepository {
   constructor(private db: DbClient) {}
+
+  private async findWakilDekanSignature() {
+    return null;
+  }
+
+  private async resolveAcademicSupervisorByLeaderId(leaderId?: string | null) {
+    return null;
+  }
+
+  private async resolveTeamKpSupervisorByTeamId(teamId?: string | null) {
+    if (!teamId) {
+      return null;
+    }
+
+    const result = await this.db
+      .select({
+        dosenKpId: teams.dosenKpId,
+      })
+      .from(teams)
+      .where(eq(teams.id, teamId))
+      .limit(1);
+
+    return result[0]?.dosenKpId ?? null;
+  }
 
   async findById(id: string) {
     const result = await this.db.select().from(submissions).where(eq(submissions.id, id)).limit(1);
     return result[0] || null;
   }
 
+  /**
+   * Find submission by ID with team, members, and documents
+   * Used by admin to view submission details with documentReviews
+   */
+  async findByIdWithTeam(id: string) {
+    const submission = await this.findById(id);
+    if (!submission) {
+      return null;
+    }
+
+    const wakilDekanSignature = await this.findWakilDekanSignature();
+
+    // Get team with leader
+    const teamData = await this.db
+      .select()
+      .from(teams)
+      .where(eq(teams.id, submission.teamId))
+      .limit(1);
+
+    let team = teamData[0];
+    let teamMembers_list: any[] = [];
+
+    let academicSupervisor: string | null = null;
+    let dosenKpName: string | null = null;
+
+    if (team) {
+      // Resolve real dosen PA from team leader's mahasiswa profile
+      academicSupervisor = await this.resolveAcademicSupervisorByLeaderId(team.leaderId);
+      dosenKpName = await this.resolveTeamKpSupervisorByTeamId(team.id);
+
+      // Get team members with user info
+      const membersData = await this.db
+        .select({
+          id: teamMembers.id,
+          teamId: teamMembers.teamId,
+          userId: teamMembers.userId,
+          role: teamMembers.role,
+          status: teamMembers.invitationStatus,
+          invitedAt: teamMembers.invitedAt,
+          respondedAt: teamMembers.respondedAt,
+        })
+        .from(teamMembers)
+        .where(eq(teamMembers.teamId, submission.teamId));
+
+      teamMembers_list = membersData.map((member) => ({
+        ...member,
+        user: {
+          id: member.userId,
+          name: null,
+          email: null,
+          nim: null,
+          prodi: null,
+        },
+      }));
+    }
+
+    // Get documents with user info
+    const docs = await this.findDocumentsBySubmissionId(submission.id);
+    
+    // Filter out invalid documents
+    const validDocs = docs.filter(doc => doc.documentType);
+
+    return {
+      ...submission, // ✅ This includes documentReviews from submissions table
+      wakilDekanSignature,
+      team: team
+        ? {
+            ...team,
+            dosenKpName,
+            academicSupervisor,
+            members: teamMembers_list.map((m) => ({
+              id: m.id,
+              user: m.user,
+              role: m.role,
+              status: m.status,
+            })),
+          }
+        : null,
+      documents: validDocs,
+    };
+  }
+
+  /**
+   * Find active (non-archived) submissions for a team.
+   * Used by student-facing flows. Archived submissions (from previous reset
+   * attempts) are excluded so only the current active submission is returned.
+   */
   async findByTeamId(teamId: string) {
+    return await this.db
+      .select()
+      .from(submissions)
+      .where(and(eq(submissions.teamId, teamId), isNull(submissions.archivedAt)));
+  }
+
+  /**
+   * Find ALL submissions for a team, including archived ones.
+   * Used by admin/dosen to view full history of a team's KP attempts.
+   */
+  async findAllByTeamId(teamId: string) {
     return await this.db.select().from(submissions).where(eq(submissions.teamId, teamId));
   }
 
@@ -20,6 +142,21 @@ export class SubmissionRepository {
 
   async findByStatus(status: 'DRAFT' | 'PENDING_REVIEW' | 'REJECTED' | 'APPROVED') {
     return await this.db.select().from(submissions).where(eq(submissions.status, status));
+  }
+
+  async findByWorkflowStage(
+    workflowStage:
+      | 'DRAFT'
+      | 'PENDING_ADMIN_REVIEW'
+      | 'PENDING_DOSEN_VERIFICATION'
+      | 'COMPLETED'
+      | 'REJECTED_ADMIN'
+      | 'REJECTED_DOSEN'
+  ) {
+    return await this.db
+      .select()
+      .from(submissions)
+      .where(and(eq(submissions.workflowStage, workflowStage), isNull(submissions.archivedAt)));
   }
 
   async create(data: typeof submissions.$inferInsert) {
@@ -51,13 +188,16 @@ export class SubmissionRepository {
         fileType: submissionDocuments.fileType,
         fileSize: submissionDocuments.fileSize,
         fileUrl: submissionDocuments.fileUrl,
+        // ✅ NEW: Document status fields
+        status: submissionDocuments.status,
+        statusUpdatedAt: submissionDocuments.statusUpdatedAt,
         createdAt: submissionDocuments.createdAt,
       });
     return result[0];
   }
 
   async findDocumentsBySubmissionId(submissionId: string) {
-    return await this.db
+    const rows = await this.db
       .select({
         id: submissionDocuments.id,
         submissionId: submissionDocuments.submissionId,
@@ -69,17 +209,25 @@ export class SubmissionRepository {
         fileType: submissionDocuments.fileType,
         fileSize: submissionDocuments.fileSize,
         fileUrl: submissionDocuments.fileUrl,
+        // ✅ NEW: Document status fields
+        status: submissionDocuments.status,
+        statusUpdatedAt: submissionDocuments.statusUpdatedAt,
         createdAt: submissionDocuments.createdAt,
-        uploadedByUser: {
-          id: users.id,
-          name: users.nama,
-          email: users.email,
-        },
       })
       .from(submissionDocuments)
-      .leftJoin(users, eq(submissionDocuments.uploadedByUserId, users.id))
       .where(eq(submissionDocuments.submissionId, submissionId))
-      .orderBy(asc(submissionDocuments.documentType), asc(submissionDocuments.createdAt));
+      .orderBy(desc(submissionDocuments.createdAt));
+
+    return rows.map((row) => ({
+      ...row,
+      uploadedByUser: {
+        id: row.uploadedByUserId,
+        name: null,
+        email: null,
+        nim: null,
+        prodi: null,
+      },
+    }));
   }
 
   async findDocumentById(id: string) {
@@ -95,17 +243,81 @@ export class SubmissionRepository {
         fileType: submissionDocuments.fileType,
         fileSize: submissionDocuments.fileSize,
         fileUrl: submissionDocuments.fileUrl,
+        // ✅ NEW: Document status fields
+        status: submissionDocuments.status,
+        statusUpdatedAt: submissionDocuments.statusUpdatedAt,
         createdAt: submissionDocuments.createdAt,
-        uploadedByUser: {
-          id: users.id,
-          name: users.nama,
-          email: users.email,
-        },
       })
       .from(submissionDocuments)
-      .leftJoin(users, eq(submissionDocuments.uploadedByUserId, users.id))
       .where(eq(submissionDocuments.id, id))
       .limit(1);
+
+    const row = result[0];
+    if (!row) {
+      return null;
+    }
+
+    return {
+      ...row,
+      uploadedByUser: {
+        id: row.uploadedByUserId,
+        name: null,
+        email: null,
+        nim: null,
+        prodi: null,
+      },
+    };
+  }
+
+  // ✅ NEW: Update document status
+  async updateDocumentStatus(documentId: string, newStatus: 'PENDING' | 'APPROVED' | 'REJECTED') {
+    const result = await this.db
+      .update(submissionDocuments)
+      .set({
+        status: newStatus as any,
+        statusUpdatedAt: new Date(),
+      })
+      .where(eq(submissionDocuments.id, documentId))
+      .returning();
+    return result[0] || null;
+  }
+
+  // ✅ NEW: Find existing document by submissionId, documentType, and memberUserId
+  async findExistingDocument(submissionId: string, documentType: string, memberUserId: string) {
+    const result = await this.db
+      .select({
+        id: submissionDocuments.id,
+        submissionId: submissionDocuments.submissionId,
+        documentType: submissionDocuments.documentType,
+        memberUserId: submissionDocuments.memberUserId,
+        uploadedByUserId: submissionDocuments.uploadedByUserId,
+        originalName: submissionDocuments.originalName,
+        fileName: submissionDocuments.fileName,
+        fileType: submissionDocuments.fileType,
+        fileSize: submissionDocuments.fileSize,
+        fileUrl: submissionDocuments.fileUrl,
+        status: submissionDocuments.status,
+        statusUpdatedAt: submissionDocuments.statusUpdatedAt,
+        createdAt: submissionDocuments.createdAt,
+      })
+      .from(submissionDocuments)
+      .where(
+        and(
+          eq(submissionDocuments.submissionId, submissionId),
+          eq(submissionDocuments.documentType, documentType as any),
+          eq(submissionDocuments.memberUserId, memberUserId)
+        )
+      )
+      .limit(1);
+    return result[0] || null;
+  }
+
+  // ✅ NEW: Delete document from database
+  async deleteDocument(documentId: string) {
+    const result = await this.db
+      .delete(submissionDocuments)
+      .where(eq(submissionDocuments.id, documentId))
+      .returning();
     return result[0] || null;
   }
 
@@ -129,6 +341,8 @@ export class SubmissionRepository {
    * Sort by submittedAt DESC
    */
   async findAllForAdmin() {
+    const wakilDekanSignature = await this.findWakilDekanSignature();
+
     // Get all submissions with specified statuses
     const submissionList = await this.db
       .select()
@@ -151,7 +365,13 @@ export class SubmissionRepository {
         let team = teamData[0];
         let teamMembers_list: any[] = [];
 
+        let academicSupervisor: string | null = null;
+        let dosenKpName: string | null = null;
+
         if (team) {
+          academicSupervisor = await this.resolveAcademicSupervisorByLeaderId(team.leaderId);
+          dosenKpName = await this.resolveTeamKpSupervisorByTeamId(team.id);
+
           // Get team members with user info
           const membersData = await this.db
             .select({
@@ -162,20 +382,20 @@ export class SubmissionRepository {
               status: teamMembers.invitationStatus,
               invitedAt: teamMembers.invitedAt,
               respondedAt: teamMembers.respondedAt,
-              user: {
-                id: users.id,
-                name: users.nama,
-                email: users.email,
-                nim: mahasiswa.nim,
-                prodi: mahasiswa.prodi,
-              },
             })
             .from(teamMembers)
-            .innerJoin(users, eq(teamMembers.userId, users.id))
-            .leftJoin(mahasiswa, eq(users.id, mahasiswa.id))
             .where(eq(teamMembers.teamId, submission.teamId));
 
-          teamMembers_list = membersData;
+          teamMembers_list = membersData.map((member) => ({
+            ...member,
+            user: {
+              id: member.userId,
+              name: null,
+              email: null,
+              nim: null,
+              prodi: null,
+            },
+          }));
         }
 
         // Get documents
@@ -204,9 +424,12 @@ export class SubmissionRepository {
 
         return {
           ...submission,
+          wakilDekanSignature,
           team: team
             ? {
                 ...team,
+                dosenKpName,
+                academicSupervisor,
                 members: teamMembers_list.map((m) => ({
                   id: m.id,
                   user: m.user,
@@ -267,5 +490,17 @@ export class SubmissionRepository {
     });
     
     return await this.addDocument(documentData);
+  }
+
+  /**
+   * Update response letter status on submission
+   */
+  async updateResponseLetterStatus(
+    submissionId: string,
+    status: 'pending' | 'submitted' | 'verified'
+  ) {
+    return await this.update(submissionId, {
+      responseLetterStatus: status,
+    });
   }
 }

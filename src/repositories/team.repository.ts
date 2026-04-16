@@ -1,6 +1,6 @@
-import { eq, and } from 'drizzle-orm';
+import { eq, and, inArray } from 'drizzle-orm';
 import type { DbClient } from '@/db';
-import { teams, teamMembers, submissions, users, mahasiswa } from '@/db/schema';
+import { teams, teamMembers, submissions } from '@/db/schema';
 
 export class TeamRepository {
   constructor(private db: DbClient) {}
@@ -17,6 +17,28 @@ export class TeamRepository {
 
   async findByLeaderId(leaderId: string) {
     return await this.db.select().from(teams).where(eq(teams.leaderId, leaderId));
+  }
+
+  async findByDosenKpId(dosenKpId: string) {
+    return await this.db.select().from(teams).where(eq(teams.dosenKpId, dosenKpId));
+  }
+
+  async countFixedTeams() {
+    const result = await this.db.select().from(teams).where(eq(teams.status, 'FIXED'));
+    return result.length;
+  }
+
+  async countDistinctDosenKpInFixedTeams() {
+    const fixedTeams = await this.db.select().from(teams).where(eq(teams.status, 'FIXED'));
+    const uniqueDosen = new Set<string>();
+
+    fixedTeams.forEach((team) => {
+      if (team.dosenKpId) {
+        uniqueDosen.add(team.dosenKpId);
+      }
+    });
+
+    return uniqueDosen.size;
   }
 
   async create(data: typeof teams.$inferInsert) {
@@ -46,25 +68,30 @@ export class TeamRepository {
    * Get team members with user data (for displaying member info)
    */
   async findMembersWithUserDataByTeamId(teamId: string) {
-    return await this.db
+    const members = await this.db
       .select({
         id: teamMembers.id,
         teamId: teamMembers.teamId,
         userId: teamMembers.userId,
         role: teamMembers.role,
         invitationStatus: teamMembers.invitationStatus,
-        user: {
-          id: users.id,
-          nama: users.nama,
-          email: users.email,
-          nim: mahasiswa.nim,
-          prodi: mahasiswa.prodi,
-        },
       })
       .from(teamMembers)
-      .innerJoin(users, eq(teamMembers.userId, users.id))
-      .leftJoin(mahasiswa, eq(users.id, mahasiswa.id))
       .where(eq(teamMembers.teamId, teamId));
+
+    return members.map((member) => ({
+      ...member,
+      user: {
+        id: member.userId,
+        nama: null,
+        email: null,
+        phone: null,
+        nim: null,
+        prodi: null,
+        angkatan: null,
+        semester: null,
+      },
+    }));
   }
 
   async findMemberByTeamAndUser(teamId: string, userId: string) {
@@ -125,6 +152,25 @@ export class TeamRepository {
 
   async findMembershipByUserId(userId: string) {
     return await this.db.select().from(teamMembers).where(eq(teamMembers.userId, userId));
+  }
+
+  async findAcceptedMembersByTeamIds(teamIds: string[]) {
+    if (teamIds.length === 0) {
+      return [];
+    }
+
+    return await this.db
+      .select({
+        teamId: teamMembers.teamId,
+        userId: teamMembers.userId,
+      })
+      .from(teamMembers)
+      .where(
+        and(
+          inArray(teamMembers.teamId, teamIds),
+          eq(teamMembers.invitationStatus, 'ACCEPTED')
+        )
+      );
   }
 
   async deleteTeam(id: string) {
