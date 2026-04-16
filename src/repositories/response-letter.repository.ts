@@ -1,6 +1,6 @@
-import { eq, and, desc, asc, or, sql, like } from 'drizzle-orm';
+import { eq, and, desc, asc } from 'drizzle-orm';
 import type { DbClient } from '@/db';
-import { responseLetters, submissions, teams, users, mahasiswa, teamMembers } from '@/db/schema';
+import { responseLetters, submissions, teams, teamMembers } from '@/db/schema';
 import type { ResponseLetter, ResponseLetterWithDetails } from '@/types';
 import { generateId } from '@/utils/helpers';
 
@@ -120,14 +120,10 @@ export class ResponseLetterRepository {
         responseLetter: responseLetters,
         submission: submissions,
         team: teams,
-        leader: users,
-        leaderMahasiswa: mahasiswa,
       })
       .from(responseLetters)
       .leftJoin(submissions, eq(responseLetters.submissionId, submissions.id))
       .leftJoin(teams, eq(submissions.teamId, teams.id))
-      .leftJoin(users, eq(teams.leaderId, users.id))
-      .leftJoin(mahasiswa, eq(users.id, mahasiswa.id))
       .where(eq(responseLetters.id, id))
       .limit(1);
 
@@ -142,13 +138,9 @@ export class ResponseLetterRepository {
     const membersData = teamId 
       ? await this.db
           .select({
-            user: users,
-            mahasiswaProfile: mahasiswa,
             member: teamMembers,
           })
           .from(teamMembers)
-          .leftJoin(users, eq(teamMembers.userId, users.id))
-          .leftJoin(mahasiswa, eq(users.id, mahasiswa.id))
           .where(eq(teamMembers.teamId, teamId))
       : [];
 
@@ -156,18 +148,16 @@ export class ResponseLetterRepository {
       ...data.responseLetter,
       submission: data.submission || undefined,
       team: data.team || undefined,
-      leader: data.leader
-        ? {
-            ...data.leader,
-            mahasiswaProfile: data.leaderMahasiswa || undefined,
-          }
-        : undefined,
+      leader: undefined,
       members: membersData.map((m) => ({
-        ...m.user,
-        mahasiswaProfile: m.mahasiswaProfile || undefined,
+        id: m.member.userId,
+        nama: null,
+        email: null,
+        phone: null,
         role: m.member.role || 'ANGGOTA',
+        mahasiswaProfile: undefined,
       })),
-    } as ResponseLetterWithDetails;
+    } as unknown as ResponseLetterWithDetails;
   }
 
   /**
@@ -184,14 +174,10 @@ export class ResponseLetterRepository {
         responseLetter: responseLetters,
         submission: submissions,
         team: teams,
-        leader: users,
-        leaderMahasiswa: mahasiswa,
       })
       .from(responseLetters)
       .leftJoin(submissions, eq(responseLetters.submissionId, submissions.id))
-      .leftJoin(teams, eq(submissions.teamId, teams.id))
-      .leftJoin(users, eq(teams.leaderId, users.id))
-      .leftJoin(mahasiswa, eq(users.id, mahasiswa.id));
+      .leftJoin(teams, eq(submissions.teamId, teams.id));
 
     // Apply filters
     const conditions = [];
@@ -214,7 +200,7 @@ export class ResponseLetterRepository {
 
     // Apply sorting
     if (filters?.sort === 'name') {
-      query = query.orderBy(asc(users.nama)) as any;
+      query = query.orderBy(asc(responseLetters.studentName)) as any;
     } else {
       query = query.orderBy(desc(responseLetters.submittedAt)) as any;
     }
@@ -236,13 +222,9 @@ export class ResponseLetterRepository {
         const membersData = teamId
           ? await this.db
               .select({
-                user: users,
-                mahasiswaProfile: mahasiswa,
                 member: teamMembers,
               })
               .from(teamMembers)
-              .leftJoin(users, eq(teamMembers.userId, users.id))
-              .leftJoin(mahasiswa, eq(users.id, mahasiswa.id))
               .where(eq(teamMembers.teamId, teamId))
           : [];
 
@@ -250,18 +232,16 @@ export class ResponseLetterRepository {
           ...data.responseLetter,
           submission: data.submission || undefined,
           team: data.team || undefined,
-          leader: data.leader
-            ? {
-                ...data.leader,
-                mahasiswaProfile: data.leaderMahasiswa || undefined,
-              }
-            : undefined,
+          leader: undefined,
           members: membersData.map((m) => ({
-            ...m.user,
-            mahasiswaProfile: m.mahasiswaProfile || undefined,
+            id: m.member.userId,
+            nama: null,
+            email: null,
+            phone: null,
             role: m.member.role || 'ANGGOTA',
+            mahasiswaProfile: undefined,
           })),
-        } as ResponseLetterWithDetails;
+        } as unknown as ResponseLetterWithDetails;
       })
     );
 
@@ -412,14 +392,10 @@ export class ResponseLetterRepository {
         responseLetter: responseLetters,
         submission: submissions,
         team: teams,
-        leader: users,
-        leaderMahasiswa: mahasiswa,
       })
       .from(responseLetters)
       .innerJoin(submissions, eq(responseLetters.submissionId, submissions.id))
       .innerJoin(teams, eq(submissions.teamId, teams.id))
-      .leftJoin(users, eq(teams.leaderId, users.id))
-      .leftJoin(mahasiswa, eq(users.id, mahasiswa.id))
       .where(eq(responseLetters.submissionId, submission.id))
       .limit(1);
 
@@ -432,13 +408,9 @@ export class ResponseLetterRepository {
     // 4. Get team members with details
     const membersResult = await this.db
       .select({
-        user: users,
-        mahasiswaProfile: mahasiswa,
         member: teamMembers,
       })
       .from(teamMembers)
-      .innerJoin(users, eq(teamMembers.userId, users.id))
-      .leftJoin(mahasiswa, eq(users.id, mahasiswa.id))
       .where(eq(teamMembers.teamId, teamId));
 
     return {
@@ -447,18 +419,16 @@ export class ResponseLetterRepository {
         ? (data.submission as any)
         : undefined,
       team: data.team || undefined,
-      leader: data.leader
-        ? {
-            ...data.leader,
-            mahasiswaProfile: data.leaderMahasiswa || undefined,
-          }
-        : undefined,
+      leader: undefined,
       members: membersResult.map((m) => ({
-        ...m.user,
-        mahasiswaProfile: m.mahasiswaProfile || undefined,
+        id: m.member.userId,
+        nama: null,
+        email: null,
+        phone: null,
+        mahasiswaProfile: undefined,
         role: m.member.role || 'ANGGOTA',
       })),
       isLeader,
-    } as ResponseLetterWithDetails & { isLeader: boolean };
+    } as unknown as ResponseLetterWithDetails & { isLeader: boolean };
   }
 }

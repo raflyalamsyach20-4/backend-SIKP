@@ -7,7 +7,7 @@ export const UserRoles = {
   KAPRODI: 'KAPRODI',
   WAKIL_DEKAN: 'WAKIL_DEKAN',
   DOSEN: 'DOSEN',
-  PEMBIMBING_LAPANGAN: 'PEMBIMBING_LAPANGAN',
+  MENTOR: 'MENTOR',
 } as const;
 
 export type UserRole = typeof UserRoles[keyof typeof UserRoles];

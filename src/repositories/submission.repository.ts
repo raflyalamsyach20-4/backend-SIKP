@@ -1,78 +1,16 @@
-import { asc, eq, desc, inArray, and, isNull, ilike } from 'drizzle-orm';
+import { asc, eq, desc, inArray, and, isNull } from 'drizzle-orm';
 import type { DbClient } from '@/db';
-import { submissions, submissionDocuments, generatedLetters, teams, teamMembers, users, mahasiswa, dosen } from '@/db/schema';
+import { submissions, submissionDocuments, generatedLetters, teams, teamMembers } from '@/db/schema';
 
 export class SubmissionRepository {
   constructor(private db: DbClient) {}
 
   private async findWakilDekanSignature() {
-    const baseSelect = {
-      id: users.id,
-      name: users.nama,
-      nip: dosen.nip,
-      position: dosen.jabatan,
-      fakultas: dosen.fakultas,
-      prodi: dosen.prodi,
-      esignatureUrl: dosen.esignatureUrl,
-      esignatureKey: dosen.esignatureKey,
-      esignatureUploadedAt: dosen.esignatureUploadedAt,
-    };
-
-    // Prefer explicit role-based signer.
-    let result = await this.db
-      .select(baseSelect)
-      .from(users)
-      .innerJoin(dosen, eq(users.id, dosen.id))
-      .where(eq(users.role, 'WAKIL_DEKAN'))
-      .orderBy(desc(dosen.esignatureUploadedAt))
-      .limit(1);
-
-    // Fallback for legacy data where role may not be WAKIL_DEKAN,
-    // but jabatan already contains Wakil Dekan.
-    if (result.length === 0) {
-      result = await this.db
-        .select(baseSelect)
-        .from(users)
-        .innerJoin(dosen, eq(users.id, dosen.id))
-        .where(ilike(dosen.jabatan, '%wakil dekan%'))
-        .orderBy(desc(dosen.esignatureUploadedAt))
-        .limit(1);
-    }
-
-    const signer = result[0];
-    if (!signer) {
-      console.warn('[SubmissionRepository] Wakil Dekan signer not found. Checked role=WAKIL_DEKAN and jabatan ILIKE %wakil dekan%.');
-      return null;
-    }
-
-    return {
-      id: signer.id,
-      name: signer.name || 'Wakil Dekan Bidang Akademik',
-      nip: signer.nip || '-',
-      position: signer.position || 'Wakil Dekan Bidang Akademik',
-      fakultas: signer.fakultas || undefined,
-      prodi: signer.prodi || undefined,
-      esignatureUrl: signer.esignatureUrl || undefined,
-      esignatureKey: signer.esignatureKey || undefined,
-      esignatureUploadedAt: signer.esignatureUploadedAt || undefined,
-    };
+    return null;
   }
 
   private async resolveAcademicSupervisorByLeaderId(leaderId?: string | null) {
-    if (!leaderId) {
-      return null;
-    }
-
-    const result = await this.db
-      .select({
-        academicSupervisor: users.nama,
-      })
-      .from(mahasiswa)
-      .leftJoin(users, eq(mahasiswa.dosenPaId, users.id))
-      .where(eq(mahasiswa.id, leaderId))
-      .limit(1);
-
-    return result[0]?.academicSupervisor ?? null;
+    return null;
   }
 
   private async resolveTeamKpSupervisorByTeamId(teamId?: string | null) {
@@ -82,14 +20,13 @@ export class SubmissionRepository {
 
     const result = await this.db
       .select({
-        dosenKpName: users.nama,
+        dosenKpId: teams.dosenKpId,
       })
       .from(teams)
-      .leftJoin(users, eq(teams.dosenKpId, users.id))
       .where(eq(teams.id, teamId))
       .limit(1);
 
-    return result[0]?.dosenKpName ?? null;
+    return result[0]?.dosenKpId ?? null;
   }
 
   async findById(id: string) {
@@ -137,20 +74,20 @@ export class SubmissionRepository {
           status: teamMembers.invitationStatus,
           invitedAt: teamMembers.invitedAt,
           respondedAt: teamMembers.respondedAt,
-          user: {
-            id: users.id,
-            name: users.nama,
-            email: users.email,
-            nim: mahasiswa.nim,
-            prodi: mahasiswa.prodi,
-          },
         })
         .from(teamMembers)
-        .innerJoin(users, eq(teamMembers.userId, users.id))
-        .leftJoin(mahasiswa, eq(users.id, mahasiswa.id))
         .where(eq(teamMembers.teamId, submission.teamId));
 
-      teamMembers_list = membersData;
+      teamMembers_list = membersData.map((member) => ({
+        ...member,
+        user: {
+          id: member.userId,
+          name: null,
+          email: null,
+          nim: null,
+          prodi: null,
+        },
+      }));
     }
 
     // Get documents with user info
@@ -260,7 +197,7 @@ export class SubmissionRepository {
   }
 
   async findDocumentsBySubmissionId(submissionId: string) {
-    return await this.db
+    const rows = await this.db
       .select({
         id: submissionDocuments.id,
         submissionId: submissionDocuments.submissionId,
@@ -276,19 +213,21 @@ export class SubmissionRepository {
         status: submissionDocuments.status,
         statusUpdatedAt: submissionDocuments.statusUpdatedAt,
         createdAt: submissionDocuments.createdAt,
-        uploadedByUser: {
-          id: users.id,
-          name: users.nama,
-          email: users.email,
-          nim: mahasiswa.nim,
-          prodi: mahasiswa.prodi,
-        },
       })
       .from(submissionDocuments)
-      .leftJoin(users, eq(submissionDocuments.uploadedByUserId, users.id))
-      .leftJoin(mahasiswa, eq(users.id, mahasiswa.id))
       .where(eq(submissionDocuments.submissionId, submissionId))
       .orderBy(desc(submissionDocuments.createdAt));
+
+    return rows.map((row) => ({
+      ...row,
+      uploadedByUser: {
+        id: row.uploadedByUserId,
+        name: null,
+        email: null,
+        nim: null,
+        prodi: null,
+      },
+    }));
   }
 
   async findDocumentById(id: string) {
@@ -308,20 +247,26 @@ export class SubmissionRepository {
         status: submissionDocuments.status,
         statusUpdatedAt: submissionDocuments.statusUpdatedAt,
         createdAt: submissionDocuments.createdAt,
-        uploadedByUser: {
-          id: users.id,
-          name: users.nama,
-          email: users.email,
-          nim: mahasiswa.nim,
-          prodi: mahasiswa.prodi,
-        },
       })
       .from(submissionDocuments)
-      .leftJoin(users, eq(submissionDocuments.uploadedByUserId, users.id))
-      .leftJoin(mahasiswa, eq(users.id, mahasiswa.id))
       .where(eq(submissionDocuments.id, id))
       .limit(1);
-    return result[0] || null;
+
+    const row = result[0];
+    if (!row) {
+      return null;
+    }
+
+    return {
+      ...row,
+      uploadedByUser: {
+        id: row.uploadedByUserId,
+        name: null,
+        email: null,
+        nim: null,
+        prodi: null,
+      },
+    };
   }
 
   // ✅ NEW: Update document status
@@ -359,7 +304,7 @@ export class SubmissionRepository {
       .where(
         and(
           eq(submissionDocuments.submissionId, submissionId),
-          eq(submissionDocuments.documentType, documentType),
+          eq(submissionDocuments.documentType, documentType as any),
           eq(submissionDocuments.memberUserId, memberUserId)
         )
       )
@@ -437,20 +382,20 @@ export class SubmissionRepository {
               status: teamMembers.invitationStatus,
               invitedAt: teamMembers.invitedAt,
               respondedAt: teamMembers.respondedAt,
-              user: {
-                id: users.id,
-                name: users.nama,
-                email: users.email,
-                nim: mahasiswa.nim,
-                prodi: mahasiswa.prodi,
-              },
             })
             .from(teamMembers)
-            .innerJoin(users, eq(teamMembers.userId, users.id))
-            .leftJoin(mahasiswa, eq(users.id, mahasiswa.id))
             .where(eq(teamMembers.teamId, submission.teamId));
 
-          teamMembers_list = membersData;
+          teamMembers_list = membersData.map((member) => ({
+            ...member,
+            user: {
+              id: member.userId,
+              name: null,
+              email: null,
+              nim: null,
+              prodi: null,
+            },
+          }));
         }
 
         // Get documents

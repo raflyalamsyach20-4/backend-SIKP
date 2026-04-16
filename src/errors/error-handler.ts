@@ -43,7 +43,7 @@ export const errorHandler = (error: Error, c: Context): Response => {
       response.errors = error.errors;
     }
 
-    return c.json(response, error.statusCode) as Response;
+    return c.json(response, { status: error.statusCode as any }) as Response;
   }
 
   // Handle unknown errors

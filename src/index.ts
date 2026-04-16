@@ -7,22 +7,17 @@ import { createAppConfig, CloudflareBindings } from '@/config';
 import { DIContainer } from '@/core';
 import { errorHandler } from '@/errors';
 
-// Middlewares
-import { authMiddleware } from '@/middlewares/auth.middleware';
-
 // Routes
-import { createAuthRoutes, createMahasiswaRoutes } from '@/routes/auth.route';
+import { createAuthRoutes } from '@/routes/auth.route';
 import { createTeamRoutes } from '@/routes/team.route';
 import { createSubmissionRoutes } from '@/routes/submission.route';
-import { createAdminRoutes } from '@/routes/admin.route';
 import { createTemplateRoutes } from '@/routes/template.route';
 import { createUtilRoutes } from '@/routes/utils.route';
 import { createResponseLetterRoutes } from '@/routes/response-letter.routes';
-import { createDosenRoutes } from '@/routes/dosen.route';
-import { createMahasiswaProfileRoutes } from '@/routes/mahasiswa.route';
 import { createSuratKesediaanFallbackRoutes } from '@/routes/surat-kesediaan.route';
 import { createSuratPermohonanFallbackRoutes } from '@/routes/surat-permohonan.route';
 import { createAssetRoutes } from '@/routes/assets.route';
+import { createSsoSignatureRoutes } from '@/routes/sso-signature.route';
 
 /**
  * Extended context variables
@@ -44,6 +39,7 @@ app.use('*', cors({
   origin: (origin) => origin || '*',
   allowMethods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowHeaders: ['Content-Type', 'Authorization'],
+  credentials: true,
 }));
 
 /**
@@ -86,18 +82,29 @@ app.use('/api/*', async (c, next) => {
  * API Routes
  */
 app.route('/api/auth', createAuthRoutes());
-app.route('/api/mahasiswa', createMahasiswaRoutes());
-app.route('/api/mahasiswa', createMahasiswaProfileRoutes());
 app.route('/api/teams', createTeamRoutes());
 app.route('/api/submissions', createSubmissionRoutes());
-app.route('/api/admin', createAdminRoutes());
 app.route('/api/templates', createTemplateRoutes());
 app.route('/api/utils', createUtilRoutes());
 app.route('/api/response-letters', createResponseLetterRoutes());
-app.route('/api/dosen', createDosenRoutes());
 app.route('/api/surat-kesediaan', createSuratKesediaanFallbackRoutes());
 app.route('/api/surat-permohonan', createSuratPermohonanFallbackRoutes());
 app.route('/api/assets', createAssetRoutes());
+app.route('/api/profile', createSsoSignatureRoutes());
+
+const legacyIdentityRouteGone = (c: Context) => {
+  return c.json({
+    success: false,
+    message: 'This legacy identity route has been removed in SSO big-bang cutover.',
+  }, 410);
+};
+
+app.all('/api/mahasiswa', legacyIdentityRouteGone);
+app.all('/api/mahasiswa/*', legacyIdentityRouteGone);
+app.all('/api/dosen', legacyIdentityRouteGone);
+app.all('/api/dosen/*', legacyIdentityRouteGone);
+app.all('/api/admin', legacyIdentityRouteGone);
+app.all('/api/admin/*', legacyIdentityRouteGone);
 
 /**
  * 404 Not Found Handler

@@ -299,7 +299,7 @@ export class ResponseLetterService {
           name: member.nama || 'Unknown',
           nim: member.mahasiswaProfile?.nim || 'Unknown',
           prodi: member.mahasiswaProfile?.prodi || 'Unknown',
-          role: member.role === 'KETUA' ? 'Ketua' : 'Anggota',
+          role: String(member.role || '').toUpperCase() === 'KETUA' ? 'Ketua' : 'Anggota',
         })) || [];
 
     const memberCount = responseLetter.memberCount ?? resolvedMembers.length;

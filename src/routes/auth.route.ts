@@ -19,7 +19,7 @@ type Variables = {
 export const createAuthRoutes = () => {
   const auth = new Hono<{ Bindings: CloudflareBindings; Variables: Variables }>();
 
-  // Public routes
+  // Legacy routes (disabled by controller)
   auth.post('/register/mahasiswa', async (c: Context) => {
     const container = c.get('container') as DIContainer;
     return container.authController.registerMahasiswa(c);
@@ -40,10 +40,36 @@ export const createAuthRoutes = () => {
     return container.authController.login(c);
   });
 
-  // Protected routes
+  auth.post('/prepare', async (c: Context) => {
+    const container = c.get('container') as DIContainer;
+    return container.authController.prepare(c);
+  });
+
+  // SSO callback route
+  auth.post('/callback', async (c: Context) => {
+    const container = c.get('container') as DIContainer;
+    return container.authController.callback(c);
+  });
+
+  // Protected SSO routes
   auth.get('/me', authMiddleware, async (c: Context) => {
     const container = c.get('container') as DIContainer;
     return container.authController.me(c);
+  });
+
+  auth.get('/identities', authMiddleware, async (c: Context) => {
+    const container = c.get('container') as DIContainer;
+    return container.authController.identities(c);
+  });
+
+  auth.post('/select-identity', authMiddleware, async (c: Context) => {
+    const container = c.get('container') as DIContainer;
+    return container.authController.selectIdentity(c);
+  });
+
+  auth.post('/logout', authMiddleware, async (c: Context) => {
+    const container = c.get('container') as DIContainer;
+    return container.authController.logout(c);
   });
 
   return auth;

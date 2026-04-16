@@ -3,6 +3,7 @@ import { AppConfig } from '@/config';
 
 // Repositories
 import { UserRepository } from '@/repositories/user.repository';
+import { AuthSessionRepository } from '@/repositories/auth-session.repository';
 import { TeamRepository } from '@/repositories/team.repository';
 import { SubmissionRepository } from '@/repositories/submission.repository';
 import { TemplateRepository } from '@/repositories/template.repository';
@@ -26,6 +27,7 @@ import { MahasiswaService } from '@/services/mahasiswa.service';
 import { SuratKesediaanService } from '@/services/surat-kesediaan.service';
 import { SuratPermohonanService } from '@/services/surat-permohonan.service';
 import { SuratPengantarDosenService } from '@/services/surat-pengantar-dosen.service';
+import { SsoSignatureProxyService } from '@/services/sso-signature-proxy.service';
 
 // Controllers
 import { AuthController } from '@/controllers/auth.controller';
@@ -39,6 +41,7 @@ import { MahasiswaController } from '@/controllers/mahasiswa.controller';
 import { SuratKesediaanController } from '@/controllers/surat-kesediaan.controller';
 import { SuratPermohonanController } from '@/controllers/surat-permohonan.controller';
 import { SuratPengantarDosenController } from '@/controllers/surat-pengantar-dosen.controller';
+import { SsoSignatureController } from '@/controllers/sso-signature.controller';
 
 /**
  * Dependency Injection Container
@@ -47,6 +50,7 @@ import { SuratPengantarDosenController } from '@/controllers/surat-pengantar-dos
 export class DIContainer {
   // Repositories
   private _userRepository?: UserRepository;
+  private _authSessionRepository?: AuthSessionRepository;
   private _teamRepository?: TeamRepository;
   private _submissionRepository?: SubmissionRepository;
   private _templateRepository?: TemplateRepository;
@@ -69,6 +73,7 @@ export class DIContainer {
   private _suratKesediaanService?: SuratKesediaanService;
   private _suratPermohonanService?: SuratPermohonanService;
   private _suratPengantarDosenService?: SuratPengantarDosenService;
+  private _ssoSignatureProxyService?: SsoSignatureProxyService;
 
   // Controllers
   private _authController?: AuthController;
@@ -82,6 +87,7 @@ export class DIContainer {
   private _suratKesediaanController?: SuratKesediaanController;
   private _suratPermohonanController?: SuratPermohonanController;
   private _suratPengantarDosenController?: SuratPengantarDosenController;
+  private _ssoSignatureController?: SsoSignatureController;
 
   constructor(private config: AppConfig) {}
 
@@ -103,6 +109,13 @@ export class DIContainer {
       this._teamRepository = new TeamRepository(this.db);
     }
     return this._teamRepository;
+  }
+
+  get authSessionRepository(): AuthSessionRepository {
+    if (!this._authSessionRepository) {
+      this._authSessionRepository = new AuthSessionRepository(this.db);
+    }
+    return this._authSessionRepository;
   }
 
   get submissionRepository(): SubmissionRepository {
@@ -144,8 +157,8 @@ export class DIContainer {
   get authService(): AuthService {
     if (!this._authService) {
       this._authService = new AuthService(
-        this.userRepository,
-        this.config.jwt.secret
+        this.authSessionRepository,
+        this.config
       );
     }
     return this._authService;
@@ -319,6 +332,16 @@ export class DIContainer {
     return this._suratPengantarDosenService;
   }
 
+  get ssoSignatureProxyService(): SsoSignatureProxyService {
+    if (!this._ssoSignatureProxyService) {
+      this._ssoSignatureProxyService = new SsoSignatureProxyService(
+        this.authService,
+        this.config
+      );
+    }
+    return this._ssoSignatureProxyService;
+  }
+
   // Controllers
   get authController(): AuthController {
     if (!this._authController) {
@@ -416,11 +439,19 @@ export class DIContainer {
     return this._suratPengantarDosenController;
   }
 
+  get ssoSignatureController(): SsoSignatureController {
+    if (!this._ssoSignatureController) {
+      this._ssoSignatureController = new SsoSignatureController(this.ssoSignatureProxyService);
+    }
+    return this._ssoSignatureController;
+  }
+
   /**
    * Reset all cached instances (useful for testing)
    */
   reset(): void {
     this._userRepository = undefined;
+    this._authSessionRepository = undefined;
     this._teamRepository = undefined;
     this._submissionRepository = undefined;
     this._templateRepository = undefined;
@@ -441,6 +472,7 @@ export class DIContainer {
     this._suratKesediaanService = undefined;
     this._suratPermohonanService = undefined;
     this._suratPengantarDosenService = undefined;
+    this._ssoSignatureProxyService = undefined;
     this._authController = undefined;
     this._teamController = undefined;
     this._submissionController = undefined;
@@ -452,5 +484,6 @@ export class DIContainer {
     this._suratKesediaanController = undefined;
     this._suratPermohonanController = undefined;
     this._suratPengantarDosenController = undefined;
+    this._ssoSignatureController = undefined;
   }
 }

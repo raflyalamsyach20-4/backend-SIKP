@@ -13,12 +13,12 @@ Backend ini mengelola alur kerja praktik dari pembentukan tim, pengajuan surat, 
 - Database: PostgreSQL (Neon)
 - ORM: Drizzle ORM
 - Storage: Cloudflare R2
-- Auth: JWT + bcryptjs
+- Auth: SSO UNSRI (OAuth Authorization Code + PKCE + JWKS)
 - Validation: Zod
 
 ## Fitur Utama
 
-- Autentikasi multi role: MAHASISWA, ADMIN, KAPRODI, WAKIL_DEKAN, DOSEN
+- Autentikasi SSO UNSRI dengan multi-identity chooser
 - Manajemen tim KP dan undangan anggota
 - Submission workflow bertahap (draft, review admin, verifikasi dosen)
 - Upload dan review dokumen submission
@@ -54,7 +54,19 @@ Buat file .dev.vars dengan nilai minimal:
 
 ```env
 DATABASE_URL=postgresql://user:password@host/database?sslmode=require
-JWT_SECRET=your-secret-key
+JWT_SECRET=legacy-secret
+SSO_BASE_URL=https://sso.unsri.ac.id
+SSO_ISSUER=https://sso.unsri.ac.id
+SSO_JWKS_URL=https://sso.unsri.ac.id/.well-known/jwks.json
+SSO_CLIENT_ID=your-client-id
+SSO_CLIENT_SECRET=your-client-secret
+SSO_REDIRECT_URI=https://your-frontend-domain/callback
+AUTH_SESSION_TTL_SECONDS=43200
+AUTH_COOKIE_SECURE=true
+AUTH_COOKIE_SAMESITE=Lax
+AUTH_SESSION_COOKIE_NAME=sikp_session
+SSO_SIGNATURE_PATH=/signature
+SSO_PROXY_TIMEOUT_MS=10000
 ```
 
 3. Siapkan database
@@ -106,11 +118,22 @@ Base API:
 - /api/utils
 - /api/assets
 
-Semua endpoint protected memakai header:
+Endpoint auth SSO utama:
+
+- POST /api/auth/prepare
+- POST /api/auth/callback
+- GET /api/auth/identities
+- POST /api/auth/select-identity
+- GET /api/auth/me
+- POST /api/auth/logout
+
+Semua endpoint protected memakai session cookie `sikp_session` (httpOnly). Untuk kebutuhan non-browser, bisa kirim:
 
 ```text
-Authorization: Bearer <token>
+Authorization: Bearer <sessionId>
 ```
+
+Untuk frontend browser lintas origin, pastikan request API mengirim `credentials: 'include'` agar cookie session ikut terkirim.
 
 ## Response Format
 
@@ -129,6 +152,7 @@ Mayoritas endpoint mengembalikan:
 Dokumentasi lengkap fitur, alur, endpoint, dan contoh payload tersedia di:
 
 - [RINGKASAN_BACKEND_SIKP.md](RINGKASAN_BACKEND_SIKP.md)
+- [docs-local/SMOKE_TEST_SSO.md](docs-local/SMOKE_TEST_SSO.md)
 
 ## Catatan Baseline Migration (2026-04-07)
 
@@ -139,7 +163,7 @@ Dokumentasi lengkap fitur, alur, endpoint, dan contoh payload tersedia di:
 
 ## Catatan
 
-- Endpoint fallback kompatibilitas lama tetap ada di kode, namun endpoint utama didokumentasikan pada ringkasan backend.
+- Endpoint login/register lokal tetap ada untuk kompatibilitas tetapi sudah di-hard-fail (HTTP 410).
 - Untuk produksi, simpan secret dengan wrangler secret put.
 
 ## License

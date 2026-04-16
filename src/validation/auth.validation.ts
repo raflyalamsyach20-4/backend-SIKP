@@ -71,6 +71,44 @@ export const loginSchema = z.object({
 export type LoginInput = z.infer<typeof loginSchema>;
 
 /**
+ * SSO Callback Schema
+ */
+export const authCallbackSchema = z.object({
+  code: z.string().min(1, 'code is required'),
+  state: z.string().min(1, 'state is required'),
+  codeVerifier: z.string().min(1, 'codeVerifier is required'),
+  redirectUri: z
+    .string()
+    .url('redirectUri must be a valid URL')
+    .refine((value) => value.endsWith('/callback'), 'redirectUri must end with /callback'),
+});
+
+export type AuthCallbackInput = z.infer<typeof authCallbackSchema>;
+
+/**
+ * SSO Prepare Schema
+ */
+export const authPrepareSchema = z.object({
+  codeChallenge: z.string().min(43, 'codeChallenge is too short').max(128, 'codeChallenge is too long'),
+  redirectUri: z
+    .string()
+    .url('redirectUri must be a valid URL')
+    .refine((value) => value.endsWith('/callback'), 'redirectUri must end with /callback')
+    .optional(),
+});
+
+export type AuthPrepareInput = z.infer<typeof authPrepareSchema>;
+
+/**
+ * Select Active Identity Schema
+ */
+export const selectIdentitySchema = z.object({
+  identityType: z.string().min(1, 'identityType is required'),
+});
+
+export type SelectIdentityInput = z.infer<typeof selectIdentitySchema>;
+
+/**
  * Update Dosen Profile Schema
  */
 export const updateDosenProfileSchema = z.object({
