@@ -13,6 +13,60 @@ export const suratKesediaanStatusEnum = pgEnum('surat_kesediaan_status', ['MENUN
 export const suratPermohonanStatusEnum = pgEnum('surat_permohonan_status', ['MENUNGGU', 'DISETUJUI', 'DITOLAK']);
 export const submissionVerificationStatusEnum = pgEnum('submission_verification_status', ['PENDING', 'APPROVED', 'REJECTED']);
 export const workflowStageEnum = pgEnum('workflow_stage', ['DRAFT', 'PENDING_ADMIN_REVIEW', 'PENDING_DOSEN_VERIFICATION', 'COMPLETED', 'REJECTED_ADMIN', 'REJECTED_DOSEN']);
+export const roleEnum = pgEnum('role', ['MAHASISWA', 'ADMIN', 'DOSEN', 'KAPRODI', 'WAKIL_DEKAN', 'PEMBIMBING_LAPANGAN']);
+export const internshipStatusEnum = pgEnum('internship_status', ['PENDING', 'AKTIF', 'SELESAI', 'DIBATALKAN']);
+export const logbookStatusEnum = pgEnum('logbook_status', ['PENDING', 'APPROVED', 'REJECTED']);
+export const reportStatusEnum = pgEnum('report_status', ['DRAFT', 'SUBMITTED', 'APPROVED', 'NEEDS_REVISION', 'REJECTED']);
+export const titleStatusEnum = pgEnum('title_status', ['PENDING', 'APPROVED', 'REJECTED']);
+export const approvalStatusEnum = pgEnum('approval_status', ['PENDING', 'APPROVED', 'REJECTED']);
+
+// Users Table (base identity table)
+export const users = pgTable('users', {
+  id: text('id').primaryKey(),
+  nama: varchar('nama', { length: 255 }),
+  email: varchar('email', { length: 255 }).notNull().unique(),
+  password: text('password').notNull(),
+  role: roleEnum('role').notNull().default('MAHASISWA'),
+  phone: varchar('phone', { length: 20 }),
+  isActive: boolean('is_active').notNull().default(true),
+});
+
+// Mahasiswa Table
+export const mahasiswa = pgTable('mahasiswa', {
+  nim: varchar('nim', { length: 20 }).primaryKey(),
+  id: text('id').notNull().unique().references(() => users.id, { onDelete: 'cascade' }),
+  fakultas: varchar('fakultas', { length: 100 }),
+  prodi: varchar('prodi', { length: 100 }),
+  semester: integer('semester'),
+  angkatan: varchar('angkatan', { length: 10 }),
+});
+
+// Admin Table
+export const admin = pgTable('admin', {
+  id: text('id').primaryKey().references(() => users.id, { onDelete: 'cascade' }),
+  nip: varchar('nip', { length: 30 }).notNull().unique(),
+  fakultas: varchar('fakultas', { length: 100 }),
+  prodi: varchar('prodi', { length: 100 }),
+});
+
+// Dosen Table
+export const dosen = pgTable('dosen', {
+  id: text('id').primaryKey().references(() => users.id, { onDelete: 'cascade' }),
+  nip: varchar('nip', { length: 30 }).notNull().unique(),
+  jabatan: varchar('jabatan', { length: 100 }),
+  fakultas: varchar('fakultas', { length: 100 }),
+  prodi: varchar('prodi', { length: 100 }),
+});
+
+// Pembimbing Lapangan Table
+export const pembimbingLapangan = pgTable('pembimbing_lapangan', {
+  id: text('id').primaryKey().references(() => users.id, { onDelete: 'cascade' }),
+  companyName: varchar('company_name', { length: 255 }),
+  position: varchar('position', { length: 100 }),
+  companyAddress: text('company_address'),
+  signature: text('signature'),
+  signatureSetAt: timestamp('signature_set_at'),
+});
 
 // Minimal auth session store for SSO cutover
 export const authSessions = pgTable('auth_sessions', {
