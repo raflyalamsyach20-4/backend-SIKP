@@ -22,13 +22,19 @@ export class TeamController {
     try {
       const user = c.get('user') as JWTPayload;
       
-      console.log(`[TeamController.createTeam] Request from userId=${user.userId}`);
+      console.log(`[TeamController.createTeam] Request from profileId=${user.profileId}, dosenPAId=${user.dosenPAId}`);
 
-      const team = await this.teamService.createTeam(user.userId);
+      // ✅ Use profileId (not authUserId/sub) as team leader identifier
+      if (!user.profileId) {
+        throw new Error('profileId not found in session - SSO profile incomplete');
+      }
+
+      // ✅ Pass profileId and dosenPAId directly from JWT
+      const team = await this.teamService.createTeam(user.profileId, user.dosenPAId);
 
       console.log(`[TeamController.createTeam] ✅ Success: ${team.code}`);
       return c.json(createResponse(true, 'Team created successfully', team), 201);
-    } catch (error: any) {
+    } catch (error) {
       console.error(`[TeamController.createTeam] ❌ Error:`, error);
       return handleError(c, error, 'Failed to create team');
     }
@@ -43,7 +49,7 @@ export class TeamController {
 
       const invitation = await this.teamService.inviteMember(
         teamId,
-        user.userId,
+        user.userId, // ✅ userId is now profileId for team operations
         validated.memberNim
       );
 

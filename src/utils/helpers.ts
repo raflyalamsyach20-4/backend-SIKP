@@ -1,7 +1,7 @@
 import { Context } from 'hono';
 import type { ApiResponse } from '@/types';
 
-export const createResponse = <T = any>(
+export const createResponse = <T>(
   success: boolean,
   message: string,
   data?: T

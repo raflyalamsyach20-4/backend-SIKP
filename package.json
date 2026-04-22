@@ -20,6 +20,7 @@
     "db:reset": "tsx src/db/db-reset.ts"
   },
   "dependencies": {
+    "@hono/zod-validator": "^0.7.6",
     "@neondatabase/serverless": "1.0.2",
     "bcryptjs": "^2.4.3",
     "docx": "^8.5.0",
@@ -31,7 +32,7 @@
     "pdf-lib": "^1.17.1",
     "pdfkit": "^0.13.0",
     "pg": "^8.18.0",
-    "zod": "^3.22.4"
+    "zod": "^4.3.6"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20231218.0",

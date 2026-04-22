@@ -170,7 +170,8 @@ export interface AuthIdentity {
 }
 
 export interface JWTPayload {
-  userId: string;
+  sub: string;
+  userId: string; // ✅ Primary user identifier (always set to profileId or authUserId)
   authUserId?: string;
   sessionId?: string;
   email: string;
@@ -179,6 +180,8 @@ export interface JWTPayload {
   effectivePermissions?: EffectivePermission[];
   activeIdentity?: AuthIdentity | null;
   availableIdentities?: AuthIdentity[];
+  profileId?: string | null; // ✅ SSO profile ID from identity
+  dosenPAId?: string | null; // ✅ Dosen PA ID untuk mahasiswa
   nim?: string | null;
   nip?: string | null;
   nidn?: string | null;

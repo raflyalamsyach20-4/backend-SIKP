@@ -28,52 +28,45 @@ export class TeamService {
     };
   }
 
-  async createTeam(leaderId: string) {
-    console.log(`[createTeam] 🚀 Starting team creation for leaderId=${leaderId}`);
+  async createTeam(profileId: string, dosenPAId: string | null | undefined) {
+    console.log(`[createTeam] 🚀 Starting team creation for profileId=${profileId}, dosenPAId=${dosenPAId}`);
     
     try {
-      // Verify leader exists
-      const leader = await this.userRepo.findById(leaderId);
-      if (!leader) {
-        console.error(`[createTeam] ❌ User not found: ${leaderId}`);
-        throw new Error('User not found');
+      // ✅ Validate dosenPAId exists (required from SSO)
+      if (!dosenPAId) {
+        console.error(`[createTeam] ❌ Missing dosenPAId for profileId=${profileId}`);
+        const err = new Error('Dosen PA tidak ditemukan. Hubungi administrator untuk mengatur dosen PA.');
+        (err as any).statusCode = 400;
+        throw err;
       }
 
-      if (leader.role !== 'MAHASISWA') {
-        console.error(`[createTeam] ❌ User is not MAHASISWA: ${leader.role}`);
-        throw new Error('Only students can create teams');
-      }
-
-      console.log(`[createTeam] ✅ User verified: ${leader.nama} (${leader.role})`);
-
-      // Check if user already has a team (as leader)
-      const existingTeamsAsLeader = await this.teamRepo.findByLeaderId(leaderId);
+      // Check if profileId already has a team (as leader)
+      const existingTeamsAsLeader = await this.teamRepo.findByLeaderId(profileId);
       if (existingTeamsAsLeader.length > 0) {
-        console.error(`[createTeam] ❌ User already has ${existingTeamsAsLeader.length} team(s)`);
+        console.error(`[createTeam] ❌ profileId already has ${existingTeamsAsLeader.length} team(s)`);
         throw new Error('You already have a team. Each student can only create one team');
       }
 
-      // Check if user is already a member of another team (ACCEPTED status)
-      const existingMemberships = await this.teamRepo.findMembershipByUserId(leaderId);
+      // Check if profileId is already a member of another team (ACCEPTED status)
+      const existingMemberships = await this.teamRepo.findMembershipByUserId(profileId);
       const acceptedMembership = existingMemberships.find(m => m.invitationStatus === 'ACCEPTED');
       if (acceptedMembership) {
-        console.error(`[createTeam] ❌ User already member of team: ${acceptedMembership.teamId}`);
+        console.error(`[createTeam] ❌ profileId already member of team: ${acceptedMembership.teamId}`);
         throw new Error('You are already a member of another team. Each student can only join one team');
       }
 
       console.log(`[createTeam] ✅ Validation passed, creating team...`);
 
-      // After SSO cutover local mahasiswa profile no longer stores dosen PA.
-      // Team can be created with dosenKpId null and assigned later.
-      const dosenKpId = null;
-      console.log('[createTeam] Leader dosen PA unresolved in local DB (SSO mode), set dosenKpId=null');
+      // ✅ Use dosenPAId from SSO profile directly (no need for local DB lookup)
+      const dosenKpId = dosenPAId;
+      console.log(`[createTeam] ✅ Using dosenKpId from SSO: ${dosenKpId}`);
 
       // Create team with auto-generated code
       const team = await this.teamRepo.create({
         id: generateId(),
         code: generateTeamCode(),
-        leaderId,
-        dosenKpId,
+        leaderId: profileId, // ✅ Use profileId as leaderId (not authUserId)
+        dosenKpId, // ✅ Set dosenKpId from SSO dosenPA.id immediately
         status: 'PENDING',
       });
 
@@ -84,10 +77,11 @@ export class TeamService {
         await this.teamRepo.addMember({
           id: generateId(),
           teamId: team.id,
-          userId: leaderId,
-          role: 'KETUA', // ✅ CRITICAL: Set role to KETUA for creator
+          userId: profileId, // ✅ Use profileId as userId in team_members
+          role: 'KETUA',
           invitationStatus: 'ACCEPTED',
-          invitedBy: leaderId, // Explicitly mark creator as inviter/leader
+          invitedAt: new Date(),
+          invitedBy: profileId,
           respondedAt: new Date(),
         });
         
@@ -315,24 +309,22 @@ export class TeamService {
     console.log(`[finalizeTeam] Team has ${members.length} total members, ${acceptedMembers.length} accepted (excluding leader)`);
     console.log(`[finalizeTeam] Allowing finalization even with just the leader`);
 
-    // 4. Ensure team has dosen_kp_id from leader's dosen_pa_id
-    const leaderMahasiswa = await this.userRepo.findMahasiswaByUserId(team.leaderId);
-    const resolvedDosenKpId = team.dosenKpId || leaderMahasiswa?.dosenPaId || null;
-    if (!resolvedDosenKpId) {
-      const err: any = new Error('Dosen PA ketua belum ditetapkan. Tim tidak dapat difinalisasi.');
+    // 4. ✅ Verify team has dosenKpId (should be set during creation from SSO profile)
+    if (!team.dosenKpId) {
+      console.error(`[finalizeTeam] ❌ Team missing dosenKpId (should have been set during creation)`);
+      const err: any = new Error('Dosen PA ketua belum ditetapkan. Hubungi administrator.');
       err.statusCode = 422;
       throw err;
     }
 
-    // 5. Update team status to FIXED and normalize dosen_kp_id
+    // 5. Update team status to FIXED (dosenKpId already correct from creation)
     let updatedTeam = team;
-    if (!alreadyFixed || team.dosenKpId !== resolvedDosenKpId) {
-      console.log(`[finalizeTeam] Updating team status to FIXED...`);
+    if (!alreadyFixed) {
+      console.log(`[finalizeTeam] Updating team status to FIXED with existing dosenKpId...`);
       updatedTeam = await this.teamRepo.update(teamId, {
         status: 'FIXED',
-        dosenKpId: resolvedDosenKpId,
       });
-      console.log('[finalizeTeam] TEAM_FINALIZED', { teamId, requesterId });
+      console.log('[finalizeTeam] TEAM_FINALIZED', { teamId, requesterId, dosenKpId: team.dosenKpId });
     }
 
     // 6. Ensure submission draft exists (idempotent)

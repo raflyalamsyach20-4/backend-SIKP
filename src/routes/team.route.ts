@@ -2,6 +2,8 @@ import { Hono, Context } from 'hono';
 import { DIContainer } from '@/core';
 import { authMiddleware, mahasiswaOnly } from '@/middlewares/auth.middleware';
 import { CloudflareBindings } from '@/config';
+import { createTeamSchema } from '@/validation/team.validation';
+import { zValidator } from '@hono/zod-validator';
 
 /**
  * Extended context variables
@@ -15,81 +17,81 @@ type Variables = {
  * Handles team management endpoints
  */
 export const createTeamRoutes = () => {
-  const team = new Hono<{ Bindings: CloudflareBindings; Variables: Variables }>();
+  const team = new Hono<{ Bindings: CloudflareBindings; Variables: Variables }>()
 
   // Apply auth middleware to all team routes
-  team.use('*', authMiddleware);
-  team.use('*', mahasiswaOnly);
+  .use('*', authMiddleware)
+  .use('*', mahasiswaOnly)
 
-  team.post('/', async (c: Context) => {
+  .post('/', zValidator("json", createTeamSchema), async (c: Context) => {
     const container = c.get('container') as DIContainer;
     return container.teamController.createTeam(c);
-  });
+  })
 
-  team.get('/my-teams', async (c: Context) => {
+  .get('/my-teams', async (c: Context) => {
     const container = c.get('container') as DIContainer;
     return container.teamController.getMyTeams(c);
-  });
+  })
 
-  team.get('/my-invitations', async (c: Context) => {
+  .get('/my-invitations', async (c: Context) => {
     const container = c.get('container') as DIContainer;
     return container.teamController.getMyInvitations(c);
-  });
+  })
 
-  team.post('/:teamId/invite', async (c: Context) => {
+  .post('/:teamId/invite', async (c: Context) => {
     const container = c.get('container') as DIContainer;
     return container.teamController.inviteMember(c);
-  });
+  })
 
-  team.post('/invitations/:memberId/respond', async (c: Context) => {
+  .post('/invitations/:memberId/respond', async (c: Context) => {
     const container = c.get('container') as DIContainer;
     return container.teamController.respondToInvitation(c);
-  });
+  })
 
-  team.post('/invitations/:memberId/cancel', async (c: Context) => {
+  .post('/invitations/:memberId/cancel', async (c: Context) => {
     const container = c.get('container') as DIContainer;
     return container.teamController.cancelInvitation(c);
-  });
+  })
 
-  team.post('/:teamCode/join', async (c: Context) => {
+  .post('/:teamCode/join', async (c: Context) => {
     const container = c.get('container') as DIContainer;
     return container.teamController.joinTeam(c);
-  });
+  })
 
-  team.get('/:teamId/members', async (c: Context) => {
+  .get('/:teamId/members', async (c: Context) => {
     const container = c.get('container') as DIContainer;
     return container.teamController.getTeamMembers(c);
-  });
+  })
 
-  team.post('/:teamId/finalize', async (c: Context) => {
+  .post('/:teamId/finalize', async (c: Context) => {
     const container = c.get('container') as DIContainer;
     return container.teamController.finalizeTeam(c);
-  });
+  })
 
-  team.post('/:teamId/leave', async (c: Context) => {
+  .post('/:teamId/leave', async (c: Context) => {
     const container = c.get('container') as DIContainer;
     return container.teamController.leaveTeam(c);
-  });
+  })
 
-  team.post('/:teamId/members/:memberId/remove', async (c: Context) => {
+  .post('/:teamId/members/:memberId/remove', async (c: Context) => {
     const container = c.get('container') as DIContainer;
     return container.teamController.removeMember(c);
-  });
+  })
 
-  team.post('/:teamId/delete', async (c: Context) => {
+  .post('/:teamId/delete', async (c: Context) => {
     const container = c.get('container') as DIContainer;
     return container.teamController.deleteTeam(c);
-  });
+  })
 
   /**
    * Student: Reset team (delete submissions and reset to PENDING)
    * POST /api/teams/reset
    * Auth: Required (Mahasiswa only)
    */
-  team.post('/reset', async (c: Context) => {
+  .post('/reset', async (c: Context) => {
     const container = c.get('container') as DIContainer;
     return container.teamController.resetTeam(c);
-  });
+  })
 
   return team;
 };

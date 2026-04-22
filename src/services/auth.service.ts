@@ -987,15 +987,50 @@ export class AuthService {
       : null;
   }
 
+  private resolveProfileIdentifiers(profile: SsoProfile | null | undefined) {
+    const mahasiswa = profile?.identities?.mahasiswa || null;
+
+    return {
+      profileId: this.pickFirstString(
+        profile?.id || null,
+        profile?.authUserId || null,
+        profile?.userId || null,
+      ),
+      dosenPAId: this.pickFirstString(
+        mahasiswa?.dosenPA?.profile?.id || null,
+        mahasiswa?.dosenPA?.profileId || null,
+        mahasiswa?.dosenPAProfileId || null,
+        mahasiswa?.dosenPA?.id || null,
+      ),
+      nim: this.pickFirstString(mahasiswa?.nim || null, profile?.nim || null),
+      nidn: this.pickFirstString(
+        mahasiswa?.dosenPA?.nidn || null,
+        profile?.nidn || null,
+      ),
+      email: this.pickFirstString(profile?.email || null),
+    };
+  }
+
   private resolveIdentityDetail(identity: AuthIdentity | null | undefined) {
     const metadataProfile = this.resolveIdentityRecord(identity);
 
+    // ✅ Extract profileId (primary identifier from SSO)
+    const profileId = this.pickFirstString(
+      identity?.identityId || null,
+      metadataProfile?.id || null,
+      metadataProfile?.profileId || null,
+    );
+
+    // ✅ Extract dosenPAId dari mahasiswa identity (jika ada)
+    let dosenPAId: string | null = null;
+    if (metadataProfile?.dosenPA?.id) {
+      dosenPAId = metadataProfile.dosenPA.id;
+    }
+
     return {
-      id: this.pickFirstString(
-        identity?.identityId || null,
-        metadataProfile?.id || null,
-        metadataProfile?.profileId || null,
-      ),
+      profileId, // ✅ NEW: Primary SSO profile identifier
+      dosenPAId, // ✅ NEW: Dosen PA ID untuk mahasiswa
+      id: profileId, // backward compatibility
       nama: this.pickFirstString(
         identity?.displayName || null,
         metadataProfile?.fullName || null,
@@ -1177,15 +1212,21 @@ export class AuthService {
       availableIdentities,
     );
     const primaryRole = this.pickPrimaryRole(effectiveRoles);
+    const profileIdentifiers = this.resolveProfileIdentifiers(profile);
     const activeIdentityDetail = this.resolveIdentityDetail(activeIdentity);
     const inferredEmail =
       this.pickFirstString(
+        profileIdentifiers.email,
         activeIdentityDetail.email,
         profile && typeof profile.email === "string" ? profile.email : null,
       ) || `${session.authUserId}@sso.local`;
 
     const userPayload: JWTPayload = {
-      userId: session.authUserId,
+      sub: session.authUserId,
+      userId:
+        profileIdentifiers.profileId ||
+        activeIdentityDetail.profileId ||
+        session.authUserId,
       authUserId: session.authUserId,
       sessionId: session.sessionId,
       email: inferredEmail,
@@ -1194,9 +1235,11 @@ export class AuthService {
       effectivePermissions,
       activeIdentity,
       availableIdentities,
-      nim: activeIdentityDetail.nim,
+      profileId: profileIdentifiers.profileId || activeIdentityDetail.profileId,
+      dosenPAId: profileIdentifiers.dosenPAId || activeIdentityDetail.dosenPAId,
+      nim: profileIdentifiers.nim || activeIdentityDetail.nim,
       nip: activeIdentityDetail.nip,
-      nidn: activeIdentityDetail.nidn,
+      nidn: profileIdentifiers.nidn || activeIdentityDetail.nidn,
       phone: activeIdentityDetail.phone,
       jabatan: activeIdentityDetail.jabatan,
       jabatanFungsional: activeIdentityDetail.jabatanFungsional,
@@ -1208,6 +1251,14 @@ export class AuthService {
       prodi: activeIdentityDetail.prodi,
       fakultas: activeIdentityDetail.fakultas,
     };
+
+    // ✅ VALIDATE: Mahasiswa must have dosenPAId
+    if (primaryRole === 'MAHASISWA' && !userPayload.dosenPAId) {
+      console.error(`[loadSessionContext] ❌ Mahasiswa missing dosenPAId: ${session.authUserId}`);
+      const error = new Error('Dosen PA tidak ditemukan. Hubungi administrator untuk mengatur dosen PA.');
+      (error as any).statusCode = 400;
+      throw error;
+    }
 
     return {
       sessionId: session.sessionId,
