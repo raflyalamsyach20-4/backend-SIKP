@@ -12,6 +12,48 @@ type BasicUser = {
   isActive: boolean;
 };
 
+type MahasiswaProfile = {
+  id: string;
+  nim: string | null;
+  fakultas: string | null;
+  prodi: string | null;
+  semester: number | null;
+  jumlahSksSelesai: number | null;
+  angkatan: string | null;
+  dosenPaId: string | null;
+  esignatureUrl: string | null;
+  esignatureKey: string | null;
+  esignatureUploadedAt: Date | null;
+};
+
+type DosenProfile = {
+  id: string;
+  nip: string | null;
+  jabatan: string | null;
+  fakultas: string | null;
+  prodi: string | null;
+  esignatureUrl: string | null;
+  esignatureKey: string | null;
+  esignatureUploadedAt: Date | null;
+};
+
+type AdminProfile = {
+  id: string;
+  nip: string | null;
+};
+
+type PembimbingLapanganProfile = {
+  id: string;
+};
+
+type PublicBasicUser = Pick<BasicUser, 'id' | 'nama' | 'email' | 'phone' | 'role'>;
+type MahasiswaMe = PublicBasicUser & Omit<MahasiswaProfile, 'id'>;
+type DosenMe = PublicBasicUser & Omit<DosenProfile, 'id'> & { role: 'DOSEN' };
+type UpdateProfilePayload = Record<string, unknown>;
+type UpdatedMahasiswaProfile = { id: string; esignatureUploadedAt: Date | null } & UpdateProfilePayload;
+type UpdatedDosenProfile = { id: string; esignatureUploadedAt: Date | null } & UpdateProfilePayload;
+type UserWithMahasiswaProfile = BasicUser & { mahasiswaProfile: MahasiswaProfile };
+
 export class UserRepository {
   constructor(private db: DbClient) {}
 
@@ -63,23 +105,23 @@ export class UserRepository {
     };
   }
 
-  async getRandomDosenPA(): Promise<any> {
+  async getRandomDosenPA(): Promise<DosenProfile | null> {
     return null;
   }
 
-  async findByEmail(_email: string): Promise<any> {
+  async findByEmail(_email: string): Promise<BasicUser | null> {
     return null;
   }
 
-  async findByAuthUserId(authUserId: string): Promise<any> {
+  async findByAuthUserId(authUserId: string): Promise<BasicUser> {
     return this.synthesizeUser(authUserId);
   }
 
-  async findById(id: string): Promise<any> {
+  async findById(id: string): Promise<BasicUser> {
     return this.synthesizeUser(id);
   }
 
-  async create(data: { id?: string; authUserId?: string }): Promise<any> {
+  async create(data: { id?: string; authUserId?: string }): Promise<BasicUser | null> {
     const id = data.id || data.authUserId;
     if (!id) {
       return null;
@@ -87,19 +129,19 @@ export class UserRepository {
     return this.synthesizeUser(id);
   }
 
-  async upsertFromSSO(data: { authUserId: string }): Promise<any> {
+  async upsertFromSSO(data: { authUserId: string }): Promise<BasicUser> {
     return this.synthesizeUser(data.authUserId);
   }
 
-  async update(id: string, _data: Record<string, unknown>): Promise<any> {
+  async update(id: string, _data: UpdateProfilePayload): Promise<BasicUser> {
     return this.synthesizeUser(id);
   }
 
-  async findMahasiswaByNim(_nim: string): Promise<any> {
+  async findMahasiswaByNim(_nim: string): Promise<MahasiswaProfile | null> {
     return null;
   }
 
-  async findMahasiswaByUserId(userId: string): Promise<any> {
+  async findMahasiswaByUserId(userId: string): Promise<MahasiswaProfile> {
     return {
       id: userId,
       nim: null,
@@ -119,18 +161,18 @@ export class UserRepository {
     return 0;
   }
 
-  async createMahasiswa(data: { id?: string }): Promise<any> {
+  async createMahasiswa(data: { id?: string }): Promise<{ id: string | null; esignatureUploadedAt: Date | null }> {
     return {
       id: data.id || null,
       esignatureUploadedAt: null,
     };
   }
 
-  async updateMahasiswa(_nim: string, data: Record<string, unknown>): Promise<any> {
+  async updateMahasiswa(_nim: string, data: UpdateProfilePayload): Promise<UpdateProfilePayload> {
     return data;
   }
 
-  async updateMahasiswaByUserId(userId: string, data: Record<string, unknown>): Promise<any> {
+  async updateMahasiswaByUserId(userId: string, data: UpdateProfilePayload): Promise<UpdatedMahasiswaProfile> {
     return {
       id: userId,
       esignatureUploadedAt: null,
@@ -138,7 +180,7 @@ export class UserRepository {
     };
   }
 
-  async getMahasiswaMe(userId: string): Promise<any> {
+  async getMahasiswaMe(userId: string): Promise<MahasiswaMe> {
     const user = await this.synthesizeUser(userId);
 
     return {
@@ -153,31 +195,32 @@ export class UserRepository {
       semester: null,
       jumlahSksSelesai: null,
       angkatan: null,
+      dosenPaId: null,
       esignatureUrl: null,
       esignatureKey: null,
       esignatureUploadedAt: null,
     };
   }
 
-  async findAdminByNip(_nip: string): Promise<any> {
+  async findAdminByNip(_nip: string): Promise<AdminProfile | null> {
     return null;
   }
 
-  async findAdminByUserId(_userId: string): Promise<any> {
+  async findAdminByUserId(_userId: string): Promise<AdminProfile | null> {
     return null;
   }
 
-  async createAdmin(data: { id?: string }): Promise<any> {
+  async createAdmin(data: { id?: string }): Promise<{ id: string | null }> {
     return {
       id: data.id || null,
     };
   }
 
-  async findDosenByNip(_nip: string): Promise<any> {
+  async findDosenByNip(_nip: string): Promise<DosenProfile | null> {
     return null;
   }
 
-  async findDosenByUserId(userId: string): Promise<any> {
+  async findDosenByUserId(userId: string): Promise<DosenProfile> {
     return {
       id: userId,
       nip: null,
@@ -190,22 +233,22 @@ export class UserRepository {
     };
   }
 
-  async findActiveDosenByProdi(_prodi: string): Promise<any[]> {
+  async findActiveDosenByProdi(_prodi: string): Promise<DosenProfile[]> {
     return [];
   }
 
-  async findAnyActiveDosen(): Promise<any[]> {
+  async findAnyActiveDosen(): Promise<DosenProfile[]> {
     return [];
   }
 
-  async createDosen(data: { id?: string }): Promise<any> {
+  async createDosen(data: { id?: string }): Promise<{ id: string | null; esignatureUploadedAt: Date | null }> {
     return {
       id: data.id || null,
       esignatureUploadedAt: null,
     };
   }
 
-  async updateDosenByUserId(userId: string, data: Record<string, unknown>): Promise<any> {
+  async updateDosenByUserId(userId: string, data: UpdateProfilePayload): Promise<UpdatedDosenProfile> {
     return {
       id: userId,
       esignatureUploadedAt: null,
@@ -213,7 +256,7 @@ export class UserRepository {
     };
   }
 
-  async getDosenMe(userId: string): Promise<any> {
+  async getDosenMe(userId: string): Promise<DosenMe> {
     const user = await this.synthesizeUser(userId);
 
     return {
@@ -232,17 +275,17 @@ export class UserRepository {
     };
   }
 
-  async findPembimbingLapanganByUserId(_userId: string): Promise<any> {
+  async findPembimbingLapanganByUserId(_userId: string): Promise<PembimbingLapanganProfile | null> {
     return null;
   }
 
-  async createPembimbingLapangan(data: { id?: string }): Promise<any> {
+  async createPembimbingLapangan(data: { id?: string }): Promise<{ id: string | null }> {
     return {
       id: data.id || null,
     };
   }
 
-  async getUserWithProfile(userId: string): Promise<any> {
+  async getUserWithProfile(userId: string): Promise<UserWithMahasiswaProfile> {
     const user = await this.synthesizeUser(userId);
     const mahasiswaProfile = await this.findMahasiswaByUserId(userId);
 
@@ -252,11 +295,11 @@ export class UserRepository {
     };
   }
 
-  async findByNim(_nim: string): Promise<any> {
+  async findByNim(_nim: string): Promise<BasicUser | null> {
     return null;
   }
 
-  async searchMahasiswa(_query: string): Promise<any[]> {
+  async searchMahasiswa(_query: string): Promise<MahasiswaProfile[]> {
     return [];
   }
 }

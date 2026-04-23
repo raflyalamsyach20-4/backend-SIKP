@@ -157,7 +157,7 @@ export class ResponseLetterRepository {
         role: m.member.role || 'ANGGOTA',
         mahasiswaProfile: undefined,
       })),
-    } as unknown as ResponseLetterWithDetails;
+    } as any as ResponseLetterWithDetails;
   }
 
   /**
@@ -241,7 +241,7 @@ export class ResponseLetterRepository {
             role: m.member.role || 'ANGGOTA',
             mahasiswaProfile: undefined,
           })),
-        } as unknown as ResponseLetterWithDetails;
+        } as any as ResponseLetterWithDetails;
       })
     );
 
@@ -429,6 +429,6 @@ export class ResponseLetterRepository {
         role: m.member.role || 'ANGGOTA',
       })),
       isLeader,
-    } as unknown as ResponseLetterWithDetails & { isLeader: boolean };
+    } as any as ResponseLetterWithDetails & { isLeader: boolean };
   }
 }

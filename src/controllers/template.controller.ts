@@ -89,7 +89,7 @@ export class TemplateController {
       }
 
       const formData = await c.req.formData();
-      const file = formData.get('file') as unknown as File | null;
+      const file = formData.get('file') as any as File | null;
       const name = formData.get('name') as string;
       const type = formData.get('type') as string;
       const description = formData.get('description') as string;
@@ -155,7 +155,7 @@ export class TemplateController {
       const id = c.req.param('id');
       const formData = await c.req.formData();
 
-      const file = formData.get('file') as unknown as File | null;
+      const file = formData.get('file') as any as File | null;
       const name = formData.get('name') as string;
       const type = formData.get('type') as string;
       const description = formData.get('description') as string;

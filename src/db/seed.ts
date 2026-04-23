@@ -1,10 +1,9 @@
 // @ts-nocheck
-import { drizzle } from 'drizzle-orm/neon-http';
-import { neon } from '@neondatabase/serverless';
 import { users, mahasiswa, admin, dosen } from './schema';
 import * as dotenv from 'dotenv';
 import bcrypt from 'bcryptjs';
 import { generateId } from '@/utils/helpers';
+import { getMaintenanceDb } from './maintenance-client';
 
 dotenv.config({ path: '.env' });
 
@@ -13,8 +12,7 @@ const seed = async () => {
     throw new Error('DATABASE_URL is not defined in .env file');
   }
 
-  const sql = neon(process.env.DATABASE_URL);
-  const db = drizzle(sql);
+  const db = getMaintenanceDb();
 
   console.log('🌱 Seeding database...');
 

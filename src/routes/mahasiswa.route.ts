@@ -2,40 +2,43 @@ import { Hono, Context } from 'hono';
 import { DIContainer } from '@/core';
 import { authMiddleware, mahasiswaOnly } from '@/middlewares/auth.middleware';
 import { CloudflareBindings } from '@/config';
+import { zValidator } from '@hono/zod-validator';
+import { withContainer } from './route-handler';
+import { emptyFormSchema, emptyQuerySchema } from '@/schemas/common.schema';
+import { updateMahasiswaProfileSchema } from '@/validation';
 
 type Variables = {
   container: DIContainer;
 };
 
 export const createMahasiswaProfileRoutes = () => {
-  const mahasiswa = new Hono<{ Bindings: CloudflareBindings; Variables: Variables }>();
-
-  mahasiswa.use('*', authMiddleware, mahasiswaOnly);
-
-  mahasiswa.get('/dashboard', async (c: Context) => {
-    const container = c.get('container') as DIContainer;
-    return container.mahasiswaController.dashboard(c);
-  });
-
-  mahasiswa.get('/me', async (c: Context) => {
-    const container = c.get('container') as DIContainer;
-    return container.mahasiswaController.me(c);
-  });
-
-  mahasiswa.put('/me/profile', async (c: Context) => {
-    const container = c.get('container') as DIContainer;
-    return container.mahasiswaController.updateProfile(c);
-  });
-
-  mahasiswa.put('/me/esignature', async (c: Context) => {
-    const container = c.get('container') as DIContainer;
-    return container.mahasiswaController.updateESignature(c);
-  });
-
-  mahasiswa.delete('/me/esignature', async (c: Context) => {
-    const container = c.get('container') as DIContainer;
-    return container.mahasiswaController.deleteESignature(c);
-  });
+  const mahasiswa = new Hono<{ Bindings: CloudflareBindings; Variables: Variables }>()
+    .use('*', authMiddleware, mahasiswaOnly)
+    .get(
+      '/dashboard',
+      zValidator('query', emptyQuerySchema),
+      withContainer((container, c) => container.mahasiswaController.dashboard(c))
+    )
+    .get(
+      '/me',
+      zValidator('query', emptyQuerySchema),
+      withContainer((container, c) => container.mahasiswaController.me(c))
+    )
+    .put(
+      '/me/profile',
+      zValidator('json', updateMahasiswaProfileSchema),
+      withContainer((container, c) => container.mahasiswaController.updateProfile(c))
+    )
+    .put(
+      '/me/esignature',
+      zValidator('form', emptyFormSchema),
+      withContainer((container, c) => container.mahasiswaController.updateESignature(c))
+    )
+    .delete(
+      '/me/esignature',
+      zValidator('query', emptyQuerySchema),
+      withContainer((container, c) => container.mahasiswaController.deleteESignature(c))
+    );
 
   return mahasiswa;
 };

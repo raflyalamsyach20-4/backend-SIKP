@@ -11,14 +11,13 @@
  */
 
 import * as dotenv from 'dotenv';
-import { drizzle } from 'drizzle-orm/neon-http';
-import { neon } from '@neondatabase/serverless';
 import { submissionDocuments, submissions } from './schema';
 import { eq } from 'drizzle-orm';
+import { getMaintenanceDb } from './maintenance-client';
 
 dotenv.config();
 
-const db = drizzle(neon(process.env.DATABASE_URL!));
+const db = getMaintenanceDb();
 
 async function migrateDocumentStatus() {
   try {

@@ -1,6 +1,6 @@
 // @ts-nocheck
-import { neon } from '@neondatabase/serverless';
 import * as dotenv from 'dotenv';
+import { getMaintenanceSql } from './maintenance-client';
 
 dotenv.config({ path: '.env' });
 
@@ -9,7 +9,7 @@ const runBackfill = async () => {
     throw new Error('DATABASE_URL is not defined in .env file');
   }
 
-  const sql = neon(process.env.DATABASE_URL);
+  const sql = getMaintenanceSql();
 
   try {
     console.log('\n[Backfill] Start normalizing legacy submission workflow data...\n');

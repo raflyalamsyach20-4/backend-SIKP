@@ -1,6 +1,17 @@
 import { Context } from 'hono';
 import type { ApiResponse } from '@/types';
 
+type ErrorLike = {
+  message?: string;
+  statusCode?: number;
+};
+
+type ErrorResponseStatusCode = 400 | 401 | 403 | 404 | 409 | 422 | 500;
+
+const isErrorLike = (value: unknown): value is ErrorLike => {
+  return typeof value === 'object' && value !== null;
+};
+
 export const createResponse = <T>(
   success: boolean,
   message: string,
@@ -13,13 +24,26 @@ export const createResponse = <T>(
   };
 };
 
-export const handleError = (c: Context, error: any, defaultMessage: string = 'Internal server error') => {
+export const handleError = (c: Context, error: unknown, defaultMessage: string = 'Internal server error') => {
   console.error('Error:', error);
+
+  const message = isErrorLike(error) && typeof error.message === 'string'
+    ? error.message
+    : defaultMessage;
+  const statusCode = isErrorLike(error) && typeof error.statusCode === 'number'
+    ? error.statusCode
+    : 500;
+  const safeStatusCode: ErrorResponseStatusCode =
+    statusCode === 400 ||
+    statusCode === 401 ||
+    statusCode === 403 ||
+    statusCode === 404 ||
+    statusCode === 409 ||
+    statusCode === 422
+      ? statusCode
+      : 500;
   
-  const message = error.message || defaultMessage;
-  const statusCode = error.statusCode || 500;
-  
-  return c.json(createResponse(false, message), statusCode);
+  return c.json(createResponse(false, message), safeStatusCode);
 };
 
 export const generateId = (): string => {

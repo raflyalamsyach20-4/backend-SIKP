@@ -1,6 +1,9 @@
 import { Context, Hono } from 'hono';
 import { CloudflareBindings } from '@/config';
 import { DIContainer } from '@/core';
+import { zValidator } from '@hono/zod-validator';
+import { emptyQuerySchema } from '@/schemas/common.schema';
+import { withContainer } from './route-handler';
 
 type Variables = {
   container: DIContainer;
@@ -46,44 +49,41 @@ const normalizeR2Key = (rawParam: string) => {
 };
 
 export const createAssetRoutes = () => {
-  const routes = new Hono<{ Bindings: CloudflareBindings; Variables: Variables }>();
+  const routes = new Hono<{ Bindings: CloudflareBindings; Variables: Variables }>()
+    .options('/r2/*', zValidator('query', emptyQuerySchema), (c: Context) => {
+      setAssetCorsHeaders(c);
+      return c.body(null, 204);
+    })
+    .get('/r2/*', zValidator('query', emptyQuerySchema), withContainer(async (container, c: Context) => {
+      setAssetCorsHeaders(c);
 
-  routes.options('/r2/*', (c: Context) => {
-    setAssetCorsHeaders(c);
-    return c.body(null, 204);
-  });
+      const pathname = new URL(c.req.url).pathname;
+      const marker = '/api/assets/r2/';
+      const markerIndex = pathname.indexOf(marker);
+      const rawPathPart = markerIndex >= 0 ? pathname.slice(markerIndex + marker.length) : '';
+      const objectKey = normalizeR2Key(rawPathPart);
 
-  routes.get('/r2/*', async (c: Context) => {
-    setAssetCorsHeaders(c);
+      if (!objectKey.startsWith('esignatures/')) {
+        return c.json({ success: false, message: 'Forbidden asset path' }, 403);
+      }
 
-    const pathname = new URL(c.req.url).pathname;
-    const marker = '/api/assets/r2/';
-    const markerIndex = pathname.indexOf(marker);
-    const rawPathPart = markerIndex >= 0 ? pathname.slice(markerIndex + marker.length) : '';
-    const objectKey = normalizeR2Key(rawPathPart);
+      const object = await container.storageService.getFile(objectKey);
 
-    if (!objectKey.startsWith('esignatures/')) {
-      return c.json({ success: false, message: 'Forbidden asset path' }, 403);
-    }
+      if (!object) {
+        return c.json({ success: false, message: 'Asset not found' }, 404);
+      }
 
-    const container = c.get('container') as DIContainer;
-    const object = await container.storageService.getFile(objectKey);
+      const contentType = object.httpMetadata?.contentType || 'application/octet-stream';
+      const etag = object.httpEtag;
 
-    if (!object) {
-      return c.json({ success: false, message: 'Asset not found' }, 404);
-    }
+      c.header('Content-Type', contentType);
+      c.header('Cache-Control', 'public, max-age=3600');
+      if (etag) {
+        c.header('ETag', etag);
+      }
 
-    const contentType = object.httpMetadata?.contentType || 'application/octet-stream';
-    const etag = object.httpEtag;
-
-    c.header('Content-Type', contentType);
-    c.header('Cache-Control', 'public, max-age=3600');
-    if (etag) {
-      c.header('ETag', etag);
-    }
-
-    return new Response(object.body, { status: 200, headers: c.res.headers });
-  });
+      return new Response(object.body, { status: 200, headers: c.res.headers });
+    }));
 
   return routes;
 };

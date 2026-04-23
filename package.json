@@ -8,6 +8,9 @@
     "dev": "wrangler dev",
     "deploy": "wrangler deploy --minify",
     "cf-typegen": "wrangler types --env-interface CloudflareBindings",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "verify": "bun run cf-typegen; bun run typecheck",
+    "prepare": "husky",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:backfill:workflow": "tsx src/db/backfill-submission-workflow.ts",
@@ -18,6 +21,11 @@
     "db:seed": "tsx src/db/seed.ts",
     "db:status": "tsx src/db/status.ts",
     "db:reset": "tsx src/db/db-reset.ts"
+  },
+  "lint-staged": {
+  "*.{ts,tsx}": [
+    "bash -c 'bun run typecheck'"
+  ]
   },
   "dependencies": {
     "@hono/zod-validator": "^0.7.6",
@@ -42,7 +50,10 @@
     "@types/pdfkit": "^0.13.0",
     "dotenv": "^16.3.1",
     "drizzle-kit": "0.31.10",
+    "husky": "^9.1.7",
+    "lint-staged": "^16.2.4",
     "tsx": "^4.7.0",
+    "typescript": "^6.0.3",
     "wrangler": "^4.60.0"
   }
 }

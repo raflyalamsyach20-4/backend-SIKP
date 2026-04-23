@@ -1,6 +1,9 @@
 /**
  * Application configuration interface
  */
+export type R2BucketLike = Pick<R2Bucket, 'put' | 'get' | 'delete' | 'list'> &
+  Partial<Pick<R2Bucket, 'head'>>;
+
 export interface AppConfig {
   database: {
     url: string;
@@ -31,7 +34,7 @@ export interface AppConfig {
     cookieSameSite: 'Lax' | 'Strict' | 'None';
   };
   storage: {
-    r2Bucket: R2Bucket | any;
+    r2Bucket: R2BucketLike;
     r2Domain: string;
     r2BucketName: string;
     apiBaseUrl: string;
@@ -39,50 +42,20 @@ export interface AppConfig {
   };
 }
 
-/**
- * Environment bindings for Cloudflare Workers
- */
-export interface CloudflareBindings {
-  DATABASE_URL: string;
-  JWT_SECRET: string;
-  R2_BUCKET: R2Bucket;
-  R2_DOMAIN: string;
-  R2_BUCKET_NAME: string;
-  API_BASE_URL?: string;
-  USE_MOCK_R2?: string | boolean;
+type GeneratedCloudflareBindings = globalThis.CloudflareBindings;
 
-  // SSO UNSRI
-  SSO_BASE_URL?: string;
-  SSO_ISSUER?: string;
-  SSO_JWKS_URL?: string;
-  SSO_CLIENT_ID?: string;
-  SSO_CLIENT_SECRET?: string;
-  SSO_REDIRECT_URI?: string;
-  SSO_PROFILE_URL?: string;
-  SSO_PROFILE_SIGNATURE_URL?: string;
-
-  // Optional overrides for SSO gateway endpoints
+export interface CloudflareBindings extends GeneratedCloudflareBindings {
   SSO_TOKEN_URL?: string;
   SSO_USERINFO_URL?: string;
   SSO_IDENTITIES_URL?: string;
   SSO_REVOKE_URL?: string;
-
-  // Session
-  AUTH_SESSION_TTL_SECONDS?: string;
-  AUTH_COOKIE_SECURE?: string | boolean;
-  AUTH_COOKIE_SAMESITE?: string;
-  AUTH_SESSION_COOKIE_NAME?: string;
-
-  // SSO proxy signature endpoint settings
-  SSO_SIGNATURE_PATH?: string;
-  SSO_PROXY_TIMEOUT_MS?: string;
 }
 
 /**
  * Create application configuration from environment bindings
  */
 export const createAppConfig = (env: CloudflareBindings): AppConfig => {
-  const useMockR2 = env.USE_MOCK_R2 === true || env.USE_MOCK_R2 === 'true';
+  const useMockR2 = String(env.USE_MOCK_R2).toLowerCase() === 'true';
   const ssoBaseUrl = (env.SSO_BASE_URL || '').replace(/\/$/, '');
   const ssoSameSiteRaw = (env.AUTH_COOKIE_SAMESITE || 'Lax').toString().toLowerCase();
   const cookieSameSite: 'Lax' | 'Strict' | 'None' =
@@ -119,7 +92,7 @@ export const createAppConfig = (env: CloudflareBindings): AppConfig => {
     authSession: {
       ttlSeconds: Number.parseInt(env.AUTH_SESSION_TTL_SECONDS || '43200', 10),
       cookieName: env.AUTH_SESSION_COOKIE_NAME || 'sikp_session',
-      cookieSecure: env.AUTH_COOKIE_SECURE === true || env.AUTH_COOKIE_SECURE === 'true',
+      cookieSecure: String(env.AUTH_COOKIE_SECURE).toLowerCase() === 'true',
       cookieSameSite,
     },
     storage: {

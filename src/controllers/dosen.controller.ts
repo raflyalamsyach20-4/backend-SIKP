@@ -12,7 +12,7 @@ export class DosenController {
       const dashboard = await this.dosenService.getDashboard(user.userId);
 
       return c.json(createResponse(true, 'Dosen dashboard retrieved', dashboard));
-    } catch (error: any) {
+    } catch (error) {
       return handleError(c, error, 'Failed to retrieve dosen dashboard');
     }
   };
@@ -23,7 +23,7 @@ export class DosenController {
       const dashboard = await this.dosenService.getWakdekDashboard(user.userId, user.role);
 
       return c.json(createResponse(true, 'Wakil dekan dashboard retrieved', dashboard));
-    } catch (error: any) {
+    } catch (error) {
       return handleError(c, error, 'Failed to retrieve wakil dekan dashboard');
     }
   };
@@ -52,7 +52,7 @@ export class DosenController {
             : null,
         })
       );
-    } catch (error: any) {
+    } catch (error) {
       return handleError(c, error, 'Failed to retrieve dosen profile');
     }
   };
@@ -69,7 +69,7 @@ export class DosenController {
         ),
         410
       );
-    } catch (error: any) {
+    } catch (error) {
       return handleError(c, error, 'Failed to update profile');
     }
   };
@@ -83,7 +83,7 @@ export class DosenController {
         ),
         410
       );
-    } catch (error: any) {
+    } catch (error) {
       return handleError(c, error, 'Failed to update e-signature');
     }
   };
@@ -97,7 +97,7 @@ export class DosenController {
         ),
         410
       );
-    } catch (error: any) {
+    } catch (error) {
       return handleError(c, error, 'Failed to delete e-signature');
     }
   };

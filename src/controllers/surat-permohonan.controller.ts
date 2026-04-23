@@ -1,24 +1,13 @@
 import { Context } from 'hono';
-import { z } from 'zod';
 import type { JWTPayload } from '@/types';
 import { SuratPermohonanService } from '@/services/surat-permohonan.service';
 import { createResponse, handleError } from '@/utils/helpers';
-
-const requestSuratPermohonanSchema = z.object({
-  memberUserId: z.string().min(1),
-});
-
-const approveBulkSchema = z.object({
-  requestIds: z.array(z.string().min(1)).min(1),
-});
-
-const rejectRequestSchema = z.object({
-  rejection_reason: z.string().min(1, 'Alasan penolakan wajib diisi.').max(1000),
-});
-
-const reapplyRequestSchema = z.object({
-  memberUserId: z.string().min(1),
-});
+import {
+  requestSuratPermohonanSchema,
+  approveBulkSchema,
+  rejectRequestSchema,
+  reapplyRequestSchema,
+} from '@/schemas/surat-permohonan.schema';
 
 export class SuratPermohonanController {
   constructor(private suratPermohonanService: SuratPermohonanService) {}
@@ -36,7 +25,7 @@ export class SuratPermohonanController {
       if (!validationResult.success) {
         return c.json(
           createResponse(false, 'Validation failed', {
-            errors: validationResult.error.errors,
+            errors: validationResult.error.issues,
           }),
           400
         );
@@ -54,7 +43,7 @@ export class SuratPermohonanController {
           requestId: result.requestId,
         })
       );
-    } catch (error: any) {
+    } catch (error) {
       return handleError(c, error, 'Failed to request surat permohonan');
     }
   };
@@ -69,7 +58,7 @@ export class SuratPermohonanController {
       const requests = await this.suratPermohonanService.getRequestsForDosen(user.userId, user.role);
 
       return c.json(createResponse(true, 'OK', requests));
-    } catch (error: any) {
+    } catch (error) {
       return handleError(c, error, 'Failed to get surat permohonan requests');
     }
   };
@@ -93,7 +82,7 @@ export class SuratPermohonanController {
           signedFileUrl: result.signedFileUrl,
         })
       );
-    } catch (error: any) {
+    } catch (error) {
       return handleError(c, error, 'Failed to approve surat permohonan request');
     }
   };
@@ -111,7 +100,7 @@ export class SuratPermohonanController {
       if (!validationResult.success) {
         return c.json(
           createResponse(false, 'Validation failed', {
-            errors: validationResult.error.errors,
+            errors: validationResult.error.issues,
           }),
           400
         );
@@ -126,7 +115,7 @@ export class SuratPermohonanController {
           failed: result.failed,
         })
       );
-    } catch (error: any) {
+    } catch (error) {
       return handleError(c, error, 'Failed to approve bulk surat permohonan requests');
     }
   };
@@ -145,7 +134,7 @@ export class SuratPermohonanController {
       if (!validationResult.success) {
         return c.json(
           createResponse(false, 'Validation failed', {
-            errors: validationResult.error.errors,
+            errors: validationResult.error.issues,
           }),
           400
         );
@@ -160,7 +149,7 @@ export class SuratPermohonanController {
       return c.json(
         createResponse(true, 'Pengajuan surat permohonan berhasil ditolak', result)
       );
-    } catch (error: any) {
+    } catch (error) {
       return handleError(c, error, 'Failed to reject surat permohonan request');
     }
   };
@@ -179,7 +168,7 @@ export class SuratPermohonanController {
       if (!validationResult.success) {
         return c.json(
           createResponse(false, 'Validation failed', {
-            errors: validationResult.error.errors,
+            errors: validationResult.error.issues,
           }),
           400
         );
@@ -191,7 +180,7 @@ export class SuratPermohonanController {
       return c.json(
         createResponse(true, 'Pengajuan ulang surat permohonan berhasil.', result)
       );
-    } catch (error: any) {
+    } catch (error) {
       return handleError(c, error, 'Failed to reapply surat permohonan request');
     }
   };

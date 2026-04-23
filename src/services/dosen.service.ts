@@ -52,7 +52,7 @@ export class DosenService {
       item?.submissionStatus,
       item?.submission_status,
     ]
-      .filter((value: unknown) => typeof value === 'string')
+      .filter((value: any) => typeof value === 'string')
       .map((value: string) => value.trim().toUpperCase());
 
     return statusCandidates.includes('APPROVED') || statusCandidates.includes('DISETUJUI');
@@ -113,7 +113,7 @@ export class DosenService {
   async getWakdekDashboard(userId: string, role: UserRole): Promise<WakdekDashboardPayload> {
     const profile = await this.getMe(userId);
     if (!this.isWakilDekanAcademic(profile.jabatan)) {
-      const forbidden: any = new Error('Dashboard ini khusus wakil dekan bidang akademik.');
+      const forbidden: Error = new Error('Dashboard ini khusus wakil dekan bidang akademik.');
       forbidden.statusCode = 403;
       throw forbidden;
     }
@@ -129,7 +129,7 @@ export class DosenService {
   async getMe(userId: string) {
     const profile = await this.userRepository.getDosenMe(userId);
     if (!profile) {
-      const notFound: any = new Error('Dosen profile not found');
+      const notFound: Error = new Error('Dosen profile not found');
       notFound.statusCode = 404;
       throw notFound;
     }
@@ -155,20 +155,20 @@ export class DosenService {
     if (data.email && data.email !== profile.email) {
       const existingEmail = await this.userRepository.findByEmail(data.email);
       if (existingEmail && existingEmail.id !== userId) {
-        const emailExists: any = new Error('Email already in use');
+        const emailExists: Error = new Error('Email already in use');
         emailExists.statusCode = 400;
         throw emailExists;
       }
     }
 
     // Prepare update data for users table
-    const usersUpdateData: Record<string, any> = {};
+    const usersUpdateData: Record<string, unknown> = {};
     if (data.nama !== undefined) usersUpdateData.nama = data.nama;
     if (data.email !== undefined) usersUpdateData.email = data.email;
     if (data.phone !== undefined) usersUpdateData.phone = data.phone;
 
     // Prepare update data for dosen table
-    const dosenUpdateData: Record<string, any> = {};
+    const dosenUpdateData: Record<string, unknown> = {};
     if (data.jabatan !== undefined) dosenUpdateData.jabatan = data.jabatan;
     if (data.fakultas !== undefined) dosenUpdateData.fakultas = data.fakultas;
     if (data.prodi !== undefined) dosenUpdateData.prodi = data.prodi;
@@ -197,13 +197,13 @@ export class DosenService {
     const profile = await this.getMe(userId);
 
     if (!ALLOWED_SIGNATURE_MIME_TYPES.includes(signatureFile.type)) {
-      const invalidType: any = new Error('Invalid file type. Only PNG, JPG, and JPEG are allowed');
+      const invalidType: Error = new Error('Invalid file type. Only PNG, JPG, and JPEG are allowed');
       invalidType.statusCode = 400;
       throw invalidType;
     }
 
     if (!this.storageService.validateFileSize(signatureFile.size, MAX_SIGNATURE_SIZE_MB)) {
-      const invalidSize: any = new Error('File size exceeds 2MB limit');
+      const invalidSize: Error = new Error('File size exceeds 2MB limit');
       invalidSize.statusCode = 400;
       throw invalidSize;
     }
@@ -237,7 +237,7 @@ export class DosenService {
       if (!updated) {
         await this.storageService.deleteFile(key);
 
-        const updateFailed: any = new Error('Failed to update e-signature metadata');
+        const updateFailed: Error = new Error('Failed to update e-signature metadata');
         updateFailed.statusCode = 500;
         throw updateFailed;
       }
@@ -273,7 +273,7 @@ export class DosenService {
     });
 
     if (!updated) {
-      const updateFailed: any = new Error('Failed to clear e-signature metadata');
+      const updateFailed: Error = new Error('Failed to clear e-signature metadata');
       updateFailed.statusCode = 500;
       console.error('[DosenService.deleteESignature] Failed to update database while deleting signature metadata');
       throw updateFailed;

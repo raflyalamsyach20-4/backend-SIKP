@@ -14,6 +14,31 @@ export const suratPermohonanStatusEnum = pgEnum('surat_permohonan_status', ['MEN
 export const submissionVerificationStatusEnum = pgEnum('submission_verification_status', ['PENDING', 'APPROVED', 'REJECTED']);
 export const workflowStageEnum = pgEnum('workflow_stage', ['DRAFT', 'PENDING_ADMIN_REVIEW', 'PENDING_DOSEN_VERIFICATION', 'COMPLETED', 'REJECTED_ADMIN', 'REJECTED_DOSEN']);
 
+// Identity Tables
+export const users = pgTable('users', {
+  id: text('id').primaryKey(),
+  nama: varchar('nama', { length: 255 }).notNull(),
+  email: varchar('email', { length: 255 }).notNull(),
+  password: text('password'),
+  role: varchar('role', { length: 50 }).notNull(),
+  phone: varchar('phone', { length: 50 }),
+  isActive: boolean('is_active').notNull().default(true),
+});
+
+export const dosen = pgTable('dosen', {
+  id: text('id').primaryKey(),
+  nip: varchar('nip', { length: 50 }),
+  jabatan: varchar('jabatan', { length: 255 }),
+  fakultas: varchar('fakultas', { length: 255 }),
+  prodi: varchar('prodi', { length: 255 }),
+});
+
+export const mahasiswa = pgTable('mahasiswa', {
+  id: text('id').primaryKey(),
+  nim: varchar('nim', { length: 50 }),
+  dosenPaId: text('dosen_pa_id'),
+});
+
 // Minimal auth session store for SSO cutover
 export const authSessions = pgTable('auth_sessions', {
   sessionId: text('session_id').primaryKey(),

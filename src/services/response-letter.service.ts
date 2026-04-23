@@ -125,7 +125,7 @@ export class ResponseLetterService {
     sort?: 'date' | 'name';
     limit?: number;
     offset?: number;
-  }): Promise<any[]> {
+  }): Promise<unknown[]> {
     const responseLetters = await this.responseLetterRepo.findAll(filters);
     return responseLetters.map((letter) => this.mapToStudentObject(letter));
   }
@@ -280,7 +280,7 @@ export class ResponseLetterService {
   /**
    * Map response letter to frontend Student object
    */
-  mapToStudentObject(responseLetter: ResponseLetterWithDetails): any {
+  mapToStudentObject(responseLetter: ResponseLetterWithDetails): unknown {
     const leader = responseLetter.leader;
     const leaderMahasiswa = leader?.mahasiswaProfile;
     const submission = responseLetter.submission;

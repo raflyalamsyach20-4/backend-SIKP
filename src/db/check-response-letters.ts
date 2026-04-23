@@ -1,6 +1,6 @@
 // @ts-nocheck
-import { neon } from '@neondatabase/serverless';
 import * as dotenv from 'dotenv';
+import { getMaintenanceSql } from './maintenance-client';
 
 dotenv.config({ path: '.env' });
 
@@ -9,15 +9,15 @@ const checkTable = async () => {
     throw new Error('DATABASE_URL is not defined in .env file');
   }
 
-  const sql = neon(process.env.DATABASE_URL);
+  const sql = getMaintenanceSql();
 
   try {
-    const result = await sql(
-      `SELECT column_name, data_type, is_nullable
-       FROM information_schema.columns 
-       WHERE table_name = 'response_letters'
-       ORDER BY ordinal_position`
-    );
+    const result = await sql`
+      SELECT column_name, data_type, is_nullable
+      FROM information_schema.columns
+      WHERE table_name = 'response_letters'
+      ORDER BY ordinal_position
+    `;
 
     console.log('✅ response_letters table structure:');
     console.log(result);

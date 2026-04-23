@@ -1,30 +1,27 @@
-import { neon } from '@neondatabase/serverless';
-import * as dotenv from 'dotenv';
-
-dotenv.config({ path: '.env' });
+import 'dotenv/config';
+import { eq, inArray, isNull } from 'drizzle-orm';
+import { db } from '@/db';
+import { teams, mahasiswa, users } from '@/db/schema';
 
 const run = async () => {
-  if (!process.env.DATABASE_URL) {
+  if (!db) {
     throw new Error('DATABASE_URL tidak ditemukan di .env');
   }
 
-  const sql = neon(process.env.DATABASE_URL);
-
   console.log('\n📋 Update tim existing agar dosen_kp_id terisi dari dosen_pa_id ketua...\n');
 
-  // Get all teams with null dosen_kp_id
-  const teamsNeedUpdate = await sql`
-    SELECT 
-      t.id,
-      t.code,
-      t.leader_id,
-      u.nama as leader_nama,
-      m.dosen_pa_id
-    FROM teams t
-    JOIN users u ON u.id = t.leader_id
-    JOIN mahasiswa m ON m.id = t.leader_id
-    WHERE t.dosen_kp_id IS NULL
-  `;
+  const teamsNeedUpdate = await db
+    .select({
+      id: teams.id,
+      code: teams.code,
+      leaderId: teams.leaderId,
+      leaderNama: users.nama,
+      dosenPaId: mahasiswa.dosenPaId,
+    })
+    .from(teams)
+    .innerJoin(users, eq(users.id, teams.leaderId))
+    .leftJoin(mahasiswa, eq(mahasiswa.id, teams.leaderId))
+    .where(isNull(teams.dosenKpId));
 
   console.log(`Found ${teamsNeedUpdate.length} teams to update:\n`);
   console.table(teamsNeedUpdate);
@@ -32,12 +29,17 @@ const run = async () => {
   let updated = 0;
   for (const team of teamsNeedUpdate) {
     try {
-      await sql`
-        UPDATE teams
-        SET dosen_kp_id = ${team.dosen_pa_id}
-        WHERE id = ${team.id}
-      `;
-      console.log(`✓ Updated team ${team.code}: dosen_kp_id = ${team.dosen_pa_id}`);
+      if (!team.dosenPaId) {
+        console.log(`⚠️ Skip team ${team.code}: leader belum punya dosen_pa_id`);
+        continue;
+      }
+
+      await db
+        .update(teams)
+        .set({ dosenKpId: team.dosenPaId })
+        .where(eq(teams.id, team.id));
+
+      console.log(`✓ Updated team ${team.code}: dosen_kp_id = ${team.dosenPaId}`);
       updated++;
     } catch (err) {
       console.error(`✗ Failed to update team ${team.code}:`, err);
@@ -51,23 +53,42 @@ const run = async () => {
   console.log('📊 FINAL VERIFICATION: Semua Tim dengan Dosen KP');
   console.log('─'.repeat(80) + '\n');
 
-  const allTeams = await sql`
-    SELECT 
-      t.id,
-      t.code,
-      u.nama as leader_nama,
-      t.status,
-      d_kp.nama as dosen_kp_nama
-    FROM teams t
-    JOIN users u ON u.id = t.leader_id
-    LEFT JOIN users d_kp ON d_kp.id = t.dosen_kp_id
-    ORDER BY t.id DESC
-  `;
+  const allTeams = await db
+    .select({
+      id: teams.id,
+      code: teams.code,
+      leaderNama: users.nama,
+      status: teams.status,
+      dosenKpId: teams.dosenKpId,
+    })
+    .from(teams)
+    .innerJoin(users, eq(users.id, teams.leaderId));
 
-  console.table(allTeams);
+  const dosenIds = allTeams
+    .map((team) => team.dosenKpId)
+    .filter((id): id is string => !!id);
 
-  const teamsWithDosen = allTeams.filter((t: any) => t.dosen_kp_nama).length;
-  const totalTeams = allTeams.length;
+  const dosenNames = dosenIds.length
+    ? await db
+        .select({ id: users.id, nama: users.nama })
+        .from(users)
+        .where(inArray(users.id, dosenIds))
+    : [];
+
+  const dosenMap = new Map(dosenNames.map((row) => [row.id, row.nama]));
+
+  const printed = allTeams.map((team) => ({
+    id: team.id,
+    code: team.code,
+    leader_nama: team.leaderNama,
+    status: team.status,
+    dosen_kp_nama: team.dosenKpId ? dosenMap.get(team.dosenKpId) ?? null : null,
+  }));
+
+  console.table(printed);
+
+  const teamsWithDosen = printed.filter((t) => !!t.dosen_kp_nama).length;
+  const totalTeams = printed.length;
 
   console.log(`\n✅ Tim dengan Dosen KP: ${teamsWithDosen}/${totalTeams}`);
   console.log('═'.repeat(80) + '\n');

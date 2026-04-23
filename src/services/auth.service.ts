@@ -65,11 +65,11 @@ type SsoIdentityObject = {
   identity?: string | null;
   role?: string | null;
   roleName?: string | null;
-  permissions?: unknown;
-  permission?: unknown;
-  scopes?: unknown;
-  scope?: unknown;
-  effectiveRoles?: unknown;
+  permissions?: any;
+  permission?: any;
+  scopes?: any;
+  scope?: any;
+  effectiveRoles?: any;
   identityId?: string | null;
   id?: string | null;
   displayName?: string | null;
@@ -146,12 +146,12 @@ type SsoEnvelope = {
   data?:
     | {
         profile?: SsoProfile | null;
-        identities?: unknown;
+        identities?: any;
       }
     | SsoProfile
     | null;
   profile?: SsoProfile | null;
-  identities?: unknown;
+  identities?: any;
 };
 
 type SsoAccessTokenPayload = JoseJWTPayload & {
@@ -310,7 +310,7 @@ export class AuthService {
     throw new Error(`Unhandled role: ${role}`);
   }
 
-  private normalizeRawRoleTag(input: unknown): string | null {
+  private normalizeRawRoleTag(input: any): string | null {
     if (typeof input !== "string") {
       return null;
     }
@@ -325,7 +325,7 @@ export class AuthService {
   ): string[] {
     const tags = new Set<string>();
 
-    const pushTag = (value: unknown) => {
+    const pushTag = (value: any) => {
       const normalized = this.normalizeRawRoleTag(value);
       if (normalized) {
         tags.add(normalized);
@@ -343,7 +343,7 @@ export class AuthService {
 
     pushTag(profile?.role);
 
-    const tokenRoleCandidates: unknown[] = [accessTokenPayload?.roles];
+    const tokenRoleCandidates: any[] = [accessTokenPayload?.roles];
 
     for (const candidate of tokenRoleCandidates) {
       if (Array.isArray(candidate)) {
@@ -472,7 +472,7 @@ export class AuthService {
         resolvedRole,
         ...(Array.isArray(rawIdentity.effectiveRoles)
           ? rawIdentity.effectiveRoles
-              .map((item: unknown) => this.parseRoleOrNull(String(item)))
+              .map((item: any) => this.parseRoleOrNull(String(item)))
               .filter((item: UserRole | null): item is UserRole =>
                 Boolean(item),
               )
@@ -503,7 +503,7 @@ export class AuthService {
     };
   }
 
-  private normalizePermissions(input: unknown): EffectivePermission[] {
+  private normalizePermissions(input: any): EffectivePermission[] {
     const toList = Array.isArray(input)
       ? input
       : typeof input === "string"
@@ -524,7 +524,7 @@ export class AuthService {
       return [];
     }
 
-    const claimsCandidates: unknown[] = [payload.permissions, payload.scope];
+    const claimsCandidates: any[] = [payload.permissions, payload.scope];
 
     for (const candidate of claimsCandidates) {
       const permissions = this.normalizePermissions(candidate);
@@ -646,7 +646,7 @@ export class AuthService {
     return (await response.json()) as TokenExchangeResponse;
   }
 
-  private extractIdentities(input: unknown): AuthIdentity[] {
+  private extractIdentities(input: any): AuthIdentity[] {
     if (!input) {
       return [];
     }

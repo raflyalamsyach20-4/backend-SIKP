@@ -1,8 +1,8 @@
-import { neon } from '@neondatabase/serverless';
 import bcrypt from 'bcryptjs';
-import * as dotenv from 'dotenv';
-
-dotenv.config({ path: '.env' });
+import 'dotenv/config';
+import { and, eq, or, like, inArray } from 'drizzle-orm';
+import { db } from '@/db';
+import { users, dosen } from '@/db/schema';
 
 type DosenSeed = {
   nama: string;
@@ -86,11 +86,10 @@ const dosenData: DosenSeed[] = [
 ];
 
 const run = async () => {
-  if (!process.env.DATABASE_URL) {
+  if (!db) {
     throw new Error('DATABASE_URL tidak ditemukan di .env');
   }
 
-  const sql = neon(process.env.DATABASE_URL);
   const passwordHash = await bcrypt.hash('dosen123', 10);
 
   let insertedUsers = 0;
@@ -99,16 +98,24 @@ const run = async () => {
   for (const row of dosenData) {
     const userId = `dosen-${row.nip.toLowerCase()}`;
 
-    await sql`
-      INSERT INTO users (id, nama, email, password, role, phone, is_active)
-      VALUES (${userId}, ${row.nama}, ${row.email}, ${passwordHash}, 'DOSEN', ${row.phone}, true)
-      ON CONFLICT (email)
-      DO NOTHING
-    `;
+    await db
+      .insert(users)
+      .values({
+        id: userId,
+        nama: row.nama,
+        email: row.email,
+        password: passwordHash,
+        role: 'DOSEN',
+        phone: row.phone,
+        isActive: true,
+      })
+      .onConflictDoNothing({ target: users.email });
 
-    const userCheck = await sql`
-      SELECT id FROM users WHERE email = ${row.email} LIMIT 1
-    `;
+    const userCheck = await db
+      .select({ id: users.id })
+      .from(users)
+      .where(eq(users.email, row.email))
+      .limit(1);
 
     if (userCheck.length > 0) {
       const id = userCheck[0].id as string;
@@ -116,34 +123,50 @@ const run = async () => {
         insertedUsers += 1;
       }
 
-      await sql`
-        INSERT INTO dosen (id, nip, jabatan, fakultas, prodi)
-        VALUES (${id}, ${row.nip}, ${row.jabatan}, 'Fakultas Teknik', 'Teknik Informatika')
-        ON CONFLICT (id)
-        DO UPDATE SET
-          nip = EXCLUDED.nip,
-          jabatan = EXCLUDED.jabatan,
-          fakultas = EXCLUDED.fakultas,
-          prodi = EXCLUDED.prodi
-      `;
+      await db
+        .insert(dosen)
+        .values({
+          id,
+          nip: row.nip,
+          jabatan: row.jabatan,
+          fakultas: 'Fakultas Teknik',
+          prodi: 'Teknik Informatika',
+        })
+        .onConflictDoUpdate({
+          target: dosen.id,
+          set: {
+            nip: row.nip,
+            jabatan: row.jabatan,
+            fakultas: 'Fakultas Teknik',
+            prodi: 'Teknik Informatika',
+          },
+        });
 
       insertedProfiles += 1;
     }
   }
 
-  const summary = await sql`
-    SELECT jabatan, COUNT(*)::int AS total
-    FROM dosen
-    WHERE jabatan IN ('Asisten Ahli', 'Lektor')
-      AND id IN (
-        SELECT id
-        FROM users
-        WHERE email LIKE 'dosen.asisten.%@univ.ac.id'
-           OR email LIKE 'dosen.lektor.%@univ.ac.id'
+  const summaryRows = await db
+    .select({ jabatan: dosen.jabatan, email: users.email })
+    .from(dosen)
+    .innerJoin(users, eq(users.id, dosen.id))
+    .where(
+      and(
+        inArray(dosen.jabatan, ['Asisten Ahli', 'Lektor']),
+        or(
+          like(users.email, 'dosen.asisten.%@univ.ac.id'),
+          like(users.email, 'dosen.lektor.%@univ.ac.id')
+        )
       )
-    GROUP BY jabatan
-    ORDER BY jabatan
-  `;
+    );
+
+  const summary = Array.from(
+    summaryRows.reduce((acc, row) => {
+      const jabatan = row.jabatan ?? '-';
+      acc.set(jabatan, (acc.get(jabatan) ?? 0) + 1);
+      return acc;
+    }, new Map<string, number>())
+  ).map(([jabatan, total]) => ({ jabatan, total }));
 
   console.log('Seed DOSEN selesai.');
   console.log(`User diproses: ${insertedUsers}`);

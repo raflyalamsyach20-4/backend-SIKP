@@ -3,8 +3,8 @@ import { cors } from 'hono/cors';
 import { logger } from 'hono/logger';
 
 // Configuration & Core
-import { createAppConfig, CloudflareBindings } from '@/config';
-import { DIContainer } from '@/core';
+import { CloudflareBindings } from '@/config';
+import { DIContainer, requestContainerMiddleware } from '@/core';
 import { errorHandler } from '@/errors';
 
 // Routes
@@ -65,18 +65,7 @@ app.get('/health', (c) => {
  * Dependency Injection Setup Middleware
  * Initializes DI container for each request with proper configuration
  */
-app.use('/api/*', async (c, next) => {
-  // Create application configuration from environment bindings
-  const config = createAppConfig(c.env);
-  
-  // Initialize DI container with configuration
-  const container = new DIContainer(config);
-  
-  // Store container in context for route handlers
-  c.set('container', container);
-  
-  await next();
-});
+app.use('/api/*', requestContainerMiddleware);
 
 /**
  * API Routes

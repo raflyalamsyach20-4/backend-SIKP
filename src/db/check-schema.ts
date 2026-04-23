@@ -1,7 +1,5 @@
-import { drizzle } from 'drizzle-orm/neon-http';
-import { neon } from '@neondatabase/serverless';
 import * as dotenv from 'dotenv';
-import { sql } from 'drizzle-orm';
+import { getMaintenanceSql } from './maintenance-client';
 
 dotenv.config({ path: '.env' });
 
@@ -10,8 +8,7 @@ const checkSchema = async () => {
     throw new Error('DATABASE_URL is not defined in .env file');
   }
 
-  const sqlClient = neon(process.env.DATABASE_URL);
-  const db = drizzle(sqlClient as any);
+  const sqlClient = getMaintenanceSql();
 
   console.log('\n📋 Database Schema Verification\n');
   console.log('='.repeat(80));

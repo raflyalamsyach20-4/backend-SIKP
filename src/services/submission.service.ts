@@ -18,7 +18,7 @@ export class SubmissionService {
   ) {}
 
   private createServiceError(message: string, code: string, statusCode: number) {
-    const error: any = new Error(message);
+    const error = new Error(message) as Error & { code: string; statusCode: number };
     error.code = code;
     error.statusCode = statusCode;
     return error;
@@ -50,7 +50,7 @@ export class SubmissionService {
     isAdminApproved: boolean;
     finalSignedFileUrl: string | null;
   } {
-    const legacyStatus = submission.status;
+    const legacyStatus = String(submission.status ?? 'DRAFT');
     const rawWorkflowStage = submission.workflowStage ?? (legacyStatus === 'PENDING_REVIEW' ? 'PENDING_ADMIN_REVIEW' : legacyStatus);
     const adminVerificationStatus =
       submission.adminVerificationStatus === 'APPROVED' || submission.adminVerificationStatus === 'REJECTED'
@@ -73,14 +73,17 @@ export class SubmissionService {
 
     return {
       ...submission,
-      status: workflowStage,
+      status: String(workflowStage),
       legacyStatus,
-      submissionStatus: workflowStage,
-      submission_status: workflowStage,
+      submissionStatus: String(workflowStage),
+      submission_status: String(workflowStage),
       adminStatus: adminVerificationStatus,
       admin_status: adminVerificationStatus,
       isAdminApproved: adminVerificationStatus === 'APPROVED',
-      finalSignedFileUrl: canSeeFinalLetter ? submission.finalSignedFileUrl ?? null : null,
+      finalSignedFileUrl:
+        canSeeFinalLetter && typeof submission.finalSignedFileUrl === 'string'
+          ? submission.finalSignedFileUrl
+          : null,
     };
   }
 
@@ -352,7 +355,7 @@ export class SubmissionService {
     // ✅ Requester must be an ACCEPTED member of the team
     const requesterMembership = await this.teamRepo.findMemberByTeamAndUser(submission.teamId, authUserId);
     if (!requesterMembership || requesterMembership.invitationStatus !== 'ACCEPTED') {
-      const unauthorized: any = new Error('Unauthorized - not team member');
+      const unauthorized: Error = new Error('Unauthorized - not team member');
       unauthorized.statusCode = 403;
       throw unauthorized;
     }
@@ -360,7 +363,7 @@ export class SubmissionService {
     // Verify member exists in team
     const member = await this.teamRepo.findMemberByTeamAndUser(submission.teamId, memberUserId);
     if (!member || member.invitationStatus !== 'ACCEPTED') {
-      const invalidMember: any = new Error('User is not a member of this team');
+      const invalidMember: Error = new Error('User is not a member of this team');
       invalidMember.statusCode = 403;
       throw invalidMember;
     }
@@ -374,7 +377,7 @@ export class SubmissionService {
     // ✅ Uploader must also be an ACCEPTED member of the team
     const uploaderMembership = await this.teamRepo.findMemberByTeamAndUser(submission.teamId, finalUploadedByUserId);
     if (!uploaderMembership || uploaderMembership.invitationStatus !== 'ACCEPTED') {
-      const unauthorizedUploader: any = new Error('Unauthorized - uploader is not team member');
+      const unauthorizedUploader: Error = new Error('Unauthorized - uploader is not team member');
       unauthorizedUploader.statusCode = 403;
       throw unauthorizedUploader;
     }
@@ -417,7 +420,7 @@ export class SubmissionService {
       }
       // ✅ STEP 3: If APPROVED or PENDING, don't allow reupload
       else {
-        const error: any = new Error(
+        const error: Error = new Error(
           `Dokumen ${documentType} sudah diupload dengan status ${existingDoc.status}. Tidak dapat upload ulang.`
         );
         error.statusCode = 409;
@@ -475,14 +478,14 @@ export class SubmissionService {
   async getDocuments(submissionId: string, userId: string) {
     const submission = await this.submissionRepo.findById(submissionId);
     if (!submission) {
-      const notFound: any = new Error('Submission not found');
+      const notFound: Error = new Error('Submission not found');
       notFound.statusCode = 404;
       throw notFound;
     }
 
     const membership = await this.teamRepo.findMemberByTeamAndUser(submission.teamId, userId);
     if (!membership || membership.invitationStatus !== 'ACCEPTED') {
-      const unauthorized: any = new Error('Unauthorized - not team member');
+      const unauthorized: Error = new Error('Unauthorized - not team member');
       unauthorized.statusCode = 403;
       throw unauthorized;
     }
@@ -493,14 +496,14 @@ export class SubmissionService {
   async getLetterRequestStatus(submissionId: string, userId: string) {
     const submission = await this.submissionRepo.findById(submissionId);
     if (!submission) {
-      const error: any = new Error('Submission tidak ditemukan.');
+      const error: Error = new Error('Submission tidak ditemukan.');
       error.statusCode = 404;
       throw error;
     }
 
     const requesterMembership = await this.teamRepo.findMemberByTeamAndUser(submission.teamId, userId);
     if (!requesterMembership || requesterMembership.invitationStatus !== 'ACCEPTED') {
-      const error: any = new Error('Anda tidak memiliki akses ke submission ini');
+      const error: Error = new Error('Anda tidak memiliki akses ke submission ini');
       error.statusCode = 403;
       throw error;
     }
@@ -632,7 +635,7 @@ export class SubmissionService {
     // Get document info
     const document = await this.submissionRepo.findDocumentById(documentId);
     if (!document) {
-      const notFound: any = new Error('Document not found');
+      const notFound: Error = new Error('Document not found');
       notFound.statusCode = 404;
       throw notFound;
     }
@@ -640,7 +643,7 @@ export class SubmissionService {
     // Get submission
     const submission = await this.submissionRepo.findById(document.submissionId);
     if (!submission) {
-      const notFound: any = new Error('Submission not found');
+      const notFound: Error = new Error('Submission not found');
       notFound.statusCode = 404;
       throw notFound;
     }
@@ -648,7 +651,7 @@ export class SubmissionService {
     // Verify user is team member
     const membership = await this.teamRepo.findMemberByTeamAndUser(submission.teamId, userId);
     if (!membership || membership.invitationStatus !== 'ACCEPTED') {
-      const unauthorized: any = new Error('Unauthorized - not team member');
+      const unauthorized: Error = new Error('Unauthorized - not team member');
       unauthorized.statusCode = 403;
       throw unauthorized;
     }
@@ -661,7 +664,7 @@ export class SubmissionService {
       submission.status === 'DRAFT';
 
     if (!canDelete) {
-      const forbidden: any = new Error(
+      const forbidden: Error = new Error(
         `Cannot delete document with status ${document.status} in ${submission.status} submission`
       );
       forbidden.statusCode = 403;

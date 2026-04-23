@@ -1,32 +1,14 @@
 import { Context } from 'hono';
 import { AdminService } from '@/services/admin.service';
 import { createResponse, handleError } from '@/utils/helpers';
-import { z } from 'zod';
+import { ZodError } from 'zod';
 import type { JWTPayload } from '@/types';
-
-const rejectSubmissionSchema = z.object({
-  documentReviews: z.record(z.string(), z.enum(['approved', 'rejected'])).optional(),
-  reason: z.string().min(1),
-});
-
-const approveSubmissionSchema = z.object({
-  documentReviews: z.record(z.string(), z.enum(['approved', 'rejected'])).optional(),
-  autoGenerateLetter: z.boolean().optional().default(false),
-  letterNumber: z.string().optional(),
-});
-
-const generateLetterSchema = z.object({
-  format: z.enum(['pdf', 'docx']).optional().default('pdf'),
-});
-
-// Schema for updating submission status (PUT /api/admin/submissions/:submissionId/status)
-const updateSubmissionStatusSchema = z.object({
-  status: z.enum(['APPROVED', 'REJECTED']).describe('Status to update to'),
-  rejectionReason: z.string().optional().describe('Reason for rejection (required if status is REJECTED)'),
-  letterNumber: z.string().optional().describe('Nomor surat (required if status is APPROVED)'),
-  // ✅ NEW: Document review statuses per document ID
-  documentReviews: z.record(z.string(), z.enum(['approved', 'rejected'])).describe('Document review statuses per document ID'),
-});
+import {
+  rejectSubmissionSchema,
+  approveSubmissionSchema,
+  generateLetterSchema,
+  updateSubmissionStatusSchema,
+} from '@/schemas/admin.schema';
 
 export class AdminController {
   constructor(private adminService: AdminService) {}
@@ -35,7 +17,7 @@ export class AdminController {
     try {
       const dashboard = await this.adminService.getDashboard();
       return c.json(createResponse(true, 'Admin dashboard retrieved', dashboard));
-    } catch (error: any) {
+    } catch (error) {
       return handleError(c, error, 'Failed to get admin dashboard');
     }
   };
@@ -59,7 +41,7 @@ export class AdminController {
       });
       
       return c.json(createResponse(true, 'OK', submissions));
-    } catch (error: any) {
+    } catch (error) {
       return handleError(c, error, 'Failed to get submissions');
     }
   };
@@ -69,7 +51,7 @@ export class AdminController {
       const status = c.req.param('status') as 'DRAFT' | 'PENDING_REVIEW' | 'REJECTED' | 'APPROVED';
       const submissions = await this.adminService.getSubmissionsByStatus(status);
       return c.json(createResponse(true, 'Submissions retrieved', submissions));
-    } catch (error: any) {
+    } catch (error) {
       return handleError(c, error, 'Failed to get submissions');
     }
   };
@@ -79,7 +61,7 @@ export class AdminController {
       const submissionId = c.req.param('submissionId');
       const submission = await this.adminService.getSubmissionById(submissionId);
       return c.json(createResponse(true, 'Submission retrieved', submission));
-    } catch (error: any) {
+    } catch (error) {
       return handleError(c, error, 'Failed to get submission');
     }
   };
@@ -118,10 +100,10 @@ export class AdminController {
         createResponse(true, 'Status submission berhasil diupdate', result),
         200
       );
-    } catch (error: any) {
-      if (error instanceof z.ZodError) {
+    } catch (error) {
+      if (error instanceof ZodError) {
         return c.json(
-          createResponse(false, 'Validation Error', { errors: error.errors }),
+          createResponse(false, 'Validation Error', { errors: error.issues }),
           400
         );
       }
@@ -145,7 +127,7 @@ export class AdminController {
       );
 
       return c.json(createResponse(true, 'Submission approved successfully', submission));
-    } catch (error: any) {
+    } catch (error) {
       return handleError(c, error, 'Failed to approve submission');
     }
   };
@@ -165,7 +147,7 @@ export class AdminController {
       );
 
       return c.json(createResponse(true, 'Submission rejected', submission));
-    } catch (error: any) {
+    } catch (error) {
       return handleError(c, error, 'Failed to reject submission');
     }
   };
@@ -185,7 +167,7 @@ export class AdminController {
       );
 
       return c.json(createResponse(true, 'Letter generated successfully', letter), 201);
-    } catch (error: any) {
+    } catch (error) {
       return handleError(c, error, 'Failed to generate letter');
     }
   };
@@ -194,7 +176,7 @@ export class AdminController {
     try {
       const stats = await this.adminService.getSubmissionStatistics();
       return c.json(createResponse(true, 'Statistics retrieved', stats));
-    } catch (error: any) {
+    } catch (error) {
       return handleError(c, error, 'Failed to get statistics');
     }
   };

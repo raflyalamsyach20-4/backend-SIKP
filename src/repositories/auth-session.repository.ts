@@ -64,7 +64,7 @@ export class AuthSessionRepository {
     id: string;
     identityType: string;
     roleName: string;
-    metadata?: Record<string, any>;
+    metadata?: Record<string, unknown>;
   }>) {
     void authUserId;
     void identities;

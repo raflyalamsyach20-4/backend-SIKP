@@ -1,11 +1,10 @@
-import { drizzle } from 'drizzle-orm/neon-http';
-import { neon } from '@neondatabase/serverless';
 import * as dotenv from 'dotenv';
+import { getMaintenanceSql } from './maintenance-client';
 
 dotenv.config();
 
 const checkTeamsColumns = async () => {
-  const sql = neon(process.env.DATABASE_URL!);
+  const sql = getMaintenanceSql();
   
   console.log('\n🔍 Checking TEAMS table columns and data:\n');
   

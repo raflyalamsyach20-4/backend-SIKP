@@ -1,37 +1,50 @@
-import { neon } from '@neondatabase/serverless';
-import * as dotenv from 'dotenv';
+import 'dotenv/config';
+import { sql } from 'drizzle-orm';
+import { db } from '@/db';
 
-dotenv.config({ path: '.env' });
+type MigrationRow = { id: number; hash: string; created_at: string };
+type ColumnRow = { column_name: string };
+type IndexRow = { indexname: string };
+type PgErrorLike = { code?: string };
 
 async function main() {
-  if (!process.env.DATABASE_URL) {
+  if (!db) {
     throw new Error('DATABASE_URL is not defined in .env file');
   }
 
-  const sql = neon(process.env.DATABASE_URL);
-
-  let migrations: any[] = [];
+  let migrations: MigrationRow[] = [];
   let migrationsTableExists = true;
 
   try {
-    migrations = await sql(
-      'SELECT id, hash, created_at FROM __drizzle_migrations ORDER BY created_at DESC LIMIT 15'
-    );
-  } catch (error: any) {
-    if (error?.code === '42P01') {
+    const rows = await db.execute(sql`
+      SELECT id, hash, created_at
+      FROM __drizzle_migrations
+      ORDER BY created_at DESC
+      LIMIT 15
+    `);
+    migrations = rows as unknown as MigrationRow[];
+  } catch (error) {
+    const pgError = error as PgErrorLike;
+    if (pgError.code === '42P01') {
       migrationsTableExists = false;
     } else {
       throw error;
     }
   }
 
-  const columns = await sql(
-    "SELECT column_name FROM information_schema.columns WHERE table_schema='public' AND table_name='submissions' ORDER BY ordinal_position"
-  );
+  const columns = (await db.execute(sql`
+    SELECT column_name
+    FROM information_schema.columns
+    WHERE table_schema='public' AND table_name='submissions'
+    ORDER BY ordinal_position
+  `)) as unknown as ColumnRow[];
 
-  const indexes = await sql(
-    "SELECT indexname FROM pg_indexes WHERE schemaname='public' AND tablename='submissions' ORDER BY indexname"
-  );
+  const indexes = (await db.execute(sql`
+    SELECT indexname
+    FROM pg_indexes
+    WHERE schemaname='public' AND tablename='submissions'
+    ORDER BY indexname
+  `)) as unknown as IndexRow[];
 
   console.log('\n=== LATEST DB MIGRATIONS ===');
   if (!migrationsTableExists) {
@@ -41,10 +54,10 @@ async function main() {
   }
 
   console.log('\n=== SUBMISSIONS COLUMNS ===');
-  console.log(columns.map((row: any) => row.column_name));
+  console.log(columns.map((row) => row.column_name));
 
   console.log('\n=== SUBMISSIONS INDEXES ===');
-  console.log(indexes.map((row: any) => row.indexname));
+  console.log(indexes.map((row) => row.indexname));
 }
 
 main().catch((err) => {

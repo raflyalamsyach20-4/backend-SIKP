@@ -5,55 +5,56 @@ import { CloudflareBindings } from '@/config';
 import { createDosenSuratKesediaanRoutes } from './surat-kesediaan.route';
 import { createDosenSuratPermohonanRoutes } from './surat-permohonan.route';
 import { createDosenSuratPengantarRoutes } from './surat-pengantar-dosen.route';
+import { zValidator } from '@hono/zod-validator';
+import { withContainer } from './route-handler';
+import { emptyFormSchema, emptyQuerySchema } from '@/schemas/common.schema';
+import { updateDosenProfileSchema } from '@/validation';
 
 type Variables = {
   container: DIContainer;
 };
 
 export const createDosenRoutes = () => {
-  const dosen = new Hono<{ Bindings: CloudflareBindings; Variables: Variables }>();
-
-  dosen.use('*', authMiddleware);
-
-  dosen.use('/me/*', dosenOnly);
-  dosen.use('/me', dosenOnly);
-  dosen.use('/dashboard', dosenOnly);
-  dosen.use('/dashboard/wakdek', roleMiddleware(['DOSEN', 'WAKIL_DEKAN']));
-
-  dosen.get('/dashboard', async (c: Context) => {
-    const container = c.get('container') as DIContainer;
-    return container.dosenController.dashboard(c);
-  });
-
-  dosen.get('/dashboard/wakdek', async (c: Context) => {
-    const container = c.get('container') as DIContainer;
-    return container.dosenController.wakdekDashboard(c);
-  });
-
-  dosen.get('/me', async (c: Context) => {
-    const container = c.get('container') as DIContainer;
-    return container.dosenController.me(c);
-  });
-
-  dosen.put('/me/profile', async (c: Context) => {
-    const container = c.get('container') as DIContainer;
-    return container.dosenController.updateProfile(c);
-  });
-
-  dosen.put('/me/esignature', async (c: Context) => {
-    const container = c.get('container') as DIContainer;
-    return container.dosenController.updateESignature(c);
-  });
-
-  dosen.delete('/me/esignature', async (c: Context) => {
-    const container = c.get('container') as DIContainer;
-    return container.dosenController.deleteESignature(c);
-  });
-
-  // Surat Kesediaan Routes (nested)
-  dosen.route('/surat-kesediaan', createDosenSuratKesediaanRoutes());
-  dosen.route('/surat-permohonan', createDosenSuratPermohonanRoutes());
-  dosen.route('/surat-pengantar', createDosenSuratPengantarRoutes());
+  const dosen = new Hono<{ Bindings: CloudflareBindings; Variables: Variables }>()
+    .use('*', authMiddleware)
+    .use('/me/*', dosenOnly)
+    .use('/me', dosenOnly)
+    .use('/dashboard', dosenOnly)
+    .use('/dashboard/wakdek', roleMiddleware(['DOSEN', 'WAKIL_DEKAN']))
+    .get(
+      '/dashboard',
+      zValidator('query', emptyQuerySchema),
+      withContainer((container, c) => container.dosenController.dashboard(c))
+    )
+    .get(
+      '/dashboard/wakdek',
+      zValidator('query', emptyQuerySchema),
+      withContainer((container, c) => container.dosenController.wakdekDashboard(c))
+    )
+    .get(
+      '/me',
+      zValidator('query', emptyQuerySchema),
+      withContainer((container, c) => container.dosenController.me(c))
+    )
+    .put(
+      '/me/profile',
+      zValidator('json', updateDosenProfileSchema),
+      withContainer((container, c) => container.dosenController.updateProfile(c))
+    )
+    .put(
+      '/me/esignature',
+      zValidator('form', emptyFormSchema),
+      withContainer((container, c) => container.dosenController.updateESignature(c))
+    )
+    .delete(
+      '/me/esignature',
+      zValidator('query', emptyQuerySchema),
+      withContainer((container, c) => container.dosenController.deleteESignature(c))
+    )
+    // Surat Kesediaan Routes (nested)
+    .route('/surat-kesediaan', createDosenSuratKesediaanRoutes())
+    .route('/surat-permohonan', createDosenSuratPermohonanRoutes())
+    .route('/surat-pengantar', createDosenSuratPengantarRoutes());
 
   return dosen;
 };

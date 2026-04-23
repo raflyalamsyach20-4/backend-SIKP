@@ -110,14 +110,15 @@ export class SsoSignatureProxyService {
       }
 
       return payload;
-    } catch (error: any) {
-      if (error?.name === 'AbortError') {
+    } catch (error) {
+      const err = error as { name?: string };
+      if (err.name === 'AbortError') {
         const timeoutError = new Error('SSO signature proxy request timed out') as Error & { statusCode?: number };
         timeoutError.statusCode = 504;
         throw timeoutError;
       }
 
-      throw error;
+      throw err;
     } finally {
       clearTimeout(timeout);
     }

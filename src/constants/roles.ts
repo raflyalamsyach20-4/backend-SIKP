@@ -27,5 +27,5 @@ export type AdminRole = typeof AdminRoles[keyof typeof AdminRoles];
  * Check if a role is an admin role
  */
 export const isAdminRole = (role: string): boolean => {
-  return Object.values(AdminRoles).includes(role as any);
+  return Object.values(AdminRoles).includes(role as AdminRole);
 };

@@ -178,7 +178,7 @@ export class SuratPengantarDosenService {
     const verifier = await this.resolveVerifierContext(userId, role);
     const submission = await this.submissionRepo.findByIdWithTeam(requestId);
     if (!submission) {
-      const error: any = new Error('Pengajuan surat pengantar tidak ditemukan.');
+      const error: Error = new Error('Pengajuan surat pengantar tidak ditemukan.');
       error.statusCode = 404;
       throw error;
     }
@@ -242,7 +242,7 @@ export class SuratPengantarDosenService {
     });
 
     if (!updated) {
-      const error: any = new Error('Gagal menyimpan hasil verifikasi dosen.');
+      const error: Error = new Error('Gagal menyimpan hasil verifikasi dosen.');
       error.statusCode = 500;
       throw error;
     }
@@ -262,7 +262,7 @@ export class SuratPengantarDosenService {
     const verifier = await this.resolveVerifierContext(userId, role);
     const submission = await this.submissionRepo.findByIdWithTeam(requestId);
     if (!submission) {
-      const error: any = new Error('Pengajuan surat pengantar tidak ditemukan.');
+      const error: Error = new Error('Pengajuan surat pengantar tidak ditemukan.');
       error.statusCode = 404;
       throw error;
     }
@@ -298,7 +298,7 @@ export class SuratPengantarDosenService {
     });
 
     if (!updated) {
-      const error: any = new Error('Gagal menyimpan penolakan dosen.');
+      const error: Error = new Error('Gagal menyimpan penolakan dosen.');
       error.statusCode = 500;
       throw error;
     }
@@ -315,7 +315,7 @@ export class SuratPengantarDosenService {
   private async resolveVerifierContext(userId: string, role: UserRole): Promise<VerifierContext> {
     const user = await this.userRepo.findById(userId);
     if (!user) {
-      const error: any = new Error('Verifier tidak ditemukan.');
+      const error: Error = new Error('Verifier tidak ditemukan.');
       error.statusCode = 404;
       throw error;
     }
@@ -336,14 +336,14 @@ export class SuratPengantarDosenService {
   private async resolveSigningContext(userId: string, role: UserRole): Promise<SigningContext> {
     const verifier = await this.resolveVerifierContext(userId, role);
     if (!verifier.esignatureUrl) {
-      const error: any = new Error('E-signature dosen belum tersedia.');
+      const error: Error = new Error('E-signature dosen belum tersedia.');
       error.statusCode = 422;
       throw error;
     }
 
     const response = await fetch(verifier.esignatureUrl);
     if (!response.ok) {
-      const error: any = new Error('Gagal mengambil file e-signature dosen.');
+      const error: Error = new Error('Gagal mengambil file e-signature dosen.');
       error.statusCode = 502;
       throw error;
     }
@@ -367,20 +367,20 @@ export class SuratPengantarDosenService {
       !submission.finalSignedFileUrl;
 
     if (!isNormalQueue && !isLegacyQueue) {
-      const error: any = new Error('Submission belum berada pada tahap verifikasi dosen.');
+      const error: Error = new Error('Submission belum berada pada tahap verifikasi dosen.');
       error.statusCode = 409;
       throw error;
     }
 
     if (effectiveAdminStatus !== 'APPROVED') {
-      const error: any = new Error('Submission belum disetujui admin.');
+      const error: Error = new Error('Submission belum disetujui admin.');
       error.statusCode = 409;
       throw error;
     }
 
     const allowed = await this.canVerifierAccessSubmission(verifier, submission.team?.leaderId ?? submission.team?.leader?.id);
     if (!allowed) {
-      const error: any = new Error('Anda tidak berhak memverifikasi submission ini.');
+      const error: Error = new Error('Anda tidak berhak memverifikasi submission ini.');
       error.statusCode = 403;
       throw error;
     }
@@ -937,12 +937,12 @@ export class SuratPengantarDosenService {
     return tujuan || company || '-';
   }
 
-  private sanitizeText(value: unknown): string {
+  private sanitizeText(value: any): string {
     if (value == null) return '';
     return String(value).replace(/\s+/g, ' ').trim();
   }
 
-  private formatDateLong(dateValue: unknown): string {
+  private formatDateLong(dateValue: any): string {
     if (!dateValue) return '-';
 
     const months = [

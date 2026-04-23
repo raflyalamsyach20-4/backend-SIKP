@@ -27,7 +27,7 @@ export class AuthController {
     try {
       await this.authService.registerMahasiswa();
       return c.json(createResponse(false, 'Local registration has been disabled. Please use SSO UNSRI.'), 410);
-    } catch (error: any) {
+    } catch (error) {
       return handleError(c, error, ErrorMessages.REGISTRATION_FAILED);
     }
   };
@@ -39,7 +39,7 @@ export class AuthController {
     try {
       await this.authService.registerAdmin();
       return c.json(createResponse(false, 'Local registration has been disabled. Please use SSO UNSRI.'), 410);
-    } catch (error: any) {
+    } catch (error) {
       return handleError(c, error, ErrorMessages.REGISTRATION_FAILED);
     }
   };
@@ -51,7 +51,7 @@ export class AuthController {
     try {
       await this.authService.registerDosen();
       return c.json(createResponse(false, 'Local registration has been disabled. Please use SSO UNSRI.'), 410);
-    } catch (error: any) {
+    } catch (error) {
       return handleError(c, error, ErrorMessages.REGISTRATION_FAILED);
     }
   };
@@ -63,7 +63,7 @@ export class AuthController {
     try {
       await this.authService.login();
       return c.json(createResponse(false, 'Local login has been disabled. Please use SSO UNSRI.'), 410);
-    } catch (error: any) {
+    } catch (error) {
       return handleError(c, error, ErrorMessages.LOGIN_FAILED);
     }
   };
@@ -95,7 +95,7 @@ export class AuthController {
         state,
         authorizeUrl,
       }));
-    } catch (error: any) {
+    } catch (error) {
       return handleError(c, error, ErrorMessages.BAD_REQUEST);
     }
   };
@@ -139,7 +139,7 @@ export class AuthController {
         effectiveRoles: result.effectiveRoles,
         effectivePermissions: result.effectivePermissions,
       }));
-    } catch (error: any) {
+    } catch (error) {
       return handleError(c, error, ErrorMessages.LOGIN_FAILED);
     }
   };
@@ -155,7 +155,7 @@ export class AuthController {
       return c.json(createResponse(true, 'User identities retrieved', {
         identities,
       }));
-    } catch (error: any) {
+    } catch (error) {
       return handleError(c, error, ErrorMessages.UNAUTHORIZED);
     }
   };
@@ -176,7 +176,7 @@ export class AuthController {
         effectiveRoles: result.effectiveRoles,
         effectivePermissions: result.effectivePermissions,
       }));
-    } catch (error: any) {
+    } catch (error) {
       return handleError(c, error, ErrorMessages.BAD_REQUEST);
     }
   };
@@ -190,7 +190,7 @@ export class AuthController {
       const me = await this.authService.getMe(sessionId);
 
       return c.json(createResponse(true, SuccessMessages.USER_RETRIEVED, me));
-    } catch (error: any) {
+    } catch (error) {
       return handleError(c, error, ErrorMessages.USER_NOT_FOUND);
     }
   };
@@ -208,7 +208,7 @@ export class AuthController {
       });
 
       return c.json(createResponse(true, 'Logout successful'));
-    } catch (error: any) {
+    } catch (error) {
       return handleError(c, error, ErrorMessages.UNAUTHORIZED);
     }
   };
@@ -239,7 +239,7 @@ export class AuthController {
       return c.json(
         createResponse(true, 'Mahasiswa search results', results)
       );
-    } catch (error: any) {
+    } catch (error) {
       return handleError(c, error, 'Failed to search mahasiswa');
     }
   };

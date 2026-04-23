@@ -1,36 +1,30 @@
-import { neon } from '@neondatabase/serverless';
-import * as dotenv from 'dotenv';
-
-dotenv.config({ path: '.env' });
+import 'dotenv/config';
+import { and, eq, inArray, isNull } from 'drizzle-orm';
+import { db } from '@/db';
+import { dosen, mahasiswa, users } from '@/db/schema';
 
 const run = async () => {
-  if (!process.env.DATABASE_URL) {
+  if (!db) {
     throw new Error('DATABASE_URL tidak ditemukan di .env');
   }
 
-  const sql = neon(process.env.DATABASE_URL);
-
-  // Get all dosen with jabatan 'Asisten Ahli' or 'Lektor'
-  const dosenList = await sql`
-    SELECT d.id
-    FROM dosen d
-    JOIN users u ON u.id = d.id
-    WHERE d.jabatan IN ('Asisten Ahli', 'Lektor')
-    ORDER BY d.id
-  `;
+  const dosenList = await db
+    .select({ id: dosen.id })
+    .from(dosen)
+    .innerJoin(users, eq(users.id, dosen.id))
+    .where(inArray(dosen.jabatan, ['Asisten Ahli', 'Lektor']))
+    .orderBy(dosen.id);
 
   if (dosenList.length === 0) {
     console.error('❌ Tidak ada dosen dengan jabatan Asisten Ahli atau Lektor');
     process.exit(1);
   }
 
-  // Get all mahasiswa yang belum punya dosen PA
-  const mahasiswaList = await sql`
-    SELECT m.nim, m.id
-    FROM mahasiswa m
-    WHERE m.dosen_pa_id IS NULL
-    ORDER BY m.id
-  `;
+  const mahasiswaList = await db
+    .select({ nim: mahasiswa.nim, id: mahasiswa.id })
+    .from(mahasiswa)
+    .where(isNull(mahasiswa.dosenPaId))
+    .orderBy(mahasiswa.id);
 
   if (mahasiswaList.length === 0) {
     console.log('✅ Semua mahasiswa sudah memiliki dosen PA');
@@ -48,11 +42,10 @@ const run = async () => {
     const randomIndex = Math.floor(Math.random() * dosenList.length);
     const selectedDosen = dosenList[randomIndex];
 
-    await sql`
-      UPDATE mahasiswa
-      SET dosen_pa_id = ${selectedDosen.id}
-      WHERE id = ${mhs.id}
-    `;
+    await db
+      .update(mahasiswa)
+      .set({ dosenPaId: selectedDosen.id })
+      .where(eq(mahasiswa.id, mhs.id));
 
     assignedCount++;
     console.log(`✓ MHS ${mhs.nim} → DOSEN ${selectedDosen.id}`);
@@ -65,24 +58,31 @@ const run = async () => {
   console.log('📊 HASIL ASSIGNMENT (per dosen)');
   console.log('═'.repeat(80));
 
-  const result = await sql`
-    SELECT 
-      d.id,
-      u.nama as dosen_nama,
-      d.jabatan,
-      COUNT(m.id) as jumlah_mahasiswa,
-      ARRAY_AGG(mu.nama) as mahasiswa_list
-    FROM dosen d
-    JOIN users u ON u.id = d.id
-    LEFT JOIN mahasiswa m ON m.dosen_pa_id = d.id
-    LEFT JOIN users mu ON mu.id = m.id
-    WHERE d.jabatan IN ('Asisten Ahli', 'Lektor')
-    GROUP BY d.id, u.nama, d.jabatan
-    ORDER BY d.jabatan, u.nama
-  `;
+  const result = await db
+    .select({
+      id: dosen.id,
+      dosenNama: users.nama,
+      jabatan: dosen.jabatan,
+    })
+    .from(dosen)
+    .innerJoin(users, eq(users.id, dosen.id))
+    .where(inArray(dosen.jabatan, ['Asisten Ahli', 'Lektor']))
+    .orderBy(dosen.jabatan, users.nama);
+
+  const mahasiswaByDosen = await db
+    .select({ id: mahasiswa.id, dosenPaId: mahasiswa.dosenPaId })
+    .from(mahasiswa)
+    .where(inArray(mahasiswa.dosenPaId, result.map((row) => row.id)));
 
   console.log('\n');
-  console.table(result);
+  console.table(
+    result.map((row) => ({
+      id: row.id,
+      dosen_nama: row.dosenNama,
+      jabatan: row.jabatan,
+      jumlah_mahasiswa: mahasiswaByDosen.filter((mhs) => mhs.dosenPaId === row.id).length,
+    }))
+  );
 };
 
 run()

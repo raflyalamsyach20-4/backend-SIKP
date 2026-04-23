@@ -12,7 +12,7 @@ export class MahasiswaController {
       const dashboardData = await this.mahasiswaService.getDashboard(user.userId);
 
       return c.json(createResponse(true, 'Mahasiswa dashboard retrieved', dashboardData));
-    } catch (error: any) {
+    } catch (error) {
       return handleError(c, error, 'Failed to retrieve mahasiswa dashboard');
     }
   };
@@ -43,7 +43,7 @@ export class MahasiswaController {
             : null,
         })
       );
-    } catch (error: any) {
+    } catch (error) {
       return handleError(c, error, 'Failed to retrieve mahasiswa profile');
     }
   };
@@ -60,7 +60,7 @@ export class MahasiswaController {
         ),
         410
       );
-    } catch (error: any) {
+    } catch (error) {
       return handleError(c, error, 'Failed to update profile');
     }
   };
@@ -74,7 +74,7 @@ export class MahasiswaController {
         ),
         410
       );
-    } catch (error: any) {
+    } catch (error) {
       return handleError(c, error, 'Failed to update e-signature');
     }
   };
@@ -88,7 +88,7 @@ export class MahasiswaController {
         ),
         410
       );
-    } catch (error: any) {
+    } catch (error) {
       return handleError(c, error, 'Failed to delete e-signature');
     }
   };

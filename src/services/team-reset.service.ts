@@ -15,7 +15,7 @@ import { TeamRepository } from '@/repositories/team.repository';
  *
  * Reset Flow:
  * 1. Find active submission(s) for the team
- * 2. Archive each submission (set archivedAt = now) — does NOT delete any data
+ * 2. Archive each submission (set archivedAt = now) — does NOT delete unknown data
  * 3. Reset team status to PENDING
  */
 export class TeamResetService {

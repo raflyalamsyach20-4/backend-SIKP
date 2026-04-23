@@ -45,7 +45,7 @@ export class SuratPermohonanService {
   async requestSuratPermohonan(memberUserId: string, authUserId: string) {
     const memberUser = await this.userRepo.findById(memberUserId);
     if (!memberUser || memberUser.role !== 'MAHASISWA') {
-      const error: any = new Error('Pengguna tidak ditemukan.');
+      const error: Error = new Error('Pengguna tidak ditemukan.');
       error.statusCode = 404;
       throw error;
     }
@@ -54,28 +54,28 @@ export class SuratPermohonanService {
     const submission = await this.resolveSubmissionByTeamId(fixedTeam.id);
 
     if (!submission.companyName || !submission.startDate || !submission.endDate) {
-      const error: any = new Error('Data perusahaan belum lengkap. Isi terlebih dahulu nama perusahaan, tanggal mulai, dan tanggal selesai KP.');
+      const error: Error = new Error('Data perusahaan belum lengkap. Isi terlebih dahulu nama perusahaan, tanggal mulai, dan tanggal selesai KP.');
       error.statusCode = 422;
       throw error;
     }
 
     const dosenUserId = fixedTeam.dosenKpId || null;
     if (!dosenUserId) {
-      const error: any = new Error('Dosen KP tim belum ditetapkan. Silakan hubungi admin.');
+      const error: Error = new Error('Dosen KP tim belum ditetapkan. Silakan hubungi admin.');
       error.statusCode = 422;
       throw error;
     }
 
     const dosenUser = await this.userRepo.findById(dosenUserId);
     if (!dosenUser || dosenUser.role !== 'DOSEN' || !dosenUser.isActive) {
-      const error: any = new Error('Dosen tidak valid.');
+      const error: Error = new Error('Dosen tidak valid.');
       error.statusCode = 400;
       throw error;
     }
 
     const existing = await this.suratPermohonanRepo.findExistingPending(memberUserId, dosenUserId);
     if (existing) {
-      const error: any = new Error('Pengajuan surat permohonan untuk mahasiswa ini sudah dalam proses.');
+      const error: Error = new Error('Pengajuan surat permohonan untuk mahasiswa ini sudah dalam proses.');
       error.statusCode = 409;
       throw error;
     }
@@ -156,8 +156,9 @@ export class SuratPermohonanService {
     let dosenSigningContext: DosenSigningContext;
     try {
       dosenSigningContext = await this.getDosenSigningContext(dosenUserId);
-    } catch (error: any) {
-      const reason = error?.message || 'Gagal memuat e-signature dosen.';
+    } catch (error) {
+      const err = error as Error;
+      const reason = err.message || 'Gagal memuat e-signature dosen.';
       return {
         approvedCount,
         failed: requestIds.map((requestId) => ({ requestId, reason })),
@@ -168,10 +169,11 @@ export class SuratPermohonanService {
       try {
         await this.approveAndSignRequest(requestId, dosenUserId, dosenSigningContext);
         approvedCount += 1;
-      } catch (error: any) {
+      } catch (error) {
+        const err = error as Error;
         failed.push({
           requestId,
-          reason: error?.message || 'Gagal menyetujui pengajuan.',
+          reason: err.message || 'Gagal menyetujui pengajuan.',
         });
       }
     }
@@ -185,26 +187,26 @@ export class SuratPermohonanService {
   async rejectRequest(requestId: string, dosenUserId: string, reason: string) {
     const request = await this.suratPermohonanRepo.findById(requestId);
     if (!request) {
-      const error: any = new Error('Pengajuan tidak ditemukan.');
+      const error: Error = new Error('Pengajuan tidak ditemukan.');
       error.statusCode = 404;
       throw error;
     }
 
     if (request.dosenUserId !== dosenUserId) {
-      const error: any = new Error('Anda tidak berhak mengubah pengajuan ini.');
+      const error: Error = new Error('Anda tidak berhak mengubah pengajuan ini.');
       error.statusCode = 403;
       throw error;
     }
 
     if (request.status !== 'MENUNGGU') {
-      const error: any = new Error('Pengajuan sudah diproses.');
+      const error: Error = new Error('Pengajuan sudah diproses.');
       error.statusCode = 409;
       throw error;
     }
 
     const updated = await this.suratPermohonanRepo.rejectPending(requestId, dosenUserId, reason.trim());
     if (!updated) {
-      const error: any = new Error('Pengajuan sudah diproses.');
+      const error: Error = new Error('Pengajuan sudah diproses.');
       error.statusCode = 409;
       throw error;
     }
@@ -223,27 +225,27 @@ export class SuratPermohonanService {
    */
   async reapplyRequest(requestId: string, memberUserId: string, authUserId: string) {
     if (memberUserId !== authUserId) {
-      const error: any = new Error('Anda tidak memiliki akses untuk request ini.');
+      const error: Error = new Error('Anda tidak memiliki akses untuk request ini.');
       error.statusCode = 403;
       throw error;
     }
 
     const request = await this.suratPermohonanRepo.findById(requestId);
     if (!request) {
-      const error: any = new Error('Request tidak ditemukan.');
+      const error: Error = new Error('Request tidak ditemukan.');
       error.statusCode = 404;
       throw error;
     }
 
     if (request.memberUserId !== memberUserId) {
-      const error: any = new Error('Anda tidak memiliki akses untuk request ini.');
+      const error: Error = new Error('Anda tidak memiliki akses untuk request ini.');
       error.statusCode = 403;
       throw error;
     }
 
     const normalizedStatus = String(request.status || '').toUpperCase();
     if (normalizedStatus !== 'DITOLAK' && normalizedStatus !== 'REJECTED') {
-      const error: any = new Error('Ajuan ulang hanya diperbolehkan untuk request yang ditolak.');
+      const error: Error = new Error('Ajuan ulang hanya diperbolehkan untuk request yang ditolak.');
       error.statusCode = 409;
       throw error;
     }
@@ -255,7 +257,7 @@ export class SuratPermohonanService {
       mahasiswaEsignatureSnapshotAt: new Date(),
     });
     if (!updated) {
-      const error: any = new Error('Ajuan ulang hanya diperbolehkan untuk request yang ditolak.');
+      const error: Error = new Error('Ajuan ulang hanya diperbolehkan untuk request yang ditolak.');
       error.statusCode = 409;
       throw error;
     }
@@ -273,26 +275,26 @@ export class SuratPermohonanService {
   ) {
     const request = await this.suratPermohonanRepo.findById(requestId);
     if (!request) {
-      const error: any = new Error('Pengajuan tidak ditemukan.');
+      const error: Error = new Error('Pengajuan tidak ditemukan.');
       error.statusCode = 404;
       throw error;
     }
 
     if (request.dosenUserId !== dosenUserId) {
-      const error: any = new Error('Anda tidak berhak mengubah pengajuan ini.');
+      const error: Error = new Error('Anda tidak berhak mengubah pengajuan ini.');
       error.statusCode = 403;
       throw error;
     }
 
     if (request.status !== 'MENUNGGU') {
-      const error: any = new Error('Pengajuan sudah diproses.');
+      const error: Error = new Error('Pengajuan sudah diproses.');
       error.statusCode = 409;
       throw error;
     }
 
     const requestDetails = await this.suratPermohonanRepo.findByIdWithDetails(requestId);
     if (!requestDetails) {
-      const error: any = new Error('Detail pengajuan tidak ditemukan.');
+      const error: Error = new Error('Detail pengajuan tidak ditemukan.');
       error.statusCode = 404;
       throw error;
     }
@@ -301,7 +303,7 @@ export class SuratPermohonanService {
     const endDate = this.toDate(requestDetails.endDate);
 
     if (!requestDetails.companyName || !startDate || !endDate) {
-      const error: any = new Error('Data submission tidak lengkap untuk generate surat permohonan.');
+      const error: Error = new Error('Data submission tidak lengkap untuk generate surat permohonan.');
       error.statusCode = 422;
       throw error;
     }
@@ -323,7 +325,7 @@ export class SuratPermohonanService {
     );
 
     if (!signedFileUrl || !signedFileKey) {
-      const error: any = new Error('Upload signed PDF gagal.');
+      const error: Error = new Error('Upload signed PDF gagal.');
       error.statusCode = 500;
       throw error;
     }
@@ -343,7 +345,7 @@ export class SuratPermohonanService {
         // no-op best effort cleanup
       }
 
-      const error: any = new Error('Pengajuan sudah diproses.');
+      const error: Error = new Error('Pengajuan sudah diproses.');
       error.statusCode = 409;
       throw error;
     }
@@ -355,7 +357,7 @@ export class SuratPermohonanService {
         // no-op best effort cleanup
       }
 
-      const error: any = new Error('Gagal menyimpan metadata file signed ke database.');
+      const error: Error = new Error('Gagal menyimpan metadata file signed ke database.');
       error.statusCode = 500;
       throw error;
     }
@@ -372,7 +374,7 @@ export class SuratPermohonanService {
     const memberTeams = (await this.teamRepo.findTeamsByMemberId(memberUserId)).filter((team) => team.status === 'FIXED');
 
     if (memberTeams.length === 0) {
-      const error: any = new Error('Mahasiswa belum menetapkan tim.');
+      const error: Error = new Error('Mahasiswa belum menetapkan tim.');
       error.statusCode = 422;
       throw error;
     }
@@ -389,7 +391,7 @@ export class SuratPermohonanService {
 
     const sharedTeam = memberTeams.find((team) => authTeamIds.has(team.id));
     if (!sharedTeam) {
-      const error: any = new Error('Anda hanya dapat mengajukan untuk diri sendiri atau anggota tim FIXED yang valid.');
+      const error: Error = new Error('Anda hanya dapat mengajukan untuk diri sendiri atau anggota tim FIXED yang valid.');
       error.statusCode = 403;
       throw error;
     }
@@ -402,7 +404,7 @@ export class SuratPermohonanService {
     const submission = teamSubmissions[0];
 
     if (!submission) {
-      const error: any = new Error('Submission tim belum tersedia.');
+      const error: Error = new Error('Submission tim belum tersedia.');
       error.statusCode = 422;
       throw error;
     }
@@ -413,13 +415,13 @@ export class SuratPermohonanService {
   private async resolveMahasiswaEsignatureUrl(memberUserId: string): Promise<string> {
     const mahasiswaProfile = await this.userRepo.getMahasiswaMe(memberUserId);
     if (!mahasiswaProfile) {
-      const error: any = new Error('Profil mahasiswa tidak ditemukan.');
+      const error: Error = new Error('Profil mahasiswa tidak ditemukan.');
       error.statusCode = 404;
       throw error;
     }
 
     if (!mahasiswaProfile.esignatureUrl) {
-      const error: any = new Error('Mahasiswa belum memiliki tanda tangan digital. Silakan upload terlebih dahulu di halaman profil.');
+      const error: Error = new Error('Mahasiswa belum memiliki tanda tangan digital. Silakan upload terlebih dahulu di halaman profil.');
       error.statusCode = 422;
       throw error;
     }
@@ -431,7 +433,7 @@ export class SuratPermohonanService {
     requestDetails: Awaited<ReturnType<SuratPermohonanRepository['findByIdWithDetails']>>
   ): Promise<string> {
     if (!requestDetails) {
-      const error: any = new Error('Detail pengajuan tidak ditemukan.');
+      const error: Error = new Error('Detail pengajuan tidak ditemukan.');
       error.statusCode = 404;
       throw error;
     }
@@ -447,7 +449,7 @@ export class SuratPermohonanService {
     requestDetails: Awaited<ReturnType<SuratPermohonanRepository['findByIdWithDetails']>>
   ): Promise<MahasiswaSigningContext> {
     if (!requestDetails) {
-      const error: any = new Error('Detail pengajuan tidak ditemukan.');
+      const error: Error = new Error('Detail pengajuan tidak ditemukan.');
       error.statusCode = 404;
       throw error;
     }
@@ -470,13 +472,13 @@ export class SuratPermohonanService {
   private async getDosenSigningContext(dosenUserId: string): Promise<DosenSigningContext> {
     const dosenProfile = await this.userRepo.getDosenMe(dosenUserId);
     if (!dosenProfile) {
-      const error: any = new Error('Profil dosen tidak ditemukan.');
+      const error: Error = new Error('Profil dosen tidak ditemukan.');
       error.statusCode = 404;
       throw error;
     }
 
     if (!dosenProfile.esignatureUrl) {
-      const error: any = new Error('E-signature dosen belum tersedia. Silakan lengkapi di halaman profil.');
+      const error: Error = new Error('E-signature dosen belum tersedia. Silakan lengkapi di halaman profil.');
       error.statusCode = 422;
       throw error;
     }
@@ -503,27 +505,27 @@ export class SuratPermohonanService {
     try {
       response = await fetch(esignatureUrl);
     } catch {
-      const error: any = new Error(`Gagal mengakses file e-signature ${ownerLabel}.`);
+      const error: Error = new Error(`Gagal mengakses file e-signature ${ownerLabel}.`);
       error.statusCode = 422;
       throw error;
     }
 
     if (!response.ok) {
-      const error: any = new Error(`File e-signature ${ownerLabel} tidak dapat diakses.`);
+      const error: Error = new Error(`File e-signature ${ownerLabel} tidak dapat diakses.`);
       error.statusCode = 422;
       throw error;
     }
 
     const mimeType = (response.headers.get('content-type') || '').split(';')[0].trim().toLowerCase();
     if (!ALLOWED_SIGNATURE_MIME_TYPES.includes(mimeType)) {
-      const error: any = new Error(`Format file e-signature ${ownerLabel} tidak valid. Gunakan PNG/JPG/JPEG.`);
+      const error: Error = new Error(`Format file e-signature ${ownerLabel} tidak valid. Gunakan PNG/JPG/JPEG.`);
       error.statusCode = 422;
       throw error;
     }
 
     const imageArrayBuffer = await response.arrayBuffer();
     if (imageArrayBuffer.byteLength === 0) {
-      const error: any = new Error(`File e-signature ${ownerLabel} kosong atau rusak.`);
+      const error: Error = new Error(`File e-signature ${ownerLabel} kosong atau rusak.`);
       error.statusCode = 422;
       throw error;
     }
@@ -819,7 +821,7 @@ export class SuratPermohonanService {
         });
       }
     } catch {
-      const error: any = new Error('Gagal menyisipkan image e-signature ke PDF.');
+      const error: Error = new Error('Gagal menyisipkan image e-signature ke PDF.');
       error.statusCode = 422;
       throw error;
     }

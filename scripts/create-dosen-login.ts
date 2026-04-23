@@ -1,8 +1,8 @@
-import { neon } from '@neondatabase/serverless';
-import * as dotenv from 'dotenv';
 import bcrypt from 'bcryptjs';
-
-dotenv.config({ path: '.env' });
+import 'dotenv/config';
+import { eq } from 'drizzle-orm';
+import { db } from '@/db';
+import { users, dosen } from '@/db/schema';
 
 const DOSEN_LOGIN = {
   nama: 'Dr. Dosen Testing',
@@ -23,19 +23,26 @@ const generateId = () => {
 };
 
 const run = async () => {
-  if (!process.env.DATABASE_URL) {
+  if (!db) {
     throw new Error('DATABASE_URL is not defined in .env file');
   }
 
-  const sql = neon(process.env.DATABASE_URL);
   const hashedPassword = await bcrypt.hash(DOSEN_LOGIN.password, 10);
 
   // Ensure unique NIP if this script is run on a DB where the NIP already belongs to another user.
   let finalNip = DOSEN_LOGIN.nip;
-  const nipOwner = await sql`SELECT id FROM "dosen" WHERE "nip" = ${finalNip} LIMIT 1`;
+  const nipOwner = await db
+    .select({ id: dosen.id })
+    .from(dosen)
+    .where(eq(dosen.nip, finalNip))
+    .limit(1);
 
   let userId: string;
-  const existingUser = await sql`SELECT id FROM "users" WHERE "email" = ${DOSEN_LOGIN.email} LIMIT 1`;
+  const existingUser = await db
+    .select({ id: users.id })
+    .from(users)
+    .where(eq(users.email, DOSEN_LOGIN.email))
+    .limit(1);
   if (existingUser.length > 0) {
     userId = String(existingUser[0].id);
   } else {
@@ -46,43 +53,71 @@ const run = async () => {
     finalNip = `${DOSEN_LOGIN.nip}_${Date.now().toString().slice(-4)}`;
   }
 
-  await sql`
-    INSERT INTO "users" ("id", "nama", "email", "password", "role", "phone", "is_active")
-    VALUES (${userId}, ${DOSEN_LOGIN.nama}, ${DOSEN_LOGIN.email}, ${hashedPassword}, 'DOSEN', ${DOSEN_LOGIN.phone}, true)
-    ON CONFLICT ("id") DO UPDATE SET
-      "nama" = EXCLUDED."nama",
-      "email" = EXCLUDED."email",
-      "password" = EXCLUDED."password",
-      "role" = EXCLUDED."role",
-      "phone" = EXCLUDED."phone",
-      "is_active" = EXCLUDED."is_active";
-  `;
+  await db
+    .insert(users)
+    .values({
+      id: userId,
+      nama: DOSEN_LOGIN.nama,
+      email: DOSEN_LOGIN.email,
+      password: hashedPassword,
+      role: 'DOSEN',
+      phone: DOSEN_LOGIN.phone,
+      isActive: true,
+    })
+    .onConflictDoUpdate({
+      target: users.id,
+      set: {
+        nama: DOSEN_LOGIN.nama,
+        email: DOSEN_LOGIN.email,
+        password: hashedPassword,
+        role: 'DOSEN',
+        phone: DOSEN_LOGIN.phone,
+        isActive: true,
+      },
+    });
 
-  const existingDosen = await sql`SELECT id FROM "dosen" WHERE "id" = ${userId} LIMIT 1`;
+  const existingDosen = await db
+    .select({ id: dosen.id })
+    .from(dosen)
+    .where(eq(dosen.id, userId))
+    .limit(1);
+
   if (existingDosen.length > 0) {
-    await sql`
-      UPDATE "dosen"
-      SET
-        "nip" = ${finalNip},
-        "jabatan" = ${DOSEN_LOGIN.jabatan},
-        "fakultas" = ${DOSEN_LOGIN.fakultas},
-        "prodi" = ${DOSEN_LOGIN.prodi}
-      WHERE "id" = ${userId};
-    `;
+    await db
+      .update(dosen)
+      .set({
+        nip: finalNip,
+        jabatan: DOSEN_LOGIN.jabatan,
+        fakultas: DOSEN_LOGIN.fakultas,
+        prodi: DOSEN_LOGIN.prodi,
+      })
+      .where(eq(dosen.id, userId));
   } else {
-    await sql`
-      INSERT INTO "dosen" ("id", "nip", "jabatan", "fakultas", "prodi")
-      VALUES (${userId}, ${finalNip}, ${DOSEN_LOGIN.jabatan}, ${DOSEN_LOGIN.fakultas}, ${DOSEN_LOGIN.prodi});
-    `;
+    await db.insert(dosen).values({
+      id: userId,
+      nip: finalNip,
+      jabatan: DOSEN_LOGIN.jabatan,
+      fakultas: DOSEN_LOGIN.fakultas,
+      prodi: DOSEN_LOGIN.prodi,
+    });
   }
 
-  const verify = await sql`
-    SELECT u.id, u.nama, u.email, u.role, u.is_active, d.nip, d.jabatan, d.fakultas, d.prodi
-    FROM "users" u
-    INNER JOIN "dosen" d ON d.id = u.id
-    WHERE u.email = ${DOSEN_LOGIN.email}
-    LIMIT 1;
-  `;
+  const verify = await db
+    .select({
+      id: users.id,
+      nama: users.nama,
+      email: users.email,
+      role: users.role,
+      isActive: users.isActive,
+      nip: dosen.nip,
+      jabatan: dosen.jabatan,
+      fakultas: dosen.fakultas,
+      prodi: dosen.prodi,
+    })
+    .from(users)
+    .innerJoin(dosen, eq(dosen.id, users.id))
+    .where(eq(users.email, DOSEN_LOGIN.email))
+    .limit(1);
 
   console.log('✅ Dosen login account is ready');
   console.log(`Email    : ${DOSEN_LOGIN.email}`);

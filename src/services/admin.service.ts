@@ -199,7 +199,7 @@ export class AdminService {
       throw new Error('Submission not found');
     }
 
-    // Get letters if any
+    // Get letters if unknown
     const letters = await this.submissionRepo.findLettersBySubmissionId(id);
 
     return {
@@ -226,7 +226,7 @@ export class AdminService {
    * - Set status = REJECTED
    * - Set rejectionReason
    * - Set approvedBy = admin user id (audit trail)
-   * - Do NOT create any documents
+   * - Do NOT create unknown documents
    * - Append to statusHistory
    */
   async updateSubmissionStatus(

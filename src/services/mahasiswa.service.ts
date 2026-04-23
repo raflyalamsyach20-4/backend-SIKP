@@ -359,7 +359,7 @@ export class MahasiswaService {
   async getMe(userId: string) {
     const profile = await this.userRepository.getMahasiswaMe(userId);
     if (!profile) {
-      const notFound: any = new Error('Mahasiswa profile not found');
+      const notFound: Error = new Error('Mahasiswa profile not found');
       notFound.statusCode = 404;
       throw notFound;
     }
@@ -387,20 +387,20 @@ export class MahasiswaService {
     if (data.email && data.email !== profile.email) {
       const existingEmail = await this.userRepository.findByEmail(data.email);
       if (existingEmail && existingEmail.id !== userId) {
-        const emailExists: any = new Error('Email already in use');
+        const emailExists: Error = new Error('Email already in use');
         emailExists.statusCode = 400;
         throw emailExists;
       }
     }
 
     // Prepare update data for users table
-    const usersUpdateData: Record<string, any> = {};
+    const usersUpdateData: Record<string, unknown> = {};
     if (data.nama !== undefined) usersUpdateData.nama = data.nama;
     if (data.email !== undefined) usersUpdateData.email = data.email;
     if (data.phone !== undefined) usersUpdateData.phone = data.phone;
 
     // Prepare update data for mahasiswa table
-    const mahasiswaUpdateData: Record<string, any> = {};
+    const mahasiswaUpdateData: Record<string, unknown> = {};
     if (data.fakultas !== undefined) mahasiswaUpdateData.fakultas = data.fakultas;
     if (data.prodi !== undefined) mahasiswaUpdateData.prodi = data.prodi;
     if (data.semester !== undefined) mahasiswaUpdateData.semester = data.semester;
@@ -427,13 +427,13 @@ export class MahasiswaService {
     const profile = await this.getMe(userId);
 
     if (!ALLOWED_SIGNATURE_MIME_TYPES.includes(signatureFile.type)) {
-      const invalidType: any = new Error('Invalid file type. Only PNG, JPG, and JPEG are allowed');
+      const invalidType: Error = new Error('Invalid file type. Only PNG, JPG, and JPEG are allowed');
       invalidType.statusCode = 400;
       throw invalidType;
     }
 
     if (!this.storageService.validateFileSize(signatureFile.size, MAX_SIGNATURE_SIZE_MB)) {
-      const invalidSize: any = new Error('File size exceeds 2MB limit');
+      const invalidSize: Error = new Error('File size exceeds 2MB limit');
       invalidSize.statusCode = 400;
       throw invalidSize;
     }
@@ -466,7 +466,7 @@ export class MahasiswaService {
 
       if (!updated) {
         await this.storageService.deleteFile(key);
-        const updateFailed: any = new Error('Failed to update e-signature metadata');
+        const updateFailed: Error = new Error('Failed to update e-signature metadata');
         updateFailed.statusCode = 500;
         throw updateFailed;
       }
@@ -502,7 +502,7 @@ export class MahasiswaService {
     });
 
     if (!updated) {
-      const updateFailed: any = new Error('Failed to clear e-signature metadata');
+      const updateFailed: Error = new Error('Failed to clear e-signature metadata');
       updateFailed.statusCode = 500;
       console.error('[MahasiswaService.deleteESignature] Failed to update database while deleting signature metadata');
       throw updateFailed;

@@ -1,25 +1,13 @@
 import { Context } from 'hono';
 import { SuratKesediaanService } from '@/services/surat-kesediaan.service';
 import { createResponse, handleError } from '@/utils/helpers';
-import { z } from 'zod';
 import type { JWTPayload } from '@/types';
-
-const requestSuratKesediaanSchema = z.object({
-  memberUserId: z.string().min(1),
-  dosenUserId: z.string().optional(), // Optional - can be inferred if not provided
-});
-
-const approveBulkSchema = z.object({
-  requestIds: z.array(z.string().min(1)).min(1),
-});
-
-const rejectRequestSchema = z.object({
-  rejection_reason: z.string().min(1, 'Alasan penolakan wajib diisi.').max(1000),
-});
-
-const reapplyRequestSchema = z.object({
-  memberUserId: z.string().min(1),
-});
+import {
+  requestSuratKesediaanSchema,
+  approveBulkSchema,
+  rejectRequestSchema,
+  reapplyRequestSchema,
+} from '@/schemas/surat-kesediaan.schema';
 
 export class SuratKesediaanController {
   constructor(private suratKesediaanService: SuratKesediaanService) {}
@@ -38,7 +26,7 @@ export class SuratKesediaanController {
       if (!validationResult.success) {
         return c.json(
           createResponse(false, 'Validation failed', {
-            errors: validationResult.error.errors,
+            errors: validationResult.error.issues,
           }),
           400
         );
@@ -57,7 +45,7 @@ export class SuratKesediaanController {
           requestId: result.requestId,
         })
       );
-    } catch (error: any) {
+    } catch (error) {
       return handleError(c, error, 'Failed to request surat kesediaan');
     }
   };
@@ -75,7 +63,7 @@ export class SuratKesediaanController {
       return c.json(
         createResponse(true, 'OK', requests)
       );
-    } catch (error: any) {
+    } catch (error) {
       return handleError(c, error, 'Failed to get requests');
     }
   };
@@ -99,7 +87,7 @@ export class SuratKesediaanController {
           signedFileUrl: result.signedFileUrl,
         })
       );
-    } catch (error: any) {
+    } catch (error) {
       return handleError(c, error, 'Failed to approve request');
     }
   };
@@ -118,7 +106,7 @@ export class SuratKesediaanController {
       if (!validationResult.success) {
         return c.json(
           createResponse(false, 'Validation failed', {
-            errors: validationResult.error.errors,
+            errors: validationResult.error.issues,
           }),
           400
         );
@@ -138,7 +126,7 @@ export class SuratKesediaanController {
           failed: result.failed,
         })
       );
-    } catch (error: any) {
+    } catch (error) {
       return handleError(c, error, 'Failed to approve bulk requests');
     }
   };
@@ -157,7 +145,7 @@ export class SuratKesediaanController {
       if (!validationResult.success) {
         return c.json(
           createResponse(false, 'Validation failed', {
-            errors: validationResult.error.errors,
+            errors: validationResult.error.issues,
           }),
           400
         );
@@ -172,7 +160,7 @@ export class SuratKesediaanController {
       return c.json(
         createResponse(true, 'Pengajuan surat kesediaan berhasil ditolak', result)
       );
-    } catch (error: any) {
+    } catch (error) {
       return handleError(c, error, 'Failed to reject request');
     }
   };
@@ -191,7 +179,7 @@ export class SuratKesediaanController {
       if (!validationResult.success) {
         return c.json(
           createResponse(false, 'Validation failed', {
-            errors: validationResult.error.errors,
+            errors: validationResult.error.issues,
           }),
           400
         );
@@ -203,7 +191,7 @@ export class SuratKesediaanController {
       return c.json(
         createResponse(true, 'Pengajuan ulang surat kesediaan berhasil.', result)
       );
-    } catch (error: any) {
+    } catch (error) {
       return handleError(c, error, 'Failed to reapply surat kesediaan request');
     }
   };

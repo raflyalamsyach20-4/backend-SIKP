@@ -74,9 +74,9 @@ export class ConflictError extends AppError {
  * 422 Unprocessable Entity (Validation Error)
  */
 export class ValidationError extends AppError {
-  public readonly errors: any;
+  public readonly errors: unknown;
 
-  constructor(message: string = 'Validation failed', errors?: any) {
+  constructor(message: string = 'Validation failed', errors?: unknown) {
     super(message, 422);
     this.errors = errors;
     Object.setPrototypeOf(this, ValidationError.prototype);

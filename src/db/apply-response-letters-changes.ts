@@ -1,6 +1,6 @@
 // @ts-nocheck
-import { neon } from '@neondatabase/serverless';
 import * as dotenv from 'dotenv';
+import { getMaintenanceSql } from './maintenance-client';
 
 dotenv.config({ path: '.env' });
 
@@ -9,7 +9,7 @@ const applyChanges = async () => {
     throw new Error('DATABASE_URL is not defined in .env file');
   }
 
-  const sql = neon(process.env.DATABASE_URL);
+  const sql = getMaintenanceSql();
 
   try {
     console.log('⏳ Applying response_letters table changes...');
@@ -32,7 +32,7 @@ const applyChanges = async () => {
       try {
         await sql(statement);
         console.log('✅ Success');
-      } catch (error: any) {
+      } catch (error) {
         // Some statements might fail if the column/constraint/index doesn't exist, that's okay
         console.log(`⚠️  ${error.message}`);
       }

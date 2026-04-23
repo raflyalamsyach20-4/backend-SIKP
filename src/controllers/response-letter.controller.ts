@@ -36,7 +36,7 @@ export class ResponseLetterController {
       if (!validationResult.success) {
         return c.json(
           createResponse(false, 'Validation failed', {
-            errors: validationResult.error.errors,
+            errors: validationResult.error.issues,
           }),
           400
         );
@@ -54,7 +54,7 @@ export class ResponseLetterController {
         createResponse(true, 'Response letter submitted successfully', responseLetter),
         201
       );
-    } catch (error: any) {
+    } catch (error) {
       return handleError(c, error, 'Failed to submit response letter');
     }
   };
@@ -98,7 +98,7 @@ export class ResponseLetterController {
       const result = await this.responseLetterService.getAllResponseLetters(filters);
 
       return c.json(createResponse(true, 'Response letters retrieved successfully', result));
-    } catch (error: any) {
+    } catch (error) {
       return handleError(c, error, 'Failed to retrieve response letters');
     }
   };
@@ -129,14 +129,14 @@ export class ResponseLetterController {
       return c.json(
         createResponse(true, 'Response letter retrieved successfully', responseLetter)
       );
-    } catch (error: any) {
+    } catch (error) {
       return handleError(c, error, 'Failed to retrieve response letter');
     }
   };
 
   /**
    * Mahasiswa: Get response letter by ID (own team only)
-   * Admin: Get any response letter by ID
+   * Admin: Get unknown response letter by ID
    * GET /api/response-letters/:id
    */
   getResponseLetterById = async (c: Context) => {
@@ -149,7 +149,7 @@ export class ResponseLetterController {
       if (!validationResult.success) {
         return c.json(
           createResponse(false, 'Validation failed', {
-            errors: validationResult.error.errors,
+            errors: validationResult.error.issues,
           }),
           400
         );
@@ -164,7 +164,7 @@ export class ResponseLetterController {
       return c.json(
         createResponse(true, 'Response letter retrieved successfully', responseLetter)
       );
-    } catch (error: any) {
+    } catch (error) {
       return handleError(c, error, 'Failed to retrieve response letter');
     }
   };
@@ -193,7 +193,7 @@ export class ResponseLetterController {
       if (!paramValidation.success) {
         return c.json(
           createResponse(false, 'Invalid ID parameter', {
-            errors: paramValidation.error.errors,
+            errors: paramValidation.error.issues,
           }),
           400
         );
@@ -204,7 +204,7 @@ export class ResponseLetterController {
       if (!bodyValidation.success) {
         return c.json(
           createResponse(false, 'Validation failed', {
-            errors: bodyValidation.error.errors,
+            errors: bodyValidation.error.issues,
           }),
           400
         );
@@ -224,7 +224,7 @@ export class ResponseLetterController {
           resetReason: result.resetTeam ? 'rejected' : null,
         })
       );
-    } catch (error: any) {
+    } catch (error) {
       return handleError(c, error, 'Failed to verify response letter');
     }
   };
@@ -252,7 +252,7 @@ export class ResponseLetterController {
       if (!validationResult.success) {
         return c.json(
           createResponse(false, 'Validation failed', {
-            errors: validationResult.error.errors,
+            errors: validationResult.error.issues,
           }),
           400
         );
@@ -263,7 +263,7 @@ export class ResponseLetterController {
       return c.json(
         createResponse(true, 'Response letter deleted successfully', null)
       );
-    } catch (error: any) {
+    } catch (error) {
       return handleError(c, error, 'Failed to delete response letter');
     }
   };
@@ -283,7 +283,7 @@ export class ResponseLetterController {
       if (!validationResult.success) {
         return c.json(
           createResponse(false, 'Validation failed', {
-            errors: validationResult.error.errors,
+            errors: validationResult.error.issues,
           }),
           400
         );
@@ -298,7 +298,7 @@ export class ResponseLetterController {
       return c.json(
         createResponse(true, 'Response letter status retrieved successfully', status)
       );
-    } catch (error: any) {
+    } catch (error) {
       return handleError(c, error, 'Failed to retrieve response letter status');
     }
   };

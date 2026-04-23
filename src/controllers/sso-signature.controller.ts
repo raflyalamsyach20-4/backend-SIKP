@@ -22,7 +22,7 @@ export class SsoSignatureController {
           activeIdentity: user.activeIdentity?.identityType || null,
         })
       );
-    } catch (error: any) {
+    } catch (error) {
       return handleError(c, error, 'Failed to resolve profile management URL');
     }
   };
@@ -43,7 +43,7 @@ export class SsoSignatureController {
           activeIdentity: user.activeIdentity?.identityType || null,
         })
       );
-    } catch (error: any) {
+    } catch (error) {
       return handleError(c, error, 'Failed to resolve signature management URL');
     }
   };
@@ -55,7 +55,7 @@ export class SsoSignatureController {
 
       const data = await this.ssoSignatureProxyService.getActiveSignature(sessionId, user);
       return c.json(createResponse(true, 'Signature retrieved', data));
-    } catch (error: any) {
+    } catch (error) {
       return handleError(c, error, 'Failed to retrieve signature');
     }
   };
@@ -72,7 +72,7 @@ export class SsoSignatureController {
         ),
         410
       );
-    } catch (error: any) {
+    } catch (error) {
       return handleError(c, error, 'Failed to upload signature');
     }
   };
@@ -89,7 +89,7 @@ export class SsoSignatureController {
         ),
         410
       );
-    } catch (error: any) {
+    } catch (error) {
       return handleError(c, error, 'Failed to activate signature');
     }
   };
@@ -106,7 +106,7 @@ export class SsoSignatureController {
         ),
         410
       );
-    } catch (error: any) {
+    } catch (error) {
       return handleError(c, error, 'Failed to delete signature');
     }
   };

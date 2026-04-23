@@ -1,7 +1,6 @@
-import { neon } from '@neondatabase/serverless';
-import * as dotenv from 'dotenv';
-
-dotenv.config({ path: '.env' });
+import 'dotenv/config';
+import { sql } from 'drizzle-orm';
+import { db } from '@/db';
 
 const legacyColumns = [
   'gelar_depan',
@@ -21,26 +20,24 @@ const legacyColumns = [
 ];
 
 const run = async () => {
-  if (!process.env.DATABASE_URL) {
+  if (!db) {
     throw new Error('DATABASE_URL is not defined in .env file');
   }
 
-  const sql = neon(process.env.DATABASE_URL);
-
   for (const col of legacyColumns) {
     // Safe repeated execution for environments with partial schema drift.
-    await sql(`ALTER TABLE "dosen" DROP COLUMN IF EXISTS "${col}"`);
+    await db.execute(sql.raw(`ALTER TABLE "dosen" DROP COLUMN IF EXISTS "${col}"`));
   }
 
-  const rows = await sql`
+  const rows = await db.execute(sql`
     SELECT column_name, data_type
     FROM information_schema.columns
     WHERE table_schema = 'public' AND table_name = 'dosen'
     ORDER BY ordinal_position;
-  `;
+  `);
 
   console.log('Columns in dosen:');
-  for (const row of rows as Array<{ column_name: string; data_type: string }>) {
+  for (const row of rows as unknown as Array<{ column_name: string; data_type: string }>) {
     console.log(`- ${row.column_name}: ${row.data_type}`);
   }
 };
