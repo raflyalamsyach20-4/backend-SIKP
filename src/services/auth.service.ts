@@ -39,11 +39,72 @@ type TokenExchangeResponse = {
   id_token?: string;
 };
 
-type SsoReferenceEntity = {
+type SsoEmail = {
   id?: string | null;
-  kode?: string | null;
-  nama?: string | null;
-  fakultasId?: string | null;
+  email: string;
+  isPrimary: boolean;
+  isInstitutional: boolean;
+};
+
+type SsoProdi = {
+  id: string;
+  fakultasId: string;
+  createdAt: string;
+  updatedAt: string;
+  kode: string;
+  nama: string;
+};
+
+type SsoFakultas = {
+  id: string;
+  createdAt: string;
+  updatedAt: string;
+  kode: string;
+  nama: string;
+};
+
+type SsoDosenPA = {
+  profile: {
+    fullName: string;
+    emails: SsoEmail[];
+    id: string;
+  };
+  id: string;
+  profileId: string;
+  nidn: string;
+};
+
+type SsoMahasiswaIdentity = {
+  fakultas: SsoFakultas | null;
+  prodi: SsoProdi | null;
+  dosenPA: SsoDosenPA | null;
+  id: string;
+  profileId: string;
+  nim: string;
+  prodiId: string | null;
+  fakultasId: string | null;
+  angkatan: number;
+  status: string;
+  dosenPAProfileId: string | null;
+  jumlahSksLulus: number | null;
+  semesterAktif: number | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+type SsoDosenIdentity = {
+  jabatanFungsional: "GURU_BESAR" | "LEKTOR_KEPALA" | "LEKTOR" | "ASISTEN_AHLI" | string;
+  jabatanStruktural: ("DEKAN" | "WAKIL_DEKAN" | "KAPRODI" | string)[];
+  fakultas: SsoFakultas | null;
+  prodi: SsoProdi | null;
+  id: string;
+  profileId: string;
+  prodiId: string | null;
+  fakultasId: string | null;
+  createdAt: string;
+  updatedAt: string;
+  nidn: string;
+  bidangKeahlian: string | null;
 };
 
 type SsoRoleEntry = {
@@ -55,8 +116,8 @@ type SsoRoleEntry = {
   isActive?: boolean | null;
   createdAt?: string | null;
   updatedAt?: string | null;
-  prodi?: SsoReferenceEntity | null;
-  fakultas?: SsoReferenceEntity | null;
+  prodi?: SsoProdi | null;
+  fakultas?: SsoFakultas | null;
 };
 
 type SsoIdentityObject = {
@@ -75,11 +136,13 @@ type SsoIdentityObject = {
   displayName?: string | null;
   fullName?: string | null;
   name?: string | null;
+  nama?: string | null;
   identifier?: string | null;
   nim?: string | null;
   nip?: string | null;
   nidn?: string | null;
   email?: string | null;
+  emails?: SsoEmail[] | null;
   phone?: string | null;
   noTelepon?: string | null;
   instansi?: string | null;
@@ -89,7 +152,6 @@ type SsoIdentityObject = {
   bidang?: string | null;
   bidangKeahlian?: string | null;
   angkatan?: number | null;
-  semester?: number | null;
   semesterAktif?: number | null;
   jumlahSksLulus?: number | null;
   status?: string | null;
@@ -98,20 +160,17 @@ type SsoIdentityObject = {
   dosenPAProfileId?: string | null;
   prodiId?: string | null;
   fakultasId?: string | null;
-  prodi?: SsoReferenceEntity | null;
-  fakultas?: SsoReferenceEntity | null;
-  dosenPA?: {
-    id?: string | null;
-    profileId?: string | null;
-    nidn?: string | null;
-    profile?: {
-      id?: string | null;
-      fullName?: string | null;
-      email?: string | null;
-    } | null;
-  } | null;
-  profile?: SsoProfile | null;
+  prodi?: SsoProdi | null;
+  fakultas?: SsoFakultas | null;
+  dosenPA?: SsoDosenPA | null;
+  profile?: any;
   roleMeta?: SsoRoleEntry | null;
+  identities?: {
+    mahasiswa?: SsoMahasiswaIdentity | null;
+    dosen?: SsoDosenIdentity | null;
+    admin?: any;
+    mentor?: any;
+  } | null;
 };
 
 type SsoProfile = {
@@ -122,11 +181,17 @@ type SsoProfile = {
   fullName?: string | null;
   nama?: string | null;
   email?: string | null;
+  emails?: SsoEmail[] | null;
   phone?: string | null;
   noTelepon?: string | null;
   role?: string | null;
   identityType?: string | null;
-  identities?: Record<string, SsoIdentityObject | null> | null;
+  identities?: {
+    mahasiswa?: SsoMahasiswaIdentity | null;
+    dosen?: SsoDosenIdentity | null;
+    admin?: any;
+    mentor?: any;
+  } | null;
   roles?: Array<SsoRoleEntry | string> | null;
   nim?: string | null;
   nip?: string | null;
@@ -135,13 +200,12 @@ type SsoProfile = {
   jabatanFungsional?: string | null;
   jabatanStruktural?: string[] | null;
   angkatan?: number | null;
-  semester?: number | null;
   semesterAktif?: number | null;
   jumlahSksLulus?: number | null;
-  prodi?: SsoReferenceEntity | null;
-  fakultas?: SsoReferenceEntity | null;
+  prodi?: SsoProdi | null;
+  fakultas?: SsoFakultas | null;
+  profileId?: string | null;
 };
-
 type SsoEnvelope = {
   data?:
     | {
@@ -1022,6 +1086,12 @@ export class AuthService {
 
   private resolveProfileIdentifiers(profile: SsoProfile | null | undefined) {
     const mahasiswa = profile?.identities?.mahasiswa || null;
+    const dosen = profile?.identities?.dosen || null;
+
+    // Prefer institutional email, then primary email, then root email
+    const institutionalEmail = profile?.emails?.find(e => e.isInstitutional)?.email;
+    const primaryEmail = profile?.emails?.find(e => e.isPrimary)?.email;
+    const resolvedEmail = institutionalEmail || primaryEmail || profile?.email || null;
 
     return {
       profileId: this.pickFirstString(
@@ -1037,93 +1107,136 @@ export class AuthService {
       ),
       nim: this.pickFirstString(mahasiswa?.nim || null, profile?.nim || null),
       nidn: this.pickFirstString(
-        mahasiswa?.dosenPA?.nidn || null,
+        dosen?.nidn || null,
         profile?.nidn || null,
       ),
-      email: this.pickFirstString(profile?.email || null),
+      email: resolvedEmail,
     };
-  }
-
-  private resolveIdentityDetail(identity: AuthIdentity | null | undefined) {
-    const metadataProfile = this.resolveIdentityRecord(identity);
+  }  private resolveIdentityDetail(identity: AuthIdentity | null | undefined) {
+    // Identity metadata is actually the SsoIdentityObject itself + effectiveRoles
+    const identityMeta = identity?.metadata as SsoIdentityObject | null;
+    const metadataProfile = this.getIdentityMetadataProfile(identity);
+    
+    // Check role from identity or metadata
+    const identityRole = identity?.identityType?.toUpperCase();
+    const isMahasiswa = identityRole === 'MAHASISWA';
+    const isDosen = identityRole === 'DOSEN' || identityRole === 'KAPRODI' || identityRole === 'WAKIL_DEKAN';
 
     // ✅ Extract profileId (primary identifier from SSO)
     const profileId = this.pickFirstString(
       identity?.identityId || null,
+      identityMeta?.id || null,
+      identityMeta?.profileId || null,
       metadataProfile?.id || null,
       metadataProfile?.profileId || null,
     );
 
     // ✅ Extract dosenPAId dari mahasiswa identity (jika ada)
     let dosenPAId: string | null = null;
-    if (metadataProfile?.dosenPA?.id) {
-      dosenPAId = metadataProfile.dosenPA.id;
+    if (identityMeta?.identities?.mahasiswa?.dosenPA?.id) {
+      dosenPAId = identityMeta.identities.mahasiswa.dosenPA.id;
+    } else if (metadataProfile?.identities?.mahasiswa?.dosenPA?.id) {
+      dosenPAId = metadataProfile.identities.mahasiswa.dosenPA.id;
     }
 
+    // Email resolution: prefer institutional, then primary from profile, then metadata-specific
+    const institutionalEmail = metadataProfile?.emails?.find((e) => e.isInstitutional)?.email;
+    const primaryEmail = metadataProfile?.emails?.find((e) => e.isPrimary)?.email;
+    const resolvedEmail = institutionalEmail || primaryEmail || this.pickFirstString(
+      identityMeta?.email || null,
+      metadataProfile?.email || null,
+      typeof identity?.identifier === "string" && identity.identifier.includes("@") ? identity.identifier : null,
+    );
+
     return {
-      profileId, // ✅ NEW: Primary SSO profile identifier
-      dosenPAId, // ✅ NEW: Dosen PA ID untuk mahasiswa
-      id: profileId, // backward compatibility
+      profileId,
+      dosenPAId,
+      id: profileId,
       nama: this.pickFirstString(
         identity?.displayName || null,
+        identityMeta?.fullName || null,
+        identityMeta?.name || null,
+        identityMeta?.nama || null,
         metadataProfile?.fullName || null,
-        metadataProfile?.name || null,
-        metadataProfile?.profile?.fullName || null,
+        metadataProfile?.nama || null,
       ),
-      email: this.pickFirstString(
-        metadataProfile?.email || null,
-        metadataProfile?.profile?.email || null,
-        typeof identity?.identifier === "string" &&
-          identity.identifier.includes("@")
-          ? identity.identifier
-          : null,
-      ),
-      nim: this.pickFirstString(
-        metadataProfile?.nim || null,
+      email: resolvedEmail,
+      nim: isMahasiswa ? this.pickFirstString(
+        identityMeta?.identities?.mahasiswa?.nim || null,
+        metadataProfile?.identities?.mahasiswa?.nim || null,
         identity?.identifier || null,
-      ),
-      nip: this.pickFirstString(metadataProfile?.nip || null),
-      nidn: this.pickFirstString(
+      ) : null,
+      nip: isDosen ? this.pickFirstString(
+        identityMeta?.nip || null,
+        metadataProfile?.nip || null,
+      ) : null,
+      nidn: isDosen ? this.pickFirstString(
+        identityMeta?.nidn || null,
         metadataProfile?.nidn || null,
-        metadataProfile?.dosenPA?.nidn || null,
-      ),
+      ) : null,
       phone: this.pickFirstString(
+        identityMeta?.phone || null,
+        identityMeta?.noTelepon || null,
         metadataProfile?.phone || null,
         metadataProfile?.noTelepon || null,
       ),
       jabatan: this.pickFirstString(
+        identityMeta?.jabatan || null,
+        identityMeta?.jabatanFungsional || null,
         metadataProfile?.jabatan || null,
-        metadataProfile?.jabatanFungsional || null,
       ),
       jabatanFungsional: this.pickFirstString(
+        identityMeta?.jabatanFungsional || null,
         metadataProfile?.jabatanFungsional || null,
       ),
-      jabatanStruktural: Array.isArray(metadataProfile?.jabatanStruktural)
-        ? metadataProfile.jabatanStruktural.filter(
-            (item): item is string =>
-              typeof item === "string" && item.trim().length > 0,
-          )
-        : null,
-      angkatan: this.pickFirstNumber(metadataProfile?.angkatan || null),
-      semester: this.pickFirstNumber(
-        metadataProfile?.semester || null,
-        metadataProfile?.semesterAktif || null,
+      jabatanStruktural: Array.isArray(identityMeta?.jabatanStruktural)
+        ? identityMeta.jabatanStruktural
+        : Array.isArray(metadataProfile?.jabatanStruktural)
+          ? metadataProfile.jabatanStruktural
+          : null,
+      angkatan: this.pickFirstNumber(
+        identityMeta?.identities?.mahasiswa?.angkatan || null,
+        metadataProfile?.identities?.mahasiswa?.angkatan || null,
       ),
       semesterAktif: this.pickFirstNumber(
-        metadataProfile?.semesterAktif || null,
-        metadataProfile?.semester || null,
+        identityMeta?.identities?.mahasiswa?.semesterAktif || null,
+        metadataProfile?.identities?.mahasiswa?.semesterAktif || null,
       ),
       jumlahSksLulus: this.pickFirstNumber(
-        metadataProfile?.jumlahSksLulus || null,
+        identityMeta?.identities?.mahasiswa?.jumlahSksLulus || null,
+        metadataProfile?.identities?.mahasiswa?.jumlahSksLulus || null,
       ),
-      prodi: this.pickFirstString(
-        metadataProfile?.prodi?.nama || null,
-        metadataProfile?.prodi?.kode || null,
-      ),
-      fakultas: this.pickFirstString(
-        metadataProfile?.fakultas?.nama || null,
-        metadataProfile?.fakultas?.kode || null,
-      ),
+      // Resolve prodi and fakultas based on role and available nested identity data
+      prodi: isMahasiswa
+        ? this.pickFirstString(
+            identityMeta?.identities?.mahasiswa?.prodi?.nama || null,
+            identityMeta?.identities?.mahasiswa?.prodi?.kode || null,
+            metadataProfile?.identities?.mahasiswa?.prodi?.nama || null,
+            metadataProfile?.identities?.mahasiswa?.prodi?.kode || null,
+          )
+        : isDosen
+        ? this.pickFirstString(
+            identityMeta?.identities?.dosen?.prodi?.nama || null,
+            identityMeta?.identities?.dosen?.prodi?.kode || null,
+            metadataProfile?.identities?.dosen?.prodi?.nama || null,
+            metadataProfile?.identities?.dosen?.prodi?.kode || null,
+          )
+        : null,
+      fakultas: isMahasiswa
+        ? this.pickFirstString(
+            identityMeta?.identities?.mahasiswa?.fakultas?.nama || null,
+            identityMeta?.identities?.mahasiswa?.fakultas?.kode || null,
+            metadataProfile?.identities?.mahasiswa?.fakultas?.nama || null,
+            metadataProfile?.identities?.mahasiswa?.fakultas?.kode || null,
+          )
+        : isDosen
+        ? this.pickFirstString(
+            identityMeta?.identities?.dosen?.fakultas?.nama || null,
+            identityMeta?.identities?.dosen?.fakultas?.kode || null,
+            metadataProfile?.identities?.dosen?.fakultas?.nama || null,
+            metadataProfile?.identities?.dosen?.fakultas?.kode || null,
+          )
+        : null,
       profile: metadataProfile,
     };
   }
@@ -1282,7 +1395,6 @@ export class AuthService {
       jabatanFungsional: activeIdentityDetail.jabatanFungsional,
       jabatanStruktural: activeIdentityDetail.jabatanStruktural,
       angkatan: activeIdentityDetail.angkatan,
-      semester: activeIdentityDetail.semester,
       semesterAktif: activeIdentityDetail.semesterAktif,
       jumlahSksLulus: activeIdentityDetail.jumlahSksLulus,
       prodi: activeIdentityDetail.prodi,
@@ -1586,11 +1698,6 @@ export class AuthService {
       activeIdentityDetail.angkatan ??
       fallbackIdentityDetail.angkatan ??
       null;
-    const resolvedSemester =
-      sessionContext.user.semester ??
-      activeIdentityDetail.semester ??
-      fallbackIdentityDetail.semester ??
-      null;
     const resolvedSemesterAktif =
       sessionContext.user.semesterAktif ??
       activeIdentityDetail.semesterAktif ??
@@ -1629,7 +1736,6 @@ export class AuthService {
         jabatanFungsional: resolvedJabatanFungsional,
         jabatanStruktural: resolvedJabatanStruktural,
         angkatan: resolvedAngkatan,
-        semester: resolvedSemester,
         semesterAktif: resolvedSemesterAktif,
         jumlahSksLulus: resolvedJumlahSksLulus,
         prodi: resolvedProdi,
