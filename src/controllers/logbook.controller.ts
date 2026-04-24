@@ -33,7 +33,7 @@ export class LogbookController {
   /**
    * GET /api/logbooks
    */
-  getLogbooks = async (c: Context, query: any) => {
+  getLogbookList = async (c: Context, query: any) => {
     try {
       const userId = this.getUserId(c);
       if (!userId) return c.json(createResponse(false, 'Unauthorized'), 401);
@@ -69,7 +69,7 @@ export class LogbookController {
   /**
    * GET /api/logbooks/:id
    */
-  getLogbookById = async (c: Context, query: any) => {
+  getLogbookDetail = async (c: Context, query: any) => {
     try {
       const userId = this.getUserId(c);
       if (!userId) return c.json(createResponse(false, 'Unauthorized'), 401);
@@ -77,6 +77,32 @@ export class LogbookController {
       const id = c.req.param('id');
       const entry = await this.logbookService.getLogbookById(userId, id);
       return c.json(createResponse(true, 'Logbook entry retrieved successfully', entry), 200);
+    } catch (error) {
+      if (error instanceof Error && error.message.includes('not found')) {
+        return c.json(createResponse(false, error.message), 404);
+      }
+      return handleError(c, error);
+    }
+  };
+
+  /**
+   * POST /api/logbooks/:id/photo
+   */
+  uploadPhoto = async (c: Context) => {
+    try {
+      const userId = this.getUserId(c);
+      if (!userId) return c.json(createResponse(false, 'Unauthorized'), 401);
+
+      const id = c.req.param('id');
+      const body = await c.req.parseBody();
+      const file = body['file'] as File;
+
+      if (!file) {
+        return c.json(createResponse(false, 'No file uploaded'), 400);
+      }
+
+      const updated = await this.logbookService.uploadPhoto(userId, id, file);
+      return c.json(createResponse(true, 'Photo uploaded successfully', updated), 200);
     } catch (error) {
       if (error instanceof Error && error.message.includes('not found')) {
         return c.json(createResponse(false, error.message), 404);

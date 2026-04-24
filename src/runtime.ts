@@ -156,7 +156,7 @@ export const createRuntime = (env: CloudflareBindings) => {
     responseLetterRepository,
     mahasiswaRepository
   );
-  const logbookService = new LogbookService(logbookRepository);
+  const logbookService = new LogbookService(logbookRepository, storageService);
   const mentorService = new MentorService(mentorRepository, logbookRepository);
   const mentorWorkflowService = new MentorWorkflowService(mentorWorkflowRepository);
   const internshipService = new InternshipService(mahasiswaRepository);

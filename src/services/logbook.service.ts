@@ -1,8 +1,12 @@
 import { LogbookRepository, CreateLogbookData, UpdateLogbookData } from '@/repositories/logbook.repository';
+import { StorageService } from './storage.service';
 import { createError } from '@/utils/helpers';
 
 export class LogbookService {
-  constructor(private logbookRepo: LogbookRepository) {}
+  constructor(
+    private logbookRepo: LogbookRepository,
+    private storageService: StorageService
+  ) {}
 
   /**
    * Create a logbook entry for the student's active internship
@@ -104,5 +108,19 @@ export class LogbookService {
     }
 
     return this.logbookRepo.submit(logbookId);
+  }
+
+  /**
+   * Upload and attach a photo to a logbook entry
+   */
+  async uploadPhoto(userId: string, logbookId: string, file: File) {
+    const entry = await this.getLogbookById(userId, logbookId);
+
+    // Upload to storage
+    const path = `logbooks/${logbookId}/${Date.now()}_${file.name}`;
+    const url = await this.storageService.uploadFile(file, path);
+
+    // Update database
+    return this.logbookRepo.update(logbookId, { photoUrl: url.url });
   }
 }
