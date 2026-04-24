@@ -40,6 +40,14 @@ Menghapus file monolitik `magang.route.ts` dan memecahnya menjadi file rute spes
 ### 7. Konfigurasi Cloudflare R2
 - Menyelaraskan referensi binding `R2_DOMAIN` dan `R2_BUCKET_NAME` pada `StorageService` sesuai skema terbaru di `main`.
 
+### 8. Pemisahan Domain Pelaksanaan (InternshipController)
+- Memindahkan logic pelaksanaan magang dari `MahasiswaController` ke `InternshipController` dan `InternshipService` yang mandiri.
+- Menghapus redundansi logic di domain manajemen mahasiswa umum.
+
+### 9. Standardisasi Error dengan Status Code
+- Implementasi helper `createError` untuk menyertakan HTTP status code pada error di level Service.
+- Memungkinkan `handleError` di Controller memberikan respon yang akurat secara otomatis.
+
 ---
 
 ## ⏳ Belum Di-Refactor / Akan Dilakukan (To-Do)
@@ -59,6 +67,18 @@ Menghapus file monolitik `magang.route.ts` dan memecahnya menjadi file rute spes
 ### 4. Dokumentasi API (Swagger/OpenAPI)
 - **Status**: Direncanakan.
 - **Tindakan**: Memperbarui spek OpenAPI agar mencerminkan endpoint baru yang bersifat service-based.
+
+### 5. Standardisasi Error Handling di level Repository
+- **Status**: Direncanakan.
+- **Tindakan**: Menerapkan pola try-catch dan logging yang konsisten di seluruh Repository magang sebelum error dilempar ke level Service.
+
+### 6. Implementasi File Upload Middleware (Hono Middleware)
+- **Status**: Direncanakan.
+- **Tindakan**: Memindahkan validasi tipe (MIME) dan ukuran file ke tingkat middleware rute (Hono) agar controller tetap "thin".
+
+### 7. Penyelarasan Penamaan Method (Naming Consistency)
+- **Status**: Direncanakan.
+- **Tindakan**: Refactor nama method controller agar konsisten mengikuti pola deskriptif `get[Resource]List`, `get[Resource]Detail`, `create[Resource]`, dll.
 
 ---
 

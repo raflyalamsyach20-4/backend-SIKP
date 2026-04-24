@@ -48,45 +48,6 @@ export class MahasiswaController {
     }
   };
 
-  /**
-   * GET /api/mahasiswa/internship
-   * Get complete internship data (student + submission + internship)
-   */
-  getInternship = async (c: Context) => {
-    try {
-      const user = c.get('user') as JWTPayload;
-      const userId = user?.userId;
-      
-      if (!userId) {
-        return c.json(
-          createResponse(false, 'Unauthorized: User ID not found'),
-          401
-        );
-      }
-
-      const internshipData = await this.mahasiswaService.getInternshipData(userId);
-
-      return c.json(
-        createResponse(true, 'Internship data retrieved successfully', internshipData),
-        200
-      );
-    } catch (error) {
-      if (error instanceof Error && error.message.includes('No active internship')) {
-        return c.json(
-          createResponse(false, error.message),
-          404
-        );
-      }
-      if (error instanceof Error && error.message.includes('not found')) {
-        return c.json(
-          createResponse(false, error.message),
-          404
-        );
-      }
-      return handleError(c, error);
-    }
-  };
-
   updateProfile = async (c: Context) => {
     try {
       return c.json(

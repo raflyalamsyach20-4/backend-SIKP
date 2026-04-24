@@ -13,3 +13,4 @@ export { SsoSignatureController } from './sso-signature.controller';
 export { LogbookController } from './logbook.controller';
 export { MentorController } from './mentor.controller';
 export { MentorWorkflowController } from './mentor-workflow.controller';
+export { InternshipController } from './internship.controller';

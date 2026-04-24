@@ -1,4 +1,5 @@
 import { LogbookRepository, CreateLogbookData, UpdateLogbookData } from '@/repositories/logbook.repository';
+import { createError } from '@/utils/helpers';
 
 export class LogbookService {
   constructor(private logbookRepo: LogbookRepository) {}
@@ -9,7 +10,7 @@ export class LogbookService {
   async createLogbook(userId: string, data: { date: string; activity: string; description: string; hours?: number }) {
     const internshipId = await this.logbookRepo.getActiveInternshipId(userId);
     if (!internshipId) {
-      throw new Error('No active internship found. You must have an active internship to create logbook entries.');
+      throw createError('No active internship found. You must have an active internship to create logbook entries.', 404);
     }
 
     const logbook = await this.logbookRepo.create({
@@ -29,7 +30,7 @@ export class LogbookService {
   async getLogbooks(userId: string) {
     const internshipId = await this.logbookRepo.getActiveInternshipId(userId);
     if (!internshipId) {
-      throw new Error('No active internship found.');
+      throw createError('No active internship found.', 404);
     }
 
     const entries = await this.logbookRepo.findByInternshipId(internshipId);
@@ -42,7 +43,7 @@ export class LogbookService {
   async getLogbookStats(userId: string) {
     const internshipId = await this.logbookRepo.getActiveInternshipId(userId);
     if (!internshipId) {
-      throw new Error('No active internship found.');
+      throw createError('No active internship found.', 404);
     }
 
     const stats = await this.logbookRepo.getStats(internshipId);
@@ -55,12 +56,12 @@ export class LogbookService {
   async getLogbookById(userId: string, logbookId: string) {
     const entry = await this.logbookRepo.findById(logbookId);
     if (!entry) {
-      throw new Error('Logbook entry not found.');
+      throw createError('Logbook entry not found.', 404);
     }
 
     const internshipId = await this.logbookRepo.getActiveInternshipId(userId);
     if (!internshipId || entry.internshipId !== internshipId) {
-      throw new Error('Logbook entry not found or access denied.');
+      throw createError('Logbook entry not found or access denied.', 403);
     }
 
     return entry;
@@ -73,7 +74,7 @@ export class LogbookService {
     const entry = await this.getLogbookById(userId, logbookId);
 
     if (entry.status !== 'PENDING') {
-      throw new Error(`Cannot edit a logbook entry with status '${entry.status}'. Only PENDING entries can be modified.`);
+      throw createError(`Cannot edit a logbook entry with status '${entry.status}'. Only PENDING entries can be modified.`, 400);
     }
 
     return this.logbookRepo.update(logbookId, data);
@@ -86,7 +87,7 @@ export class LogbookService {
     const entry = await this.getLogbookById(userId, logbookId);
 
     if (entry.status !== 'PENDING') {
-      throw new Error(`Cannot delete a logbook entry with status '${entry.status}'. Only PENDING entries can be deleted.`);
+      throw createError(`Cannot delete a logbook entry with status '${entry.status}'. Only PENDING entries can be deleted.`, 400);
     }
 
     await this.logbookRepo.delete(logbookId);
@@ -99,7 +100,7 @@ export class LogbookService {
     const entry = await this.getLogbookById(userId, logbookId);
 
     if (entry.status !== 'PENDING') {
-      throw new Error(`Logbook entry status is '${entry.status}'. Only PENDING entries can be submitted.`);
+      throw createError(`Logbook entry status is '${entry.status}'. Only PENDING entries can be submitted.`, 400);
     }
 
     return this.logbookRepo.submit(logbookId);

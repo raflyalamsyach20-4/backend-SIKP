@@ -16,4 +16,5 @@ export { SsoSignatureProxyService } from './sso-signature-proxy.service';
 export { LogbookService } from './logbook.service';
 export { MentorService } from './mentor.service';
 export { MentorWorkflowService } from './mentor-workflow.service';
+export { InternshipService } from './internship.service';
 export { MockR2Bucket } from './mock-r2-bucket';

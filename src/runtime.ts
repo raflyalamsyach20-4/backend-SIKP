@@ -34,6 +34,7 @@ import {
   LogbookService,
   MentorService,
   MentorWorkflowService,
+  InternshipService,
 } from '@/services';
 import {
   AuthController,
@@ -51,6 +52,7 @@ import {
   LogbookController,
   MentorController,
   MentorWorkflowController,
+  InternshipController,
 } from '@/controllers';
 
 const resolveBucket = (config: ReturnType<typeof createAppConfig>) => {
@@ -157,6 +159,7 @@ export const createRuntime = (env: CloudflareBindings) => {
   const logbookService = new LogbookService(logbookRepository);
   const mentorService = new MentorService(mentorRepository, logbookRepository);
   const mentorWorkflowService = new MentorWorkflowService(mentorWorkflowRepository);
+  const internshipService = new InternshipService(mahasiswaRepository);
   const ssoSignatureProxyService = new SsoSignatureProxyService(authService, config);
 
   return {
@@ -197,5 +200,6 @@ export const createRuntime = (env: CloudflareBindings) => {
     logbookController: new LogbookController(logbookService),
     mentorController: new MentorController(mentorService),
     mentorWorkflowController: new MentorWorkflowController(mentorWorkflowService),
+    internshipController: new InternshipController(internshipService),
   };
 };

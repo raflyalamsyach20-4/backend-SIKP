@@ -20,6 +20,6 @@ export const createInternshipRoutes = () => {
     .use('*', authMiddleware, mahasiswaOnly)
     .get('/', zValidator('query', emptyQuerySchema), async (c) => {
       const runtime = createRuntime(c.env);
-      return Reflect.apply(runtime.mahasiswaController.getInternship, runtime.mahasiswaController, [c, c.req.valid('query')]);
+      return Reflect.apply(runtime.internshipController.getInternship, runtime.internshipController, [c, c.req.valid('query')]);
     });
 };

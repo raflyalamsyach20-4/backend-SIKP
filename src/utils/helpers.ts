@@ -46,6 +46,12 @@ export const handleError = (c: Context, error: unknown, defaultMessage: string =
   return c.json(createResponse(false, message), safeStatusCode);
 };
 
+export const createError = (message: string, statusCode: number = 500) => {
+  const error = new Error(message);
+  (error as any).statusCode = statusCode;
+  return error;
+};
+
 export const generateId = (): string => {
   return `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 };
