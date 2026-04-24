@@ -146,18 +146,20 @@ export class ResponseLetterRepository {
 
     return {
       ...data.responseLetter,
-      submission: data.submission || undefined,
+      submission: undefined,
       team: data.team || undefined,
       leader: undefined,
       members: membersData.map((m) => ({
         id: m.member.userId,
         nama: null,
-        email: null,
+        email: '',
+        password: '',
         phone: null,
-        role: m.member.role || 'ANGGOTA',
+        role: 'MAHASISWA',
+        isActive: true,
         mahasiswaProfile: undefined,
       })),
-    } as any as ResponseLetterWithDetails;
+    } as ResponseLetterWithDetails;
   }
 
   /**
@@ -169,7 +171,18 @@ export class ResponseLetterRepository {
     limit?: number;
     offset?: number;
   }): Promise<ResponseLetterWithDetails[]> {
-    let query = this.db
+    const whereCondition =
+      filters?.status === 'verified'
+        ? eq(responseLetters.verified, true)
+        : filters?.status === 'unverified'
+          ? eq(responseLetters.verified, false)
+          : filters?.status === 'approved'
+            ? eq(responseLetters.letterStatus, 'approved')
+            : filters?.status === 'rejected'
+              ? eq(responseLetters.letterStatus, 'rejected')
+              : undefined;
+
+    const baseQuery = this.db
       .select({
         responseLetter: responseLetters,
         submission: submissions,
@@ -179,41 +192,15 @@ export class ResponseLetterRepository {
       .leftJoin(submissions, eq(responseLetters.submissionId, submissions.id))
       .leftJoin(teams, eq(submissions.teamId, teams.id));
 
-    // Apply filters
-    const conditions = [];
+    const filteredQuery = whereCondition ? baseQuery.where(and(whereCondition)) : baseQuery;
+    const sortedQuery =
+      filters?.sort === 'name'
+        ? filteredQuery.orderBy(asc(responseLetters.studentName))
+        : filteredQuery.orderBy(desc(responseLetters.submittedAt));
+    const limitedQuery = filters?.limit ? sortedQuery.limit(filters.limit) : sortedQuery;
+    const finalQuery = filters?.offset ? limitedQuery.offset(filters.offset) : limitedQuery;
 
-    if (filters?.status && filters.status !== 'all') {
-      if (filters.status === 'verified') {
-        conditions.push(eq(responseLetters.verified, true));
-      } else if (filters.status === 'unverified') {
-        conditions.push(eq(responseLetters.verified, false));
-      } else if (filters.status === 'approved') {
-        conditions.push(eq(responseLetters.letterStatus, 'approved'));
-      } else if (filters.status === 'rejected') {
-        conditions.push(eq(responseLetters.letterStatus, 'rejected'));
-      }
-    }
-
-    if (conditions.length > 0) {
-      query = query.where(and(...conditions)) as any;
-    }
-
-    // Apply sorting
-    if (filters?.sort === 'name') {
-      query = query.orderBy(asc(responseLetters.studentName)) as any;
-    } else {
-      query = query.orderBy(desc(responseLetters.submittedAt)) as any;
-    }
-
-    // Apply pagination
-    if (filters?.limit) {
-      query = query.limit(filters.limit) as any;
-    }
-    if (filters?.offset) {
-      query = query.offset(filters.offset) as any;
-    }
-
-    const results = await query;
+    const results = await finalQuery;
 
     // Get team members for each response letter
     const responseLettersWithDetails = await Promise.all(
@@ -230,18 +217,20 @@ export class ResponseLetterRepository {
 
         return {
           ...data.responseLetter,
-          submission: data.submission || undefined,
+          submission: undefined,
           team: data.team || undefined,
           leader: undefined,
           members: membersData.map((m) => ({
             id: m.member.userId,
             nama: null,
-            email: null,
+            email: '',
+            password: '',
             phone: null,
-            role: m.member.role || 'ANGGOTA',
+            role: 'MAHASISWA',
+            isActive: true,
             mahasiswaProfile: undefined,
           })),
-        } as any as ResponseLetterWithDetails;
+        } as ResponseLetterWithDetails;
       })
     );
 
@@ -415,20 +404,20 @@ export class ResponseLetterRepository {
 
     return {
       ...data.responseLetter,
-      submission: data.submission
-        ? (data.submission as any)
-        : undefined,
+      submission: undefined,
       team: data.team || undefined,
       leader: undefined,
       members: membersResult.map((m) => ({
         id: m.member.userId,
         nama: null,
-        email: null,
+        email: '',
+        password: '',
         phone: null,
+        role: 'MAHASISWA',
+        isActive: true,
         mahasiswaProfile: undefined,
-        role: m.member.role || 'ANGGOTA',
       })),
       isLeader,
-    } as any as ResponseLetterWithDetails & { isLeader: boolean };
+    } as ResponseLetterWithDetails & { isLeader: boolean };
   }
 }

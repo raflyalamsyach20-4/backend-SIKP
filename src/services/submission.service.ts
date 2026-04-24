@@ -40,7 +40,7 @@ export class SubmissionService {
     };
   }
 
-  private toStudentSubmissionView<T extends Record<string, any>>(submission: T): T & {
+  private toStudentSubmissionView<T extends Record<string, unknown>>(submission: T): T & {
     status: string;
     legacyStatus: string;
     submissionStatus: string;
@@ -329,6 +329,16 @@ export class SubmissionService {
     }
 
     return submissions.map((submission) => this.toStudentSubmissionView(submission));
+  }
+
+  async canAccessSubmission(submissionId: string, userId: string): Promise<boolean> {
+    const submission = await this.submissionRepo.findById(submissionId);
+    if (!submission) {
+      return false;
+    }
+
+    const member = await this.teamRepo.findMemberByTeamAndUser(submission.teamId, userId);
+    return Boolean(member && member.invitationStatus === 'ACCEPTED');
   }
 
   async uploadDocument(

@@ -3,7 +3,7 @@ import { TeamService } from '@/services/team.service';
 import { createResponse, handleError } from '@/utils/helpers';
 import type { JWTPayload } from '@/types';
 import { inviteMemberSchema, respondInvitationSchema } from '@/schemas/team.schema';
-import { DIContainer } from '@/core';
+import { createRuntime } from '@/runtime';
 
 type ErrorStatusCode = 400 | 401 | 403 | 404 | 409 | 422 | 500;
 
@@ -244,9 +244,8 @@ export class TeamController {
       const team = myTeams[0];
       console.log(`[TeamController.resetTeam] Found team: ${team.code} (${team.id})`);
 
-      // Access teamResetService from container
-      const container = c.get('container') as DIContainer;
-      const result = await container.teamResetService.resetTeamByTeamId(team.id);
+      const runtime = createRuntime(c.env);
+      const result = await runtime.teamResetService.resetTeamByTeamId(team.id);
 
       console.log(`[TeamController.resetTeam] ✅ Success: Team reset completed`);
       return c.json(

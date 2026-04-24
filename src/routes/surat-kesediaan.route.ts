@@ -1,9 +1,8 @@
-import { Hono, Context } from 'hono';
-import { DIContainer } from '@/core';
+import { Hono } from 'hono';
 import { authMiddleware, mahasiswaOnly, dosenOnly, roleMiddleware } from '@/middlewares/auth.middleware';
-import { CloudflareBindings } from '@/config';
+import type { CloudflareBindings } from '@/config';
 import { zValidator } from '@hono/zod-validator';
-import { withContainer } from './route-handler';
+import { createRuntime } from '@/runtime';
 import { emptyQuerySchema, nonEmptyStringParamsSchema } from '@/schemas/common.schema';
 import {
   requestSuratKesediaanSchema,
@@ -12,29 +11,31 @@ import {
   approveBulkSchema,
 } from '@/schemas/surat-kesediaan.schema';
 
-type Variables = {
-  container: DIContainer;
-};
-
 /**
  * Create Mahasiswa Surat Kesediaan Routes
  * Mount at /api/mahasiswa/surat-kesediaan
  */
 export const createMahasiswaSuratKesediaanRoutes = () => {
-  const routes = new Hono<{ Bindings: CloudflareBindings; Variables: Variables }>()
+  const routes = new Hono<{ Bindings: CloudflareBindings }>()
     .use('*', authMiddleware, mahasiswaOnly)
     // POST /api/mahasiswa/surat-kesediaan/requests
     .post(
       '/requests',
       zValidator('json', requestSuratKesediaanSchema),
-      withContainer((container, c) => container.suratKesediaanController.requestSuratKesediaan(c))
+      async (c) => {
+        const runtime = createRuntime(c.env);
+        return Reflect.apply(runtime.suratKesediaanController.requestSuratKesediaan, runtime.suratKesediaanController, [c, c.req.valid('json')]);
+      }
     )
     // PUT /api/mahasiswa/surat-kesediaan/requests/:requestId/reapply
     .put(
       '/requests/:requestId/reapply',
       zValidator('param', nonEmptyStringParamsSchema),
       zValidator('json', reapplyRequestSchema),
-      withContainer((container, c) => container.suratKesediaanController.reapplyRequest(c))
+      async (c) => {
+        const runtime = createRuntime(c.env);
+        return Reflect.apply(runtime.suratKesediaanController.reapplyRequest, runtime.suratKesediaanController, [c, c.req.valid('param'), c.req.valid('json')]);
+      }
     );
 
   return routes;
@@ -45,26 +46,35 @@ export const createMahasiswaSuratKesediaanRoutes = () => {
  * Mount at /api/surat-kesediaan
  */
 export const createSuratKesediaanFallbackRoutes = () => {
-  const routes = new Hono<{ Bindings: CloudflareBindings; Variables: Variables }>()
+  const routes = new Hono<{ Bindings: CloudflareBindings }>()
     .use('*', authMiddleware, mahasiswaOnly)
     // POST /api/surat-kesediaan/requests
     .post(
       '/requests',
       zValidator('json', requestSuratKesediaanSchema),
-      withContainer((container, c) => container.suratKesediaanController.requestSuratKesediaan(c))
+      async (c) => {
+        const runtime = createRuntime(c.env);
+        return Reflect.apply(runtime.suratKesediaanController.requestSuratKesediaan, runtime.suratKesediaanController, [c, c.req.valid('json')]);
+      }
     )
     // PUT /api/surat-kesediaan/requests/:requestId/reapply
     .put(
       '/requests/:requestId/reapply',
       zValidator('param', nonEmptyStringParamsSchema),
       zValidator('json', reapplyRequestSchema),
-      withContainer((container, c) => container.suratKesediaanController.reapplyRequest(c))
+      async (c) => {
+        const runtime = createRuntime(c.env);
+        return Reflect.apply(runtime.suratKesediaanController.reapplyRequest, runtime.suratKesediaanController, [c, c.req.valid('param'), c.req.valid('json')]);
+      }
     )
     // POST /api/surat-kesediaan/request
     .post(
       '/request',
       zValidator('json', requestSuratKesediaanSchema),
-      withContainer((container, c) => container.suratKesediaanController.requestSuratKesediaan(c))
+      async (c) => {
+        const runtime = createRuntime(c.env);
+        return Reflect.apply(runtime.suratKesediaanController.requestSuratKesediaan, runtime.suratKesediaanController, [c, c.req.valid('json')]);
+      }
     );
 
   return routes;
@@ -75,14 +85,17 @@ export const createSuratKesediaanFallbackRoutes = () => {
  * Mount at /api/dosen/surat-kesediaan
  */
 export const createDosenSuratKesediaanRoutes = () => {
-  const routes = new Hono<{ Bindings: CloudflareBindings; Variables: Variables }>()
+  const routes = new Hono<{ Bindings: CloudflareBindings }>()
     .use('*', authMiddleware)
     // GET /api/dosen/surat-kesediaan/requests
     .get(
       '/requests',
       roleMiddleware(['DOSEN', 'WAKIL_DEKAN']),
       zValidator('query', emptyQuerySchema),
-      withContainer((container, c) => container.suratKesediaanController.getRequests(c))
+      async (c) => {
+        const runtime = createRuntime(c.env);
+        return Reflect.apply(runtime.suratKesediaanController.getRequests, runtime.suratKesediaanController, [c, c.req.valid('query')]);
+      }
     )
     // PUT /api/dosen/surat-kesediaan/requests/:requestId/approve
     .put(
@@ -90,7 +103,10 @@ export const createDosenSuratKesediaanRoutes = () => {
       dosenOnly,
       zValidator('param', nonEmptyStringParamsSchema),
       zValidator('query', emptyQuerySchema),
-      withContainer((container, c) => container.suratKesediaanController.approveSingle(c))
+      async (c) => {
+        const runtime = createRuntime(c.env);
+        return Reflect.apply(runtime.suratKesediaanController.approveSingle, runtime.suratKesediaanController, [c, c.req.valid('param'), c.req.valid('query')]);
+      }
     )
     // PUT /api/dosen/surat-kesediaan/requests/:requestId/reject
     .put(
@@ -98,14 +114,20 @@ export const createDosenSuratKesediaanRoutes = () => {
       dosenOnly,
       zValidator('param', nonEmptyStringParamsSchema),
       zValidator('json', rejectRequestSchema),
-      withContainer((container, c) => container.suratKesediaanController.reject(c))
+      async (c) => {
+        const runtime = createRuntime(c.env);
+        return Reflect.apply(runtime.suratKesediaanController.reject, runtime.suratKesediaanController, [c, c.req.valid('param'), c.req.valid('json')]);
+      }
     )
     // PUT /api/dosen/surat-kesediaan/requests/approve-bulk
     .put(
       '/requests/approve-bulk',
       dosenOnly,
       zValidator('json', approveBulkSchema),
-      withContainer((container, c) => container.suratKesediaanController.approveBulk(c))
+      async (c) => {
+        const runtime = createRuntime(c.env);
+        return Reflect.apply(runtime.suratKesediaanController.approveBulk, runtime.suratKesediaanController, [c, c.req.valid('json')]);
+      }
     );
 
   return routes;

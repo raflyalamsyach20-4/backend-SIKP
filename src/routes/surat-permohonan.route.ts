@@ -1,9 +1,8 @@
-import { Context, Hono } from 'hono';
-import { DIContainer } from '@/core';
-import { CloudflareBindings } from '@/config';
+import { Hono } from 'hono';
+import type { CloudflareBindings } from '@/config';
 import { authMiddleware, dosenOnly, mahasiswaOnly, roleMiddleware } from '@/middlewares/auth.middleware';
 import { zValidator } from '@hono/zod-validator';
-import { withContainer } from './route-handler';
+import { createRuntime } from '@/runtime';
 import { emptyQuerySchema, nonEmptyStringParamsSchema } from '@/schemas/common.schema';
 import {
   requestSuratPermohonanSchema,
@@ -12,44 +11,55 @@ import {
   rejectRequestSchema,
 } from '@/schemas/surat-permohonan.schema';
 
-type Variables = {
-  container: DIContainer;
-};
-
 /**
  * Mount at /api/mahasiswa/surat-permohonan
  */
 export const createMahasiswaSuratPermohonanRoutes = () => {
-  const routes = new Hono<{ Bindings: CloudflareBindings; Variables: Variables }>()
+  const routes = new Hono<{ Bindings: CloudflareBindings }>()
     .use('*', authMiddleware, mahasiswaOnly)
     .post(
       '/requests',
       zValidator('json', requestSuratPermohonanSchema),
-      withContainer((container, c) => container.suratPermohonanController.requestSuratPermohonan(c))
+      async (c) => {
+        const runtime = createRuntime(c.env);
+        return Reflect.apply(runtime.suratPermohonanController.requestSuratPermohonan, runtime.suratPermohonanController, [c, c.req.valid('json')]);
+      }
     )
     // PUT /api/mahasiswa/surat-permohonan/requests/:requestId/reapply
     .put(
       '/requests/:requestId/reapply',
       zValidator('param', nonEmptyStringParamsSchema),
       zValidator('json', reapplyRequestSchema),
-      withContainer((container, c) => container.suratPermohonanController.reapplyRequest(c))
+      async (c) => {
+        const runtime = createRuntime(c.env);
+        return Reflect.apply(runtime.suratPermohonanController.reapplyRequest, runtime.suratPermohonanController, [c, c.req.valid('param'), c.req.valid('json')]);
+      }
     )
     .patch(
       '/requests/:requestId/reapply',
       zValidator('param', nonEmptyStringParamsSchema),
       zValidator('json', reapplyRequestSchema),
-      withContainer((container, c) => container.suratPermohonanController.reapplyRequest(c))
+      async (c) => {
+        const runtime = createRuntime(c.env);
+        return Reflect.apply(runtime.suratPermohonanController.reapplyRequest, runtime.suratPermohonanController, [c, c.req.valid('param'), c.req.valid('json')]);
+      }
     )
     .post(
       '/requests/:requestId/reapply',
       zValidator('param', nonEmptyStringParamsSchema),
       zValidator('json', reapplyRequestSchema),
-      withContainer((container, c) => container.suratPermohonanController.reapplyRequest(c))
+      async (c) => {
+        const runtime = createRuntime(c.env);
+        return Reflect.apply(runtime.suratPermohonanController.reapplyRequest, runtime.suratPermohonanController, [c, c.req.valid('param'), c.req.valid('json')]);
+      }
     )
     .post(
       '/request',
       zValidator('json', requestSuratPermohonanSchema),
-      withContainer((container, c) => container.suratPermohonanController.requestSuratPermohonan(c))
+      async (c) => {
+        const runtime = createRuntime(c.env);
+        return Reflect.apply(runtime.suratPermohonanController.requestSuratPermohonan, runtime.suratPermohonanController, [c, c.req.valid('json')]);
+      }
     );
 
   return routes;
@@ -60,36 +70,51 @@ export const createMahasiswaSuratPermohonanRoutes = () => {
  * Mount at /api/surat-permohonan
  */
 export const createSuratPermohonanFallbackRoutes = () => {
-  const routes = new Hono<{ Bindings: CloudflareBindings; Variables: Variables }>()
+  const routes = new Hono<{ Bindings: CloudflareBindings }>()
     .use('*', authMiddleware, mahasiswaOnly)
     .post(
       '/requests',
       zValidator('json', requestSuratPermohonanSchema),
-      withContainer((container, c) => container.suratPermohonanController.requestSuratPermohonan(c))
+      async (c) => {
+        const runtime = createRuntime(c.env);
+        return Reflect.apply(runtime.suratPermohonanController.requestSuratPermohonan, runtime.suratPermohonanController, [c, c.req.valid('json')]);
+      }
     )
     // PUT /api/surat-permohonan/requests/:requestId/reapply
     .put(
       '/requests/:requestId/reapply',
       zValidator('param', nonEmptyStringParamsSchema),
       zValidator('json', reapplyRequestSchema),
-      withContainer((container, c) => container.suratPermohonanController.reapplyRequest(c))
+      async (c) => {
+        const runtime = createRuntime(c.env);
+        return Reflect.apply(runtime.suratPermohonanController.reapplyRequest, runtime.suratPermohonanController, [c, c.req.valid('param'), c.req.valid('json')]);
+      }
     )
     .patch(
       '/requests/:requestId/reapply',
       zValidator('param', nonEmptyStringParamsSchema),
       zValidator('json', reapplyRequestSchema),
-      withContainer((container, c) => container.suratPermohonanController.reapplyRequest(c))
+      async (c) => {
+        const runtime = createRuntime(c.env);
+        return Reflect.apply(runtime.suratPermohonanController.reapplyRequest, runtime.suratPermohonanController, [c, c.req.valid('param'), c.req.valid('json')]);
+      }
     )
     .post(
       '/requests/:requestId/reapply',
       zValidator('param', nonEmptyStringParamsSchema),
       zValidator('json', reapplyRequestSchema),
-      withContainer((container, c) => container.suratPermohonanController.reapplyRequest(c))
+      async (c) => {
+        const runtime = createRuntime(c.env);
+        return Reflect.apply(runtime.suratPermohonanController.reapplyRequest, runtime.suratPermohonanController, [c, c.req.valid('param'), c.req.valid('json')]);
+      }
     )
     .post(
       '/request',
       zValidator('json', requestSuratPermohonanSchema),
-      withContainer((container, c) => container.suratPermohonanController.requestSuratPermohonan(c))
+      async (c) => {
+        const runtime = createRuntime(c.env);
+        return Reflect.apply(runtime.suratPermohonanController.requestSuratPermohonan, runtime.suratPermohonanController, [c, c.req.valid('json')]);
+      }
     );
 
   return routes;
@@ -99,33 +124,45 @@ export const createSuratPermohonanFallbackRoutes = () => {
  * Mount at /api/dosen/surat-permohonan
  */
 export const createDosenSuratPermohonanRoutes = () => {
-  const routes = new Hono<{ Bindings: CloudflareBindings; Variables: Variables }>()
+  const routes = new Hono<{ Bindings: CloudflareBindings }>()
     .use('*', authMiddleware)
     .get(
       '/requests',
       roleMiddleware(['DOSEN', 'WAKIL_DEKAN']),
       zValidator('query', emptyQuerySchema),
-      withContainer((container, c) => container.suratPermohonanController.getRequests(c))
+      async (c) => {
+        const runtime = createRuntime(c.env);
+        return Reflect.apply(runtime.suratPermohonanController.getRequests, runtime.suratPermohonanController, [c, c.req.valid('query')]);
+      }
     )
     .put(
       '/requests/:requestId/approve',
       dosenOnly,
       zValidator('param', nonEmptyStringParamsSchema),
       zValidator('query', emptyQuerySchema),
-      withContainer((container, c) => container.suratPermohonanController.approveSingle(c))
+      async (c) => {
+        const runtime = createRuntime(c.env);
+        return Reflect.apply(runtime.suratPermohonanController.approveSingle, runtime.suratPermohonanController, [c, c.req.valid('param'), c.req.valid('query')]);
+      }
     )
     .put(
       '/requests/approve-bulk',
       dosenOnly,
       zValidator('json', approveBulkSchema),
-      withContainer((container, c) => container.suratPermohonanController.approveBulk(c))
+      async (c) => {
+        const runtime = createRuntime(c.env);
+        return Reflect.apply(runtime.suratPermohonanController.approveBulk, runtime.suratPermohonanController, [c, c.req.valid('json')]);
+      }
     )
     .put(
       '/requests/:requestId/reject',
       dosenOnly,
       zValidator('param', nonEmptyStringParamsSchema),
       zValidator('json', rejectRequestSchema),
-      withContainer((container, c) => container.suratPermohonanController.reject(c))
+      async (c) => {
+        const runtime = createRuntime(c.env);
+        return Reflect.apply(runtime.suratPermohonanController.reject, runtime.suratPermohonanController, [c, c.req.valid('param'), c.req.valid('json')]);
+      }
     );
 
   return routes;

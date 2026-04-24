@@ -2,9 +2,8 @@ import { Hono, Context } from 'hono';
 import { cors } from 'hono/cors';
 import { logger } from 'hono/logger';
 
-// Configuration & Core
-import { CloudflareBindings } from '@/config';
-import { DIContainer, requestContainerMiddleware } from '@/core';
+// Configuration
+import type { CloudflareBindings } from '@/config';
 import { errorHandler } from '@/errors';
 
 // Routes
@@ -20,16 +19,9 @@ import { createAssetRoutes } from '@/routes/assets.route';
 import { createSsoSignatureRoutes } from '@/routes/sso-signature.route';
 
 /**
- * Extended context variables
- */
-type Variables = {
-  container: DIContainer;
-};
-
-/**
  * Main Application
  */
-const app = new Hono<{ Bindings: CloudflareBindings; Variables: Variables }>();
+const app = new Hono<{ Bindings: CloudflareBindings }>();
 
 /**
  * Global Middlewares
@@ -60,12 +52,6 @@ app.get('/health', (c) => {
     timestamp: new Date().toISOString(),
   });
 });
-
-/**
- * Dependency Injection Setup Middleware
- * Initializes DI container for each request with proper configuration
- */
-app.use('/api/*', requestContainerMiddleware);
 
 /**
  * API Routes

@@ -1,15 +1,26 @@
 import { Context } from 'hono';
 import type { DbClient } from '@/db';
 import { TemplateService } from '@/services/template.service';
-import type { TemplateField } from '@/types';
+import type { JWTPayload, TemplateField } from '@/types';
 import { createResponse, handleError } from '@/utils/helpers';
+
+type TemplateType = 'Template Only' | 'Generate & Template';
+
+type TemplateUploadConfig = {
+  R2Bucket?: R2Bucket;
+  s3Client?: unknown;
+};
+
+const isTemplateType = (value: string): value is TemplateType => {
+  return value === 'Template Only' || value === 'Generate & Template';
+};
 
 export class TemplateController {
   private templateService: TemplateService;
 
   constructor(
     private db: DbClient,
-    uploadConfig: { R2Bucket?: R2Bucket; s3Client?: any },
+    uploadConfig: TemplateUploadConfig,
     private r2Domain?: string,
     private r2BucketName?: string
   ) {
@@ -22,13 +33,13 @@ export class TemplateController {
    */
   async getAll(c: Context) {
     try {
-      const userRole = (c.get('user') as any)?.role || 'MAHASISWA';
+      const userRole = (c.get('user') as JWTPayload | undefined)?.role || 'MAHASISWA';
       
       const type = c.req.query('type');
       const isActive = c.req.query('isActive');
       const search = c.req.query('search');
 
-      const filters: any = {};
+      const filters: { type?: string; isActive?: boolean; search?: string } = {};
       if (type) filters.type = type;
       if (isActive !== undefined) filters.isActive = isActive === 'true';
       if (search) filters.search = search;
@@ -61,7 +72,7 @@ export class TemplateController {
   async getById(c: Context) {
     try {
       const id = c.req.param('id');
-      const userRole = (c.get('user') as any)?.role || 'MAHASISWA';
+      const userRole = (c.get('user') as JWTPayload | undefined)?.role || 'MAHASISWA';
 
       const template = await this.templateService.getTemplateById(id, userRole);
       
@@ -81,7 +92,7 @@ export class TemplateController {
    */
   async create(c: Context) {
     try {
-      const user = c.get('user') as any;
+      const user = c.get('user') as JWTPayload;
       
       // Check authorization
       if (user.role !== 'ADMIN') {
@@ -89,9 +100,10 @@ export class TemplateController {
       }
 
       const formData = await c.req.formData();
-      const file = formData.get('file') as any as File | null;
+      const fileEntry = formData.get('file');
+      const file = fileEntry instanceof File ? fileEntry : null;
       const name = formData.get('name') as string;
-      const type = formData.get('type') as string;
+      const typeRaw = formData.get('type') as string;
       const description = formData.get('description') as string;
       const fieldsStr = formData.get('fields') as string;
       const isActive = formData.get('isActive') === 'true';
@@ -105,8 +117,12 @@ export class TemplateController {
         return c.json(createResponse(false, 'Nama template wajib diisi'), 400);
       }
 
-      if (!type) {
+      if (!typeRaw) {
         return c.json(createResponse(false, 'Tipe template wajib diisi'), 400);
+      }
+
+      if (!isTemplateType(typeRaw)) {
+        return c.json(createResponse(false, 'Tipe template tidak valid'), 400);
       }
 
       // Parse fields if provided
@@ -125,7 +141,7 @@ export class TemplateController {
       // Create template
       const result = await this.templateService.createTemplate(
         file,
-        { name, type: type as any, description, fields, isActive },
+        { name, type: typeRaw, description, fields, isActive },
         user.userId
       );
 
@@ -145,7 +161,7 @@ export class TemplateController {
    */
   async update(c: Context) {
     try {
-      const user = c.get('user') as any;
+      const user = c.get('user') as JWTPayload;
       
       // Check authorization
       if (user.role !== 'ADMIN') {
@@ -155,18 +171,31 @@ export class TemplateController {
       const id = c.req.param('id');
       const formData = await c.req.formData();
 
-      const file = formData.get('file') as any as File | null;
+      const fileEntry = formData.get('file');
+      const file = fileEntry instanceof File ? fileEntry : null;
       const name = formData.get('name') as string;
-      const type = formData.get('type') as string;
+      const typeRaw = formData.get('type') as string;
       const description = formData.get('description') as string;
       const fieldsStr = formData.get('fields') as string;
       const isActive = formData.get('isActive') as string;
 
-      const updates: any = {};
+      const updates: {
+        file?: File;
+        name?: string;
+        type?: TemplateType;
+        description?: string;
+        fields?: TemplateField[];
+        isActive?: boolean;
+      } = {};
 
       if (file) updates.file = file;
       if (name) updates.name = name;
-      if (type) updates.type = type;
+      if (typeRaw) {
+        if (!isTemplateType(typeRaw)) {
+          return c.json(createResponse(false, 'Tipe template tidak valid'), 400);
+        }
+        updates.type = typeRaw;
+      }
       if (description !== undefined) updates.description = description;
       if (isActive !== undefined) updates.isActive = isActive === 'true';
 
@@ -205,7 +234,7 @@ export class TemplateController {
    */
   async delete(c: Context) {
     try {
-      const user = c.get('user') as any;
+      const user = c.get('user') as JWTPayload;
       
       // Check authorization
       if (user.role !== 'ADMIN') {
@@ -235,7 +264,7 @@ export class TemplateController {
    */
   async toggleActive(c: Context) {
     try {
-      const user = c.get('user') as any;
+      const user = c.get('user') as JWTPayload;
       
       // Check authorization
       if (user.role !== 'ADMIN') {
@@ -269,7 +298,7 @@ export class TemplateController {
   async download(c: Context) {
     try {
       const id = c.req.param('id');
-      const userRole = (c.get('user') as any)?.role || 'MAHASISWA';
+      const userRole = (c.get('user') as JWTPayload | undefined)?.role || 'MAHASISWA';
 
       const result = await this.templateService.downloadTemplate(id, userRole);
 
@@ -281,8 +310,12 @@ export class TemplateController {
       }
 
       const { buffer, template } = result;
-      const contentType = template!.fileType || 'application/octet-stream';
-      const contentDisposition = `attachment; filename="${template!.originalName}"`;
+      if (!template) {
+        return c.json(createResponse(false, 'Template tidak ditemukan'), 404);
+      }
+
+      const contentType = template.fileType || 'application/octet-stream';
+      const contentDisposition = `attachment; filename="${template.originalName}"`;
 
       c.header('Content-Type', contentType);
       c.header('Content-Disposition', contentDisposition);

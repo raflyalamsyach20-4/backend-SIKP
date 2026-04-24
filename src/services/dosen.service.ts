@@ -26,6 +26,15 @@ type WakdekDashboardPayload = {
   activities: DashboardActivity[];
 };
 
+type VerifierQueueItem = {
+  isAdminApproved?: boolean;
+  adminVerificationStatus?: string;
+  admin_status?: string;
+  adminStatus?: string;
+  submissionStatus?: string;
+  submission_status?: string;
+};
+
 export class DosenService {
   constructor(
     private userRepository: UserRepository,
@@ -40,19 +49,25 @@ export class DosenService {
     return (jabatan || '').toLowerCase().includes('wakil dekan');
   }
 
-  private isAdminApprovedForVerifierQueue(item: any): boolean {
-    if (typeof item?.isAdminApproved === 'boolean') {
-      return item.isAdminApproved;
+  private isAdminApprovedForVerifierQueue(item: unknown): boolean {
+    if (!item || typeof item !== 'object') {
+      return false;
+    }
+
+    const queueItem = item as VerifierQueueItem;
+
+    if (typeof queueItem.isAdminApproved === 'boolean') {
+      return queueItem.isAdminApproved;
     }
 
     const statusCandidates = [
-      item?.adminVerificationStatus,
-      item?.admin_status,
-      item?.adminStatus,
-      item?.submissionStatus,
-      item?.submission_status,
+      queueItem.adminVerificationStatus,
+      queueItem.admin_status,
+      queueItem.adminStatus,
+      queueItem.submissionStatus,
+      queueItem.submission_status,
     ]
-      .filter((value: any) => typeof value === 'string')
+      .filter((value): value is string => typeof value === 'string')
       .map((value: string) => value.trim().toUpperCase());
 
     return statusCandidates.includes('APPROVED') || statusCandidates.includes('DISETUJUI');
@@ -60,7 +75,7 @@ export class DosenService {
 
   private async countTotalSuratPengantarMasuk(userId: string, role: UserRole): Promise<number> {
     const requests = await this.suratPengantarDosenService.getRequestsForVerifier(userId, role);
-    return requests.filter((item: any) => this.isAdminApprovedForVerifierQueue(item)).length;
+    return requests.filter((item) => this.isAdminApprovedForVerifierQueue(item)).length;
   }
 
   private async countMahasiswaBimbingan(dosenUserId: string): Promise<number> {

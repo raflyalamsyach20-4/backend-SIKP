@@ -6,8 +6,27 @@ import type { Template, TemplateField } from '@/types';
 
 interface UploadConfig {
   R2Bucket?: R2Bucket;
-  s3Client?: any;
+  s3Client?: unknown;
 }
+
+type TemplateType = 'Template Only' | 'Generate & Template';
+
+type CreateTemplateInput = {
+  name: string;
+  type: TemplateType;
+  description?: string;
+  fields?: TemplateField[];
+  isActive?: boolean;
+};
+
+type UpdateTemplateInput = {
+  file?: File;
+  name?: string;
+  type?: TemplateType;
+  description?: string;
+  fields?: TemplateField[];
+  isActive?: boolean;
+};
 
 export class TemplateService {
   private repository: TemplateRepository;
@@ -66,25 +85,19 @@ export class TemplateService {
 
   async createTemplate(
     file: File,
-    data: {
-      name: string;
-      type: 'Template Only' | 'Generate & Template';
-      description?: string;
-      fields?: TemplateField[];
-      isActive?: boolean;
-    },
+    data: CreateTemplateInput,
     userId: string
-  ): Promise<{ template: Template; error?: string }> {
+  ): Promise<{ template: Template | null; error?: string }> {
     // Validasi input
     const validation = this.validateTemplateInput(data);
     if (validation.error) {
-      return { template: null as any, error: validation.error };
+      return { template: null, error: validation.error };
     }
 
     // Validasi file
     const fileValidation = this.validateFile(file);
     if (fileValidation.error) {
-      return { template: null as any, error: fileValidation.error };
+      return { template: null, error: fileValidation.error };
     }
 
     try {
@@ -127,20 +140,13 @@ export class TemplateService {
       return { template };
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to create template';
-      return { template: null as any, error: message };
+      return { template: null, error: message };
     }
   }
 
   async updateTemplate(
     id: string,
-    updates: {
-      file?: File;
-      name?: string;
-      type?: 'Template Only' | 'Generate & Template';
-      description?: string;
-      fields?: TemplateField[];
-      isActive?: boolean;
-    },
+    updates: UpdateTemplateInput,
     userId: string
   ): Promise<{ template: Template | null; error?: string }> {
     const template = await this.repository.findById(id);
@@ -192,9 +198,10 @@ export class TemplateService {
 
       // Validate input if name/type changed
       if (updates.name || updates.type) {
+        const resolvedType: TemplateType = updates.type || template.type;
         const validation = this.validateTemplateInput({
           name: updates.name || template.name,
-          type: (updates.type || template.type) as any,
+          type: resolvedType,
           description: updates.description !== undefined ? updates.description : template.description || undefined,
           fields: updates.fields ?? (template.fields as TemplateField[]),
         });
@@ -204,7 +211,7 @@ export class TemplateService {
       }
 
       // Prepare update data
-      const updateData: any = {
+      const updateData: Parameters<TemplateRepository['update']>[1] = {
         updatedBy: userId,
       };
 

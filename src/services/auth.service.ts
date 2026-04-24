@@ -65,11 +65,11 @@ type SsoIdentityObject = {
   identity?: string | null;
   role?: string | null;
   roleName?: string | null;
-  permissions?: any;
-  permission?: any;
-  scopes?: any;
-  scope?: any;
-  effectiveRoles?: any;
+  permissions?: unknown;
+  permission?: unknown;
+  scopes?: unknown;
+  scope?: unknown;
+  effectiveRoles?: unknown;
   identityId?: string | null;
   id?: string | null;
   displayName?: string | null;
@@ -146,12 +146,12 @@ type SsoEnvelope = {
   data?:
     | {
         profile?: SsoProfile | null;
-        identities?: any;
+        identities?: unknown;
       }
     | SsoProfile
     | null;
   profile?: SsoProfile | null;
-  identities?: any;
+  identities?: unknown;
 };
 
 type SsoAccessTokenPayload = JoseJWTPayload & {
@@ -310,7 +310,7 @@ export class AuthService {
     throw new Error(`Unhandled role: ${role}`);
   }
 
-  private normalizeRawRoleTag(input: any): string | null {
+  private normalizeRawRoleTag(input: unknown): string | null {
     if (typeof input !== "string") {
       return null;
     }
@@ -325,7 +325,7 @@ export class AuthService {
   ): string[] {
     const tags = new Set<string>();
 
-    const pushTag = (value: any) => {
+    const pushTag = (value: unknown) => {
       const normalized = this.normalizeRawRoleTag(value);
       if (normalized) {
         tags.add(normalized);
@@ -343,7 +343,7 @@ export class AuthService {
 
     pushTag(profile?.role);
 
-    const tokenRoleCandidates: any[] = [accessTokenPayload?.roles];
+    const tokenRoleCandidates: unknown[] = [accessTokenPayload?.roles];
 
     for (const candidate of tokenRoleCandidates) {
       if (Array.isArray(candidate)) {
@@ -472,7 +472,7 @@ export class AuthService {
         resolvedRole,
         ...(Array.isArray(rawIdentity.effectiveRoles)
           ? rawIdentity.effectiveRoles
-              .map((item: any) => this.parseRoleOrNull(String(item)))
+              .map((item: unknown) => this.parseRoleOrNull(String(item)))
               .filter((item: UserRole | null): item is UserRole =>
                 Boolean(item),
               )
@@ -503,7 +503,7 @@ export class AuthService {
     };
   }
 
-  private normalizePermissions(input: any): EffectivePermission[] {
+  private normalizePermissions(input: unknown): EffectivePermission[] {
     const toList = Array.isArray(input)
       ? input
       : typeof input === "string"
@@ -524,7 +524,7 @@ export class AuthService {
       return [];
     }
 
-    const claimsCandidates: any[] = [payload.permissions, payload.scope];
+    const claimsCandidates: unknown[] = [payload.permissions, payload.scope];
 
     for (const candidate of claimsCandidates) {
       const permissions = this.normalizePermissions(candidate);
@@ -578,6 +578,36 @@ export class AuthService {
     }
 
     return Array.from(dedup.values());
+  }
+
+  private buildFallbackIdentitiesFromRoleTags(
+    rawRoleTags: string[],
+    profile: SsoProfile | null,
+  ): AuthIdentity[] {
+    const fallbackIdentities: AuthIdentity[] = [];
+
+    for (const rawTag of rawRoleTags) {
+      const parsedRole = this.parseRoleOrNull(rawTag);
+      if (!parsedRole) {
+        continue;
+      }
+
+      const identityType = this.mapRoleToIdentityRole(parsedRole);
+      fallbackIdentities.push({
+        identityType,
+        roleName: identityType,
+        permissions: [],
+        identityId: null,
+        displayName: this.pickFirstString(profile?.fullName || null),
+        identifier: this.pickFirstString(profile?.email || null),
+        metadata: {
+          effectiveRoles: [parsedRole],
+          profile,
+        },
+      });
+    }
+
+    return this.uniqueIdentities(fallbackIdentities);
   }
 
   private resolveAuthUserId(
@@ -646,7 +676,7 @@ export class AuthService {
     return (await response.json()) as TokenExchangeResponse;
   }
 
-  private extractIdentities(input: any): AuthIdentity[] {
+  private extractIdentities(input: unknown): AuthIdentity[] {
     if (!input) {
       return [];
     }
@@ -749,11 +779,12 @@ export class AuthService {
 
     const roles = Array.isArray(profile.roles) ? profile.roles : [];
     for (const roleEntry of roles) {
-      if (!roleEntry || typeof roleEntry !== "object") {
-        continue;
-      }
-
-      const resolvedRole = this.parseRoleOrNull(roleEntry.role);
+      const resolvedRole =
+        typeof roleEntry === "string"
+          ? this.parseRoleOrNull(roleEntry)
+          : roleEntry && typeof roleEntry === "object"
+            ? this.parseRoleOrNull(roleEntry.role)
+            : null;
       if (!resolvedRole) {
         continue;
       }
@@ -773,12 +804,13 @@ export class AuthService {
         identityType: identityBucket,
         roleName: identityBucket,
         effectiveRoles: [resolvedRole],
-        identityId: roleEntry.id || null,
+        identityId:
+          roleEntry && typeof roleEntry === "object" ? roleEntry.id || null : null,
         displayName: profile.fullName || null,
         identifier: profile.email || null,
         authUserId: profile.authUserId || null,
         profile,
-        roleMeta: roleEntry,
+        roleMeta: roleEntry && typeof roleEntry === "object" ? roleEntry : null,
       });
 
       if (normalizedIdentity) {
@@ -792,11 +824,12 @@ export class AuthService {
       const rolesByIdentity = new Map<UserRole, Set<UserRole>>();
 
       for (const roleEntry of roles) {
-        if (!roleEntry || typeof roleEntry !== "object") {
-          continue;
-        }
-
-        const resolvedRole = this.parseRoleOrNull(roleEntry.role);
+        const resolvedRole =
+          typeof roleEntry === "string"
+            ? this.parseRoleOrNull(roleEntry)
+            : roleEntry && typeof roleEntry === "object"
+              ? this.parseRoleOrNull(roleEntry.role)
+              : null;
         if (!resolvedRole) {
           continue;
         }
@@ -1198,7 +1231,11 @@ export class AuthService {
     const { profile, identities } = await this.fetchProfileAndIdentities(
       session.accessToken,
     );
-    const availableIdentities = identities;
+    const fallbackRoleTags = this.extractRawSsoRoleTags(profile, null);
+    const availableIdentities =
+      identities.length > 0
+        ? identities
+        : this.buildFallbackIdentitiesFromRoleTags(fallbackRoleTags, profile);
     const activeIdentity =
       availableIdentities.find(
         (item) => item.identityType === session.activeIdentity,
@@ -1255,8 +1292,10 @@ export class AuthService {
     // ✅ VALIDATE: Mahasiswa must have dosenPAId
     if (primaryRole === 'MAHASISWA' && !userPayload.dosenPAId) {
       console.error(`[loadSessionContext] ❌ Mahasiswa missing dosenPAId: ${session.authUserId}`);
-      const error = new Error('Dosen PA tidak ditemukan. Hubungi administrator untuk mengatur dosen PA.');
-      (error as any).statusCode = 400;
+      const error = new Error('Dosen PA tidak ditemukan. Hubungi administrator untuk mengatur dosen PA.') as Error & {
+        statusCode?: number;
+      };
+      error.statusCode = 400;
       throw error;
     }
 
@@ -1333,7 +1372,12 @@ export class AuthService {
       throw error;
     }
 
-    if (identities.length === 0) {
+    const resolvedIdentities =
+      identities.length > 0
+        ? identities
+        : this.buildFallbackIdentitiesFromRoleTags(rawSsoRoles, profile);
+
+    if (resolvedIdentities.length === 0) {
       const error = new Error("No identities returned by SSO") as Error & {
         statusCode?: number;
       };
@@ -1343,12 +1387,17 @@ export class AuthService {
 
     const authUserId = this.resolveAuthUserId(verifiedPayload, profile);
 
-    const activeIdentity = identities.length === 1 ? identities[0] : null;
+    const activeIdentity =
+      resolvedIdentities.length === 1 ? resolvedIdentities[0] : null;
     const effectiveRoles = activeIdentity
-      ? this.effectiveRoles(activeIdentity, identities)
+      ? this.effectiveRoles(activeIdentity, resolvedIdentities)
       : [];
     const effectivePermissions = activeIdentity
-      ? this.effectivePermissions(activeIdentity, identities, tokenPermissions)
+      ? this.effectivePermissions(
+          activeIdentity,
+          resolvedIdentities,
+          tokenPermissions,
+        )
       : [];
 
     const sessionId = generateId();
@@ -1379,7 +1428,7 @@ export class AuthService {
       sessionEstablished: Boolean(activeIdentity),
       requiresIdentitySelection: !activeIdentity,
       activeIdentity,
-      identities,
+      identities: resolvedIdentities,
       effectiveRoles,
       effectivePermissions,
     };

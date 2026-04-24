@@ -22,6 +22,57 @@ type SigningContext = VerifierContext & {
   signatureMimeType: string;
 };
 
+type VerifierSubmission = {
+  id: string;
+  teamId: string;
+  workflowStage?: string | null;
+  adminVerificationStatus?: 'PENDING' | 'APPROVED' | 'REJECTED' | null;
+  dosenVerificationStatus?: 'PENDING' | 'APPROVED' | 'REJECTED' | null;
+  dosenVerifiedAt?: Date | string | null;
+  dosenVerifiedBy?: string | null;
+  finalSignedFileUrl?: string | null;
+  final_signed_file_url?: string | null;
+  archivedAt?: Date | string | null;
+  status?: string | null;
+  companyName?: string | null;
+  companyAddress?: string | null;
+  division?: string | null;
+  startDate?: Date | string | null;
+  endDate?: Date | string | null;
+  createdAt?: Date | string | null;
+  updatedAt?: Date | string | null;
+  submittedAt?: Date | string | null;
+  approvedAt?: Date | string | null;
+  letterPurpose?: string | null;
+  letterNumber?: string | null;
+  nomorSurat?: string | null;
+  statusHistory?: unknown;
+  tujuanSurat?: string | null;
+  tujuan_surat?: string | null;
+  team?: {
+    leaderId?: string | null;
+    leader?: { id?: string | null } | null;
+    academicSupervisor?: string | null;
+    members?: Array<{ status?: string | null; user?: { name?: string | null; nim?: string | null; prodi?: string | null } }>;
+  } | null;
+};
+
+type SubmissionDocumentLike = {
+  documentType?: string | null;
+  fileUrl?: string | null;
+  createdAt?: Date | string | null;
+  uploadedByUser?: {
+    id?: string | null;
+    name?: string | null;
+    email?: string | null;
+  } | null;
+};
+
+type GeneratedLetterLike = {
+  generatedAt?: Date | string | null;
+  fileUrl?: string | null;
+};
+
 export class SuratPengantarDosenService {
   constructor(
     private submissionRepo: SubmissionRepository,
@@ -33,7 +84,7 @@ export class SuratPengantarDosenService {
   async getRequestsForVerifier(userId: string, role: UserRole) {
     const verifier = await this.resolveVerifierContext(userId, role);
     const allSubmissions = await this.submissionRepo.findAll();
-    const submissions = allSubmissions.filter((submission: any) => {
+    const submissions = (allSubmissions as VerifierSubmission[]).filter((submission) => {
       const isPendingQueue = submission.workflowStage === 'PENDING_DOSEN_VERIFICATION';
       const isVerifierHistory =
         (submission.workflowStage === 'COMPLETED' || submission.workflowStage === 'REJECTED_DOSEN') &&
@@ -63,7 +114,7 @@ export class SuratPengantarDosenService {
       prodi: verifier.prodi,
       isAcademicViceDean: this.isAcademicViceDean(verifier),
       totalSubmissions: allSubmissions.length,
-      queueCandidates: submissions.map((s: any) => ({
+      queueCandidates: submissions.map((s) => ({
         id: s.id,
         workflowStage: s.workflowStage,
         adminVerificationStatus: s.adminVerificationStatus,
@@ -71,7 +122,7 @@ export class SuratPengantarDosenService {
       })),
     });
 
-    const items: any[] = [];
+    const items: Array<Record<string, unknown>> = [];
 
     for (const submission of submissions) {
       const team = await this.teamRepo.findById(submission.teamId);
@@ -152,7 +203,7 @@ export class SuratPengantarDosenService {
 
   private async resolveFallbackStudentProfile(submissionId: string) {
     const docs = await this.submissionRepo.findDocumentsBySubmissionId(submissionId);
-    const uploader = docs.find((doc: any) => doc.uploadedByUser?.id)?.uploadedByUser;
+    const uploader = (docs as SubmissionDocumentLike[]).find((doc) => doc.uploadedByUser?.id)?.uploadedByUser;
 
     if (!uploader?.id) {
       return null;
@@ -186,7 +237,6 @@ export class SuratPengantarDosenService {
     await this.assertSubmissionReadyForDosen(submission, verifier);
     let signedFileUrl =
       submission?.finalSignedFileUrl ??
-      (submission as any)?.final_signed_file_url ??
       null;
 
     // Hybrid mode:
@@ -356,7 +406,7 @@ export class SuratPengantarDosenService {
     };
   }
 
-  private async assertSubmissionReadyForDosen(submission: any, verifier: VerifierContext) {
+  private async assertSubmissionReadyForDosen(submission: VerifierSubmission, verifier: VerifierContext) {
     const isNormalQueue = submission.workflowStage === 'PENDING_DOSEN_VERIFICATION';
     const effectiveAdminStatus = this.getEffectiveAdminStatus(submission);
     const isLegacyQueue =
@@ -391,7 +441,7 @@ export class SuratPengantarDosenService {
     return jabatan.includes('wakil dekan') && jabatan.includes('akademik');
   }
 
-  private async resolveFinalSignedFileUrl(submission: any): Promise<string | null> {
+  private async resolveFinalSignedFileUrl(submission: VerifierSubmission): Promise<string | null> {
     const directUrl =
       submission?.finalSignedFileUrl ??
       submission?.final_signed_file_url ??
@@ -404,9 +454,9 @@ export class SuratPengantarDosenService {
     // Fallback 1: surat pengantar file attached in submission documents.
     // Some legacy rows store final file only in submission_documents.
     const documents = await this.submissionRepo.findDocumentsBySubmissionId(submission.id);
-    const latestSuratPengantarDoc = documents
-      .filter((doc: any) => doc.documentType === 'SURAT_PENGANTAR' && !!doc.fileUrl)
-      .sort((a: any, b: any) => {
+    const latestSuratPengantarDoc = (documents as SubmissionDocumentLike[])
+      .filter((doc) => doc.documentType === 'SURAT_PENGANTAR' && !!doc.fileUrl)
+      .sort((a, b) => {
         const aTime = a.createdAt ? new Date(a.createdAt).getTime() : 0;
         const bTime = b.createdAt ? new Date(b.createdAt).getTime() : 0;
         return bTime - aTime;
@@ -422,9 +472,9 @@ export class SuratPengantarDosenService {
       return null;
     }
 
-    const latestLetter = letters
+    const latestLetter = (letters as GeneratedLetterLike[])
       .slice()
-      .sort((a: any, b: any) => {
+      .sort((a, b) => {
         const aTime = a.generatedAt ? new Date(a.generatedAt).getTime() : 0;
         const bTime = b.generatedAt ? new Date(b.generatedAt).getTime() : 0;
         return bTime - aTime;
@@ -433,7 +483,7 @@ export class SuratPengantarDosenService {
     return latestLetter?.fileUrl ?? null;
   }
 
-  private resolveApprovedAt(submission: any): string | null {
+  private resolveApprovedAt(submission: VerifierSubmission): string | null {
     const approvedAt = submission?.dosenVerifiedAt ?? submission?.approvedAt ?? null;
     if (!approvedAt) {
       return null;
@@ -466,7 +516,7 @@ export class SuratPengantarDosenService {
     return verifier.prodi === leaderProfile.prodi;
   }
 
-  private async generateSignedPdf(submission: any, verifier: SigningContext) {
+  private async generateSignedPdf(submission: VerifierSubmission, verifier: SigningContext) {
     const pdfDoc = await PDFDocument.create();
     let page = pdfDoc.addPage([595.28, 841.89]);
     const font = await pdfDoc.embedFont(StandardFonts.TimesRoman);
@@ -741,7 +791,7 @@ export class SuratPengantarDosenService {
     };
 
     const teamMembers = Array.isArray(submission.team?.members) ? submission.team.members : [];
-    const acceptedMembers = teamMembers.filter((member: any) => member.status === 'ACCEPTED');
+    const acceptedMembers = teamMembers.filter((member) => member.status === 'ACCEPTED');
     const displayMembers = acceptedMembers.length
       ? acceptedMembers
       : [{ user: { name: 'Data mahasiswa tidak tersedia', nim: '-', prodi: '-' }, status: 'ACCEPTED' }];
@@ -846,7 +896,7 @@ export class SuratPengantarDosenService {
     const valueWidth = contentRight - valueX - 2;
 
     for (let index = 0; index < displayMembers.length; index += 1) {
-      const member: any = displayMembers[index];
+      const member = displayMembers[index] as { user?: { name?: string | null; nim?: string | null; prodi?: string | null } };
       ensureSpace(40);
       draw(`${index + 1}.`, numX, { size: 12 });
 
@@ -919,7 +969,7 @@ export class SuratPengantarDosenService {
     return Buffer.from(await pdfDoc.save());
   }
 
-  private buildRecipientLine(submission: any): string {
+  private buildRecipientLine(submission: VerifierSubmission): string {
     const tujuan = this.sanitizeText(
       submission?.tujuanSurat ??
       submission?.tujuan_surat ??
@@ -937,12 +987,12 @@ export class SuratPengantarDosenService {
     return tujuan || company || '-';
   }
 
-  private sanitizeText(value: any): string {
+  private sanitizeText(value: unknown): string {
     if (value == null) return '';
     return String(value).replace(/\s+/g, ' ').trim();
   }
 
-  private formatDateLong(dateValue: any): string {
+  private formatDateLong(dateValue: unknown): string {
     if (!dateValue) return '-';
 
     const months = [
@@ -986,7 +1036,7 @@ export class SuratPengantarDosenService {
     return `${serial}/KP/FT/${month}/${year}`;
   }
 
-  private getEffectiveAdminStatus(submission: any): 'PENDING' | 'APPROVED' | 'REJECTED' {
+  private getEffectiveAdminStatus(submission: VerifierSubmission): 'PENDING' | 'APPROVED' | 'REJECTED' {
     if (submission.adminVerificationStatus === 'APPROVED' || submission.adminVerificationStatus === 'REJECTED') {
       return submission.adminVerificationStatus;
     }

@@ -8,11 +8,10 @@ export class TemplateRepository {
 
   async findById(id: string): Promise<Template | null> {
     const result = await this.db.select().from(templates).where(eq(templates.id, id)).limit(1);
-    return (result[0] as any as Template) || null;
+    return (result[0] as Template) || null;
   }
 
   async findAll(filters?: { type?: string; isActive?: boolean; search?: string }): Promise<Template[]> {
-    let query = this.db.select().from(templates) as any;
     const conditions = [];
 
     if (filters?.type) {
@@ -30,11 +29,16 @@ export class TemplateRepository {
     }
 
     if (conditions.length > 0) {
-      query = query.where(and(...conditions));
+      const results = await this.db
+        .select()
+        .from(templates)
+        .where(and(...conditions))
+        .orderBy(desc(templates.createdAt));
+      return results as Template[];
     }
 
-    const results = await query.orderBy(desc(templates.createdAt));
-    return results as any as Template[];
+    const results = await this.db.select().from(templates).orderBy(desc(templates.createdAt));
+    return results as Template[];
   }
 
   async findActive(): Promise<Template[]> {
@@ -43,12 +47,12 @@ export class TemplateRepository {
       .from(templates)
       .where(eq(templates.isActive, true))
       .orderBy(desc(templates.createdAt));
-    return results as any as Template[];
+    return results as Template[];
   }
 
   async create(data: typeof templates.$inferInsert): Promise<Template> {
     const result = await this.db.insert(templates).values(data).returning();
-    return (result[0] as any as Template);
+    return result[0] as Template;
   }
 
   async update(id: string, data: Partial<typeof templates.$inferInsert>): Promise<Template | null> {
@@ -57,7 +61,7 @@ export class TemplateRepository {
       .set({ ...data, updatedAt: new Date() })
       .where(eq(templates.id, id))
       .returning();
-    return (result[0] as any as Template) || null;
+    return (result[0] as Template) || null;
   }
 
   async delete(id: string): Promise<boolean> {
@@ -74,7 +78,7 @@ export class TemplateRepository {
 
   async findByFileName(fileName: string): Promise<Template | null> {
     const result = await this.db.select().from(templates).where(eq(templates.fileName, fileName)).limit(1);
-    return (result[0] as any as Template) || null;
+    return (result[0] as Template) || null;
   }
 
   async countAll() {

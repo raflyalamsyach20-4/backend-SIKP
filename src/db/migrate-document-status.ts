@@ -57,7 +57,7 @@ async function migrateDocumentStatus() {
       await db
         .update(submissionDocuments)
         .set({
-          status: newStatus as any,
+          status: newStatus,
           statusUpdatedAt: new Date(),
         })
         .where(eq(submissionDocuments.id, doc.docId));

@@ -4,6 +4,7 @@ import { TeamRepository } from '@/repositories/team.repository';
 import { UserRepository } from '@/repositories/user.repository';
 import { TemplateRepository } from '@/repositories/template.repository';
 import { LetterService } from './letter.service';
+import { submissions } from '@/db/schema';
 import { z } from 'zod';
 
 type AdminActivity = {
@@ -29,6 +30,24 @@ type AdminDashboardPayload = {
   totalTemplateDokumen: number;
   statistikPengajuan: MonthlySubmissionStat[];
   activities: AdminActivity[];
+};
+
+type SubmissionLike = {
+  status?: string | null;
+  workflowStage?: string | null;
+  submittedAt?: Date | string | null;
+  createdAt?: Date | string | null;
+  statusHistory?: unknown;
+  adminVerificationStatus?: string | null;
+};
+
+type StatusHistoryEntry = {
+  status: 'APPROVED' | 'REJECTED';
+  workflowStage: 'PENDING_DOSEN_VERIFICATION' | 'REJECTED_ADMIN';
+  actor: 'ADMIN';
+  date: string;
+  reason?: string;
+  letterNumber?: string;
 };
 
 export class AdminService {
@@ -59,7 +78,7 @@ export class AdminService {
     return months;
   }
 
-  private resolveSubmissionDate(submission: any): Date | null {
+  private resolveSubmissionDate(submission: SubmissionLike): Date | null {
     const rawDate = submission.submittedAt || submission.createdAt;
     if (!rawDate) {
       return null;
@@ -75,7 +94,7 @@ export class AdminService {
     return `${year}-${month}`;
   }
 
-  private buildMonthlyStats(submissions: any[]): MonthlySubmissionStat[] {
+  private buildMonthlyStats(submissions: SubmissionLike[]): MonthlySubmissionStat[] {
     const monthBuckets = this.getLastFourMonths();
     const allowedKeys = new Set(monthBuckets.map((item) => item.monthKey));
 
@@ -159,12 +178,12 @@ export class AdminService {
     };
   }
 
-  private getCurrentStage(submission: any) {
+  private getCurrentStage(submission: SubmissionLike) {
     return submission.workflowStage ?? (submission.status === 'PENDING_REVIEW' ? 'PENDING_ADMIN_REVIEW' : submission.status);
   }
 
   private matchesStatusBucket(
-    submission: any,
+    submission: SubmissionLike,
     status: 'DRAFT' | 'PENDING_REVIEW' | 'REJECTED' | 'APPROVED'
   ) {
     const currentStage = this.getCurrentStage(submission);
@@ -334,7 +353,7 @@ export class AdminService {
 
     // ✅ Prepare status history entry
     const now = new Date();
-    const historyEntry: any = {
+    const historyEntry: StatusHistoryEntry = {
       status,
       workflowStage: status === 'APPROVED' ? 'PENDING_DOSEN_VERIFICATION' : 'REJECTED_ADMIN',
       actor: 'ADMIN',
@@ -353,7 +372,7 @@ export class AdminService {
     const newHistory = [...currentHistory, historyEntry];
 
     // Build update data
-    const updateData: any = {
+    const updateData: Partial<typeof submissions.$inferInsert> = {
       status: 'PENDING_REVIEW',
       approvedBy: null,
       statusHistory: newHistory,

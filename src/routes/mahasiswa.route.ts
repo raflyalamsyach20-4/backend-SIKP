@@ -1,43 +1,53 @@
-import { Hono, Context } from 'hono';
-import { DIContainer } from '@/core';
+import { Hono } from 'hono';
 import { authMiddleware, mahasiswaOnly } from '@/middlewares/auth.middleware';
-import { CloudflareBindings } from '@/config';
+import type { CloudflareBindings } from '@/config';
 import { zValidator } from '@hono/zod-validator';
-import { withContainer } from './route-handler';
+import { createRuntime } from '@/runtime';
 import { emptyFormSchema, emptyQuerySchema } from '@/schemas/common.schema';
 import { updateMahasiswaProfileSchema } from '@/validation';
 
-type Variables = {
-  container: DIContainer;
-};
-
 export const createMahasiswaProfileRoutes = () => {
-  const mahasiswa = new Hono<{ Bindings: CloudflareBindings; Variables: Variables }>()
+  const mahasiswa = new Hono<{ Bindings: CloudflareBindings }>()
     .use('*', authMiddleware, mahasiswaOnly)
     .get(
       '/dashboard',
       zValidator('query', emptyQuerySchema),
-      withContainer((container, c) => container.mahasiswaController.dashboard(c))
+      async (c) => {
+        const runtime = createRuntime(c.env);
+        return Reflect.apply(runtime.mahasiswaController.dashboard, runtime.mahasiswaController, [c, c.req.valid('query')]);
+      }
     )
     .get(
       '/me',
       zValidator('query', emptyQuerySchema),
-      withContainer((container, c) => container.mahasiswaController.me(c))
+      async (c) => {
+        const runtime = createRuntime(c.env);
+        return Reflect.apply(runtime.mahasiswaController.me, runtime.mahasiswaController, [c, c.req.valid('query')]);
+      }
     )
     .put(
       '/me/profile',
       zValidator('json', updateMahasiswaProfileSchema),
-      withContainer((container, c) => container.mahasiswaController.updateProfile(c))
+      async (c) => {
+        const runtime = createRuntime(c.env);
+        return Reflect.apply(runtime.mahasiswaController.updateProfile, runtime.mahasiswaController, [c, c.req.valid('json')]);
+      }
     )
     .put(
       '/me/esignature',
       zValidator('form', emptyFormSchema),
-      withContainer((container, c) => container.mahasiswaController.updateESignature(c))
+      async (c) => {
+        const runtime = createRuntime(c.env);
+        return Reflect.apply(runtime.mahasiswaController.updateESignature, runtime.mahasiswaController, [c, c.req.valid('form')]);
+      }
     )
     .delete(
       '/me/esignature',
       zValidator('query', emptyQuerySchema),
-      withContainer((container, c) => container.mahasiswaController.deleteESignature(c))
+      async (c) => {
+        const runtime = createRuntime(c.env);
+        return Reflect.apply(runtime.mahasiswaController.deleteESignature, runtime.mahasiswaController, [c, c.req.valid('query')]);
+      }
     );
 
   return mahasiswa;

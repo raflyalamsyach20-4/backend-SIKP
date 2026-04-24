@@ -1,7 +1,7 @@
 import { Context, Next } from 'hono';
 import { getCookie } from 'hono/cookie';
 import type { JWTPayload, UserRole } from '@/types';
-import { DIContainer } from '@/core';
+import { createRuntime } from '@/runtime';
 
 export interface AuthContext {
   user: JWTPayload;
@@ -31,12 +31,8 @@ export const authMiddleware = async (c: Context, next: Next) => {
       return c.json({ success: false, message: 'Unauthorized: No active session found' }, 401);
     }
 
-    const container = c.get('container') as DIContainer;
-    if (!container) {
-      return c.json({ success: false, message: 'Server configuration error' }, 500);
-    }
-
-    const user = await container.authService.authenticateSession(sessionId);
+    const runtime = createRuntime(c.env);
+    const user = await runtime.authService.authenticateSession(sessionId);
 
     const isAuthNamespaceRoute = c.req.path.startsWith('/api/auth/');
     if (!isAuthNamespaceRoute && !user.activeIdentity) {

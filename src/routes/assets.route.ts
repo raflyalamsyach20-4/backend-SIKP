@@ -1,13 +1,8 @@
 import { Context, Hono } from 'hono';
-import { CloudflareBindings } from '@/config';
-import { DIContainer } from '@/core';
+import type { CloudflareBindings } from '@/config';
 import { zValidator } from '@hono/zod-validator';
 import { emptyQuerySchema } from '@/schemas/common.schema';
-import { withContainer } from './route-handler';
-
-type Variables = {
-  container: DIContainer;
-};
+import { createRuntime } from '@/runtime';
 
 const setAssetCorsHeaders = (c: Context) => {
   const origin = c.req.header('Origin') || '*';
@@ -49,14 +44,15 @@ const normalizeR2Key = (rawParam: string) => {
 };
 
 export const createAssetRoutes = () => {
-  const routes = new Hono<{ Bindings: CloudflareBindings; Variables: Variables }>()
+  const routes = new Hono<{ Bindings: CloudflareBindings }>()
     .options('/r2/*', zValidator('query', emptyQuerySchema), (c: Context) => {
       setAssetCorsHeaders(c);
       return c.body(null, 204);
     })
-    .get('/r2/*', zValidator('query', emptyQuerySchema), withContainer(async (container, c: Context) => {
+    .get('/r2/*', zValidator('query', emptyQuerySchema), async (c: Context) => {
       setAssetCorsHeaders(c);
 
+      const runtime = createRuntime(c.env);
       const pathname = new URL(c.req.url).pathname;
       const marker = '/api/assets/r2/';
       const markerIndex = pathname.indexOf(marker);
@@ -67,7 +63,7 @@ export const createAssetRoutes = () => {
         return c.json({ success: false, message: 'Forbidden asset path' }, 403);
       }
 
-      const object = await container.storageService.getFile(objectKey);
+      const object = await runtime.storageService.getFile(objectKey);
 
       if (!object) {
         return c.json({ success: false, message: 'Asset not found' }, 404);
@@ -83,7 +79,7 @@ export const createAssetRoutes = () => {
       }
 
       return new Response(object.body, { status: 200, headers: c.res.headers });
-    }));
+    });
 
   return routes;
 };

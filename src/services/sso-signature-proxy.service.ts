@@ -19,6 +19,25 @@ const READ_ALLOWED_ROLES: UserRole[] = [
   'MENTOR',
 ];
 
+type ProxyPayload = { message?: string } | null;
+
+const parseProxyPayload = (text: string): ProxyPayload => {
+  if (!text) {
+    return null;
+  }
+
+  try {
+    const parsed: unknown = JSON.parse(text);
+    if (typeof parsed === 'object' && parsed !== null) {
+      return parsed as { message?: string };
+    }
+
+    return { message: String(parsed) };
+  } catch {
+    return { message: text };
+  }
+};
+
 export class SsoSignatureProxyService {
   constructor(
     private authService: AuthService,
@@ -92,15 +111,8 @@ export class SsoSignatureProxyService {
         signal: controller.signal,
       });
 
-      const text = await response.text();
-      let payload: any = null;
-      if (text) {
-        try {
-          payload = JSON.parse(text);
-        } catch {
-          payload = { message: text };
-        }
-      }
+        const text = await response.text();
+        const payload = parseProxyPayload(text);
 
       if (!response.ok) {
         const message = payload?.message || `SSO signature proxy request failed (${response.status})`;

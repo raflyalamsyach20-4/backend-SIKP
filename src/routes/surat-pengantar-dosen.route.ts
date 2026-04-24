@@ -1,35 +1,39 @@
-import { Context, Hono } from 'hono';
-import { DIContainer } from '@/core';
-import { CloudflareBindings } from '@/config';
+import { Hono } from 'hono';
+import type { CloudflareBindings } from '@/config';
 import { authMiddleware, roleMiddleware } from '@/middlewares/auth.middleware';
 import { zValidator } from '@hono/zod-validator';
-import { withContainer } from './route-handler';
+import { createRuntime } from '@/runtime';
 import { emptyQuerySchema, nonEmptyStringParamsSchema } from '@/schemas/common.schema';
 import { rejectRequestSchema } from '@/schemas/surat-pengantar-dosen.schema';
 
-type Variables = {
-  container: DIContainer;
-};
-
 export const createDosenSuratPengantarRoutes = () => {
-  const routes = new Hono<{ Bindings: CloudflareBindings; Variables: Variables }>()
+  const routes = new Hono<{ Bindings: CloudflareBindings }>()
     .use('*', authMiddleware, roleMiddleware(['DOSEN', 'WAKIL_DEKAN']))
     .get(
       '/requests',
       zValidator('query', emptyQuerySchema),
-      withContainer((container, c) => container.suratPengantarDosenController.getRequests(c))
+      async (c) => {
+        const runtime = createRuntime(c.env);
+        return Reflect.apply(runtime.suratPengantarDosenController.getRequests, runtime.suratPengantarDosenController, [c, c.req.valid('query')]);
+      }
     )
     .put(
       '/requests/:requestId/approve',
       zValidator('param', nonEmptyStringParamsSchema),
       zValidator('query', emptyQuerySchema),
-      withContainer((container, c) => container.suratPengantarDosenController.approve(c))
+      async (c) => {
+        const runtime = createRuntime(c.env);
+        return Reflect.apply(runtime.suratPengantarDosenController.approve, runtime.suratPengantarDosenController, [c, c.req.valid('param'), c.req.valid('query')]);
+      }
     )
     .put(
       '/requests/:requestId/reject',
       zValidator('param', nonEmptyStringParamsSchema),
       zValidator('json', rejectRequestSchema),
-      withContainer((container, c) => container.suratPengantarDosenController.reject(c))
+      async (c) => {
+        const runtime = createRuntime(c.env);
+        return Reflect.apply(runtime.suratPengantarDosenController.reject, runtime.suratPengantarDosenController, [c, c.req.valid('param'), c.req.valid('json')]);
+      }
     );
 
   return routes;

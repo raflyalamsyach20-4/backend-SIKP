@@ -1,21 +1,16 @@
-import { Hono, Context } from 'hono';
-import { DIContainer } from '@/core';
+import { Hono } from 'hono';
 import { authMiddleware, dosenOnly, roleMiddleware } from '@/middlewares/auth.middleware';
-import { CloudflareBindings } from '@/config';
+import type { CloudflareBindings } from '@/config';
 import { createDosenSuratKesediaanRoutes } from './surat-kesediaan.route';
 import { createDosenSuratPermohonanRoutes } from './surat-permohonan.route';
 import { createDosenSuratPengantarRoutes } from './surat-pengantar-dosen.route';
 import { zValidator } from '@hono/zod-validator';
-import { withContainer } from './route-handler';
+import { createRuntime } from '@/runtime';
 import { emptyFormSchema, emptyQuerySchema } from '@/schemas/common.schema';
 import { updateDosenProfileSchema } from '@/validation';
 
-type Variables = {
-  container: DIContainer;
-};
-
 export const createDosenRoutes = () => {
-  const dosen = new Hono<{ Bindings: CloudflareBindings; Variables: Variables }>()
+  const dosen = new Hono<{ Bindings: CloudflareBindings }>()
     .use('*', authMiddleware)
     .use('/me/*', dosenOnly)
     .use('/me', dosenOnly)
@@ -24,32 +19,50 @@ export const createDosenRoutes = () => {
     .get(
       '/dashboard',
       zValidator('query', emptyQuerySchema),
-      withContainer((container, c) => container.dosenController.dashboard(c))
+      async (c) => {
+        const runtime = createRuntime(c.env);
+        return Reflect.apply(runtime.dosenController.dashboard, runtime.dosenController, [c, c.req.valid('query')]);
+      }
     )
     .get(
       '/dashboard/wakdek',
       zValidator('query', emptyQuerySchema),
-      withContainer((container, c) => container.dosenController.wakdekDashboard(c))
+      async (c) => {
+        const runtime = createRuntime(c.env);
+        return Reflect.apply(runtime.dosenController.wakdekDashboard, runtime.dosenController, [c, c.req.valid('query')]);
+      }
     )
     .get(
       '/me',
       zValidator('query', emptyQuerySchema),
-      withContainer((container, c) => container.dosenController.me(c))
+      async (c) => {
+        const runtime = createRuntime(c.env);
+        return Reflect.apply(runtime.dosenController.me, runtime.dosenController, [c, c.req.valid('query')]);
+      }
     )
     .put(
       '/me/profile',
       zValidator('json', updateDosenProfileSchema),
-      withContainer((container, c) => container.dosenController.updateProfile(c))
+      async (c) => {
+        const runtime = createRuntime(c.env);
+        return Reflect.apply(runtime.dosenController.updateProfile, runtime.dosenController, [c, c.req.valid('json')]);
+      }
     )
     .put(
       '/me/esignature',
       zValidator('form', emptyFormSchema),
-      withContainer((container, c) => container.dosenController.updateESignature(c))
+      async (c) => {
+        const runtime = createRuntime(c.env);
+        return Reflect.apply(runtime.dosenController.updateESignature, runtime.dosenController, [c, c.req.valid('form')]);
+      }
     )
     .delete(
       '/me/esignature',
       zValidator('query', emptyQuerySchema),
-      withContainer((container, c) => container.dosenController.deleteESignature(c))
+      async (c) => {
+        const runtime = createRuntime(c.env);
+        return Reflect.apply(runtime.dosenController.deleteESignature, runtime.dosenController, [c, c.req.valid('query')]);
+      }
     )
     // Surat Kesediaan Routes (nested)
     .route('/surat-kesediaan', createDosenSuratKesediaanRoutes())

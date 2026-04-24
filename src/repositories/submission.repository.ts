@@ -2,6 +2,26 @@ import { asc, eq, desc, inArray, and, isNull } from 'drizzle-orm';
 import type { DbClient } from '@/db';
 import { submissions, submissionDocuments, generatedLetters, teams, teamMembers } from '@/db/schema';
 
+type TeamMemberRow = {
+  id: string;
+  teamId: string;
+  userId: string;
+  role: string | null;
+  status: string;
+  invitedAt: Date;
+  respondedAt: Date | null;
+};
+
+type TeamMemberWithUser = TeamMemberRow & {
+  user: {
+    id: string;
+    name: null;
+    email: null;
+    nim: null;
+    prodi: null;
+  };
+};
+
 export class SubmissionRepository {
   constructor(private db: DbClient) {}
 
@@ -53,8 +73,8 @@ export class SubmissionRepository {
       .where(eq(teams.id, submission.teamId))
       .limit(1);
 
-    let team = teamData[0];
-    let teamMembers_list: any[] = [];
+    const team = teamData[0];
+    let teamMembers_list: TeamMemberWithUser[] = [];
 
     let academicSupervisor: string | null = null;
     let dosenKpName: string | null = null;
@@ -78,7 +98,7 @@ export class SubmissionRepository {
         .from(teamMembers)
         .where(eq(teamMembers.teamId, submission.teamId));
 
-      teamMembers_list = membersData.map((member) => ({
+      teamMembers_list = (membersData as TeamMemberRow[]).map((member) => ({
         ...member,
         user: {
           id: member.userId,
@@ -274,7 +294,7 @@ export class SubmissionRepository {
     const result = await this.db
       .update(submissionDocuments)
       .set({
-        status: newStatus as any,
+        status: newStatus,
         statusUpdatedAt: new Date(),
       })
       .where(eq(submissionDocuments.id, documentId))
@@ -283,7 +303,11 @@ export class SubmissionRepository {
   }
 
   // ✅ NEW: Find existing document by submissionId, documentType, and memberUserId
-  async findExistingDocument(submissionId: string, documentType: string, memberUserId: string) {
+  async findExistingDocument(
+    submissionId: string,
+    documentType: typeof submissionDocuments.$inferSelect.documentType,
+    memberUserId: string
+  ) {
     const result = await this.db
       .select({
         id: submissionDocuments.id,
@@ -304,7 +328,7 @@ export class SubmissionRepository {
       .where(
         and(
           eq(submissionDocuments.submissionId, submissionId),
-          eq(submissionDocuments.documentType, documentType as any),
+          eq(submissionDocuments.documentType, documentType),
           eq(submissionDocuments.memberUserId, memberUserId)
         )
       )
@@ -362,8 +386,8 @@ export class SubmissionRepository {
           .where(eq(teams.id, submission.teamId))
           .limit(1);
 
-        let team = teamData[0];
-        let teamMembers_list: any[] = [];
+        const team = teamData[0];
+        let teamMembers_list: TeamMemberWithUser[] = [];
 
         let academicSupervisor: string | null = null;
         let dosenKpName: string | null = null;
@@ -386,7 +410,7 @@ export class SubmissionRepository {
             .from(teamMembers)
             .where(eq(teamMembers.teamId, submission.teamId));
 
-          teamMembers_list = membersData.map((member) => ({
+          teamMembers_list = (membersData as TeamMemberRow[]).map((member) => ({
             ...member,
             user: {
               id: member.userId,

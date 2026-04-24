@@ -1,11 +1,10 @@
-import { Hono, Context } from 'hono';
-import { DIContainer } from '@/core';
+import { Hono } from 'hono';
 import { authMiddleware, mahasiswaOnly } from '@/middlewares/auth.middleware';
-import { CloudflareBindings } from '@/config';
+import type { CloudflareBindings } from '@/config';
 import { createMahasiswaSuratKesediaanRoutes } from './surat-kesediaan.route';
 import { createMahasiswaSuratPermohonanRoutes } from './surat-permohonan.route';
 import { zValidator } from '@hono/zod-validator';
-import { withContainer } from './route-handler';
+import { createRuntime } from '@/runtime';
 import {
   authCallbackSchema,
   authPrepareSchema,
@@ -19,74 +18,97 @@ import {
 } from '@/schemas/common.schema';
 
 /**
- * Extended context variables
- */
-type Variables = {
-  container: DIContainer;
-};
-
-/**
  * Auth Routes
  * Handles authentication-related endpoints
  */
 export const createAuthRoutes = () => {
-  const auth = new Hono<{ Bindings: CloudflareBindings; Variables: Variables }>()
+  const auth = new Hono<{ Bindings: CloudflareBindings }>()
     // Legacy routes (disabled by controller)
     .post(
       '/register/mahasiswa',
       zValidator('json', emptyJsonSchema),
-      withContainer((container, c) => container.authController.registerMahasiswa(c))
+      async (c) => {
+        const runtime = createRuntime(c.env);
+        return Reflect.apply(runtime.authController.registerMahasiswa, runtime.authController, [c, c.req.valid('json')]);
+      }
     )
     .post(
       '/register/admin',
       zValidator('json', emptyJsonSchema),
-      withContainer((container, c) => container.authController.registerAdmin(c))
+      async (c) => {
+        const runtime = createRuntime(c.env);
+        return Reflect.apply(runtime.authController.registerAdmin, runtime.authController, [c, c.req.valid('json')]);
+      }
     )
     .post(
       '/register/dosen',
       zValidator('json', emptyJsonSchema),
-      withContainer((container, c) => container.authController.registerDosen(c))
+      async (c) => {
+        const runtime = createRuntime(c.env);
+        return Reflect.apply(runtime.authController.registerDosen, runtime.authController, [c, c.req.valid('json')]);
+      }
     )
     .post(
       '/login',
       zValidator('json', emptyJsonSchema),
-      withContainer((container, c) => container.authController.login(c))
+      async (c) => {
+        const runtime = createRuntime(c.env);
+        return Reflect.apply(runtime.authController.login, runtime.authController, [c, c.req.valid('json')]);
+      }
     )
     .post(
       '/prepare',
       zValidator('json', authPrepareSchema),
-      withContainer((container, c) => container.authController.prepare(c))
+      async (c) => {
+        const runtime = createRuntime(c.env);
+        return Reflect.apply(runtime.authController.prepare, runtime.authController, [c, c.req.valid('json')]);
+      }
     )
     // SSO callback route
     .post(
       '/callback',
       zValidator('json', authCallbackSchema),
-      withContainer((container, c) => container.authController.callback(c))
+      async (c) => {
+        const runtime = createRuntime(c.env);
+        return Reflect.apply(runtime.authController.callback, runtime.authController, [c, c.req.valid('json')]);
+      }
     )
     // Protected SSO routes
     .get(
       '/me',
       authMiddleware,
       zValidator('query', emptyQuerySchema),
-      withContainer((container, c) => container.authController.me(c))
+      async (c) => {
+        const runtime = createRuntime(c.env);
+        return Reflect.apply(runtime.authController.me, runtime.authController, [c, c.req.valid('query')]);
+      }
     )
     .get(
       '/identities',
       authMiddleware,
       zValidator('query', emptyQuerySchema),
-      withContainer((container, c) => container.authController.identities(c))
+      async (c) => {
+        const runtime = createRuntime(c.env);
+        return Reflect.apply(runtime.authController.identities, runtime.authController, [c, c.req.valid('query')]);
+      }
     )
     .post(
       '/select-identity',
       authMiddleware,
       zValidator('json', selectIdentitySchema),
-      withContainer((container, c) => container.authController.selectIdentity(c))
+      async (c) => {
+        const runtime = createRuntime(c.env);
+        return Reflect.apply(runtime.authController.selectIdentity, runtime.authController, [c, c.req.valid('json')]);
+      }
     )
     .post(
       '/logout',
       authMiddleware,
       zValidator('json', emptyJsonSchema),
-      withContainer((container, c) => container.authController.logout(c))
+      async (c) => {
+        const runtime = createRuntime(c.env);
+        return Reflect.apply(runtime.authController.logout, runtime.authController, [c, c.req.valid('json')]);
+      }
     );
 
   return auth;
@@ -97,12 +119,15 @@ export const createAuthRoutes = () => {
  * Handles mahasiswa search endpoint
  */
 export const createMahasiswaRoutes = () => {
-  const mahasiswa = new Hono<{ Bindings: CloudflareBindings; Variables: Variables }>()
+  const mahasiswa = new Hono<{ Bindings: CloudflareBindings }>()
     .use('*', authMiddleware)
     .get(
       '/search',
       zValidator('query', searchMahasiswaQuerySchema),
-      withContainer((container, c) => container.authController.searchMahasiswa(c))
+      async (c) => {
+        const runtime = createRuntime(c.env);
+        return Reflect.apply(runtime.authController.searchMahasiswa, runtime.authController, [c, c.req.valid('query')]);
+      }
     )
     .route('/surat-kesediaan', createMahasiswaSuratKesediaanRoutes())
     .route('/surat-permohonan', createMahasiswaSuratPermohonanRoutes())
@@ -111,7 +136,14 @@ export const createMahasiswaRoutes = () => {
       mahasiswaOnly,
       zValidator('param', nonEmptyStringParamsSchema),
       zValidator('query', emptyQuerySchema),
-      withContainer((container, c) => container.submissionController.getLetterRequestStatus(c))
+      async (c) => {
+        const runtime = createRuntime(c.env);
+        return Reflect.apply(runtime.submissionController.getLetterRequestStatus, runtime.submissionController, [
+          c,
+          c.req.valid('param'),
+          c.req.valid('query'),
+        ]);
+      }
     );
 
   return mahasiswa;

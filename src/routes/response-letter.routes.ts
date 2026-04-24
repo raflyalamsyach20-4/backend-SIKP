@@ -1,25 +1,17 @@
-import { Hono, Context } from 'hono';
-import { DIContainer } from '@/core';
+import { Hono } from 'hono';
 import { authMiddleware } from '@/middlewares/auth.middleware';
-import { CloudflareBindings } from '@/config';
+import type { CloudflareBindings } from '@/config';
 import { zValidator } from '@hono/zod-validator';
-import { withContainer } from './route-handler';
+import { createRuntime } from '@/runtime';
 import { emptyQuerySchema, nonEmptyStringParamsSchema } from '@/schemas/common.schema';
 import { submitResponseLetterSchema, verifyResponseLetterSchema } from '@/validation/response-letter.validation';
-
-/**
- * Extended context variables
- */
-type Variables = {
-  container: DIContainer;
-};
 
 /**
  * Response Letter Routes
  * Base path: /api/response-letters
  */
 export const createResponseLetterRoutes = () => {
-  const router = new Hono<{ Bindings: CloudflareBindings; Variables: Variables }>()
+  const router = new Hono<{ Bindings: CloudflareBindings }>()
     // Apply auth middleware to all routes
     .use('*', authMiddleware)
 
@@ -32,7 +24,10 @@ export const createResponseLetterRoutes = () => {
     .post(
       '/',
       zValidator('form', submitResponseLetterSchema),
-      withContainer((container, c) => container.responseLetterController.submitResponseLetter(c))
+      async (c) => {
+        const runtime = createRuntime(c.env);
+        return Reflect.apply(runtime.responseLetterController.submitResponseLetter, runtime.responseLetterController, [c, c.req.valid('form')]);
+      }
     )
 
   /**
@@ -44,7 +39,10 @@ export const createResponseLetterRoutes = () => {
     .get(
       '/admin',
       zValidator('query', emptyQuerySchema),
-      withContainer((container, c) => container.responseLetterController.getAllResponseLetters(c))
+      async (c) => {
+        const runtime = createRuntime(c.env);
+        return Reflect.apply(runtime.responseLetterController.getAllResponseLetters, runtime.responseLetterController, [c, c.req.valid('query')]);
+      }
     )
 
   /**
@@ -55,7 +53,10 @@ export const createResponseLetterRoutes = () => {
     .get(
       '/my',
       zValidator('query', emptyQuerySchema),
-      withContainer((container, c) => container.responseLetterController.getMyResponseLetter(c))
+      async (c) => {
+        const runtime = createRuntime(c.env);
+        return Reflect.apply(runtime.responseLetterController.getMyResponseLetter, runtime.responseLetterController, [c, c.req.valid('query')]);
+      }
     )
 
   /**
@@ -67,7 +68,10 @@ export const createResponseLetterRoutes = () => {
       '/:id/status',
       zValidator('param', nonEmptyStringParamsSchema),
       zValidator('query', emptyQuerySchema),
-      withContainer((container, c) => container.responseLetterController.getResponseLetterStatus(c))
+      async (c) => {
+        const runtime = createRuntime(c.env);
+        return Reflect.apply(runtime.responseLetterController.getResponseLetterStatus, runtime.responseLetterController, [c, c.req.valid('param'), c.req.valid('query')]);
+      }
     )
 
   /**
@@ -80,7 +84,10 @@ export const createResponseLetterRoutes = () => {
       '/:id',
       zValidator('param', nonEmptyStringParamsSchema),
       zValidator('query', emptyQuerySchema),
-      withContainer((container, c) => container.responseLetterController.getResponseLetterById(c))
+      async (c) => {
+        const runtime = createRuntime(c.env);
+        return Reflect.apply(runtime.responseLetterController.getResponseLetterById, runtime.responseLetterController, [c, c.req.valid('param'), c.req.valid('query')]);
+      }
     )
 
   /**
@@ -93,7 +100,10 @@ export const createResponseLetterRoutes = () => {
       '/admin/:id/verify',
       zValidator('param', nonEmptyStringParamsSchema),
       zValidator('json', verifyResponseLetterSchema),
-      withContainer((container, c) => container.responseLetterController.verifyResponseLetter(c))
+      async (c) => {
+        const runtime = createRuntime(c.env);
+        return Reflect.apply(runtime.responseLetterController.verifyResponseLetter, runtime.responseLetterController, [c, c.req.valid('param'), c.req.valid('json')]);
+      }
     )
 
   /**
@@ -105,7 +115,10 @@ export const createResponseLetterRoutes = () => {
       '/admin/:id',
       zValidator('param', nonEmptyStringParamsSchema),
       zValidator('query', emptyQuerySchema),
-      withContainer((container, c) => container.responseLetterController.deleteResponseLetter(c))
+      async (c) => {
+        const runtime = createRuntime(c.env);
+        return Reflect.apply(runtime.responseLetterController.deleteResponseLetter, runtime.responseLetterController, [c, c.req.valid('param'), c.req.valid('query')]);
+      }
     );
 
   return router;

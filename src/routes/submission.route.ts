@@ -1,9 +1,8 @@
-import { Hono, Context } from 'hono';
-import { DIContainer } from '@/core';
+import { Hono } from 'hono';
 import { authMiddleware, mahasiswaOnly, roleMiddleware } from '@/middlewares/auth.middleware';
-import { CloudflareBindings } from '@/config';
+import type { CloudflareBindings } from '@/config';
 import { zValidator } from '@hono/zod-validator';
-import { withContainer } from './route-handler';
+import { createRuntime } from '@/runtime';
 import { emptyQuerySchema, nonEmptyStringParamsSchema } from '@/schemas/common.schema';
 import {
   createSubmissionSchema,
@@ -12,18 +11,11 @@ import {
 } from '@/schemas/submission.schema';
 
 /**
- * Extended context variables
- */
-type Variables = {
-  container: DIContainer;
-};
-
-/**
  * Submission Routes
  * Handles submission management endpoints
  */
 export const createSubmissionRoutes = () => {
-  const submission = new Hono<{ Bindings: CloudflareBindings; Variables: Variables }>()
+  const submission = new Hono<{ Bindings: CloudflareBindings }>()
     // Apply auth middleware to all submission routes
     .use('*', authMiddleware)
     // Create submission (mahasiswa only)
@@ -32,14 +24,20 @@ export const createSubmissionRoutes = () => {
       mahasiswaOnly,
       zValidator('query', emptyQuerySchema),
       zValidator('json', createSubmissionSchema),
-      withContainer((container, c) => container.submissionController.createSubmission(c))
+      async (c) => {
+        const runtime = createRuntime(c.env);
+        return Reflect.apply(runtime.submissionController.createSubmission, runtime.submissionController, [c, c.req.valid('json'), c.req.valid('query')]);
+      }
     )
     // Get user's submissions (mahasiswa only)
     .get(
       '/my-submissions',
       mahasiswaOnly,
       zValidator('query', emptyQuerySchema),
-      withContainer((container, c) => container.submissionController.getMySubmissions(c))
+      async (c) => {
+        const runtime = createRuntime(c.env);
+        return Reflect.apply(runtime.submissionController.getMySubmissions, runtime.submissionController, [c, c.req.valid('query')]);
+      }
     )
     // Get submission by ID (mahasiswa + admin)
     .get(
@@ -47,7 +45,10 @@ export const createSubmissionRoutes = () => {
       roleMiddleware(['MAHASISWA', 'ADMIN', 'KAPRODI', 'WAKIL_DEKAN', 'DOSEN']),
       zValidator('param', nonEmptyStringParamsSchema),
       zValidator('query', emptyQuerySchema),
-      withContainer((container, c) => container.submissionController.getSubmissionById(c))
+      async (c) => {
+        const runtime = createRuntime(c.env);
+        return Reflect.apply(runtime.submissionController.getSubmissionById, runtime.submissionController, [c, c.req.valid('param'), c.req.valid('query')]);
+      }
     )
     // Update submission (mahasiswa only)
     .put(
@@ -55,14 +56,20 @@ export const createSubmissionRoutes = () => {
       mahasiswaOnly,
       zValidator('param', nonEmptyStringParamsSchema),
       zValidator('json', updateSubmissionSchema),
-      withContainer((container, c) => container.submissionController.updateSubmission(c))
+      async (c) => {
+        const runtime = createRuntime(c.env);
+        return Reflect.apply(runtime.submissionController.updateSubmission, runtime.submissionController, [c, c.req.valid('param'), c.req.valid('json')]);
+      }
     )
     .patch(
       '/:submissionId',
       mahasiswaOnly,
       zValidator('param', nonEmptyStringParamsSchema),
       zValidator('json', updateSubmissionSchema),
-      withContainer((container, c) => container.submissionController.updateSubmission(c))
+      async (c) => {
+        const runtime = createRuntime(c.env);
+        return Reflect.apply(runtime.submissionController.updateSubmission, runtime.submissionController, [c, c.req.valid('param'), c.req.valid('json')]);
+      }
     )
     // Submit for review (mahasiswa only)
     .post(
@@ -70,14 +77,20 @@ export const createSubmissionRoutes = () => {
       mahasiswaOnly,
       zValidator('param', nonEmptyStringParamsSchema),
       zValidator('query', emptyQuerySchema),
-      withContainer((container, c) => container.submissionController.submitForReview(c))
+      async (c) => {
+        const runtime = createRuntime(c.env);
+        return Reflect.apply(runtime.submissionController.submitForReview, runtime.submissionController, [c, c.req.valid('param'), c.req.valid('query')]);
+      }
     )
     .put(
       '/:submissionId/submit',
       mahasiswaOnly,
       zValidator('param', nonEmptyStringParamsSchema),
       zValidator('query', emptyQuerySchema),
-      withContainer((container, c) => container.submissionController.submitForReview(c))
+      async (c) => {
+        const runtime = createRuntime(c.env);
+        return Reflect.apply(runtime.submissionController.submitForReview, runtime.submissionController, [c, c.req.valid('param'), c.req.valid('query')]);
+      }
     )
     // Upload document (mahasiswa only)
     .post(
@@ -85,7 +98,10 @@ export const createSubmissionRoutes = () => {
       mahasiswaOnly,
       zValidator('param', nonEmptyStringParamsSchema),
       zValidator('form', uploadDocumentSchema),
-      withContainer((container, c) => container.submissionController.uploadDocument(c))
+      async (c) => {
+        const runtime = createRuntime(c.env);
+        return Reflect.apply(runtime.submissionController.uploadDocument, runtime.submissionController, [c, c.req.valid('param'), c.req.valid('form')]);
+      }
     )
     // Get documents (mahasiswa only)
     .get(
@@ -93,7 +109,10 @@ export const createSubmissionRoutes = () => {
       mahasiswaOnly,
       zValidator('param', nonEmptyStringParamsSchema),
       zValidator('query', emptyQuerySchema),
-      withContainer((container, c) => container.submissionController.getDocuments(c))
+      async (c) => {
+        const runtime = createRuntime(c.env);
+        return Reflect.apply(runtime.submissionController.getDocuments, runtime.submissionController, [c, c.req.valid('param'), c.req.valid('query')]);
+      }
     )
     // Backward compatibility for frontend status endpoint
     .get(
@@ -101,7 +120,14 @@ export const createSubmissionRoutes = () => {
       mahasiswaOnly,
       zValidator('param', nonEmptyStringParamsSchema),
       zValidator('query', emptyQuerySchema),
-      withContainer((container, c) => container.submissionController.getLetterRequestStatus(c))
+      async (c) => {
+        const runtime = createRuntime(c.env);
+        return Reflect.apply(runtime.submissionController.getLetterRequestStatus, runtime.submissionController, [
+          c,
+          c.req.valid('param'),
+          c.req.valid('query'),
+        ]);
+      }
     )
     // Delete document (mahasiswa only)
     // ✅ NEW: Support frontend delete before reupload
@@ -110,7 +136,10 @@ export const createSubmissionRoutes = () => {
       mahasiswaOnly,
       zValidator('param', nonEmptyStringParamsSchema),
       zValidator('query', emptyQuerySchema),
-      withContainer((container, c) => container.submissionController.deleteDocument(c))
+      async (c) => {
+        const runtime = createRuntime(c.env);
+        return Reflect.apply(runtime.submissionController.deleteDocument, runtime.submissionController, [c, c.req.valid('param'), c.req.valid('query')]);
+      }
     )
     // Reset to draft (mahasiswa only)
     .put(
@@ -118,7 +147,10 @@ export const createSubmissionRoutes = () => {
       mahasiswaOnly,
       zValidator('param', nonEmptyStringParamsSchema),
       zValidator('query', emptyQuerySchema),
-      withContainer((container, c) => container.submissionController.resetToDraft(c))
+      async (c) => {
+        const runtime = createRuntime(c.env);
+        return Reflect.apply(runtime.submissionController.resetToDraft, runtime.submissionController, [c, c.req.valid('param'), c.req.valid('query')]);
+      }
     );
 
   return submission;

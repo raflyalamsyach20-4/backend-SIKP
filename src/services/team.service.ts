@@ -35,8 +35,10 @@ export class TeamService {
       // ✅ Validate dosenPAId exists (required from SSO)
       if (!dosenPAId) {
         console.error(`[createTeam] ❌ Missing dosenPAId for profileId=${profileId}`);
-        const err = new Error('Dosen PA tidak ditemukan. Hubungi administrator untuk mengatur dosen PA.');
-        (err as any).statusCode = 400;
+        const err = new Error('Dosen PA tidak ditemukan. Hubungi administrator untuk mengatur dosen PA.') as Error & {
+          statusCode?: number;
+        };
+        err.statusCode = 400;
         throw err;
       }
 
@@ -86,7 +88,7 @@ export class TeamService {
         });
         
         console.log(`[createTeam] ✅ Leader added as member successfully`);
-      } catch (memberError) {
+      } catch (memberError: unknown) {
         console.error(`[createTeam] ❌ Failed to add leader as member:`, memberError);
         
         // Rollback: Delete the team if adding member fails
@@ -97,8 +99,9 @@ export class TeamService {
           console.error(`[createTeam] ⚠️ Rollback failed:`, rollbackError);
         }
         
-        const err = memberError as Error;
-        throw new Error(`Failed to add leader to team: ${err.message}`);
+        throw new Error(
+          `Failed to add leader to team: ${memberError instanceof Error ? memberError.message : 'Unknown error'}`
+        );
       }
 
       console.log(`[createTeam] ✅ Team creation completed: ${team.code}`);

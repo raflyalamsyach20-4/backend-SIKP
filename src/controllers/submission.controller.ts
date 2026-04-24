@@ -16,15 +16,6 @@ type ErrorLike = {
 
 type ErrorResponseStatusCode = 400 | 401 | 403 | 404 | 409 | 422 | 500;
 
-type SubmissionServiceAccess = {
-  submissionRepo: {
-    findById: (id: string) => Promise<{ teamId: string } | null>;
-  };
-  teamRepo: {
-    findMemberByTeamAndUser: (teamId: string, userId: string) => Promise<unknown>;
-  };
-};
-
 const toErrorLike = (value: unknown): ErrorLike => {
   if (typeof value === 'object' && value !== null) {
     return value as ErrorLike;
@@ -225,18 +216,12 @@ export class SubmissionController {
       }
 
       // Authorization check:
-      // - ADMIN/KAPRODI/WAKIL_DEKAN can view any submission
+      // - ADMIN/KAPRODI/WAKIL_DEKAN can view all submissions
       // - MAHASISWA can only view submissions from their own team
       if (!['ADMIN', 'KAPRODI', 'WAKIL_DEKAN', 'DOSEN'].includes(user.role)) {
-        // User is MAHASISWA - verify they're a member of the submission's team
-        const serviceAccess = this.submissionService as unknown as SubmissionServiceAccess;
-        const submission_data = await serviceAccess.submissionRepo.findById(submissionId);
-        if (submission_data) {
-          const teamRepo = serviceAccess.teamRepo;
-          const member = await teamRepo.findMemberByTeamAndUser(submission_data.teamId, user.userId);
-          if (!member) {
-            return c.json(createResponse(false, 'Forbidden: You do not have access to this submission'), 403);
-          }
+        const canAccess = await this.submissionService.canAccessSubmission(submissionId, user.userId);
+        if (!canAccess) {
+          return c.json(createResponse(false, 'Forbidden: You do not have access to this submission'), 403);
         }
       }
 

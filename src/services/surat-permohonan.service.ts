@@ -156,9 +156,10 @@ export class SuratPermohonanService {
     let dosenSigningContext: DosenSigningContext;
     try {
       dosenSigningContext = await this.getDosenSigningContext(dosenUserId);
-    } catch (error) {
-      const err = error as Error;
-      const reason = err.message || 'Gagal memuat e-signature dosen.';
+    } catch (error: unknown) {
+      const reason = error instanceof Error && error.message
+        ? error.message
+        : 'Gagal memuat e-signature dosen.';
       return {
         approvedCount,
         failed: requestIds.map((requestId) => ({ requestId, reason })),
@@ -169,11 +170,12 @@ export class SuratPermohonanService {
       try {
         await this.approveAndSignRequest(requestId, dosenUserId, dosenSigningContext);
         approvedCount += 1;
-      } catch (error) {
-        const err = error as Error;
+      } catch (error: unknown) {
         failed.push({
           requestId,
-          reason: err.message || 'Gagal menyetujui pengajuan.',
+          reason: error instanceof Error && error.message
+            ? error.message
+            : 'Gagal menyetujui pengajuan.',
         });
       }
     }
