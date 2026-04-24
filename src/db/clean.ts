@@ -1,6 +1,5 @@
-import { drizzle } from 'drizzle-orm/neon-http';
-import { neon } from '@neondatabase/serverless';
 import * as dotenv from 'dotenv';
+import { getMaintenanceSql } from './maintenance-client';
 
 dotenv.config({ path: '.env' });
 
@@ -9,7 +8,7 @@ const cleanDatabase = async () => {
     throw new Error('DATABASE_URL is not defined');
   }
 
-  const sql = neon(process.env.DATABASE_URL);
+  const sql = getMaintenanceSql();
 
   console.log('🧹 Cleaning up database (deleting all data)...\n');
 

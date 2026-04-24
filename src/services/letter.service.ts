@@ -4,6 +4,18 @@ import { SubmissionRepository } from '@/repositories/submission.repository';
 import { StorageService } from './storage.service';
 import { generateId } from '@/utils/helpers';
 
+type LetterSubmission = {
+  id: string;
+  teamId: string;
+  companyName: string | null;
+  companyAddress: string | null;
+  division?: string | null;
+  startDate?: string | Date | null;
+  endDate?: string | Date | null;
+  adminVerificationStatus?: string | null;
+  status?: string | null;
+};
+
 export class LetterService {
   constructor(
     private submissionRepo: SubmissionRepository,
@@ -16,8 +28,9 @@ export class LetterService {
       throw new Error('Submission not found');
     }
 
-    if (submission.status !== 'DITERIMA') {
-      throw new Error('Can only generate letter for approved submissions');
+    const adminApproved = submission.adminVerificationStatus === 'APPROVED' || submission.status === 'APPROVED';
+    if (!adminApproved) {
+      throw new Error('Can only generate letter for admin-approved submissions');
     }
 
     // Generate letter number
@@ -56,7 +69,7 @@ export class LetterService {
     return letter;
   }
 
-  private async generatePDF(submission: any, letterNumber: string): Promise<Buffer> {
+  private async generatePDF(submission: LetterSubmission, letterNumber: string): Promise<Buffer> {
     return new Promise((resolve, reject) => {
       const doc = new PDFDocument({ margin: 50 });
       const chunks: Buffer[] = [];
@@ -99,7 +112,7 @@ export class LetterService {
       // Team members info would go here
       doc.text('Adapun data mahasiswa tersebut adalah:');
       doc.text(`Tim: ${submission.teamId}`);
-      doc.text(`Posisi: ${submission.position || '-'}`);
+      doc.text(`Posisi: ${submission.division || '-'}`);
       doc.text(`Periode: ${submission.startDate ? new Date(submission.startDate).toLocaleDateString('id-ID') : '-'} s/d ${submission.endDate ? new Date(submission.endDate).toLocaleDateString('id-ID') : '-'}`);
       doc.moveDown();
 
@@ -119,7 +132,7 @@ export class LetterService {
     });
   }
 
-  private async generateDOCX(submission: any, letterNumber: string): Promise<Buffer> {
+  private async generateDOCX(submission: LetterSubmission, letterNumber: string): Promise<Buffer> {
     const doc = new Document({
       sections: [
         {
@@ -145,14 +158,18 @@ export class LetterService {
             }),
             new Paragraph({ text: '' }),
             new Paragraph({
-              text: 'SURAT PENGANTAR KERJA PRAKTIK',
+              children: [
+                new TextRun({
+                  text: 'SURAT PENGANTAR KERJA PRAKTIK',
+                  bold: true,
+                }),
+              ],
               alignment: 'center',
-              bold: true,
             }),
             new Paragraph({ text: '' }),
             new Paragraph({ text: 'Kepada Yth.' }),
-            new Paragraph({ text: submission.companyName }),
-            new Paragraph({ text: submission.companyAddress }),
+            new Paragraph({ text: submission.companyName ?? '' }),
+            new Paragraph({ text: submission.companyAddress ?? '' }),
             new Paragraph({ text: '' }),
             new Paragraph({ text: 'Dengan hormat,' }),
             new Paragraph({ text: '' }),
@@ -162,7 +179,7 @@ export class LetterService {
             new Paragraph({ text: '' }),
             new Paragraph({ text: 'Adapun data mahasiswa tersebut adalah:' }),
             new Paragraph({ text: `Tim: ${submission.teamId}` }),
-            new Paragraph({ text: `Posisi: ${submission.position || '-'}` }),
+            new Paragraph({ text: `Posisi: ${submission.division || '-'}` }),
             new Paragraph({ text: '' }),
             new Paragraph({
               text: 'Demikian surat pengantar ini kami sampaikan, atas perhatian dan kerjasamanya kami ucapkan terima kasih.',

@@ -1,5 +1,5 @@
-import { neon } from '@neondatabase/serverless';
 import * as dotenv from 'dotenv';
+import { getMaintenanceSql } from './maintenance-client';
 
 dotenv.config({ path: '.env' });
 
@@ -8,7 +8,7 @@ const checkStatus = async () => {
     throw new Error('DATABASE_URL is not defined in .env file');
   }
 
-  const sql = neon(process.env.DATABASE_URL);
+  const sql = getMaintenanceSql();
 
   try {
     console.log('\n🔍 Checking database status...\n');
@@ -58,11 +58,12 @@ const checkStatus = async () => {
     for (const tableName of mainTables) {
       try {
         const query = `SELECT COUNT(*) as count FROM "${tableName}"`;
-        const result = await sql(query);
+        const result = await sql.query(query);
         const count = result[0]?.count || 0;
         console.log(`   ${tableName.padEnd(20)} : ${count} records`);
-      } catch (error: any) {
-        console.log(`   ${tableName.padEnd(20)} : Error - ${error.message}`);
+      } catch (error) {
+        const err = error as Error;
+        console.log(`   ${tableName.padEnd(20)} : Error - ${err.message}`);
       }
     }
     console.log('');

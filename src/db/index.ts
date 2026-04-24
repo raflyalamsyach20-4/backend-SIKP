@@ -8,3 +8,9 @@ export const createDbClient = (databaseUrl: string) => {
 };
 
 export type DbClient = ReturnType<typeof createDbClient>;
+
+// Reusable script client (for Node/tsx scripts). In Workers runtime this stays null.
+const databaseUrlFromEnv = typeof process !== 'undefined' ? process.env?.DATABASE_URL : undefined;
+export const db: DbClient | null = databaseUrlFromEnv
+  ? createDbClient(databaseUrlFromEnv)
+  : null;

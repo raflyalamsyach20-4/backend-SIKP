@@ -8,33 +8,61 @@
     "dev": "wrangler dev",
     "deploy": "wrangler deploy --minify",
     "cf-typegen": "wrangler types --env-interface CloudflareBindings",
-    "db:generate": "drizzle-kit generate:pg",
-    "db:migrate": "tsx src/db/migrate.ts",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "verify": "bun run cf-typegen; bun run typecheck",
+    "prepare": "husky",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "drizzle-kit migrate",
+    "db:backfill:workflow": "tsx src/db/backfill-submission-workflow.ts",
+    "db:backfill:final-status": "tsx src/db/backfill-final-status-ownership.ts",
+    "db:verify:workflow": "tsx src/db/verify-submission-workflow.ts",
     "db:studio": "drizzle-kit studio",
-    "db:push": "drizzle-kit push:pg",
+    "db:push": "drizzle-kit push",
     "db:seed": "tsx src/db/seed.ts",
-    "db:status": "tsx src/db/status.ts"
+    "db:status": "tsx src/db/status.ts",
+    "db:reset": "tsx src/db/db-reset.ts",
+    "lint": "eslint \"src/**/*.{ts,tsx}\" --max-warnings 0",
+    "format": "prettier --write \"src/**/*.{ts,tsx,js,json,md,yml,yaml}\"",
+    "format:check": "prettier --check \"src/**/*.{ts,tsx,js,json,md,yml,yaml}\"",
+    "check": "bun run format && bun run format:check && bun run lint"
+  },
+  "lint-staged": {
+    "*.{ts,tsx}": [
+      "bash -c 'bun run typecheck'"
+    ]
   },
   "dependencies": {
-    "@neondatabase/serverless": "^0.9.0",
+    "@hono/zod-validator": "^0.7.6",
+    "@neondatabase/serverless": "1.0.2",
     "bcryptjs": "^2.4.3",
     "docx": "^8.5.0",
-    "drizzle-orm": "^0.29.3",
+    "drizzle-orm": "0.45.2",
     "hono": "^4.11.3",
+    "jose": "^6.2.2",
     "jsonwebtoken": "^9.0.2",
     "nanoid": "^5.0.4",
+    "pdf-lib": "^1.17.1",
     "pdfkit": "^0.13.0",
     "pg": "^8.18.0",
-    "zod": "^3.22.4"
+    "zod": "^4.3.6"
   },
   "devDependencies": {
-    "@cloudflare/workers-types": "^4.20231218.0",
     "@types/bcryptjs": "^2.4.6",
     "@types/jsonwebtoken": "^9.0.5",
+    "@types/node": "^25.6.0",
     "@types/pdfkit": "^0.13.0",
+    "@typescript-eslint/eslint-plugin": "^8.59.0",
+    "@typescript-eslint/parser": "^8.59.0",
     "dotenv": "^16.3.1",
-    "drizzle-kit": "^0.20.10",
+    "drizzle-kit": "0.31.10",
+    "eslint": "^10.2.1",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-prettier": "^5.5.5",
+    "husky": "^9.1.7",
+    "lint-staged": "^16.2.4",
+    "prettier": "^3.8.3",
     "tsx": "^4.7.0",
+    "typescript": "^6.0.3",
     "wrangler": "^4.60.0"
   }
 }

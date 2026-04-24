@@ -1,38 +1,94 @@
 import { Hono } from 'hono';
-import type { DbClient } from '@/db';
-import { TemplateController } from '@/controllers/template.controller';
-import { authMiddleware } from '@/middlewares/auth.middleware';
+import { authMiddleware, adminOnly } from '@/middlewares/auth.middleware';
+import type { CloudflareBindings } from '@/config';
+import { zValidator } from '@hono/zod-validator';
+import { createRuntime } from '@/runtime';
+import { emptyFormSchema, emptyQuerySchema, nonEmptyStringParamsSchema } from '@/schemas/common.schema';
 
-export const createTemplateRoutes = (db: DbClient, uploadConfig: { R2Bucket?: R2Bucket; s3Client?: any }) => {
-  const router = new Hono<{ Bindings: { R2_BUCKET?: R2Bucket } }>();
-  const controller = new TemplateController(db, uploadConfig);
-
-  // Public routes (require authentication)
-  router.use('*', authMiddleware);
-
-  // Get all templates
-  router.get('/', (c) => controller.getAll(c));
-
-  // Get active templates
-  router.get('/active', (c) => controller.getActive(c));
-
-  // Get template by ID
-  router.get('/:id', (c) => controller.getById(c));
-
-  // Create template (Admin only)
-  router.post('/', (c) => controller.create(c));
-
-  // Update template (Admin only)
-  router.put('/:id', (c) => controller.update(c));
-
-  // Delete template (Admin only)
-  router.delete('/:id', (c) => controller.delete(c));
-
-  // Toggle active status (Admin only)
-  router.patch('/:id/toggle-active', (c) => controller.toggleActive(c));
-
-  // Download template file
-  router.get('/:id/download', (c) => controller.download(c));
+/**
+ * Template Routes
+ * Handles template management endpoints
+ */
+export const createTemplateRoutes = () => {
+  const router = new Hono<{ Bindings: CloudflareBindings }>()
+    // Apply auth middleware to all template routes
+    .use('*', authMiddleware)
+    // Public read routes (specific paths first)
+    .get(
+      '/active',
+      zValidator('query', emptyQuerySchema),
+      async (c) => {
+        const runtime = createRuntime(c.env);
+        return Reflect.apply(runtime.templateController.getActive, runtime.templateController, [c, c.req.valid('query')]);
+      }
+    )
+    .get(
+      '/',
+      zValidator('query', emptyQuerySchema),
+      async (c) => {
+        const runtime = createRuntime(c.env);
+        return Reflect.apply(runtime.templateController.getAll, runtime.templateController, [c, c.req.valid('query')]);
+      }
+    )
+    // Admin-only write routes
+    .post(
+      '/',
+      adminOnly,
+      zValidator('form', emptyFormSchema),
+      async (c) => {
+        const runtime = createRuntime(c.env);
+        return Reflect.apply(runtime.templateController.create, runtime.templateController, [c, c.req.valid('form')]);
+      }
+    )
+    .put(
+      '/:id',
+      adminOnly,
+      zValidator('param', nonEmptyStringParamsSchema),
+      zValidator('form', emptyFormSchema),
+      async (c) => {
+        const runtime = createRuntime(c.env);
+        return Reflect.apply(runtime.templateController.update, runtime.templateController, [c, c.req.valid('param'), c.req.valid('form')]);
+      }
+    )
+    .delete(
+      '/:id',
+      adminOnly,
+      zValidator('param', nonEmptyStringParamsSchema),
+      zValidator('query', emptyQuerySchema),
+      async (c) => {
+        const runtime = createRuntime(c.env);
+        return Reflect.apply(runtime.templateController.delete, runtime.templateController, [c, c.req.valid('param'), c.req.valid('query')]);
+      }
+    )
+    .patch(
+      '/:id/toggle-active',
+      adminOnly,
+      zValidator('param', nonEmptyStringParamsSchema),
+      zValidator('query', emptyQuerySchema),
+      async (c) => {
+        const runtime = createRuntime(c.env);
+        return Reflect.apply(runtime.templateController.toggleActive, runtime.templateController, [c, c.req.valid('param'), c.req.valid('query')]);
+      }
+    )
+    // Public read routes (by ID and download)
+    .get(
+      '/:id/download',
+      zValidator('param', nonEmptyStringParamsSchema),
+      zValidator('query', emptyQuerySchema),
+      async (c) => {
+        const runtime = createRuntime(c.env);
+        return Reflect.apply(runtime.templateController.download, runtime.templateController, [c, c.req.valid('param'), c.req.valid('query')]);
+      }
+    )
+    .get(
+      '/:id',
+      zValidator('param', nonEmptyStringParamsSchema),
+      zValidator('query', emptyQuerySchema),
+      async (c) => {
+        const runtime = createRuntime(c.env);
+        return Reflect.apply(runtime.templateController.getById, runtime.templateController, [c, c.req.valid('param'), c.req.valid('query')]);
+      }
+    );
 
   return router;
 };

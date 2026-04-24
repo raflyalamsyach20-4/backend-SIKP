@@ -12,25 +12,14 @@ export class LogbookController {
   }
 
   /**
-   * POST /api/mahasiswa/logbook
+   * POST /api/logbooks
    */
-  createLogbook = async (c: Context) => {
+  createLogbook = async (c: Context, validated: any) => {
     try {
       const userId = this.getUserId(c);
       if (!userId) return c.json(createResponse(false, 'Unauthorized'), 401);
 
-      const { date, activity, description, hours } = await c.req.json();
-
-      if (!date || !activity || !description) {
-        return c.json(createResponse(false, 'date, activity, and description are required'), 400);
-      }
-
-      const entry = await this.logbookService.createLogbook(userId, {
-        date,
-        activity,
-        description,
-        hours: hours !== undefined ? Number(hours) : undefined,
-      });
+      const entry = await this.logbookService.createLogbook(userId, validated);
 
       return c.json(createResponse(true, 'Logbook entry created successfully', entry), 201);
     } catch (error) {
@@ -42,9 +31,9 @@ export class LogbookController {
   };
 
   /**
-   * GET /api/mahasiswa/logbook
+   * GET /api/logbooks
    */
-  getLogbooks = async (c: Context) => {
+  getLogbooks = async (c: Context, query: any) => {
     try {
       const userId = this.getUserId(c);
       if (!userId) return c.json(createResponse(false, 'Unauthorized'), 401);
@@ -60,9 +49,9 @@ export class LogbookController {
   };
 
   /**
-   * GET /api/mahasiswa/logbook/stats
+   * GET /api/logbooks/stats
    */
-  getLogbookStats = async (c: Context) => {
+  getLogbookStats = async (c: Context, query: any) => {
     try {
       const userId = this.getUserId(c);
       if (!userId) return c.json(createResponse(false, 'Unauthorized'), 401);
@@ -78,9 +67,9 @@ export class LogbookController {
   };
 
   /**
-   * GET /api/mahasiswa/logbook/:id
+   * GET /api/logbooks/:id
    */
-  getLogbookById = async (c: Context) => {
+  getLogbookById = async (c: Context, query: any) => {
     try {
       const userId = this.getUserId(c);
       if (!userId) return c.json(createResponse(false, 'Unauthorized'), 401);
@@ -97,22 +86,16 @@ export class LogbookController {
   };
 
   /**
-   * PUT /api/mahasiswa/logbook/:id
+   * PUT /api/logbooks/:logbookId
    */
-  updateLogbook = async (c: Context) => {
+  updateLogbook = async (c: Context, validated: any) => {
     try {
       const userId = this.getUserId(c);
       if (!userId) return c.json(createResponse(false, 'Unauthorized'), 401);
 
-      const id = c.req.param('id');
-      const { date, activity, description, hours } = await c.req.json();
+      const id = c.req.param('logbookId');
 
-      const updated = await this.logbookService.updateLogbook(userId, id, {
-        date,
-        activity,
-        description,
-        hours: hours !== undefined ? Number(hours) : undefined,
-      });
+      const updated = await this.logbookService.updateLogbook(userId, id, validated);
 
       return c.json(createResponse(true, 'Logbook entry updated successfully', updated), 200);
     } catch (error) {
@@ -127,14 +110,14 @@ export class LogbookController {
   };
 
   /**
-   * DELETE /api/mahasiswa/logbook/:id
+   * DELETE /api/logbooks/:logbookId
    */
-  deleteLogbook = async (c: Context) => {
+  deleteLogbook = async (c: Context, query: any) => {
     try {
       const userId = this.getUserId(c);
       if (!userId) return c.json(createResponse(false, 'Unauthorized'), 401);
 
-      const id = c.req.param('id');
+      const id = c.req.param('logbookId');
       await this.logbookService.deleteLogbook(userId, id);
       return c.json(createResponse(true, 'Logbook entry deleted successfully'), 200);
     } catch (error) {

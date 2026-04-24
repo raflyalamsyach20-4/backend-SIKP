@@ -22,9 +22,9 @@ export class MentorController {
   // ─── Profile ────────────────────────────────────────────────────────────────
 
   /**
-   * GET /api/mentor/profile
+   * GET /api/mentorship/profile
    */
-  getProfile = async (c: Context) => {
+  getProfile = async (c: Context, query: any) => {
     try {
       const mentorId = this.getMentorId(c);
       if (!mentorId) return c.json(createResponse(false, 'Unauthorized'), 401);
@@ -38,15 +38,14 @@ export class MentorController {
   };
 
   /**
-   * PUT /api/mentor/profile
+   * PUT /api/mentorship/profile
    */
-  updateProfile = async (c: Context) => {
+  updateProfile = async (c: Context, validated: any) => {
     try {
       const mentorId = this.getMentorId(c);
       if (!mentorId) return c.json(createResponse(false, 'Unauthorized'), 401);
 
-      const { nama, phone, companyName, position, companyAddress } = await c.req.json();
-      const updated = await this.mentorService.updateProfile(mentorId, { nama, phone, companyName, position, companyAddress });
+      const updated = await this.mentorService.updateProfile(mentorId, validated);
       return c.json(createResponse(true, 'Profile updated successfully', updated), 200);
     } catch (error) {
       if (error instanceof Error && error.message.includes('not found')) return this.notFound(c, error.message);
@@ -57,9 +56,9 @@ export class MentorController {
   // ─── Signature ──────────────────────────────────────────────────────────────
 
   /**
-   * GET /api/mentor/signature
+   * GET /api/mentorship/signature
    */
-  getSignature = async (c: Context) => {
+  getSignature = async (c: Context, query: any) => {
     try {
       const mentorId = this.getMentorId(c);
       if (!mentorId) return c.json(createResponse(false, 'Unauthorized'), 401);
@@ -73,17 +72,14 @@ export class MentorController {
   };
 
   /**
-   * PUT /api/mentor/signature
+   * PUT /api/mentorship/signature
    */
-  updateSignature = async (c: Context) => {
+  updateSignature = async (c: Context, validated: any) => {
     try {
       const mentorId = this.getMentorId(c);
       if (!mentorId) return c.json(createResponse(false, 'Unauthorized'), 401);
 
-      const { signature } = await c.req.json();
-      if (!signature) return c.json(createResponse(false, 'signature field is required (Base64 data URL)'), 400);
-
-      const updated = await this.mentorService.updateSignature(mentorId, signature);
+      const updated = await this.mentorService.updateSignature(mentorId, validated.signature);
       return c.json(createResponse(true, 'Signature updated successfully', updated), 200);
     } catch (error) {
       if (error instanceof Error && error.message.includes('valid')) {
@@ -94,9 +90,9 @@ export class MentorController {
   };
 
   /**
-   * POST /api/mentor/signature/delete
+   * POST /api/mentorship/signature/delete
    */
-  deleteSignature = async (c: Context) => {
+  deleteSignature = async (c: Context, validated: any) => {
     try {
       const mentorId = this.getMentorId(c);
       if (!mentorId) return c.json(createResponse(false, 'Unauthorized'), 401);
@@ -111,9 +107,9 @@ export class MentorController {
   // ─── Mentees ────────────────────────────────────────────────────────────────
 
   /**
-   * GET /api/mentor/mentees
+   * GET /api/mentorship/mentees
    */
-  getMentees = async (c: Context) => {
+  getMentees = async (c: Context, query: any) => {
     try {
       const mentorId = this.getMentorId(c);
       if (!mentorId) return c.json(createResponse(false, 'Unauthorized'), 401);
@@ -126,9 +122,9 @@ export class MentorController {
   };
 
   /**
-   * GET /api/mentor/mentees/:studentId
+   * GET /api/mentorship/mentees/:studentId
    */
-  getMenteeById = async (c: Context) => {
+  getMenteeById = async (c: Context, query: any) => {
     try {
       const mentorId = this.getMentorId(c);
       if (!mentorId) return c.json(createResponse(false, 'Unauthorized'), 401);
@@ -145,9 +141,9 @@ export class MentorController {
   // ─── Logbooks ───────────────────────────────────────────────────────────────
 
   /**
-   * GET /api/mentor/logbook/:studentId
+   * GET /api/mentorship/mentees/:studentId/logbooks
    */
-  getStudentLogbooks = async (c: Context) => {
+  getStudentLogbooks = async (c: Context, query: any) => {
     try {
       const mentorId = this.getMentorId(c);
       if (!mentorId) return c.json(createResponse(false, 'Unauthorized'), 401);
@@ -162,9 +158,9 @@ export class MentorController {
   };
 
   /**
-   * POST /api/mentor/logbook/:logbookId/approve
+   * POST /api/mentorship/logbooks/:logbookId/approve
    */
-  approveLogbook = async (c: Context) => {
+  approveLogbook = async (c: Context, validated: any) => {
     try {
       const mentorId = this.getMentorId(c);
       if (!mentorId) return c.json(createResponse(false, 'Unauthorized'), 401);
@@ -180,21 +176,15 @@ export class MentorController {
   };
 
   /**
-   * POST /api/mentor/logbook/:logbookId/reject
+   * POST /api/mentorship/logbooks/:logbookId/reject
    */
-  rejectLogbook = async (c: Context) => {
+  rejectLogbook = async (c: Context, validated: any) => {
     try {
       const mentorId = this.getMentorId(c);
       if (!mentorId) return c.json(createResponse(false, 'Unauthorized'), 401);
 
       const logbookId = c.req.param('logbookId');
-      const { rejectionReason } = await c.req.json();
-
-      if (!rejectionReason?.trim()) {
-        return c.json(createResponse(false, 'rejectionReason is required'), 400);
-      }
-
-      const entry = await this.mentorService.rejectLogbook(mentorId, logbookId, rejectionReason);
+      const entry = await this.mentorService.rejectLogbook(mentorId, logbookId, validated.rejectionReason);
       return c.json(createResponse(true, 'Logbook entry rejected', entry), 200);
     } catch (error) {
       if (error instanceof Error && error.message.includes('not found')) return this.notFound(c, error.message);
@@ -204,9 +194,9 @@ export class MentorController {
   };
 
   /**
-   * POST /api/mentor/logbook/:studentId/approve-all
+   * POST /api/mentorship/mentees/:studentId/approve-all
    */
-  approveAllLogbooks = async (c: Context) => {
+  approveAllLogbooks = async (c: Context, validated: any) => {
     try {
       const mentorId = this.getMentorId(c);
       if (!mentorId) return c.json(createResponse(false, 'Unauthorized'), 401);
@@ -223,31 +213,14 @@ export class MentorController {
   // ─── Assessments ────────────────────────────────────────────────────────────
 
   /**
-   * POST /api/mentor/assessment
+   * POST /api/mentorship/assessments
    */
-  createAssessment = async (c: Context) => {
+  createAssessment = async (c: Context, validated: any) => {
     try {
       const mentorId = this.getMentorId(c);
       if (!mentorId) return c.json(createResponse(false, 'Unauthorized'), 401);
 
-      const body = await c.req.json();
-      const { studentUserId, kehadiran, kerjasama, sikapEtika, prestasiKerja, kreatifitas, feedback } = body;
-
-      if (!studentUserId) return c.json(createResponse(false, 'studentUserId is required'), 400);
-      if (kehadiran === undefined || kerjasama === undefined || sikapEtika === undefined ||
-          prestasiKerja === undefined || kreatifitas === undefined) {
-        return c.json(createResponse(false, 'All score fields are required: kehadiran, kerjasama, sikapEtika, prestasiKerja, kreatifitas'), 400);
-      }
-
-      const assessment = await this.mentorService.createAssessment(mentorId, {
-        studentUserId,
-        kehadiran: Number(kehadiran),
-        kerjasama: Number(kerjasama),
-        sikapEtika: Number(sikapEtika),
-        prestasiKerja: Number(prestasiKerja),
-        kreatifitas: Number(kreatifitas),
-        feedback,
-      });
+      const assessment = await this.mentorService.createAssessment(mentorId, validated);
 
       return c.json(createResponse(true, 'Assessment created successfully', assessment), 201);
     } catch (error) {
@@ -263,9 +236,9 @@ export class MentorController {
   };
 
   /**
-   * GET /api/mentor/assessment/:studentId
+   * GET /api/mentorship/assessments/:studentId
    */
-  getAssessmentByStudent = async (c: Context) => {
+  getAssessmentByStudent = async (c: Context, query: any) => {
     try {
       const mentorId = this.getMentorId(c);
       if (!mentorId) return c.json(createResponse(false, 'Unauthorized'), 401);
@@ -285,24 +258,16 @@ export class MentorController {
   };
 
   /**
-   * PUT /api/mentor/assessment/:assessmentId
+   * PUT /api/mentorship/assessments/:assessmentId
    */
-  updateAssessment = async (c: Context) => {
+  updateAssessment = async (c: Context, validated: any) => {
     try {
       const mentorId = this.getMentorId(c);
       if (!mentorId) return c.json(createResponse(false, 'Unauthorized'), 401);
 
       const assessmentId = c.req.param('assessmentId');
-      const { kehadiran, kerjasama, sikapEtika, prestasiKerja, kreatifitas, feedback } = await c.req.json();
 
-      const updated = await this.mentorService.updateAssessment(mentorId, assessmentId, {
-        kehadiran: kehadiran !== undefined ? Number(kehadiran) : undefined,
-        kerjasama: kerjasama !== undefined ? Number(kerjasama) : undefined,
-        sikapEtika: sikapEtika !== undefined ? Number(sikapEtika) : undefined,
-        prestasiKerja: prestasiKerja !== undefined ? Number(prestasiKerja) : undefined,
-        kreatifitas: kreatifitas !== undefined ? Number(kreatifitas) : undefined,
-        feedback,
-      });
+      const updated = await this.mentorService.updateAssessment(mentorId, assessmentId, validated);
 
       return c.json(createResponse(true, 'Assessment updated successfully', updated), 200);
     } catch (error) {

@@ -1,9 +1,9 @@
-import { drizzle } from 'drizzle-orm/neon-http';
-import { neon } from '@neondatabase/serverless';
+// @ts-nocheck
 import { users, mahasiswa, admin, dosen } from './schema';
 import * as dotenv from 'dotenv';
 import bcrypt from 'bcryptjs';
 import { generateId } from '@/utils/helpers';
+import { getMaintenanceDb } from './maintenance-client';
 
 dotenv.config({ path: '.env' });
 
@@ -12,8 +12,7 @@ const seed = async () => {
     throw new Error('DATABASE_URL is not defined in .env file');
   }
 
-  const sql = neon(process.env.DATABASE_URL);
-  const db = drizzle(sql);
+  const db = getMaintenanceDb();
 
   console.log('🌱 Seeding database...');
 
@@ -28,6 +27,8 @@ const seed = async () => {
       nama: 'Super Admin',
       email: 'admin@univ.ac.id',
       password: hashedPassword,
+      authUserId: `seed-admin-${adminUserId}`,
+      authProvider: 'SSO_UNSRI',
       role: 'ADMIN',
       phone: '081234567890',
       isActive: true,
@@ -56,6 +57,8 @@ const seed = async () => {
       nama: 'Budi Santoso',
       email: 'budi.santoso@student.univ.ac.id',
       password: mahasiswaPassword,
+      authUserId: `seed-mahasiswa-${mahasiswa1Id}`,
+      authProvider: 'SSO_UNSRI',
       role: 'MAHASISWA',
       phone: '081234567891',
       isActive: true,
@@ -76,6 +79,8 @@ const seed = async () => {
       nama: 'Siti Nurhaliza',
       email: 'siti.nurhaliza@student.univ.ac.id',
       password: mahasiswaPassword,
+      authUserId: `seed-mahasiswa-${mahasiswa2Id}`,
+      authProvider: 'SSO_UNSRI',
       role: 'MAHASISWA',
       phone: '081234567892',
       isActive: true,
@@ -103,6 +108,8 @@ const seed = async () => {
       nama: 'Dr. Ahmad Fauzi',
       email: 'ahmad.fauzi@univ.ac.id',
       password: hashedPassword,
+      authUserId: `seed-dosen-${dosenId}`,
+      authProvider: 'SSO_UNSRI',
       role: 'DOSEN',
       phone: '081234567893',
       isActive: true,

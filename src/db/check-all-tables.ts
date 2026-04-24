@@ -1,15 +1,21 @@
-import { drizzle } from 'drizzle-orm/neon-http';
-import { neon } from '@neondatabase/serverless';
 import * as dotenv from 'dotenv';
+import { getMaintenanceSql } from './maintenance-client';
 
 dotenv.config({ path: '.env' });
+
+type TableColumnRow = {
+  column_name: string;
+  data_type: string;
+  is_nullable: string;
+  column_default: string | null;
+};
 
 const checkTableStructure = async () => {
   if (!process.env.DATABASE_URL) {
     throw new Error('DATABASE_URL is not defined');
   }
 
-  const sql = neon(process.env.DATABASE_URL);
+  const sql = getMaintenanceSql();
 
   console.log('\n' + '='.repeat(100));
   console.log('📊 COMPLETE DATABASE STRUCTURE CHECK');
@@ -36,14 +42,15 @@ const checkTableStructure = async () => {
         WHERE table_name = ${tableName}
         ORDER BY ordinal_position
       `;
+      const columnRows = columns as TableColumnRow[];
 
       console.log(`\n📋 TABLE: "${tableName}"`);
       console.log('-'.repeat(100));
 
-      if ((columns as any).length === 0) {
+      if (columnRows.length === 0) {
         console.log(`  ⚠️  Table tidak ditemukan atau tidak memiliki kolom`);
       } else {
-        (columns as any).forEach((col: any) => {
+        columnRows.forEach((col) => {
           const nullable = col.is_nullable === 'YES' ? '[NULL]' : '[NOT NULL]';
           const defaultVal = col.column_default ? ` DEFAULT: ${col.column_default}` : '';
           console.log(
@@ -51,8 +58,9 @@ const checkTableStructure = async () => {
           );
         });
       }
-    } catch (error: any) {
-      console.log(`  ❌ Error: ${error.message}`);
+    } catch (error) {
+      const err = error as Error;
+      console.log(`  ❌ Error: ${err.message}`);
     }
   }
 

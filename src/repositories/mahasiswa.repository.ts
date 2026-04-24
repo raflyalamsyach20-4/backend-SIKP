@@ -33,10 +33,6 @@ export class MahasiswaRepository {
         name: users.nama,
         nim: mahasiswa.nim,
         email: users.email,
-        prodi: mahasiswa.prodi,
-        fakultas: mahasiswa.fakultas,
-        angkatan: mahasiswa.angkatan,
-        semester: mahasiswa.semester,
         phone: users.phone,
       })
       .from(users)
@@ -60,10 +56,6 @@ export class MahasiswaRepository {
         studentName: users.nama,
         nim: mahasiswa.nim,
         email: users.email,
-        prodi: mahasiswa.prodi,
-        fakultas: mahasiswa.fakultas,
-        angkatan: mahasiswa.angkatan,
-        semester: mahasiswa.semester,
         
         // Submission data
         submissionId: submissions.id,

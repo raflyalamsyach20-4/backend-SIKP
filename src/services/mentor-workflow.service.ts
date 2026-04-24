@@ -56,7 +56,7 @@ export class MentorWorkflowService {
     if (request.status !== 'PENDING') throw new Error('Only pending requests can be approved');
 
     const mahasiswa = await this.workflowRepo.getMahasiswaByUserId(request.studentUserId);
-    if (!mahasiswa) throw new Error('Mahasiswa profile not found');
+    if (!mahasiswa || !mahasiswa.nim) throw new Error('Mahasiswa profile or NIM not found');
 
     const internship = await this.workflowRepo.getActiveInternshipByMahasiswaNim(mahasiswa.nim);
     if (!internship) throw new Error('No active internship found for this student');

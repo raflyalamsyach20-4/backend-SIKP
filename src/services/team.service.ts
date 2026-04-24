@@ -1,53 +1,74 @@
 import { TeamRepository } from '@/repositories/team.repository';
 import { UserRepository } from '@/repositories/user.repository';
+import { SubmissionRepository } from '@/repositories/submission.repository';
+  import { ResponseLetterRepository } from '@/repositories/response-letter.repository';
 import { generateId, generateTeamCode } from '@/utils/helpers';
 
 export class TeamService {
   constructor(
     private teamRepo: TeamRepository,
-    private userRepo: UserRepository
+    private userRepo: UserRepository,
+    private submissionRepo: SubmissionRepository,
+    private responseLetterRepo: ResponseLetterRepository
   ) {}
 
-  async createTeam(leaderId: string) {
-    console.log(`[createTeam] 🚀 Starting team creation for leaderId=${leaderId}`);
+  private buildDefaultDraftPayload(teamCode: string) {
+    const now = new Date();
+    const today = now.toISOString().split('T')[0];
+
+    return {
+      letterPurpose: `Belum diisi`,
+      companyName: 'Belum diisi',
+      companyAddress: 'Belum diisi',
+      companyPhone: null,
+      companyBusinessType: null,
+      division: 'Belum diisi',
+      startDate: today,
+      endDate: today,
+    };
+  }
+
+  async createTeam(profileId: string, dosenPAId: string | null | undefined) {
+    console.log(`[createTeam] 🚀 Starting team creation for profileId=${profileId}, dosenPAId=${dosenPAId}`);
     
     try {
-      // Verify leader exists
-      const leader = await this.userRepo.findById(leaderId);
-      if (!leader) {
-        console.error(`[createTeam] ❌ User not found: ${leaderId}`);
-        throw new Error('User not found');
+      // ✅ Validate dosenPAId exists (required from SSO)
+      if (!dosenPAId) {
+        console.error(`[createTeam] ❌ Missing dosenPAId for profileId=${profileId}`);
+        const err = new Error('Dosen PA tidak ditemukan. Hubungi administrator untuk mengatur dosen PA.') as Error & {
+          statusCode?: number;
+        };
+        err.statusCode = 400;
+        throw err;
       }
 
-      if (leader.role !== 'MAHASISWA') {
-        console.error(`[createTeam] ❌ User is not MAHASISWA: ${leader.role}`);
-        throw new Error('Only students can create teams');
-      }
-
-      console.log(`[createTeam] ✅ User verified: ${leader.nama} (${leader.role})`);
-
-      // Check if user already has a team (as leader)
-      const existingTeamsAsLeader = await this.teamRepo.findByLeaderId(leaderId);
+      // Check if profileId already has a team (as leader)
+      const existingTeamsAsLeader = await this.teamRepo.findByLeaderId(profileId);
       if (existingTeamsAsLeader.length > 0) {
-        console.error(`[createTeam] ❌ User already has ${existingTeamsAsLeader.length} team(s)`);
+        console.error(`[createTeam] ❌ profileId already has ${existingTeamsAsLeader.length} team(s)`);
         throw new Error('You already have a team. Each student can only create one team');
       }
 
-      // Check if user is already a member of another team (ACCEPTED status)
-      const existingMemberships = await this.teamRepo.findMembershipByUserId(leaderId);
+      // Check if profileId is already a member of another team (ACCEPTED status)
+      const existingMemberships = await this.teamRepo.findMembershipByUserId(profileId);
       const acceptedMembership = existingMemberships.find(m => m.invitationStatus === 'ACCEPTED');
       if (acceptedMembership) {
-        console.error(`[createTeam] ❌ User already member of team: ${acceptedMembership.teamId}`);
+        console.error(`[createTeam] ❌ profileId already member of team: ${acceptedMembership.teamId}`);
         throw new Error('You are already a member of another team. Each student can only join one team');
       }
 
       console.log(`[createTeam] ✅ Validation passed, creating team...`);
 
+      // ✅ Use dosenPAId from SSO profile directly (no need for local DB lookup)
+      const dosenKpId = dosenPAId;
+      console.log(`[createTeam] ✅ Using dosenKpId from SSO: ${dosenKpId}`);
+
       // Create team with auto-generated code
       const team = await this.teamRepo.create({
         id: generateId(),
         code: generateTeamCode(),
-        leaderId,
+        leaderId: profileId, // ✅ Use profileId as leaderId (not authUserId)
+        dosenKpId, // ✅ Set dosenKpId from SSO dosenPA.id immediately
         status: 'PENDING',
       });
 
@@ -58,15 +79,16 @@ export class TeamService {
         await this.teamRepo.addMember({
           id: generateId(),
           teamId: team.id,
-          userId: leaderId,
-          role: 'KETUA', // ✅ CRITICAL: Set role to KETUA for creator
+          userId: profileId, // ✅ Use profileId as userId in team_members
+          role: 'KETUA',
           invitationStatus: 'ACCEPTED',
-          invitedBy: leaderId, // Explicitly mark creator as inviter/leader
+          invitedAt: new Date(),
+          invitedBy: profileId,
           respondedAt: new Date(),
         });
         
         console.log(`[createTeam] ✅ Leader added as member successfully`);
-      } catch (memberError: any) {
+      } catch (memberError: unknown) {
         console.error(`[createTeam] ❌ Failed to add leader as member:`, memberError);
         
         // Rollback: Delete the team if adding member fails
@@ -77,13 +99,15 @@ export class TeamService {
           console.error(`[createTeam] ⚠️ Rollback failed:`, rollbackError);
         }
         
-        throw new Error(`Failed to add leader to team: ${memberError.message}`);
+        throw new Error(
+          `Failed to add leader to team: ${memberError instanceof Error ? memberError.message : 'Unknown error'}`
+        );
       }
 
       console.log(`[createTeam] ✅ Team creation completed: ${team.code}`);
       return team;
       
-    } catch (error: any) {
+    } catch (error) {
       console.error(`[createTeam] ❌ Error creating team:`, error);
       
       // Re-throw with proper error message
@@ -107,7 +131,7 @@ export class TeamService {
     // Prevent leader from leaving using this endpoint
     if (team.leaderId === userId) {
       console.error(`[leaveTeam] ❌ Leader cannot leave team, must delete instead: ${teamId}`);
-      const err: any = new Error('Team leader cannot leave the team. Please delete the team instead.');
+      const err: Error = new Error('Team leader cannot leave the team. Please delete the team instead.');
       err.statusCode = 403;
       throw err;
     }
@@ -151,7 +175,7 @@ export class TeamService {
     // Only leader can remove members
     if (team.leaderId !== leaderId) {
       console.error(`[removeMember] ❌ Unauthorized: User ${leaderId} is not leader of team ${teamId}`);
-      const err: any = new Error('Only team leader can remove members');
+      const err: Error = new Error('Only team leader can remove members');
       err.statusCode = 403;
       throw err;
     }
@@ -159,7 +183,7 @@ export class TeamService {
     // ✅ Prevent removing members from FIXED teams
     if (team.status === 'FIXED') {
       console.error(`[removeMember] ❌ Cannot remove member from finalized team: ${teamId}`);
-      const err: any = new Error('Cannot remove members from a finalized team');
+      const err: Error = new Error('Cannot remove members from a finalized team');
       err.statusCode = 400;
       throw err;
     }
@@ -176,7 +200,7 @@ export class TeamService {
     // Cannot remove the leader
     if (member.role === 'KETUA' || member.userId === team.leaderId) {
       console.error(`[removeMember] ❌ Cannot remove team leader: ${memberId}`);
-      const err: any = new Error('Cannot remove team leader');
+      const err: Error = new Error('Cannot remove team leader');
       err.statusCode = 400;
       throw err;
     }
@@ -214,9 +238,30 @@ export class TeamService {
 
     if (team.leaderId !== requesterId) {
       console.error(`[deleteTeam] ❌ Unauthorized: User ${requesterId} is not leader of team ${teamId}`);
-      const err: any = new Error('Only team leader can delete the team');
+      const err: Error = new Error('Only team leader can delete the team');
       err.statusCode = 403;
       throw err;
+    }
+
+    // Business rule: FIXED team can only be deleted after a response letter is submitted.
+    if (team.status === 'FIXED') {
+      const allSubmissions = await this.submissionRepo.findAllByTeamId(teamId);
+      const responseLetters = await Promise.all(
+        allSubmissions.map((submission) =>
+          this.responseLetterRepo.findBySubmissionId(submission.id)
+        )
+      );
+      const hasSubmittedResponseLetter = responseLetters.some(
+        (responseLetter) => !!responseLetter
+      );
+
+      if (!hasSubmittedResponseLetter) {
+        const err: Error = new Error(
+          'Tim berstatus FIXED tidak dapat dibubarkan sebelum mengirim surat balasan.'
+        );
+        err.statusCode = 400;
+        throw err;
+      }
     }
 
     // Count members affected before deletion
@@ -248,17 +293,15 @@ export class TeamService {
     // 1. Authorization: User must be team leader
     if (team.leaderId !== requesterId) {
       console.error(`[finalizeTeam] ❌ Unauthorized: User ${requesterId} is not leader of team ${teamId}`);
-      const err: any = new Error('Hanya ketua tim yang dapat finalisasi tim');
+      const err: Error = new Error('Hanya ketua tim yang dapat finalisasi tim');
       err.statusCode = 403;
       throw err;
     }
 
-    // 2. Check if team is already FIXED
-    if (team.status === 'FIXED') {
-      console.warn(`[finalizeTeam] ⚠️ Team already finalized: ${teamId}`);
-      const err: any = new Error('Tim sudah difinalisasi sebelumnya');
-      err.statusCode = 409;
-      throw err;
+    // 2. Check if team is already FIXED (idempotent path)
+    const alreadyFixed = team.status === 'FIXED';
+    if (alreadyFixed) {
+      console.warn(`[finalizeTeam] ⚠️ Team already finalized, continue idempotently: ${teamId}`);
     }
 
     // 3. Get all members (validation removed - team can be finalized with just the leader)
@@ -270,16 +313,72 @@ export class TeamService {
     console.log(`[finalizeTeam] Team has ${members.length} total members, ${acceptedMembers.length} accepted (excluding leader)`);
     console.log(`[finalizeTeam] Allowing finalization even with just the leader`);
 
-    // 4. Update team status to FIXED
-    console.log(`[finalizeTeam] Updating team status to FIXED...`);
-    const updatedTeam = await this.teamRepo.update(teamId, { status: 'FIXED' });
-    console.log(`[finalizeTeam] ✅ Team finalized successfully`);
+    // 4. ✅ Verify team has dosenKpId (should be set during creation from SSO profile)
+    if (!team.dosenKpId) {
+      console.error(`[finalizeTeam] ❌ Team missing dosenKpId (should have been set during creation)`);
+      const err: Error = new Error('Dosen PA ketua belum ditetapkan. Hubungi administrator.');
+      err.statusCode = 422;
+      throw err;
+    }
+
+    // 5. Update team status to FIXED (dosenKpId already correct from creation)
+    let updatedTeam = team;
+    if (!alreadyFixed) {
+      console.log(`[finalizeTeam] Updating team status to FIXED with existing dosenKpId...`);
+      updatedTeam = await this.teamRepo.update(teamId, {
+        status: 'FIXED',
+      });
+      console.log('[finalizeTeam] TEAM_FINALIZED', { teamId, requesterId, dosenKpId: team.dosenKpId });
+    }
+
+    // 6. Ensure submission draft exists (idempotent)
+    const existingSubmissions = await this.submissionRepo.findByTeamId(teamId);
+    let submission = existingSubmissions[0] || null;
+    let submissionAlreadyExists = !!submission;
+
+    if (!submission) {
+      const defaults = this.buildDefaultDraftPayload(updatedTeam?.code || team.code);
+      let createdByThisRequest = true;
+      try {
+        submission = await this.submissionRepo.create({
+          id: generateId(),
+          teamId,
+          status: 'DRAFT',
+          ...defaults,
+        });
+      } catch {
+        const racedSubmissions = await this.submissionRepo.findByTeamId(teamId);
+        submission = racedSubmissions[0] || null;
+        createdByThisRequest = false;
+      }
+
+      if (!submission) {
+        throw new Error('Failed to create draft submission after team finalization');
+      }
+
+      submissionAlreadyExists = !createdByThisRequest;
+      if (createdByThisRequest) {
+        console.log('[finalizeTeam] SUBMISSION_CREATED', { teamId, submissionId: submission.id });
+      } else {
+        console.log('[finalizeTeam] SUBMISSION_CREATE_IDEMPOTENT_HIT', {
+          teamId,
+          submissionId: submission.id,
+        });
+      }
+    } else {
+      console.log('[finalizeTeam] SUBMISSION_CREATE_IDEMPOTENT_HIT', {
+        teamId,
+        submissionId: submission.id,
+      });
+    }
 
     return {
       id: updatedTeam?.id,
       code: updatedTeam?.code,
       status: updatedTeam?.status,
-      message: 'Tim berhasil difinalisasi dan siap untuk pengajuan'
+      message: 'Tim berhasil difinalisasi dan siap untuk pengajuan',
+      submission,
+      submissionAlreadyExists,
     };
   }
 
@@ -355,7 +454,7 @@ export class TeamService {
     
     if (!memberRecord) {
       console.error(`[respondToInvitation] ❌ Member record not found: memberId=${memberId}`);
-      const notFoundError: any = new Error('Invitation not found or already responded');
+      const notFoundError: Error = new Error('Invitation not found or already responded');
       notFoundError.statusCode = 404;
       throw notFoundError;
     }
@@ -370,7 +469,7 @@ export class TeamService {
     // Step 2: Verify invitation is in PENDING status
     if (memberRecord.invitationStatus !== 'PENDING') {
       console.error(`[respondToInvitation] ❌ Invalid status: ${memberRecord.invitationStatus} (expected PENDING)`);
-      const invalidStatusError: any = new Error('Invitation not found or already responded');
+      const invalidStatusError: Error = new Error('Invitation not found or already responded');
       invalidStatusError.statusCode = 404;
       throw invalidStatusError;
     }
@@ -399,7 +498,7 @@ export class TeamService {
 
     if (!isBeingInvited && !isTeamLeader) {
       console.error(`[respondToInvitation] ❌ Unauthorized: User is neither invitee nor team leader`);
-      const unauthorizedError: any = new Error('Unauthorized: only team leader or invitee can respond');
+      const unauthorizedError: Error = new Error('Unauthorized: only team leader or invitee can respond');
       unauthorizedError.statusCode = 403;
       throw unauthorizedError;
     }
@@ -449,7 +548,7 @@ export class TeamService {
     // Ensure team exists
     const team = await this.teamRepo.findById(teamId);
     if (!team) {
-      const notFound: any = new Error('Team not found');
+      const notFound: Error = new Error('Team not found');
       notFound.statusCode = 404;
       throw notFound;
     }
@@ -516,6 +615,16 @@ export class TeamService {
           console.warn(`[getMyTeams] ⚠️ Team not found: ${userMembership.teamId}`);
           return null;
         }
+
+        const dosenKpId =
+          (team as { dosenKpId?: string | null; dosen_kp_id?: string | null })
+            .dosenKpId ??
+          (team as { dosenKpId?: string | null; dosen_kp_id?: string | null })
+            .dosen_kp_id ??
+          null;
+        const dosenKpUser = dosenKpId
+          ? await this.userRepo.findById(dosenKpId)
+          : null;
         
         // Get all members of this team (ALL statuses)
         const members = await this.teamRepo.findMembersByTeamId(team.id);
@@ -550,6 +659,8 @@ export class TeamService {
         return {
           id: team.id,
           code: team.code,
+          dosen_kp_id: dosenKpId,
+          dosen_kp_name: dosenKpUser?.nama ?? null,
           leaderId: team.leaderId,
           isLeader: team.leaderId === userId, // ✅ Flag to indicate if current user is leader
           status: team.status,
@@ -688,7 +799,7 @@ export class TeamService {
 
     if (!targetInvitation) {
       console.error(`[cancelInvitation] ❌ Invitation not found: ${memberId}`);
-      const err: any = new Error('Invitation not found');
+      const err: Error = new Error('Invitation not found');
       err.statusCode = 404;
       throw err;
     }
@@ -709,7 +820,7 @@ export class TeamService {
     // Only leader can cancel invitations
     if (team.leaderId !== leaderId) {
       console.error(`[cancelInvitation] ❌ Unauthorized: User ${leaderId} is not leader of team ${team.id}`);
-      const err: any = new Error('Only team leader can cancel invitations');
+      const err: Error = new Error('Only team leader can cancel invitations');
       err.statusCode = 403;
       throw err;
     }
@@ -717,7 +828,7 @@ export class TeamService {
     // Can only cancel PENDING invitations
     if (targetInvitation.invitationStatus !== 'PENDING') {
       console.error(`[cancelInvitation] ❌ Cannot cancel non-PENDING invitation: status=${targetInvitation.invitationStatus}`);
-      const err: any = new Error(`Cannot cancel ${targetInvitation.invitationStatus.toLowerCase()} invitation`);
+      const err: Error = new Error(`Cannot cancel ${targetInvitation.invitationStatus.toLowerCase()} invitation`);
       err.statusCode = 400;
       throw err;
     }
@@ -725,7 +836,7 @@ export class TeamService {
     // Cannot cancel KETUA
     if (targetInvitation.role === 'KETUA' || targetInvitation.userId === team.leaderId) {
       console.error(`[cancelInvitation] ❌ Cannot cancel KETUA invitation: ${memberId}`);
-      const err: any = new Error('Cannot cancel team leader invitation');
+      const err: Error = new Error('Cannot cancel team leader invitation');
       err.statusCode = 400;
       throw err;
     }
@@ -762,7 +873,7 @@ export class TeamService {
       
       if (!team) {
         console.error(`[joinTeam] ❌ Team not found: ${teamCode}`);
-        const err: any = new Error('Tim dengan kode tersebut tidak ditemukan');
+        const err: Error = new Error('Tim dengan kode tersebut tidak ditemukan');
         err.statusCode = 404;
         throw err;
       }
@@ -781,7 +892,7 @@ export class TeamService {
       // ✅ CHECK 3: User cannot be team leader
       if (team.leaderId === userId) {
         console.error(`[joinTeam] ❌ User is the team leader, cannot join own team`);
-        const err: any = new Error('Anda adalah ketua tim ini. Tidak dapat mengirim permintaan bergabung pada tim sendiri');
+        const err: Error = new Error('Anda adalah ketua tim ini. Tidak dapat mengirim permintaan bergabung pada tim sendiri');
         err.statusCode = 400;
         throw err;
       }
@@ -790,7 +901,7 @@ export class TeamService {
       const existingMember = await this.teamRepo.findMemberByTeamAndUser(team.id, userId);
       if (existingMember && existingMember.invitationStatus === 'ACCEPTED') {
         console.error(`[joinTeam] ❌ User already member of this team`);
-        const err: any = new Error('Anda sudah menjadi anggota tim ini');
+        const err: Error = new Error('Anda sudah menjadi anggota tim ini');
         err.statusCode = 400;
         throw err;
       }
@@ -798,7 +909,7 @@ export class TeamService {
       // ✅ CHECK 5: Cannot have pending join request to same team
       if (existingMember && existingMember.invitationStatus === 'PENDING') {
         console.error(`[joinTeam] ❌ User already has PENDING request to this team`);
-        const err: any = new Error('Anda sudah mengirim permintaan bergabung ke tim ini. Tunggu persetujuan dari ketua tim');
+        const err: Error = new Error('Anda sudah mengirim permintaan bergabung ke tim ini. Tunggu persetujuan dari ketua tim');
         err.statusCode = 400;
         throw err;
       }
@@ -810,7 +921,7 @@ export class TeamService {
       );
       if (otherTeamMembership) {
         console.error(`[joinTeam] ❌ User already in another team: ${otherTeamMembership.teamId}`);
-        const err: any = new Error('Anda masih menjadi anggota tim lain. Silakan keluar atau hapus tim lama terlebih dahulu');
+        const err: Error = new Error('Anda masih menjadi anggota tim lain. Silakan keluar atau hapus tim lama terlebih dahulu');
         err.statusCode = 400;
         throw err;
       }
@@ -820,7 +931,7 @@ export class TeamService {
       const acceptedMembers = teamMembers.filter(m => m.invitationStatus === 'ACCEPTED');
       if (acceptedMembers.length >= 3) {
         console.error(`[joinTeam] ❌ Team is full: ${acceptedMembers.length} members`);
-        const err: any = new Error('Tim ini sudah memiliki jumlah anggota maksimal (3 anggota)');
+        const err: Error = new Error('Tim ini sudah memiliki jumlah anggota maksimal (3 anggota)');
         err.statusCode = 400;
         throw err;
       }
@@ -871,7 +982,7 @@ export class TeamService {
         },
       };
 
-    } catch (error: any) {
+    } catch (error) {
       console.error(`[joinTeam] ❌ Error joining team:`, error);
       
       // Re-throw with proper error message

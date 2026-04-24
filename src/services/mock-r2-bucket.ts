@@ -7,7 +7,11 @@ import { nanoid } from 'nanoid';
 export class MockR2Bucket {
   constructor(private bucketName: string) {}
 
-  async put(key: string, data: File | Buffer | ReadableStream<Uint8Array>, options?: any) {
+  async put(
+    key: string,
+    data: File | Buffer | ReadableStream<Uint8Array>,
+    options?: { httpMetadata?: Record<string, string> }
+  ) {
     console.log(`[MockR2Bucket] 📝 Mock upload: ${key}`);
     console.log(`[MockR2Bucket] ⚠️  This is a MOCK. Files are NOT actually saved to R2.`);
     console.log(`[MockR2Bucket] 💡 To test file upload, deploy to Cloudflare: npx wrangler deploy`);
@@ -32,7 +36,7 @@ export class MockR2Bucket {
     console.log(`[MockR2Bucket] 🗑️  Mock delete: ${key}`);
   }
 
-  async list(options?: any) {
+  async list(options?: { prefix?: string; limit?: number; cursor?: string; delimiter?: string }) {
     console.log(`[MockR2Bucket] 📋 Mock list`);
     return { objects: [] };
   }

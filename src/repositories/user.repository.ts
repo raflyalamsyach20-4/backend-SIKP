@@ -1,178 +1,305 @@
-import { eq, or, ilike, sql } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 import type { DbClient } from '@/db';
-import { users, mahasiswa, admin, dosen, pembimbingLapangan } from '@/db/schema';
+import { teams, suratKesediaanRequests, suratPermohonanRequests } from '@/db/schema';
+
+type BasicUser = {
+  id: string;
+  authUserId: string;
+  nama: string | null;
+  email: string | null;
+  phone: string | null;
+  role: 'MAHASISWA' | 'DOSEN' | 'ADMIN' | 'KAPRODI' | 'WAKIL_DEKAN' | 'MENTOR';
+  isActive: boolean;
+};
+
+type MahasiswaProfile = {
+  id: string;
+  nim: string | null;
+  fakultas: string | null;
+  prodi: string | null;
+  semester: number | null;
+  jumlahSksSelesai: number | null;
+  angkatan: string | null;
+  dosenPaId: string | null;
+  esignatureUrl: string | null;
+  esignatureKey: string | null;
+  esignatureUploadedAt: Date | null;
+};
+
+type DosenProfile = {
+  id: string;
+  nip: string | null;
+  jabatan: string | null;
+  fakultas: string | null;
+  prodi: string | null;
+  esignatureUrl: string | null;
+  esignatureKey: string | null;
+  esignatureUploadedAt: Date | null;
+};
+
+type AdminProfile = {
+  id: string;
+  nip: string | null;
+};
+
+type PembimbingLapanganProfile = {
+  id: string;
+};
+
+type PublicBasicUser = Pick<BasicUser, 'id' | 'nama' | 'email' | 'phone' | 'role'>;
+type MahasiswaMe = PublicBasicUser & Omit<MahasiswaProfile, 'id'>;
+type DosenMe = PublicBasicUser & Omit<DosenProfile, 'id'> & { role: 'DOSEN' };
+type UpdateProfilePayload = Record<string, unknown>;
+type UpdatedMahasiswaProfile = { id: string; esignatureUploadedAt: Date | null } & UpdateProfilePayload;
+type UpdatedDosenProfile = { id: string; esignatureUploadedAt: Date | null } & UpdateProfilePayload;
+type UserWithMahasiswaProfile = BasicUser & { mahasiswaProfile: MahasiswaProfile };
 
 export class UserRepository {
   constructor(private db: DbClient) {}
 
-  // User operations
-  async findByEmail(email: string) {
-    const result = await this.db.select().from(users).where(eq(users.email, email)).limit(1);
-    return result[0] || null;
-  }
-
-  async findById(id: string) {
-    const result = await this.db.select().from(users).where(eq(users.id, id)).limit(1);
-    return result[0] || null;
-  }
-
-  async create(data: typeof users.$inferInsert) {
-    const result = await this.db.insert(users).values(data).returning();
-    return result[0];
-  }
-
-  async update(id: string, data: Partial<typeof users.$inferInsert>) {
-    const result = await this.db
-      .update(users)
-      .set(data)
-      .where(eq(users.id, id))
-      .returning();
-    return result[0];
-  }
-
-  // Mahasiswa operations
-  async findMahasiswaByNim(nim: string) {
-    const result = await this.db.select().from(mahasiswa).where(eq(mahasiswa.nim, nim)).limit(1);
-    return result[0] || null;
-  }
-
-  async findMahasiswaByUserId(userId: string) {
-    const result = await this.db.select().from(mahasiswa).where(eq(mahasiswa.id, userId)).limit(1);
-    return result[0] || null;
-  }
-
-  async createMahasiswa(data: typeof mahasiswa.$inferInsert) {
-    const result = await this.db.insert(mahasiswa).values(data).returning();
-    return result[0];
-  }
-
-  async updateMahasiswa(nim: string, data: Partial<typeof mahasiswa.$inferInsert>) {
-    const result = await this.db
-      .update(mahasiswa)
-      .set(data)
-      .where(eq(mahasiswa.nim, nim))
-      .returning();
-    return result[0];
-  }
-
-  // Admin operations
-  async findAdminByNip(nip: string) {
-    const result = await this.db.select().from(admin).where(eq(admin.nip, nip)).limit(1);
-    return result[0] || null;
-  }
-
-  async findAdminByUserId(userId: string) {
-    const result = await this.db.select().from(admin).where(eq(admin.id, userId)).limit(1);
-    return result[0] || null;
-  }
-
-  async createAdmin(data: typeof admin.$inferInsert) {
-    const result = await this.db.insert(admin).values(data).returning();
-    return result[0];
-  }
-
-  // Dosen operations
-  async findDosenByNip(nip: string) {
-    const result = await this.db.select().from(dosen).where(eq(dosen.nip, nip)).limit(1);
-    return result[0] || null;
-  }
-
-  async findDosenByUserId(userId: string) {
-    const result = await this.db.select().from(dosen).where(eq(dosen.id, userId)).limit(1);
-    return result[0] || null;
-  }
-
-  async createDosen(data: typeof dosen.$inferInsert) {
-    const result = await this.db.insert(dosen).values(data).returning();
-    return result[0];
-  }
-
-  // Pembimbing Lapangan operations
-  async findPembimbingLapanganByUserId(userId: string) {
-    const result = await this.db.select().from(pembimbingLapangan).where(eq(pembimbingLapangan.id, userId)).limit(1);
-    return result[0] || null;
-  }
-
-  async createPembimbingLapangan(data: typeof pembimbingLapangan.$inferInsert) {
-    const result = await this.db.insert(pembimbingLapangan).values(data).returning();
-    return result[0];
-  }
-
-  // Get user with profile
-  async getUserWithProfile(userId: string) {
-    const user = await this.findById(userId);
-    if (!user) return null;
-
-    let profile = null;
-    switch (user.role) {
-      case 'MAHASISWA':
-        profile = await this.findMahasiswaByUserId(userId);
-        break;
-      case 'ADMIN':
-      case 'KAPRODI':
-      case 'WAKIL_DEKAN':
-        profile = await this.findAdminByUserId(userId);
-        break;
-      case 'DOSEN':
-        profile = await this.findDosenByUserId(userId);
-        break;
-      case 'PEMBIMBING_LAPANGAN':
-        profile = await this.findPembimbingLapanganByUserId(userId);
-        break;
-    }
-
-    return { user, profile };
-  }
-
-  // Find mahasiswa user by NIM (joins users + mahasiswa)
-  async findByNim(nim: string) {
-    const result = await this.db
-      .select({
-        id: users.id,
-        nama: users.nama,
-        email: users.email,
-        role: users.role,
-        phone: users.phone,
-        isActive: users.isActive,
-        nim: mahasiswa.nim,
-        prodi: mahasiswa.prodi,
-        fakultas: mahasiswa.fakultas,
-        semester: mahasiswa.semester,
-        angkatan: mahasiswa.angkatan,
-      })
-      .from(users)
-      .innerJoin(mahasiswa, eq(users.id, mahasiswa.id))
-      .where(eq(mahasiswa.nim, nim))
+  private async inferRole(userId: string): Promise<BasicUser['role']> {
+    const dosenInTeam = await this.db
+      .select({ id: teams.id })
+      .from(teams)
+      .where(eq(teams.dosenKpId, userId))
       .limit(1);
 
-    return result[0] || null;
+    if (dosenInTeam.length > 0) {
+      return 'DOSEN';
+    }
+
+    const dosenInKesediaan = await this.db
+      .select({ id: suratKesediaanRequests.id })
+      .from(suratKesediaanRequests)
+      .where(eq(suratKesediaanRequests.dosenUserId, userId))
+      .limit(1);
+
+    if (dosenInKesediaan.length > 0) {
+      return 'DOSEN';
+    }
+
+    const dosenInPermohonan = await this.db
+      .select({ id: suratPermohonanRequests.id })
+      .from(suratPermohonanRequests)
+      .where(eq(suratPermohonanRequests.dosenUserId, userId))
+      .limit(1);
+
+    if (dosenInPermohonan.length > 0) {
+      return 'DOSEN';
+    }
+
+    return 'MAHASISWA';
   }
 
-  // Search mahasiswa by nama, nim, or email
-  async searchMahasiswa(query: string) {
-    const searchPattern = `%${query}%`;
-    
-    const result = await this.db
-      .select({
-        id: users.id,
-        name: users.nama,
-        nim: mahasiswa.nim,
-        email: users.email,
-        prodi: mahasiswa.prodi,
-        fakultas: mahasiswa.fakultas,
-      })
-      .from(users)
-      .innerJoin(mahasiswa, eq(users.id, mahasiswa.id))
-      .where(
-        or(
-          ilike(users.nama, searchPattern),
-          ilike(mahasiswa.nim, searchPattern),
-          ilike(users.email, searchPattern)
-        )
-      )
-      .orderBy(users.nama, mahasiswa.nim)
-      .limit(50);
-    
-    return result;
+  private async synthesizeUser(userId: string): Promise<BasicUser> {
+    const role = await this.inferRole(userId);
+
+    return {
+      id: userId,
+      authUserId: userId,
+      nama: null,
+      email: null,
+      phone: null,
+      role,
+      isActive: true,
+    };
+  }
+
+  async getRandomDosenPA(): Promise<DosenProfile | null> {
+    return null;
+  }
+
+  async findByEmail(_email: string): Promise<BasicUser | null> {
+    return null;
+  }
+
+  async findByAuthUserId(authUserId: string): Promise<BasicUser> {
+    return this.synthesizeUser(authUserId);
+  }
+
+  async findById(id: string): Promise<BasicUser> {
+    return this.synthesizeUser(id);
+  }
+
+  async create(data: { id?: string; authUserId?: string }): Promise<BasicUser | null> {
+    const id = data.id || data.authUserId;
+    if (!id) {
+      return null;
+    }
+    return this.synthesizeUser(id);
+  }
+
+  async upsertFromSSO(data: { authUserId: string }): Promise<BasicUser> {
+    return this.synthesizeUser(data.authUserId);
+  }
+
+  async update(id: string, _data: UpdateProfilePayload): Promise<BasicUser> {
+    return this.synthesizeUser(id);
+  }
+
+  async findMahasiswaByNim(_nim: string): Promise<MahasiswaProfile | null> {
+    return null;
+  }
+
+  async findMahasiswaByUserId(userId: string): Promise<MahasiswaProfile> {
+    return {
+      id: userId,
+      nim: null,
+      fakultas: null,
+      prodi: null,
+      semester: null,
+      jumlahSksSelesai: null,
+      angkatan: null,
+      dosenPaId: null,
+      esignatureUrl: null,
+      esignatureKey: null,
+      esignatureUploadedAt: null,
+    };
+  }
+
+  async countMahasiswaBySemester(_semester: number): Promise<number> {
+    return 0;
+  }
+
+  async createMahasiswa(data: { id?: string }): Promise<{ id: string | null; esignatureUploadedAt: Date | null }> {
+    return {
+      id: data.id || null,
+      esignatureUploadedAt: null,
+    };
+  }
+
+  async updateMahasiswa(_nim: string, data: UpdateProfilePayload): Promise<UpdateProfilePayload> {
+    return data;
+  }
+
+  async updateMahasiswaByUserId(userId: string, data: UpdateProfilePayload): Promise<UpdatedMahasiswaProfile> {
+    return {
+      id: userId,
+      esignatureUploadedAt: null,
+      ...data,
+    };
+  }
+
+  async getMahasiswaMe(userId: string): Promise<MahasiswaMe> {
+    const user = await this.synthesizeUser(userId);
+
+    return {
+      id: user.id,
+      nama: user.nama,
+      email: user.email,
+      role: user.role,
+      phone: user.phone,
+      nim: null,
+      fakultas: null,
+      prodi: null,
+      semester: null,
+      jumlahSksSelesai: null,
+      angkatan: null,
+      dosenPaId: null,
+      esignatureUrl: null,
+      esignatureKey: null,
+      esignatureUploadedAt: null,
+    };
+  }
+
+  async findAdminByNip(_nip: string): Promise<AdminProfile | null> {
+    return null;
+  }
+
+  async findAdminByUserId(_userId: string): Promise<AdminProfile | null> {
+    return null;
+  }
+
+  async createAdmin(data: { id?: string }): Promise<{ id: string | null }> {
+    return {
+      id: data.id || null,
+    };
+  }
+
+  async findDosenByNip(_nip: string): Promise<DosenProfile | null> {
+    return null;
+  }
+
+  async findDosenByUserId(userId: string): Promise<DosenProfile> {
+    return {
+      id: userId,
+      nip: null,
+      jabatan: null,
+      fakultas: null,
+      prodi: null,
+      esignatureUrl: null,
+      esignatureKey: null,
+      esignatureUploadedAt: null,
+    };
+  }
+
+  async findActiveDosenByProdi(_prodi: string): Promise<DosenProfile[]> {
+    return [];
+  }
+
+  async findAnyActiveDosen(): Promise<DosenProfile[]> {
+    return [];
+  }
+
+  async createDosen(data: { id?: string }): Promise<{ id: string | null; esignatureUploadedAt: Date | null }> {
+    return {
+      id: data.id || null,
+      esignatureUploadedAt: null,
+    };
+  }
+
+  async updateDosenByUserId(userId: string, data: UpdateProfilePayload): Promise<UpdatedDosenProfile> {
+    return {
+      id: userId,
+      esignatureUploadedAt: null,
+      ...data,
+    };
+  }
+
+  async getDosenMe(userId: string): Promise<DosenMe> {
+    const user = await this.synthesizeUser(userId);
+
+    return {
+      id: user.id,
+      nama: user.nama,
+      email: user.email,
+      role: 'DOSEN',
+      phone: user.phone,
+      nip: null,
+      jabatan: null,
+      fakultas: null,
+      prodi: null,
+      esignatureUrl: null,
+      esignatureKey: null,
+      esignatureUploadedAt: null,
+    };
+  }
+
+  async findPembimbingLapanganByUserId(_userId: string): Promise<PembimbingLapanganProfile | null> {
+    return null;
+  }
+
+  async createPembimbingLapangan(data: { id?: string }): Promise<{ id: string | null }> {
+    return {
+      id: data.id || null,
+    };
+  }
+
+  async getUserWithProfile(userId: string): Promise<UserWithMahasiswaProfile> {
+    const user = await this.synthesizeUser(userId);
+    const mahasiswaProfile = await this.findMahasiswaByUserId(userId);
+
+    return {
+      ...user,
+      mahasiswaProfile,
+    };
+  }
+
+  async findByNim(_nim: string): Promise<BasicUser | null> {
+    return null;
+  }
+
+  async searchMahasiswa(_query: string): Promise<MahasiswaProfile[]> {
+    return [];
   }
 }

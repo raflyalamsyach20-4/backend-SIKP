@@ -4,9 +4,7 @@ import { z } from 'zod';
 export const templateFieldSchema = z.object({
   variable: z.string().min(1, 'Variable harus diisi'),
   label: z.string().min(1, 'Label harus diisi'),
-  type: z.enum(['text', 'textarea', 'number', 'date', 'time', 'email', 'select'], {
-    errorMap: () => ({ message: 'Tipe field tidak valid' }),
-  }),
+  type: z.enum(['text', 'textarea', 'number', 'date', 'time', 'email', 'select']),
   required: z.boolean().default(true),
   placeholder: z.string().optional(),
   order: z.number().int().nonnegative('Order harus berupa angka positif'),
@@ -25,9 +23,7 @@ export const createTemplateSchema = z.object({
   name: z.string()
     .min(3, 'Nama template minimal 3 karakter')
     .max(255, 'Nama template maksimal 255 karakter'),
-  type: z.enum(['Template Only', 'Generate & Template'], {
-    errorMap: () => ({ message: 'Tipe template harus "Template Only" atau "Generate & Template"' }),
-  }),
+  type: z.enum(['Template Only', 'Generate & Template']),
   description: z.string().optional(),
   fields: z.array(templateFieldSchema).optional(),
   isActive: z.boolean().default(true),
@@ -61,7 +57,7 @@ export const validateTemplateInput = (data: unknown) => {
     if (error instanceof z.ZodError) {
       return {
         valid: false,
-        errors: error.errors.map(e => `${e.path.join('.')}: ${e.message}`),
+        errors: error.issues.map((e) => `${e.path.join('.')}: ${e.message}`),
       };
     }
     throw error;
@@ -78,7 +74,7 @@ export const validateTemplateUpdate = (data: unknown) => {
     if (error instanceof z.ZodError) {
       return {
         valid: false,
-        errors: error.errors.map(e => `${e.path.join('.')}: ${e.message}`),
+        errors: error.issues.map((e) => `${e.path.join('.')}: ${e.message}`),
       };
     }
     throw error;
@@ -95,7 +91,7 @@ export const validateTemplateFilters = (data: unknown) => {
     if (error instanceof z.ZodError) {
       return {
         valid: false,
-        errors: error.errors.map(e => `${e.path.join('.')}: ${e.message}`),
+        errors: error.issues.map((e) => `${e.path.join('.')}: ${e.message}`),
       };
     }
     throw error;

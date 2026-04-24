@@ -1,103 +1,40 @@
 {
-  "version": "5",
-  "dialect": "pg",
+  "version": "7",
+  "dialect": "postgresql",
   "entries": [
     {
       "idx": 0,
-      "version": "5",
-      "when": 1768315675460,
-      "tag": "0000_nervous_lionheart",
+      "version": "7",
+      "when": 1775571823983,
+      "tag": "0000_fresh_migration",
       "breakpoints": true
     },
     {
       "idx": 1,
-      "version": "5",
-      "when": 1768315990524,
-      "tag": "0001_dizzy_maddog",
+      "version": "7",
+      "when": 1775575816616,
+      "tag": "0001_sso_auth_cutover",
       "breakpoints": true
     },
     {
       "idx": 2,
-      "version": "5",
-      "when": 1768400000000,
-      "tag": "0002_clean_users_table",
+      "version": "7",
+      "when": 1775889077702,
+      "tag": "0002_add_effective_permissions",
       "breakpoints": true
     },
     {
       "idx": 3,
-      "version": "5",
-      "when": 1768396051523,
-      "tag": "0003_free_blonde_phantom",
+      "version": "7",
+      "when": 1775907244471,
+      "tag": "0003_big_bang_identity_purge",
       "breakpoints": true
     },
     {
       "idx": 4,
-      "version": "5",
-      "when": 1768410000000,
-      "tag": "0004_update_teams_schema",
-      "breakpoints": true
-    },
-    {
-      "idx": 5,
-      "version": "5",
-      "when": 1768420000000,
-      "tag": "0005_cleanup_teams_columns",
-      "breakpoints": true
-    },
-    {
-      "idx": 6,
-      "version": "5",
-      "when": 1768570887801,
-      "tag": "0006_black_hulk",
-      "breakpoints": true
-    },
-    {
-      "idx": 7,
-      "version": "5",
-      "when": 1769257496456,
-      "tag": "0007_round_shinko_yamashiro",
-      "breakpoints": true
-    },
-    {
-      "idx": 8,
-      "version": "5",
-      "when": 1769272653744,
-      "tag": "0008_even_morbius",
-      "breakpoints": true
-    },
-    {
-      "idx": 9,
-      "version": "5",
-      "when": 1769954868065,
-      "tag": "0009_many_arachne",
-      "breakpoints": true
-    },
-    {
-      "idx": 10,
-      "version": "5",
-      "when": 1770032661504,
-      "tag": "0010_massive_quentin_quire",
-      "breakpoints": true
-    },
-    {
-      "idx": 11,
-      "version": "5",
-      "when": 1770033126284,
-      "tag": "0011_drop_extra_submission_columns",
-      "breakpoints": true
-    },
-    {
-      "idx": 12,
-      "version": "5",
-      "when": 1770035821986,
-      "tag": "0012_high_eternity",
-      "breakpoints": true
-    },
-    {
-      "idx": 13,
-      "version": "5",
-      "when": 1770045256270,
-      "tag": "0013_slow_ulik",
+      "version": "7",
+      "when": 1775911847240,
+      "tag": "0004_create_auth_sessions",
       "breakpoints": true
     },
     {

@@ -1,17 +1,25 @@
-import { drizzle } from 'drizzle-orm/neon-http';
-import { neon } from '@neondatabase/serverless';
 import * as dotenv from 'dotenv';
-import { sql } from 'drizzle-orm';
+import { getMaintenanceSql } from './maintenance-client';
 
 dotenv.config({ path: '.env' });
+
+type ColumnRow = {
+  column_name: string;
+  data_type: string;
+  is_nullable: string;
+  column_default?: string | null;
+};
+
+type LegacyColumnRow = {
+  column_name: string;
+};
 
 const checkSchema = async () => {
   if (!process.env.DATABASE_URL) {
     throw new Error('DATABASE_URL is not defined in .env file');
   }
 
-  const sqlClient = neon(process.env.DATABASE_URL);
-  const db = drizzle(sqlClient as any);
+  const sqlClient = getMaintenanceSql();
 
   console.log('\n📋 Database Schema Verification\n');
   console.log('='.repeat(80));
@@ -24,10 +32,11 @@ const checkSchema = async () => {
       WHERE table_name = 'users'
       ORDER BY ordinal_position
     `;
+    const userColumnRows = usersColumns as ColumnRow[];
 
     console.log('\n✅ USERS TABLE COLUMNS:');
     console.log('-'.repeat(80));
-    (usersColumns as any).forEach((col: any) => {
+    userColumnRows.forEach((col) => {
       const nullable = col.is_nullable === 'YES' ? '[NULLABLE]' : '[NOT NULL]';
       const defaultVal = col.column_default ? ` DEFAULT: ${col.column_default}` : '';
       console.log(`  • ${col.column_name.padEnd(20)} | ${col.data_type.padEnd(20)} | ${nullable}${defaultVal}`);
@@ -40,10 +49,11 @@ const checkSchema = async () => {
       WHERE table_name = 'mahasiswa'
       ORDER BY ordinal_position
     `;
+    const mahasiswaColumnRows = mahasiswaColumns as ColumnRow[];
 
     console.log('\n✅ MAHASISWA TABLE COLUMNS:');
     console.log('-'.repeat(80));
-    (mahasiswaColumns as any).forEach((col: any) => {
+    mahasiswaColumnRows.forEach((col) => {
       const nullable = col.is_nullable === 'YES' ? '[NULLABLE]' : '[NOT NULL]';
       console.log(`  • ${col.column_name.padEnd(20)} | ${col.data_type.padEnd(20)} | ${nullable}`);
     });
@@ -54,14 +64,15 @@ const checkSchema = async () => {
       FROM information_schema.columns
       WHERE table_name = 'users' AND column_name IN ('nim', 'name', 'faculty', 'major', 'semester')
     `;
+    const legacyColumns = oldColumnsCheck as LegacyColumnRow[];
 
     console.log('\n🔍 OLD COLUMNS CHECK:');
     console.log('-'.repeat(80));
-    if ((oldColumnsCheck as any).length === 0) {
+    if (legacyColumns.length === 0) {
       console.log('  ✅ No old columns found - Schema is clean!');
     } else {
       console.log('  ⚠️  Found old columns that need to be removed:');
-      (oldColumnsCheck as any).forEach((col: any) => {
+      legacyColumns.forEach((col) => {
         console.log(`    • ${col.column_name}`);
       });
     }

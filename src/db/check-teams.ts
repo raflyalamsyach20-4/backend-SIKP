@@ -1,11 +1,18 @@
-import { drizzle } from 'drizzle-orm/neon-http';
-import { neon } from '@neondatabase/serverless';
 import * as dotenv from 'dotenv';
+import { getMaintenanceSql } from './maintenance-client';
 
 dotenv.config();
 
+type TeamsColumnRow = {
+  column_name: string;
+  data_type: string;
+  is_nullable: string;
+};
+
+type TeamDataRow = Record<string, unknown>;
+
 const checkTeamsColumns = async () => {
-  const sql = neon(process.env.DATABASE_URL!);
+  const sql = getMaintenanceSql();
   
   console.log('\n🔍 Checking TEAMS table columns and data:\n');
   
@@ -17,18 +24,20 @@ const checkTeamsColumns = async () => {
       WHERE table_name = 'teams'
       ORDER BY ordinal_position
     `;
+    const columnRows = columns as TeamsColumnRow[];
     
     console.log('Columns in teams table:');
-    (columns as any).forEach((col: any) => {
+    columnRows.forEach((col) => {
       console.log(`  • ${col.column_name} (${col.data_type})`);
     });
     
     // Check data
     console.log('\nData in teams table:');
     const data = await sql`SELECT * FROM "teams"`;
-    if ((data as any).length > 0) {
-      console.log(`  Found ${(data as any).length} record(s)`);
-      (data as any).slice(0, 2).forEach((row: any, idx: number) => {
+    const teamRows = data as TeamDataRow[];
+    if (teamRows.length > 0) {
+      console.log(`  Found ${teamRows.length} record(s)`);
+      teamRows.slice(0, 2).forEach((row, idx: number) => {
         console.log(`  Record ${idx + 1}:`, JSON.stringify(row, null, 2));
       });
     } else {

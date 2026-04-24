@@ -1,128 +1,10 @@
 {
-  "id": "6c5efb3c-e1a2-4c55-a5f3-43760a602911",
-  "prevId": "3b108b5c-054d-4395-b6ac-633c28341d8b",
-  "version": "5",
-  "dialect": "pg",
+  "id": "380321f4-a321-4f5a-9ebc-d8dc9cce3a10",
+  "prevId": "dc2acb0e-a574-45c1-827a-890d4eae0630",
+  "version": "7",
+  "dialect": "postgresql",
   "tables": {
-    "admin": {
-      "name": "admin",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "nip": {
-          "name": "nip",
-          "type": "varchar(30)",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "fakultas": {
-          "name": "fakultas",
-          "type": "varchar(100)",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "prodi": {
-          "name": "prodi",
-          "type": "varchar(100)",
-          "primaryKey": false,
-          "notNull": false
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {
-        "admin_id_users_id_fk": {
-          "name": "admin_id_users_id_fk",
-          "tableFrom": "admin",
-          "tableTo": "users",
-          "columnsFrom": [
-            "id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {
-        "admin_nip_unique": {
-          "name": "admin_nip_unique",
-          "nullsNotDistinct": false,
-          "columns": [
-            "nip"
-          ]
-        }
-      }
-    },
-    "dosen": {
-      "name": "dosen",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "nip": {
-          "name": "nip",
-          "type": "varchar(30)",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "jabatan": {
-          "name": "jabatan",
-          "type": "varchar(100)",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "fakultas": {
-          "name": "fakultas",
-          "type": "varchar(100)",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "prodi": {
-          "name": "prodi",
-          "type": "varchar(100)",
-          "primaryKey": false,
-          "notNull": false
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {
-        "dosen_id_users_id_fk": {
-          "name": "dosen_id_users_id_fk",
-          "tableFrom": "dosen",
-          "tableTo": "users",
-          "columnsFrom": [
-            "id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {
-        "dosen_nip_unique": {
-          "name": "dosen_nip_unique",
-          "nullsNotDistinct": false,
-          "columns": [
-            "nip"
-          ]
-        }
-      }
-    },
-    "generated_letters": {
+    "public.generated_letters": {
       "name": "generated_letters",
       "schema": "",
       "columns": {
@@ -195,20 +77,7 @@
           "columnsTo": [
             "id"
           ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "generated_letters_generated_by_users_id_fk": {
-          "name": "generated_letters_generated_by_users_id_fk",
-          "tableFrom": "generated_letters",
-          "tableTo": "users",
-          "columnsFrom": [
-            "generated_by"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
+          "onDelete": "cascade",
           "onUpdate": "no action"
         }
       },
@@ -221,78 +90,13 @@
             "letter_number"
           ]
         }
-      }
-    },
-    "mahasiswa": {
-      "name": "mahasiswa",
-      "schema": "",
-      "columns": {
-        "nim": {
-          "name": "nim",
-          "type": "varchar(20)",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "fakultas": {
-          "name": "fakultas",
-          "type": "varchar(100)",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "prodi": {
-          "name": "prodi",
-          "type": "varchar(100)",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "semester": {
-          "name": "semester",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "angkatan": {
-          "name": "angkatan",
-          "type": "varchar(10)",
-          "primaryKey": false,
-          "notNull": false
-        }
       },
-      "indexes": {},
-      "foreignKeys": {
-        "mahasiswa_id_users_id_fk": {
-          "name": "mahasiswa_id_users_id_fk",
-          "tableFrom": "mahasiswa",
-          "tableTo": "users",
-          "columnsFrom": [
-            "id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {
-        "mahasiswa_id_unique": {
-          "name": "mahasiswa_id_unique",
-          "nullsNotDistinct": false,
-          "columns": [
-            "id"
-          ]
-        }
-      }
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
     },
-    "pembimbing_lapangan": {
-      "name": "pembimbing_lapangan",
+    "public.response_letters": {
+      "name": "response_letters",
       "schema": "",
       "columns": {
         "id": {
@@ -300,6 +104,67 @@
           "type": "text",
           "primaryKey": true,
           "notNull": true
+        },
+        "submission_id": {
+          "name": "submission_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "original_name": {
+          "name": "original_name",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "file_name": {
+          "name": "file_name",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "file_type": {
+          "name": "file_type",
+          "type": "varchar(100)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "file_size": {
+          "name": "file_size",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "file_url": {
+          "name": "file_url",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "member_user_id": {
+          "name": "member_user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "letter_status": {
+          "name": "letter_status",
+          "type": "letter_status",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "student_name": {
+          "name": "student_name",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "student_nim": {
+          "name": "student_nim",
+          "type": "varchar(50)",
+          "primaryKey": false,
+          "notNull": false
         },
         "company_name": {
           "name": "company_name",
@@ -307,39 +172,111 @@
           "primaryKey": false,
           "notNull": false
         },
-        "position": {
-          "name": "position",
-          "type": "varchar(100)",
+        "supervisor_name": {
+          "name": "supervisor_name",
+          "type": "varchar(255)",
           "primaryKey": false,
           "notNull": false
         },
-        "company_address": {
-          "name": "company_address",
+        "member_count": {
+          "name": "member_count",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "role_label": {
+          "name": "role_label",
+          "type": "varchar(50)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "members_snapshot": {
+          "name": "members_snapshot",
+          "type": "json",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "submitted_at": {
+          "name": "submitted_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "verified": {
+          "name": "verified",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "verified_at": {
+          "name": "verified_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "verified_by_admin_id": {
+          "name": "verified_by_admin_id",
           "type": "text",
           "primaryKey": false,
           "notNull": false
         }
       },
-      "indexes": {},
+      "indexes": {
+        "idx_response_letters_submission_id": {
+          "name": "idx_response_letters_submission_id",
+          "columns": [
+            {
+              "expression": "submission_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "idx_response_letters_verified": {
+          "name": "idx_response_letters_verified",
+          "columns": [
+            {
+              "expression": "verified",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
       "foreignKeys": {
-        "pembimbing_lapangan_id_users_id_fk": {
-          "name": "pembimbing_lapangan_id_users_id_fk",
-          "tableFrom": "pembimbing_lapangan",
-          "tableTo": "users",
+        "response_letters_submission_id_submissions_id_fk": {
+          "name": "response_letters_submission_id_submissions_id_fk",
+          "tableFrom": "response_letters",
+          "tableTo": "submissions",
           "columnsFrom": [
-            "id"
+            "submission_id"
           ],
           "columnsTo": [
             "id"
           ],
-          "onDelete": "cascade",
+          "onDelete": "set null",
           "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {},
-      "uniqueConstraints": {}
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
     },
-    "submission_documents": {
+    "public.submission_documents": {
       "name": "submission_documents",
       "schema": "",
       "columns": {
@@ -355,9 +292,22 @@
           "primaryKey": false,
           "notNull": true
         },
-        "file_name": {
-          "name": "file_name",
-          "type": "varchar(255)",
+        "document_type": {
+          "name": "document_type",
+          "type": "document_type",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "member_user_id": {
+          "name": "member_user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "uploaded_by_user_id": {
+          "name": "uploaded_by_user_id",
+          "type": "text",
           "primaryKey": false,
           "notNull": true
         },
@@ -367,9 +317,15 @@
           "primaryKey": false,
           "notNull": true
         },
+        "file_name": {
+          "name": "file_name",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": true
+        },
         "file_type": {
           "name": "file_type",
-          "type": "varchar(50)",
+          "type": "varchar(100)",
           "primaryKey": false,
           "notNull": true
         },
@@ -385,17 +341,20 @@
           "primaryKey": false,
           "notNull": true
         },
-        "document_type": {
-          "name": "document_type",
-          "type": "document_type",
+        "status": {
+          "name": "status",
+          "type": "document_status",
+          "typeSchema": "public",
           "primaryKey": false,
-          "notNull": true
+          "notNull": true,
+          "default": "'PENDING'"
         },
-        "uploaded_by": {
-          "name": "uploaded_by",
-          "type": "text",
+        "status_updated_at": {
+          "name": "status_updated_at",
+          "type": "timestamp",
           "primaryKey": false,
-          "notNull": true
+          "notNull": true,
+          "default": "now()"
         },
         "created_at": {
           "name": "created_at",
@@ -405,7 +364,71 @@
           "default": "now()"
         }
       },
-      "indexes": {},
+      "indexes": {
+        "uq_document_per_member": {
+          "name": "uq_document_per_member",
+          "columns": [
+            {
+              "expression": "submission_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "document_type",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "member_user_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "idx_submission_status": {
+          "name": "idx_submission_status",
+          "columns": [
+            {
+              "expression": "submission_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "status",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "idx_status_updated": {
+          "name": "idx_status_updated",
+          "columns": [
+            {
+              "expression": "status_updated_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
       "foreignKeys": {
         "submission_documents_submission_id_submissions_id_fk": {
           "name": "submission_documents_submission_id_submissions_id_fk",
@@ -419,25 +442,15 @@
           ],
           "onDelete": "cascade",
           "onUpdate": "no action"
-        },
-        "submission_documents_uploaded_by_users_id_fk": {
-          "name": "submission_documents_uploaded_by_users_id_fk",
-          "tableFrom": "submission_documents",
-          "tableTo": "users",
-          "columnsFrom": [
-            "uploaded_by"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {},
-      "uniqueConstraints": {}
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
     },
-    "submissions": {
+    "public.submissions": {
       "name": "submissions",
       "schema": "",
       "columns": {
@@ -450,6 +463,12 @@
         "team_id": {
           "name": "team_id",
           "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "letter_purpose": {
+          "name": "letter_purpose",
+          "type": "varchar(255)",
           "primaryKey": false,
           "notNull": true
         },
@@ -471,45 +490,34 @@
           "primaryKey": false,
           "notNull": false
         },
-        "company_email": {
-          "name": "company_email",
+        "company_business_type": {
+          "name": "company_business_type",
           "type": "varchar(255)",
           "primaryKey": false,
           "notNull": false
         },
-        "company_supervisor": {
-          "name": "company_supervisor",
+        "division": {
+          "name": "division",
           "type": "varchar(255)",
           "primaryKey": false,
-          "notNull": false
-        },
-        "position": {
-          "name": "position",
-          "type": "varchar(255)",
-          "primaryKey": false,
-          "notNull": false
+          "notNull": true
         },
         "start_date": {
           "name": "start_date",
-          "type": "timestamp",
+          "type": "date",
           "primaryKey": false,
-          "notNull": false
+          "notNull": true
         },
         "end_date": {
           "name": "end_date",
-          "type": "timestamp",
+          "type": "date",
           "primaryKey": false,
-          "notNull": false
-        },
-        "description": {
-          "name": "description",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
+          "notNull": true
         },
         "status": {
           "name": "status",
           "type": "submission_status",
+          "typeSchema": "public",
           "primaryKey": false,
           "notNull": true,
           "default": "'DRAFT'"
@@ -520,9 +528,9 @@
           "primaryKey": false,
           "notNull": false
         },
-        "approved_by": {
-          "name": "approved_by",
-          "type": "text",
+        "submitted_at": {
+          "name": "submitted_at",
+          "type": "timestamp",
           "primaryKey": false,
           "notNull": false
         },
@@ -532,8 +540,108 @@
           "primaryKey": false,
           "notNull": false
         },
-        "submitted_at": {
-          "name": "submitted_at",
+        "approved_by": {
+          "name": "approved_by",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "admin_verification_status": {
+          "name": "admin_verification_status",
+          "type": "submission_verification_status",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'PENDING'"
+        },
+        "admin_verified_at": {
+          "name": "admin_verified_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "admin_verified_by": {
+          "name": "admin_verified_by",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "admin_rejection_reason": {
+          "name": "admin_rejection_reason",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "dosen_verification_status": {
+          "name": "dosen_verification_status",
+          "type": "submission_verification_status",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'PENDING'"
+        },
+        "dosen_verified_at": {
+          "name": "dosen_verified_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "dosen_verified_by": {
+          "name": "dosen_verified_by",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "dosen_rejection_reason": {
+          "name": "dosen_rejection_reason",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "letter_number": {
+          "name": "letter_number",
+          "type": "varchar(100)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "workflow_stage": {
+          "name": "workflow_stage",
+          "type": "workflow_stage",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'DRAFT'"
+        },
+        "final_signed_file_url": {
+          "name": "final_signed_file_url",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "document_reviews": {
+          "name": "document_reviews",
+          "type": "json",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "'{}'"
+        },
+        "status_history": {
+          "name": "status_history",
+          "type": "json",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'[]'"
+        },
+        "response_letter_status": {
+          "name": "response_letter_status",
+          "type": "response_letter_status",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "'pending'"
+        },
+        "archived_at": {
+          "name": "archived_at",
           "type": "timestamp",
           "primaryKey": false,
           "notNull": false
@@ -553,7 +661,95 @@
           "default": "now()"
         }
       },
-      "indexes": {},
+      "indexes": {
+        "idx_submissions_workflow_stage": {
+          "name": "idx_submissions_workflow_stage",
+          "columns": [
+            {
+              "expression": "workflow_stage",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "idx_submissions_admin_status": {
+          "name": "idx_submissions_admin_status",
+          "columns": [
+            {
+              "expression": "admin_verification_status",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "idx_submissions_dosen_status": {
+          "name": "idx_submissions_dosen_status",
+          "columns": [
+            {
+              "expression": "dosen_verification_status",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "idx_submissions_dosen_queue": {
+          "name": "idx_submissions_dosen_queue",
+          "columns": [
+            {
+              "expression": "workflow_stage",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "dosen_verified_by",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "created_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "submissions_letter_number_unique": {
+          "name": "submissions_letter_number_unique",
+          "columns": [
+            {
+              "expression": "letter_number",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
       "foreignKeys": {
         "submissions_team_id_teams_id_fk": {
           "name": "submissions_team_id_teams_id_fk",
@@ -565,15 +761,337 @@
           "columnsTo": [
             "id"
           ],
-          "onDelete": "no action",
+          "onDelete": "cascade",
           "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.surat_kesediaan_requests": {
+      "name": "surat_kesediaan_requests",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
         },
-        "submissions_approved_by_users_id_fk": {
-          "name": "submissions_approved_by_users_id_fk",
-          "tableFrom": "submissions",
-          "tableTo": "users",
+        "member_user_id": {
+          "name": "member_user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "dosen_user_id": {
+          "name": "dosen_user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "surat_kesediaan_status",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'MENUNGGU'"
+        },
+        "approved_by": {
+          "name": "approved_by",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "approved_at": {
+          "name": "approved_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "signed_file_url": {
+          "name": "signed_file_url",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "signed_file_key": {
+          "name": "signed_file_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "rejection_reason": {
+          "name": "rejection_reason",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "uq_surat_kesediaan_request": {
+          "name": "uq_surat_kesediaan_request",
+          "columns": [
+            {
+              "expression": "member_user_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "dosen_user_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "idx_surat_kesediaan_dosen_status": {
+          "name": "idx_surat_kesediaan_dosen_status",
+          "columns": [
+            {
+              "expression": "dosen_user_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "status",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "idx_surat_kesediaan_member_status": {
+          "name": "idx_surat_kesediaan_member_status",
+          "columns": [
+            {
+              "expression": "member_user_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "status",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "idx_surat_kesediaan_created_at": {
+          "name": "idx_surat_kesediaan_created_at",
+          "columns": [
+            {
+              "expression": "created_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.surat_permohonan_requests": {
+      "name": "surat_permohonan_requests",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "member_user_id": {
+          "name": "member_user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "dosen_user_id": {
+          "name": "dosen_user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "submission_id": {
+          "name": "submission_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "surat_permohonan_status",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'MENUNGGU'"
+        },
+        "signed_file_url": {
+          "name": "signed_file_url",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "signed_file_key": {
+          "name": "signed_file_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "requested_at": {
+          "name": "requested_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "approved_at": {
+          "name": "approved_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "approved_by": {
+          "name": "approved_by",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "rejection_reason": {
+          "name": "rejection_reason",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "idx_permohonan_dosen": {
+          "name": "idx_permohonan_dosen",
+          "columns": [
+            {
+              "expression": "dosen_user_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "status",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "requested_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "idx_surat_permohonan_requested_at": {
+          "name": "idx_surat_permohonan_requested_at",
+          "columns": [
+            {
+              "expression": "requested_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "idx_surat_permohonan_member_dosen_status": {
+          "name": "idx_surat_permohonan_member_dosen_status",
+          "columns": [
+            {
+              "expression": "member_user_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "dosen_user_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "status",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "surat_permohonan_requests_submission_id_submissions_id_fk": {
+          "name": "surat_permohonan_requests_submission_id_submissions_id_fk",
+          "tableFrom": "surat_permohonan_requests",
+          "tableTo": "submissions",
           "columnsFrom": [
-            "approved_by"
+            "submission_id"
           ],
           "columnsTo": [
             "id"
@@ -583,9 +1101,12 @@
         }
       },
       "compositePrimaryKeys": {},
-      "uniqueConstraints": {}
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
     },
-    "team_members": {
+    "public.team_members": {
       "name": "team_members",
       "schema": "",
       "columns": {
@@ -607,9 +1128,17 @@
           "primaryKey": false,
           "notNull": true
         },
+        "role": {
+          "name": "role",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'ANGGOTA'"
+        },
         "invitation_status": {
           "name": "invitation_status",
           "type": "invitation_status",
+          "typeSchema": "public",
           "primaryKey": false,
           "notNull": true,
           "default": "'PENDING'"
@@ -624,6 +1153,12 @@
         "responded_at": {
           "name": "responded_at",
           "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "invited_by": {
+          "name": "invited_by",
+          "type": "text",
           "primaryKey": false,
           "notNull": false
         }
@@ -642,25 +1177,15 @@
           ],
           "onDelete": "cascade",
           "onUpdate": "no action"
-        },
-        "team_members_user_id_users_id_fk": {
-          "name": "team_members_user_id_users_id_fk",
-          "tableFrom": "team_members",
-          "tableTo": "users",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {},
-      "uniqueConstraints": {}
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
     },
-    "teams": {
+    "public.teams": {
       "name": "teams",
       "schema": "",
       "columns": {
@@ -682,30 +1207,23 @@
           "primaryKey": false,
           "notNull": true
         },
+        "dosen_kp_id": {
+          "name": "dosen_kp_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
         "status": {
           "name": "status",
           "type": "team_status",
+          "typeSchema": "public",
           "primaryKey": false,
           "notNull": true,
           "default": "'PENDING'"
         }
       },
       "indexes": {},
-      "foreignKeys": {
-        "teams_leader_id_users_id_fk": {
-          "name": "teams_leader_id_users_id_fk",
-          "tableFrom": "teams",
-          "tableTo": "users",
-          "columnsFrom": [
-            "leader_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        }
-      },
+      "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {
         "teams_code_unique": {
@@ -715,10 +1233,13 @@
             "code"
           ]
         }
-      }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
     },
-    "users": {
-      "name": "users",
+    "public.templates": {
+      "name": "templates",
       "schema": "",
       "columns": {
         "id": {
@@ -727,36 +1248,66 @@
           "primaryKey": true,
           "notNull": true
         },
-        "nama": {
-          "name": "nama",
-          "type": "varchar(255)",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "email": {
-          "name": "email",
+        "name": {
+          "name": "name",
           "type": "varchar(255)",
           "primaryKey": false,
           "notNull": true
         },
-        "password": {
-          "name": "password",
+        "type": {
+          "name": "type",
+          "type": "varchar(50)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "description": {
+          "name": "description",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "file_name": {
+          "name": "file_name",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "file_url": {
+          "name": "file_url",
           "type": "text",
           "primaryKey": false,
           "notNull": true
         },
-        "role": {
-          "name": "role",
-          "type": "role",
+        "file_size": {
+          "name": "file_size",
+          "type": "bigint",
           "primaryKey": false,
-          "notNull": true,
-          "default": "'MAHASISWA'"
+          "notNull": true
         },
-        "phone": {
-          "name": "phone",
-          "type": "varchar(20)",
+        "file_type": {
+          "name": "file_type",
+          "type": "varchar(100)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "original_name": {
+          "name": "original_name",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "fields": {
+          "name": "fields",
+          "type": "json",
           "primaryKey": false,
           "notNull": false
+        },
+        "version": {
+          "name": "version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 1
         },
         "is_active": {
           "name": "is_active",
@@ -764,70 +1315,201 @@
           "primaryKey": false,
           "notNull": true,
           "default": true
+        },
+        "created_by": {
+          "name": "created_by",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "updated_by": {
+          "name": "updated_by",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
         }
       },
-      "indexes": {},
+      "indexes": {
+        "idx_templates_type": {
+          "name": "idx_templates_type",
+          "columns": [
+            {
+              "expression": "type",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "idx_templates_is_active": {
+          "name": "idx_templates_is_active",
+          "columns": [
+            {
+              "expression": "is_active",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "idx_templates_created_at": {
+          "name": "idx_templates_created_at",
+          "columns": [
+            {
+              "expression": "created_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
       "foreignKeys": {},
       "compositePrimaryKeys": {},
-      "uniqueConstraints": {
-        "users_email_unique": {
-          "name": "users_email_unique",
-          "nullsNotDistinct": false,
-          "columns": [
-            "email"
-          ]
-        }
-      }
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
     }
   },
   "enums": {
-    "document_type": {
+    "public.document_status": {
+      "name": "document_status",
+      "schema": "public",
+      "values": [
+        "PENDING",
+        "APPROVED",
+        "REJECTED"
+      ]
+    },
+    "public.document_type": {
       "name": "document_type",
-      "values": {
-        "KTP": "KTP",
-        "TRANSKRIP": "TRANSKRIP",
-        "KRS": "KRS",
-        "PROPOSAL": "PROPOSAL",
-        "OTHER": "OTHER"
-      }
+      "schema": "public",
+      "values": [
+        "PROPOSAL_KETUA",
+        "SURAT_KESEDIAAN",
+        "FORM_PERMOHONAN",
+        "KRS_SEMESTER_4",
+        "DAFTAR_KUMPULAN_NILAI",
+        "BUKTI_PEMBAYARAN_UKT",
+        "SURAT_PENGANTAR"
+      ]
     },
-    "invitation_status": {
+    "public.invitation_status": {
       "name": "invitation_status",
-      "values": {
-        "PENDING": "PENDING",
-        "ACCEPTED": "ACCEPTED",
-        "REJECTED": "REJECTED"
-      }
+      "schema": "public",
+      "values": [
+        "PENDING",
+        "ACCEPTED",
+        "REJECTED"
+      ]
     },
-    "role": {
-      "name": "role",
-      "values": {
-        "MAHASISWA": "MAHASISWA",
-        "ADMIN": "ADMIN",
-        "DOSEN": "DOSEN",
-        "KAPRODI": "KAPRODI",
-        "WAKIL_DEKAN": "WAKIL_DEKAN",
-        "PEMBIMBING_LAPANGAN": "PEMBIMBING_LAPANGAN"
-      }
+    "public.letter_status": {
+      "name": "letter_status",
+      "schema": "public",
+      "values": [
+        "approved",
+        "rejected"
+      ]
     },
-    "submission_status": {
+    "public.response_letter_status": {
+      "name": "response_letter_status",
+      "schema": "public",
+      "values": [
+        "pending",
+        "submitted",
+        "verified"
+      ]
+    },
+    "public.submission_status": {
       "name": "submission_status",
-      "values": {
-        "DRAFT": "DRAFT",
-        "MENUNGGU": "MENUNGGU",
-        "DITOLAK": "DITOLAK",
-        "DITERIMA": "DITERIMA"
-      }
+      "schema": "public",
+      "values": [
+        "DRAFT",
+        "PENDING_REVIEW",
+        "APPROVED",
+        "REJECTED"
+      ]
     },
-    "team_status": {
+    "public.submission_verification_status": {
+      "name": "submission_verification_status",
+      "schema": "public",
+      "values": [
+        "PENDING",
+        "APPROVED",
+        "REJECTED"
+      ]
+    },
+    "public.surat_kesediaan_status": {
+      "name": "surat_kesediaan_status",
+      "schema": "public",
+      "values": [
+        "MENUNGGU",
+        "DISETUJUI",
+        "DITOLAK"
+      ]
+    },
+    "public.surat_permohonan_status": {
+      "name": "surat_permohonan_status",
+      "schema": "public",
+      "values": [
+        "MENUNGGU",
+        "DISETUJUI",
+        "DITOLAK"
+      ]
+    },
+    "public.team_status": {
       "name": "team_status",
-      "values": {
-        "PENDING": "PENDING",
-        "FIXED": "FIXED"
-      }
+      "schema": "public",
+      "values": [
+        "PENDING",
+        "FIXED"
+      ]
+    },
+    "public.workflow_stage": {
+      "name": "workflow_stage",
+      "schema": "public",
+      "values": [
+        "DRAFT",
+        "PENDING_ADMIN_REVIEW",
+        "PENDING_DOSEN_VERIFICATION",
+        "COMPLETED",
+        "REJECTED_ADMIN",
+        "REJECTED_DOSEN"
+      ]
     }
   },
   "schemas": {},
+  "sequences": {},
+  "roles": {},
+  "policies": {},
+  "views": {},
   "_meta": {
     "columns": {},
     "schemas": {},

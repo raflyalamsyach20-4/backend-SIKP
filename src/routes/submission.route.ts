@@ -1,37 +1,157 @@
 import { Hono } from 'hono';
-import { SubmissionController } from '@/controllers/submission.controller';
 import { authMiddleware, mahasiswaOnly, roleMiddleware } from '@/middlewares/auth.middleware';
+import type { CloudflareBindings } from '@/config';
+import { zValidator } from '@hono/zod-validator';
+import { createRuntime } from '@/runtime';
+import { emptyQuerySchema, nonEmptyStringParamsSchema } from '@/schemas/common.schema';
+import {
+  createSubmissionSchema,
+  updateSubmissionSchema,
+  uploadDocumentSchema,
+} from '@/schemas/submission.schema';
 
-export const createSubmissionRoutes = (submissionController: SubmissionController) => {
-  const submission = new Hono();
-
-  // Apply auth middleware to all submission routes
-  submission.use('*', authMiddleware);
-
-  // POST / - create submission (mahasiswa only)
-  submission.post('/', mahasiswaOnly, submissionController.createSubmission);
-
-  // GET /my-submissions - get user's submissions (mahasiswa only)
-  submission.get('/my-submissions', mahasiswaOnly, submissionController.getMySubmissions);
-
-  // GET /:submissionId - get submission by id (mahasiswa + admin)
-  // ⚠️ IMPORTANT: This must come BEFORE other /:submissionId routes due to Hono routing
-  submission.get('/:submissionId', roleMiddleware(['MAHASISWA', 'ADMIN', 'KAPRODI', 'WAKIL_DEKAN']), submissionController.getSubmissionById);
-
-  // PUT /:submissionId - update submission (mahasiswa only)
-  submission.put('/:submissionId', mahasiswaOnly, submissionController.updateSubmission);
-
-  // PATCH /:submissionId - update submission (mahasiswa only)
-  submission.patch('/:submissionId', mahasiswaOnly, submissionController.updateSubmission);
-
-  // POST /:submissionId/submit - submit for review (mahasiswa only)
-  submission.post('/:submissionId/submit', mahasiswaOnly, submissionController.submitForReview);
-
-  // POST /:submissionId/documents - upload document (mahasiswa only)
-  submission.post('/:submissionId/documents', mahasiswaOnly, submissionController.uploadDocument);
-
-  // GET /:submissionId/documents - get documents (mahasiswa only)
-  submission.get('/:submissionId/documents', mahasiswaOnly, submissionController.getDocuments);
+/**
+ * Submission Routes
+ * Handles submission management endpoints
+ */
+export const createSubmissionRoutes = () => {
+  const submission = new Hono<{ Bindings: CloudflareBindings }>()
+    // Apply auth middleware to all submission routes
+    .use('*', authMiddleware)
+    // Create submission (mahasiswa only)
+    .post(
+      '/',
+      mahasiswaOnly,
+      zValidator('query', emptyQuerySchema),
+      zValidator('json', createSubmissionSchema),
+      async (c) => {
+        const runtime = createRuntime(c.env);
+        return Reflect.apply(runtime.submissionController.createSubmission, runtime.submissionController, [c, c.req.valid('json'), c.req.valid('query')]);
+      }
+    )
+    // Get user's submissions (mahasiswa only)
+    .get(
+      '/my-submissions',
+      mahasiswaOnly,
+      zValidator('query', emptyQuerySchema),
+      async (c) => {
+        const runtime = createRuntime(c.env);
+        return Reflect.apply(runtime.submissionController.getMySubmissions, runtime.submissionController, [c, c.req.valid('query')]);
+      }
+    )
+    // Get submission by ID (mahasiswa + admin)
+    .get(
+      '/:submissionId',
+      roleMiddleware(['MAHASISWA', 'ADMIN', 'KAPRODI', 'WAKIL_DEKAN', 'DOSEN']),
+      zValidator('param', nonEmptyStringParamsSchema),
+      zValidator('query', emptyQuerySchema),
+      async (c) => {
+        const runtime = createRuntime(c.env);
+        return Reflect.apply(runtime.submissionController.getSubmissionById, runtime.submissionController, [c, c.req.valid('param'), c.req.valid('query')]);
+      }
+    )
+    // Update submission (mahasiswa only)
+    .put(
+      '/:submissionId',
+      mahasiswaOnly,
+      zValidator('param', nonEmptyStringParamsSchema),
+      zValidator('json', updateSubmissionSchema),
+      async (c) => {
+        const runtime = createRuntime(c.env);
+        return Reflect.apply(runtime.submissionController.updateSubmission, runtime.submissionController, [c, c.req.valid('param'), c.req.valid('json')]);
+      }
+    )
+    .patch(
+      '/:submissionId',
+      mahasiswaOnly,
+      zValidator('param', nonEmptyStringParamsSchema),
+      zValidator('json', updateSubmissionSchema),
+      async (c) => {
+        const runtime = createRuntime(c.env);
+        return Reflect.apply(runtime.submissionController.updateSubmission, runtime.submissionController, [c, c.req.valid('param'), c.req.valid('json')]);
+      }
+    )
+    // Submit for review (mahasiswa only)
+    .post(
+      '/:submissionId/submit',
+      mahasiswaOnly,
+      zValidator('param', nonEmptyStringParamsSchema),
+      zValidator('query', emptyQuerySchema),
+      async (c) => {
+        const runtime = createRuntime(c.env);
+        return Reflect.apply(runtime.submissionController.submitForReview, runtime.submissionController, [c, c.req.valid('param'), c.req.valid('query')]);
+      }
+    )
+    .put(
+      '/:submissionId/submit',
+      mahasiswaOnly,
+      zValidator('param', nonEmptyStringParamsSchema),
+      zValidator('query', emptyQuerySchema),
+      async (c) => {
+        const runtime = createRuntime(c.env);
+        return Reflect.apply(runtime.submissionController.submitForReview, runtime.submissionController, [c, c.req.valid('param'), c.req.valid('query')]);
+      }
+    )
+    // Upload document (mahasiswa only)
+    .post(
+      '/:submissionId/documents',
+      mahasiswaOnly,
+      zValidator('param', nonEmptyStringParamsSchema),
+      zValidator('form', uploadDocumentSchema),
+      async (c) => {
+        const runtime = createRuntime(c.env);
+        return Reflect.apply(runtime.submissionController.uploadDocument, runtime.submissionController, [c, c.req.valid('param'), c.req.valid('form')]);
+      }
+    )
+    // Get documents (mahasiswa only)
+    .get(
+      '/:submissionId/documents',
+      mahasiswaOnly,
+      zValidator('param', nonEmptyStringParamsSchema),
+      zValidator('query', emptyQuerySchema),
+      async (c) => {
+        const runtime = createRuntime(c.env);
+        return Reflect.apply(runtime.submissionController.getDocuments, runtime.submissionController, [c, c.req.valid('param'), c.req.valid('query')]);
+      }
+    )
+    // Backward compatibility for frontend status endpoint
+    .get(
+      '/:submissionId/letter-request-status',
+      mahasiswaOnly,
+      zValidator('param', nonEmptyStringParamsSchema),
+      zValidator('query', emptyQuerySchema),
+      async (c) => {
+        const runtime = createRuntime(c.env);
+        return Reflect.apply(runtime.submissionController.getLetterRequestStatus, runtime.submissionController, [
+          c,
+          c.req.valid('param'),
+          c.req.valid('query'),
+        ]);
+      }
+    )
+    // Delete document (mahasiswa only)
+    // ✅ NEW: Support frontend delete before reupload
+    .delete(
+      '/documents/:documentId',
+      mahasiswaOnly,
+      zValidator('param', nonEmptyStringParamsSchema),
+      zValidator('query', emptyQuerySchema),
+      async (c) => {
+        const runtime = createRuntime(c.env);
+        return Reflect.apply(runtime.submissionController.deleteDocument, runtime.submissionController, [c, c.req.valid('param'), c.req.valid('query')]);
+      }
+    )
+    // Reset to draft (mahasiswa only)
+    .put(
+      '/:submissionId/reset',
+      mahasiswaOnly,
+      zValidator('param', nonEmptyStringParamsSchema),
+      zValidator('query', emptyQuerySchema),
+      async (c) => {
+        const runtime = createRuntime(c.env);
+        return Reflect.apply(runtime.submissionController.resetToDraft, runtime.submissionController, [c, c.req.valid('param'), c.req.valid('query')]);
+      }
+    );
 
   return submission;
 };
