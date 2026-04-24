@@ -95,7 +95,7 @@ export class TemplateController {
       const user = c.get('user') as JWTPayload;
       
       // Check authorization
-      if (user.role !== 'ADMIN') {
+      if (user.role !== 'admin') {
         return c.json(createResponse(false, 'Anda tidak memiliki akses untuk endpoint ini'), 403);
       }
 
@@ -164,7 +164,7 @@ export class TemplateController {
       const user = c.get('user') as JWTPayload;
       
       // Check authorization
-      if (user.role !== 'ADMIN') {
+      if (user.role !== 'admin') {
         return c.json(createResponse(false, 'Anda tidak memiliki akses untuk endpoint ini'), 403);
       }
 
@@ -237,7 +237,7 @@ export class TemplateController {
       const user = c.get('user') as JWTPayload;
       
       // Check authorization
-      if (user.role !== 'ADMIN') {
+      if (user.role !== 'admin') {
         return c.json(createResponse(false, 'Anda tidak memiliki akses untuk endpoint ini'), 403);
       }
 
@@ -267,7 +267,7 @@ export class TemplateController {
       const user = c.get('user') as JWTPayload;
       
       // Check authorization
-      if (user.role !== 'ADMIN') {
+      if (user.role !== 'admin') {
         return c.json(createResponse(false, 'Anda tidak memiliki akses untuk endpoint ini'), 403);
       }
 

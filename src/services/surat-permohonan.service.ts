@@ -5,7 +5,7 @@ import { UserRepository } from '@/repositories/user.repository';
 import { SubmissionRepository } from '@/repositories/submission.repository';
 import { StorageService } from '@/services/storage.service';
 import { generateId } from '@/utils/helpers';
-import type { UserRole } from '@/types';
+import type { RbacRole } from '@/types';
 
 const ALLOWED_SIGNATURE_MIME_TYPES = ['image/png', 'image/jpeg', 'image/jpg'];
 
@@ -99,9 +99,9 @@ export class SuratPermohonanService {
   /**
    * Dosen melihat list ajuan surat permohonan.
    */
-  async getRequestsForDosen(dosenUserId: string, role: UserRole) {
+  async getRequestsForDosen(dosenUserId: string, role: RbacRole) {
     const requests =
-      role === 'WAKIL_DEKAN'
+      role === 'wakil_dekan'
         ? await this.suratPermohonanRepo.findAllWithDetails()
         : await this.suratPermohonanRepo.findByDosenIdWithDetails(dosenUserId);
 

@@ -4,7 +4,7 @@ import { TeamRepository } from '@/repositories/team.repository';
 import { UserRepository } from '@/repositories/user.repository';
 import { StorageService } from '@/services/storage.service';
 import { generateId } from '@/utils/helpers';
-import type { UserRole } from '@/types';
+import type { RbacRole } from '@/types';
 
 const ALLOWED_SIGNATURE_MIME_TYPES = ['image/png', 'image/jpeg', 'image/jpg'];
 
@@ -98,9 +98,9 @@ export class SuratKesediaanService {
   /**
    * Dosen melihat list ajuan surat kesediaan
    */
-  async getRequestsForDosen(dosenUserId: string, role: UserRole) {
+  async getRequestsForDosen(dosenUserId: string, role: RbacRole) {
     const requests =
-      role === 'WAKIL_DEKAN'
+      role === 'wakil_dekan'
         ? await this.suratKesediaanRepo.findAllWithDetails()
         : await this.suratKesediaanRepo.findByDosenIdWithDetails(dosenUserId);
     

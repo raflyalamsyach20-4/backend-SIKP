@@ -5,11 +5,11 @@ import { UserRepository } from '@/repositories/user.repository';
 import { StorageService } from '@/services/storage.service';
 import { UNSRI_LOGO_BASE64 } from '@/constants/unsri-logo.base64';
 import { generateId } from '@/utils/helpers';
-import type { UserRole } from '@/types';
+import type { RbacRole } from '@/types';
 
 type VerifierContext = {
   userId: string;
-  role: UserRole;
+  role: RbacRole;
   nama: string | null;
   nip: string | null;
   jabatan: string | null;
@@ -81,7 +81,7 @@ export class SuratPengantarDosenService {
     private storageService: StorageService
   ) {}
 
-  async getRequestsForVerifier(userId: string, role: UserRole) {
+  async getRequestsForVerifier(userId: string, role: RbacRole) {
     const verifier = await this.resolveVerifierContext(userId, role);
     const allSubmissions = await this.submissionRepo.findAll();
     const submissions = (allSubmissions as VerifierSubmission[]).filter((submission) => {
@@ -225,7 +225,7 @@ export class SuratPengantarDosenService {
     };
   }
 
-  async approveRequest(requestId: string, userId: string, role: UserRole) {
+  async approveRequest(requestId: string, userId: string, role: RbacRole) {
     const verifier = await this.resolveVerifierContext(userId, role);
     const submission = await this.submissionRepo.findByIdWithTeam(requestId);
     if (!submission) {
@@ -308,7 +308,7 @@ export class SuratPengantarDosenService {
     };
   }
 
-  async rejectRequest(requestId: string, userId: string, role: UserRole, rejectionReason: string) {
+  async rejectRequest(requestId: string, userId: string, role: RbacRole, rejectionReason: string) {
     const verifier = await this.resolveVerifierContext(userId, role);
     const submission = await this.submissionRepo.findByIdWithTeam(requestId);
     if (!submission) {
@@ -362,7 +362,7 @@ export class SuratPengantarDosenService {
     };
   }
 
-  private async resolveVerifierContext(userId: string, role: UserRole): Promise<VerifierContext> {
+  private async resolveVerifierContext(userId: string, role: RbacRole): Promise<VerifierContext> {
     const user = await this.userRepo.findById(userId);
     if (!user) {
       const error: Error = new Error('Verifier tidak ditemukan.');
@@ -383,7 +383,7 @@ export class SuratPengantarDosenService {
     };
   }
 
-  private async resolveSigningContext(userId: string, role: UserRole): Promise<SigningContext> {
+  private async resolveSigningContext(userId: string, role: RbacRole): Promise<SigningContext> {
     const verifier = await this.resolveVerifierContext(userId, role);
     if (!verifier.esignatureUrl) {
       const error: Error = new Error('E-signature dosen belum tersedia.');
@@ -499,7 +499,7 @@ export class SuratPengantarDosenService {
 
   private async canVerifierAccessSubmission(verifier: VerifierContext, leaderUserId: string | null | undefined) {
     // Full access for WAKIL_DEKAN role or dosen with jabatan "Wakil Dekan Bidang Akademik"
-    if (verifier.role === 'WAKIL_DEKAN' || this.isAcademicViceDean(verifier)) {
+    if (verifier.role === 'wakil_dekan' || this.isAcademicViceDean(verifier)) {
       return true;
     }
 
