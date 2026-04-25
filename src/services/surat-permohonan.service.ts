@@ -6,6 +6,7 @@ import { SubmissionRepository } from '@/repositories/submission.repository';
 import { StorageService } from '@/services/storage.service';
 import { generateId } from '@/utils/helpers';
 import type { RbacRole } from '@/types';
+import { createDbClient } from '@/db';
 
 const ALLOWED_SIGNATURE_MIME_TYPES = ['image/png', 'image/jpeg', 'image/jpg'];
 
@@ -31,13 +32,22 @@ type MahasiswaSigningContext = {
 };
 
 export class SuratPermohonanService {
+  private suratPermohonanRepo: SuratPermohonanRepository;
+  private teamRepo: TeamRepository;
+  private userRepo: UserRepository;
+  private submissionRepo: SubmissionRepository;
+  private storageService: StorageService;
+
   constructor(
-    private suratPermohonanRepo: SuratPermohonanRepository,
-    private teamRepo: TeamRepository,
-    private userRepo: UserRepository,
-    private submissionRepo: SubmissionRepository,
-    private storageService: StorageService
-  ) {}
+    private env: CloudflareBindings
+  ) {
+    const db = createDbClient(env.DATABASE_URL);
+    this.suratPermohonanRepo = new SuratPermohonanRepository(db);
+    this.teamRepo = new TeamRepository(db);
+    this.userRepo = new UserRepository(db);
+    this.submissionRepo = new SubmissionRepository(db);
+    this.storageService = new StorageService(env);
+  }
 
   /**
    * Mahasiswa mengajukan surat permohonan KP.
@@ -85,8 +95,8 @@ export class SuratPermohonanService {
     const requestId = generateId();
     await this.suratPermohonanRepo.create({
       id: requestId,
-      memberUserId,
-      dosenUserId,
+      memberMahasiswaId: memberUserId,
+      dosenId: dosenUserId,
       submissionId: submission.id,
       status: 'MENUNGGU',
       mahasiswaEsignatureUrl,
@@ -194,7 +204,7 @@ export class SuratPermohonanService {
       throw error;
     }
 
-    if (request.dosenUserId !== dosenUserId) {
+    if (request.dosenId !== dosenUserId) {
       const error: Error = new Error('Anda tidak berhak mengubah pengajuan ini.');
       error.statusCode = 403;
       throw error;
@@ -239,7 +249,7 @@ export class SuratPermohonanService {
       throw error;
     }
 
-    if (request.memberUserId !== memberUserId) {
+    if (request.memberMahasiswaId !== memberUserId) {
       const error: Error = new Error('Anda tidak memiliki akses untuk request ini.');
       error.statusCode = 403;
       throw error;
@@ -282,7 +292,7 @@ export class SuratPermohonanService {
       throw error;
     }
 
-    if (request.dosenUserId !== dosenUserId) {
+    if (request.dosenId !== dosenUserId) {
       const error: Error = new Error('Anda tidak berhak mengubah pengajuan ini.');
       error.statusCode = 403;
       throw error;
@@ -334,7 +344,7 @@ export class SuratPermohonanService {
 
     const approvedAt = new Date();
     const updatedRequest = await this.suratPermohonanRepo.approveWithSignedFile(requestId, dosenUserId, {
-      approvedBy: dosenUserId,
+      approvedByDosenId: dosenUserId,
       approvedAt,
       signedFileUrl,
       signedFileKey,
@@ -373,7 +383,7 @@ export class SuratPermohonanService {
   }
 
   private async resolveFixedTeamForRequest(memberUserId: string, authUserId: string) {
-    const memberTeams = (await this.teamRepo.findTeamsByMemberId(memberUserId)).filter((team) => team.status === 'FIXED');
+    const memberTeams = (await this.teamRepo.findTeamsByMahasiswaId(memberUserId)).filter((team) => team.status === 'FIXED');
 
     if (memberTeams.length === 0) {
       const error: Error = new Error('Mahasiswa belum menetapkan tim.');
@@ -386,7 +396,7 @@ export class SuratPermohonanService {
     }
 
     const authTeamIds = new Set(
-      (await this.teamRepo.findTeamsByMemberId(authUserId))
+      (await this.teamRepo.findTeamsByMahasiswaId(authUserId))
         .filter((team) => team.status === 'FIXED')
         .map((team) => team.id)
     );
@@ -444,7 +454,7 @@ export class SuratPermohonanService {
       return requestDetails.mahasiswaEsignatureUrl;
     }
 
-    return await this.resolveMahasiswaEsignatureUrl(requestDetails.memberUserId);
+    return await this.resolveMahasiswaEsignatureUrl(requestDetails.memberMahasiswaId);
   }
 
   private async getMahasiswaSigningContext(

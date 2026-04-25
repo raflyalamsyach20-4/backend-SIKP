@@ -25,18 +25,16 @@ export interface SsoFakultas {
 export interface SsoDosenPA {
   profile: {
     fullName: string;
-    emails: {
-      email: string;
-      isPrimary: boolean;
-      isInstitutional: boolean;
-    }[];
+    emails: SsoEmail[];
     id: string;
   };
   profileId: string;
   nidn: string;
+  id: string;
 }
 
 export interface SsoMahasiswaIdentity {
+  id: string;
   nim: string;
   angkatan: number;
   status: string;
@@ -48,6 +46,7 @@ export interface SsoMahasiswaIdentity {
 }
 
 export interface SsoDosenIdentity {
+  id: string;
   nidn: string;
   bidangKeahlian: string | null;
   jabatanFungsional: string | null;
@@ -57,6 +56,7 @@ export interface SsoDosenIdentity {
 }
 
 export interface SsoAdminIdentity {
+  id: string;
   nip: string | null;
   jabatan: string;
   prodi: SsoProdi | null;
@@ -64,6 +64,7 @@ export interface SsoAdminIdentity {
 }
 
 export interface SsoMentorIdentity {
+  id: string;
   instansi: string;
   jabatan: string | null;
   bidang: string | null;
@@ -77,7 +78,7 @@ export type SsoProfileRoleEntry = {
   isActive: boolean;
 };
 
-export interface SsoProfile {
+export interface SsoProfileResponse {
   id: string;
   authUserId: string | null;
   fullName: string;
@@ -92,7 +93,7 @@ export interface SsoProfile {
 }
 
 export interface SsoEnvelope {
-  data: SsoProfile | null;
+  data: SsoProfileResponse | null;
   success: boolean;
 }
 
@@ -101,3 +102,32 @@ export type SsoAccessTokenPayload = JoseJWTPayload & {
   roles: RbacRole[];
   permissions: string[];
 };
+
+export interface SsoProfile {
+  fullName: string;
+  id: string;
+  authUserId: string | null;
+}
+
+export interface SsoDosenDetail {
+  jabatanFungsional: "GURU_BESAR" | "LEKTOR_KEPALA" | "LEKTOR" | "ASISTEN_AHLI" | string;
+  jabatanStruktural: ("DEKAN" | "WAKIL_DEKAN" | "KAPRODI" | string)[];
+  profile: SsoProfile;
+  fakultas: SsoFakultas | null;
+  prodi: SsoProdi | null;
+  nidn: string;
+  bidangKeahlian: string | null;
+}
+
+export interface SsoDosenResponse {
+  success: boolean;
+  data: SsoDosenDetail;
+}
+export interface SsoMahasiswaDetail extends SsoMahasiswaIdentity {
+  profile: SsoProfileResponse;
+}
+
+export interface SsoMahasiswaResponse {
+  success: boolean;
+  data: SsoMahasiswaDetail;
+}

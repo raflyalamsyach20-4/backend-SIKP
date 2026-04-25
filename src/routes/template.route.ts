@@ -1,8 +1,8 @@
 import { Hono } from 'hono';
 import { authMiddleware, adminOnly } from '@/middlewares/auth.middleware';
 import { zValidator } from '@hono/zod-validator';
-import { createRuntime } from '@/runtime';
 import { emptyFormSchema, emptyQuerySchema, nonEmptyStringParamsSchema } from '@/schemas/common.schema';
+import { TemplateController } from '@/controllers';
 
 /**
  * Template Routes
@@ -17,16 +17,14 @@ export const createTemplateRoutes = () => {
       '/active',
       zValidator('query', emptyQuerySchema),
       async (c) => {
-        const runtime = createRuntime(c.env);
-        return Reflect.apply(runtime.templateController.getActive, runtime.templateController, [c, c.req.valid('query')]);
+        return new TemplateController(c).getActive();
       }
     )
     .get(
       '/',
       zValidator('query', emptyQuerySchema),
       async (c) => {
-        const runtime = createRuntime(c.env);
-        return Reflect.apply(runtime.templateController.getAll, runtime.templateController, [c, c.req.valid('query')]);
+        return new TemplateController(c).getAll();
       }
     )
     // Admin-only write routes
@@ -35,8 +33,7 @@ export const createTemplateRoutes = () => {
       adminOnly,
       zValidator('form', emptyFormSchema),
       async (c) => {
-        const runtime = createRuntime(c.env);
-        return Reflect.apply(runtime.templateController.create, runtime.templateController, [c, c.req.valid('form')]);
+        return new TemplateController(c).create();
       }
     )
     .put(
@@ -45,8 +42,7 @@ export const createTemplateRoutes = () => {
       zValidator('param', nonEmptyStringParamsSchema),
       zValidator('form', emptyFormSchema),
       async (c) => {
-        const runtime = createRuntime(c.env);
-        return Reflect.apply(runtime.templateController.update, runtime.templateController, [c, c.req.valid('param'), c.req.valid('form')]);
+        return new TemplateController(c).update();
       }
     )
     .delete(
@@ -55,8 +51,7 @@ export const createTemplateRoutes = () => {
       zValidator('param', nonEmptyStringParamsSchema),
       zValidator('query', emptyQuerySchema),
       async (c) => {
-        const runtime = createRuntime(c.env);
-        return Reflect.apply(runtime.templateController.delete, runtime.templateController, [c, c.req.valid('param'), c.req.valid('query')]);
+        return new TemplateController(c).delete();
       }
     )
     .patch(
@@ -65,8 +60,7 @@ export const createTemplateRoutes = () => {
       zValidator('param', nonEmptyStringParamsSchema),
       zValidator('query', emptyQuerySchema),
       async (c) => {
-        const runtime = createRuntime(c.env);
-        return Reflect.apply(runtime.templateController.toggleActive, runtime.templateController, [c, c.req.valid('param'), c.req.valid('query')]);
+        return new TemplateController(c).toggleActive();
       }
     )
     // Public read routes (by ID and download)
@@ -75,8 +69,7 @@ export const createTemplateRoutes = () => {
       zValidator('param', nonEmptyStringParamsSchema),
       zValidator('query', emptyQuerySchema),
       async (c) => {
-        const runtime = createRuntime(c.env);
-        return Reflect.apply(runtime.templateController.download, runtime.templateController, [c, c.req.valid('param'), c.req.valid('query')]);
+        return new TemplateController(c).download();
       }
     )
     .get(
@@ -84,8 +77,7 @@ export const createTemplateRoutes = () => {
       zValidator('param', nonEmptyStringParamsSchema),
       zValidator('query', emptyQuerySchema),
       async (c) => {
-        const runtime = createRuntime(c.env);
-        return Reflect.apply(runtime.templateController.getById, runtime.templateController, [c, c.req.valid('param'), c.req.valid('query')]);
+        return new TemplateController(c).getById();
       }
     );
 

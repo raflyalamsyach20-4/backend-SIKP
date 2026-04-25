@@ -5,6 +5,7 @@ import { UserRepository } from '@/repositories/user.repository';
 import { StorageService } from '@/services/storage.service';
 import { generateId } from '@/utils/helpers';
 import type { RbacRole } from '@/types';
+import { createDbClient } from '@/db';
 
 const ALLOWED_SIGNATURE_MIME_TYPES = ['image/png', 'image/jpeg', 'image/jpg'];
 
@@ -22,12 +23,20 @@ type DosenSigningContext = {
 };
 
 export class SuratKesediaanService {
+  private suratKesediaanRepo: SuratKesediaanRepository;
+  private teamRepo: TeamRepository;
+  private userRepo: UserRepository;
+  private storageService: StorageService;
+
   constructor(
-    private suratKesediaanRepo: SuratKesediaanRepository,
-    private teamRepo: TeamRepository,
-    private userRepo: UserRepository,
-    private storageService: StorageService
-  ) {}
+    private env: CloudflareBindings
+  ) {
+    const db = createDbClient(env.DATABASE_URL);
+    this.suratKesediaanRepo = new SuratKesediaanRepository(db);
+    this.teamRepo = new TeamRepository(db);
+    this.userRepo = new UserRepository(db);
+    this.storageService = new StorageService(env);
+  }
 
   /**
    * Mahasiswa mengajukan surat kesediaan ke dosen
@@ -49,7 +58,7 @@ export class SuratKesediaanService {
     const requestTeam = await this.resolveTeamForRequest(memberUserId, authUserId);
 
     // 3. Target dosen must follow team-level dosen_kp_id
-    const dosenId = requestTeam?.dosenKpId || null;
+    const dosenId = _dosenUserId
     if (!dosenId) {
       const error: Error = new Error('Dosen KP tim belum ditetapkan. Silakan hubungi admin.');
       error.statusCode = 422;
@@ -87,8 +96,8 @@ export class SuratKesediaanService {
     const requestId = generateId();
     const result = await this.suratKesediaanRepo.create({
       id: requestId,
-      memberUserId,
-      dosenUserId: dosenId,
+      memberMahasiswaId: memberUserId,
+      dosenId: dosenId,
       status: 'MENUNGGU',
     });
 
@@ -138,7 +147,7 @@ export class SuratKesediaanService {
       throw error;
     }
 
-    if (request.dosenUserId !== dosenUserId) {
+    if (request.dosenId !== dosenUserId) {
       const error: Error = new Error('Anda tidak berhak mengubah pengajuan ini.');
       error.statusCode = 403;
       throw error;
@@ -183,7 +192,7 @@ export class SuratKesediaanService {
       throw error;
     }
 
-    if (request.memberUserId !== memberUserId) {
+    if (request.memberMahasiswaId !== memberUserId) {
       const error: Error = new Error('Anda tidak memiliki akses untuk request ini.');
       error.statusCode = 403;
       throw error;
@@ -263,7 +272,7 @@ export class SuratKesediaanService {
   }
 
   private async resolveTeamForRequest(memberUserId: string, authUserId: string) {
-    const memberTeams = await this.teamRepo.findTeamsByMemberId(memberUserId);
+    const memberTeams = await this.teamRepo.findTeamsByMahasiswaId(memberUserId);
     if (!memberTeams.length) {
       const error: Error = new Error('Mahasiswa belum tergabung dalam tim.');
       error.statusCode = 422;
@@ -274,7 +283,7 @@ export class SuratKesediaanService {
       return this.pickPreferredTeam(memberTeams);
     }
 
-    const authTeams = await this.teamRepo.findTeamsByMemberId(authUserId);
+    const authTeams = await this.teamRepo.findTeamsByMahasiswaId(authUserId);
     const authTeamIds = new Set(authTeams.map((team) => team.id));
     const sharedTeams = memberTeams.filter((team) => authTeamIds.has(team.id));
 
@@ -305,7 +314,7 @@ export class SuratKesediaanService {
       throw error;
     }
 
-    if (request.dosenUserId !== dosenUserId) {
+    if (request.dosenId !== dosenUserId) {
       const error: Error = new Error('Anda tidak berhak mengubah pengajuan ini.');
       error.statusCode = 403;
       throw error;
@@ -349,7 +358,7 @@ export class SuratKesediaanService {
 
     console.log(`[approve] updating DB requestId=${requestId}`);
     const updatedRequest = await this.suratKesediaanRepo.approveWithSignedFile(requestId, dosenUserId, {
-      approvedBy: dosenUserId,
+      approvedByDosenId: dosenUserId,
       approvedAt,
       signedFileUrl,
       signedFileKey,

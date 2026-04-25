@@ -33,7 +33,7 @@ export type ResponseLetterTrackingStatus = "pending" | "submitted" | "verified";
 export interface Team {
   id: string;
   code: string;
-  leaderId: string;
+  leaderMahasiswaId: string;
   dosenKpId?: string | null;
   dosenKpName?: string | null;
   status: TeamStatus;
@@ -42,10 +42,12 @@ export interface Team {
 export interface TeamMember {
   id: string;
   teamId: string;
-  userId: string;
+  mahasiswaId: string;
   invitationStatus: InvitationStatus;
   invitedAt: Date;
   respondedAt: Date | null;
+  role: string;
+  invitedBy: string | null;
 }
 
 export interface Submission {
@@ -62,11 +64,11 @@ export interface Submission {
   status: SubmissionStatus;
   adminVerificationStatus: SubmissionVerificationStatus;
   adminVerifiedAt?: Date | null;
-  adminVerifiedBy?: string | null;
+  adminVerifiedByAdminId?: string | null;
   adminRejectionReason?: string | null;
   dosenVerificationStatus: SubmissionVerificationStatus;
   dosenVerifiedAt?: Date | null;
-  dosenVerifiedBy?: string | null;
+  dosenVerifiedByDosenId?: string | null;
   dosenRejectionReason?: string | null;
   workflowStage: SubmissionWorkflowStage;
   finalSignedFileUrl?: string | null;
@@ -86,7 +88,7 @@ export interface SubmissionDocument {
   fileSize: number;
   fileUrl: string;
   documentType: DocumentType;
-  uploadedBy: string;
+  uploadedByMahasiswaId: string;
   status?: DocumentStatus;
   statusUpdatedAt?: Date;
   createdAt: Date;
@@ -99,7 +101,7 @@ export interface GeneratedLetter {
   fileName: string;
   fileUrl: string;
   fileType: string;
-  generatedBy: string;
+  generatedByAdminId: string;
   generatedAt: Date;
   createdAt: Date;
 }
@@ -129,7 +131,11 @@ export interface JWTPayload {
   activeIdentity: AuthIdentity | null;
   availableIdentities: AuthIdentity[];
   profileId?: string | null;
-  dosenPAId?: string | null;
+  mahasiswaId?: string | null; // id mahasiswa dari identity mahasiswa
+  dosenId?: string | null; // id dosen dari identity dosen
+  adminId?: string | null; // id admin dari identity admin
+  mentorId?: string | null; // id mentor dari identity mentor
+  dosenPAId?: string | null; // id dosen dari dosenPA mahasiswa
   nim?: string | null;
   nip?: string | null;
   nidn?: string | null;
@@ -180,8 +186,8 @@ export interface Template {
   fields?: TemplateField[] | null;
   version: number;
   isActive: boolean;
-  createdBy: string;
-  updatedBy?: string | null;
+  createdByAdminId: string;
+  updatedByAdminId?: string | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -194,7 +200,7 @@ export interface ResponseLetter {
   fileType: string | null;
   fileSize: number | null;
   fileUrl: string | null;
-  memberUserId: string | null;
+  memberMahasiswaId: string | null;
   letterStatus: ResponseLetterStatus;
   studentName: string | null;
   studentNim: string | null;

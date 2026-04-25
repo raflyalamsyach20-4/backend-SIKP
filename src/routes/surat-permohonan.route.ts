@@ -1,7 +1,6 @@
 import { Hono } from 'hono';
 import { authMiddleware, dosenOnly, mahasiswaOnly, roleMiddleware } from '@/middlewares/auth.middleware';
 import { zValidator } from '@hono/zod-validator';
-import { createRuntime } from '@/runtime';
 import { emptyQuerySchema, nonEmptyStringParamsSchema } from '@/schemas/common.schema';
 import {
   requestSuratPermohonanSchema,
@@ -9,6 +8,7 @@ import {
   approveBulkSchema,
   rejectRequestSchema,
 } from '@/schemas/surat-permohonan.schema';
+import { SuratPermohonanController } from '@/controllers';
 
 /**
  * Mount at /api/mahasiswa/surat-permohonan
@@ -20,8 +20,7 @@ export const createMahasiswaSuratPermohonanRoutes = () => {
       '/requests',
       zValidator('json', requestSuratPermohonanSchema),
       async (c) => {
-        const runtime = createRuntime(c.env);
-        return Reflect.apply(runtime.suratPermohonanController.requestSuratPermohonan, runtime.suratPermohonanController, [c, c.req.valid('json')]);
+        return new SuratPermohonanController(c).requestSuratPermohonan();
       }
     )
     // PUT /api/mahasiswa/surat-permohonan/requests/:requestId/reapply
@@ -30,8 +29,7 @@ export const createMahasiswaSuratPermohonanRoutes = () => {
       zValidator('param', nonEmptyStringParamsSchema),
       zValidator('json', reapplyRequestSchema),
       async (c) => {
-        const runtime = createRuntime(c.env);
-        return Reflect.apply(runtime.suratPermohonanController.reapplyRequest, runtime.suratPermohonanController, [c, c.req.valid('param'), c.req.valid('json')]);
+        return new SuratPermohonanController(c).reapplyRequest();
       }
     )
     .patch(
@@ -39,8 +37,7 @@ export const createMahasiswaSuratPermohonanRoutes = () => {
       zValidator('param', nonEmptyStringParamsSchema),
       zValidator('json', reapplyRequestSchema),
       async (c) => {
-        const runtime = createRuntime(c.env);
-        return Reflect.apply(runtime.suratPermohonanController.reapplyRequest, runtime.suratPermohonanController, [c, c.req.valid('param'), c.req.valid('json')]);
+        return new SuratPermohonanController(c).reapplyRequest();
       }
     )
     .post(
@@ -48,16 +45,14 @@ export const createMahasiswaSuratPermohonanRoutes = () => {
       zValidator('param', nonEmptyStringParamsSchema),
       zValidator('json', reapplyRequestSchema),
       async (c) => {
-        const runtime = createRuntime(c.env);
-        return Reflect.apply(runtime.suratPermohonanController.reapplyRequest, runtime.suratPermohonanController, [c, c.req.valid('param'), c.req.valid('json')]);
+        return new SuratPermohonanController(c).reapplyRequest();
       }
     )
     .post(
       '/request',
       zValidator('json', requestSuratPermohonanSchema),
       async (c) => {
-        const runtime = createRuntime(c.env);
-        return Reflect.apply(runtime.suratPermohonanController.requestSuratPermohonan, runtime.suratPermohonanController, [c, c.req.valid('json')]);
+        return new SuratPermohonanController(c).requestSuratPermohonan();
       }
     );
 
@@ -75,8 +70,7 @@ export const createSuratPermohonanFallbackRoutes = () => {
       '/requests',
       zValidator('json', requestSuratPermohonanSchema),
       async (c) => {
-        const runtime = createRuntime(c.env);
-        return Reflect.apply(runtime.suratPermohonanController.requestSuratPermohonan, runtime.suratPermohonanController, [c, c.req.valid('json')]);
+        return new SuratPermohonanController(c).requestSuratPermohonan();
       }
     )
     // PUT /api/surat-permohonan/requests/:requestId/reapply
@@ -85,8 +79,7 @@ export const createSuratPermohonanFallbackRoutes = () => {
       zValidator('param', nonEmptyStringParamsSchema),
       zValidator('json', reapplyRequestSchema),
       async (c) => {
-        const runtime = createRuntime(c.env);
-        return Reflect.apply(runtime.suratPermohonanController.reapplyRequest, runtime.suratPermohonanController, [c, c.req.valid('param'), c.req.valid('json')]);
+        return new SuratPermohonanController(c).reapplyRequest();
       }
     )
     .patch(
@@ -94,8 +87,7 @@ export const createSuratPermohonanFallbackRoutes = () => {
       zValidator('param', nonEmptyStringParamsSchema),
       zValidator('json', reapplyRequestSchema),
       async (c) => {
-        const runtime = createRuntime(c.env);
-        return Reflect.apply(runtime.suratPermohonanController.reapplyRequest, runtime.suratPermohonanController, [c, c.req.valid('param'), c.req.valid('json')]);
+        return new SuratPermohonanController(c).reapplyRequest();
       }
     )
     .post(
@@ -103,16 +95,14 @@ export const createSuratPermohonanFallbackRoutes = () => {
       zValidator('param', nonEmptyStringParamsSchema),
       zValidator('json', reapplyRequestSchema),
       async (c) => {
-        const runtime = createRuntime(c.env);
-        return Reflect.apply(runtime.suratPermohonanController.reapplyRequest, runtime.suratPermohonanController, [c, c.req.valid('param'), c.req.valid('json')]);
+        return new SuratPermohonanController(c).reapplyRequest();
       }
     )
     .post(
       '/request',
       zValidator('json', requestSuratPermohonanSchema),
       async (c) => {
-        const runtime = createRuntime(c.env);
-        return Reflect.apply(runtime.suratPermohonanController.requestSuratPermohonan, runtime.suratPermohonanController, [c, c.req.valid('json')]);
+        return new SuratPermohonanController(c).requestSuratPermohonan();
       }
     );
 
@@ -130,8 +120,7 @@ export const createDosenSuratPermohonanRoutes = () => {
       roleMiddleware(['dosen', 'wakil_dekan']),
       zValidator('query', emptyQuerySchema),
       async (c) => {
-        const runtime = createRuntime(c.env);
-        return Reflect.apply(runtime.suratPermohonanController.getRequests, runtime.suratPermohonanController, [c, c.req.valid('query')]);
+        return new SuratPermohonanController(c).getRequests();
       }
     )
     .put(
@@ -140,8 +129,7 @@ export const createDosenSuratPermohonanRoutes = () => {
       zValidator('param', nonEmptyStringParamsSchema),
       zValidator('query', emptyQuerySchema),
       async (c) => {
-        const runtime = createRuntime(c.env);
-        return Reflect.apply(runtime.suratPermohonanController.approveSingle, runtime.suratPermohonanController, [c, c.req.valid('param'), c.req.valid('query')]);
+        return new SuratPermohonanController(c).approveSingle();
       }
     )
     .put(
@@ -149,8 +137,7 @@ export const createDosenSuratPermohonanRoutes = () => {
       dosenOnly,
       zValidator('json', approveBulkSchema),
       async (c) => {
-        const runtime = createRuntime(c.env);
-        return Reflect.apply(runtime.suratPermohonanController.approveBulk, runtime.suratPermohonanController, [c, c.req.valid('json')]);
+        return new SuratPermohonanController(c).approveBulk();
       }
     )
     .put(
@@ -159,8 +146,7 @@ export const createDosenSuratPermohonanRoutes = () => {
       zValidator('param', nonEmptyStringParamsSchema),
       zValidator('json', rejectRequestSchema),
       async (c) => {
-        const runtime = createRuntime(c.env);
-        return Reflect.apply(runtime.suratPermohonanController.reject, runtime.suratPermohonanController, [c, c.req.valid('param'), c.req.valid('json')]);
+        return new SuratPermohonanController(c).reject();
       }
     );
 

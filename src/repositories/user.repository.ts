@@ -71,7 +71,7 @@ export class UserRepository {
     const dosenInKesediaan = await this.db
       .select({ id: suratKesediaanRequests.id })
       .from(suratKesediaanRequests)
-      .where(eq(suratKesediaanRequests.dosenUserId, userId))
+      .where(eq(suratKesediaanRequests.dosenId, userId))
       .limit(1);
 
     if (dosenInKesediaan.length > 0) {
@@ -81,7 +81,7 @@ export class UserRepository {
     const dosenInPermohonan = await this.db
       .select({ id: suratPermohonanRequests.id })
       .from(suratPermohonanRequests)
-      .where(eq(suratPermohonanRequests.dosenUserId, userId))
+      .where(eq(suratPermohonanRequests.dosenId, userId))
       .limit(1);
 
     if (dosenInPermohonan.length > 0) {

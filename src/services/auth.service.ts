@@ -64,17 +64,17 @@ export class AuthService {
   private getJwks() {
     if (!this.jwks) {
       this.assertSsoConfiguration();
-      this.jwks = createRemoteJWKSet(new URL(this.env.SSO_JWKS_URL));
+      const jwksUrl = this.env.SSO_JWKS_URL || `${this.env.SSO_BASE_URL}/.well-known/jwks.json`;
+      this.jwks = createRemoteJWKSet(new URL(jwksUrl));
     }
 
     return this.jwks;
   }
 
   private assertSsoConfiguration() {
-    const requiredConfig: Array<{ key: string; value: string }> = [
+    const requiredConfig: Array<{ key: string; value: string | undefined }> = [
       { key: "SSO_BASE_URL", value: this.env.SSO_BASE_URL },
       { key: "SSO_ISSUER", value: this.env.SSO_ISSUER },
-      { key: "SSO_JWKS_URL", value: this.env.SSO_JWKS_URL },
       { key: "SSO_CLIENT_ID", value: this.env.SSO_CLIENT_ID },
       { key: "SSO_CLIENT_SECRET", value: this.env.SSO_CLIENT_SECRET },
       { key: "SSO_REDIRECT_URI", value: this.env.SSO_REDIRECT_URI },
@@ -97,7 +97,7 @@ export class AuthService {
       throw error;
     }
 
-    if (!this.env.SSO_REDIRECT_URI.endsWith("/callback")) {
+    if (!this.env.SSO_REDIRECT_URI?.endsWith("/callback")) {
       const error = new Error(
         "SSO_REDIRECT_URI must end with /callback",
       ) as Error & { statusCode?: number };
@@ -147,16 +147,17 @@ export class AuthService {
   private async exchangeAuthorizationCode(
     payload: CallbackPayload,
   ): Promise<TokenExchangeResponse> {
+    const tokenUrl = this.env.SSO_TOKEN_URL || `${this.env.SSO_BASE_URL}/oauth/token`;
     const form = new URLSearchParams({
       grant_type: "AUTHORIZATION_CODE",
       code: payload.code,
       code_verifier: payload.codeVerifier,
       redirect_uri: payload.redirectUri,
-      client_id: this.env.SSO_CLIENT_ID,
-      client_secret: this.env.SSO_CLIENT_SECRET,
+      client_id: this.env.SSO_CLIENT_ID || '',
+      client_secret: this.env.SSO_CLIENT_SECRET || '',
     });
 
-    const response = await fetch(this.env.SSO_TOKEN_URL, {
+    const response = await fetch(tokenUrl, {
       method: "POST",
       headers: {
         "Content-Type": "application/x-www-form-urlencoded",
@@ -182,7 +183,8 @@ export class AuthService {
       Accept: "application/json",
     };
 
-    const profileResp = await fetch(this.env.SSO_PROFILE_URL, { headers });
+    const profileUrl = this.env.SSO_PROFILE_URL || `${this.env.SSO_BASE_URL}/profile`;
+    const profileResp = await fetch(profileUrl, { headers });
     if (!profileResp.ok) {
       const body = await profileResp.text();
       const error = new Error(
@@ -245,7 +247,7 @@ export class AuthService {
   ): string {
     this.assertSsoConfiguration();
 
-    const effectiveRedirectUri = redirectUri || this.env.SSO_REDIRECT_URI;
+    const effectiveRedirectUri = redirectUri || this.env.SSO_REDIRECT_URI || '';
     if (effectiveRedirectUri !== this.env.SSO_REDIRECT_URI) {
       const error = new Error(
         "redirectUri does not match configured SSO_REDIRECT_URI",
@@ -256,7 +258,7 @@ export class AuthService {
 
     const url = new URL(`${this.env.SSO_BASE_URL}/oauth/authorize`);
     url.searchParams.set("response_type", "code");
-    url.searchParams.set("client_id", this.env.SSO_CLIENT_ID);
+    url.searchParams.set("client_id", this.env.SSO_CLIENT_ID || '');
     url.searchParams.set("redirect_uri", effectiveRedirectUri);
     url.searchParams.set("scope", "OPENID PROFILE EMAIL");
     url.searchParams.set("state", state);
@@ -303,14 +305,14 @@ export class AuthService {
       ) || null;
 
     const primaryRole = this.pickPrimaryRole(effectiveRoles);
-    const inferredEmail = profile?.emails[0].email;
+    const inferredEmail = profile?.emails[0]?.email;
 
     const userPayload: JWTPayload = {
       sub: session.authUserId,
       userId: session.authUserId,
       authUserId: session.authUserId,
       sessionId: session.sessionId,
-      email: inferredEmail,
+      email: inferredEmail || '',
       role: primaryRole,
       effectiveRoles,
       effectivePermissions,
@@ -318,7 +320,11 @@ export class AuthService {
       availableIdentities,
       nama: profile.fullName,
       profileId: profile.id,
-      dosenPAId: profile.identities.mahasiswa?.dosenPA?.profileId,
+      mahasiswaId: profile.identities.mahasiswa?.id,
+      dosenId: profile.identities.dosen?.id,
+      adminId: profile.identities.admin?.id,
+      mentorId: profile.identities.mentor?.id,
+      dosenPAId: profile.identities.mahasiswa?.dosenPA?.id,
       nim: profile.identities.mahasiswa?.nim,
       nip: profile.identities.admin?.nip,
       nidn: profile.identities.dosen?.nidn,
@@ -610,13 +616,14 @@ export class AuthService {
 
     if (session?.refreshToken) {
       try {
+        const revokeUrl = this.env.SSO_REVOKE_URL || `${this.env.SSO_BASE_URL}/oauth/revoke`;
         const revokeBody = new URLSearchParams({
           token: session.refreshToken,
-          client_id: this.env.SSO_CLIENT_ID,
-          client_secret: this.env.SSO_CLIENT_SECRET,
+          client_id: this.env.SSO_CLIENT_ID || '',
+          client_secret: this.env.SSO_CLIENT_SECRET || '',
         });
 
-        await fetch(this.env.SSO_REVOKE_URL, {
+        await fetch(revokeUrl, {
           method: "POST",
           headers: {
             "Content-Type": "application/x-www-form-urlencoded",

@@ -21,7 +21,7 @@ export class ResponseLetterRepository {
     fileType?: string;
     fileSize?: number;
     fileUrl?: string;
-    memberUserId?: string;
+    memberMahasiswaId?: string;
     letterStatus: 'approved' | 'rejected';
     studentName?: string | null;
     studentNim?: string | null;
@@ -43,7 +43,7 @@ export class ResponseLetterRepository {
         fileType: data.fileType || null,
         fileSize: data.fileSize || null,
         fileUrl: data.fileUrl || null,
-        memberUserId: data.memberUserId || null,
+        memberMahasiswaId: data.memberMahasiswaId || null,
         letterStatus: data.letterStatus,
         studentName: data.studentName ?? null,
         studentNim: data.studentNim ?? null,
@@ -100,11 +100,11 @@ export class ResponseLetterRepository {
    * Find response letter by user ID (memberUserId)
    * Returns the most recent response letter for the user
    */
-  async findByUserId(userId: string): Promise<ResponseLetter | null> {
+  async findByMahasiswaId(mahasiswaId: string): Promise<ResponseLetter | null> {
     const [responseLetter] = await this.db
       .select()
       .from(responseLetters)
-      .where(eq(responseLetters.memberUserId, userId))
+      .where(eq(responseLetters.memberMahasiswaId, mahasiswaId))
       .orderBy(desc(responseLetters.submittedAt))
       .limit(1);
 
@@ -150,7 +150,7 @@ export class ResponseLetterRepository {
       team: data.team || undefined,
       leader: undefined,
       members: membersData.map((m) => ({
-        id: m.member.userId,
+        id: m.member.mahasiswaId,
         nama: null,
         email: '',
         password: '',
@@ -221,7 +221,7 @@ export class ResponseLetterRepository {
           team: data.team || undefined,
           leader: undefined,
           members: membersData.map((m) => ({
-            id: m.member.userId,
+            id: m.member.mahasiswaId,
             nama: null,
             email: '',
             password: '',
@@ -268,7 +268,7 @@ export class ResponseLetterRepository {
       fileType: string;
       fileSize: number;
       fileUrl: string;
-      memberUserId: string;
+      memberMahasiswaId: string;
       letterStatus: 'approved' | 'rejected';
       submissionId: string | null;
       studentName: string | null;
@@ -322,11 +322,11 @@ export class ResponseLetterRepository {
   /**
    * Check if user is member of team
    */
-  async isUserMemberOfTeam(userId: string, teamId: string): Promise<boolean> {
+  async isMahasiswaMemberOfTeam(mahasiswaId: string, teamId: string): Promise<boolean> {
     const [member] = await this.db
       .select()
       .from(teamMembers)
-      .where(and(eq(teamMembers.userId, userId), eq(teamMembers.teamId, teamId)))
+      .where(and(eq(teamMembers.mahasiswaId, mahasiswaId), eq(teamMembers.teamId, teamId)))
       .limit(1);
 
     return !!member;
@@ -337,7 +337,7 @@ export class ResponseLetterRepository {
    * This is used by the getMyResponseLetter endpoint
    */
   async findByUserTeamWithDetails(
-    userId: string
+    mahasiswaId: string
   ): Promise<(ResponseLetterWithDetails & { isLeader: boolean }) | null> {
     // 1. Get user's team (only accepted members)
     const teamMembersResult = await this.db
@@ -348,7 +348,7 @@ export class ResponseLetterRepository {
       .from(teamMembers)
       .innerJoin(teams, eq(teamMembers.teamId, teams.id))
       .where(and(
-        eq(teamMembers.userId, userId),
+        eq(teamMembers.mahasiswaId, mahasiswaId),
         eq(teamMembers.invitationStatus, 'ACCEPTED')
       ))
       .limit(1);
@@ -408,7 +408,7 @@ export class ResponseLetterRepository {
       team: data.team || undefined,
       leader: undefined,
       members: membersResult.map((m) => ({
-        id: m.member.userId,
+        id: m.member.mahasiswaId,
         nama: null,
         email: '',
         password: '',

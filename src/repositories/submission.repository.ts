@@ -5,7 +5,7 @@ import { submissions, submissionDocuments, generatedLetters, teams, teamMembers 
 type TeamMemberRow = {
   id: string;
   teamId: string;
-  userId: string;
+  mahasiswaId: string;
   role: string | null;
   status: string;
   invitedAt: Date;
@@ -29,7 +29,7 @@ export class SubmissionRepository {
     return null;
   }
 
-  private async resolveAcademicSupervisorByLeaderId(leaderId?: string | null) {
+  private async resolveAcademicSupervisorByLeaderMahasiswaId(leaderMahasiswaId?: string | null) {
     return null;
   }
 
@@ -81,7 +81,7 @@ export class SubmissionRepository {
 
     if (team) {
       // Resolve real dosen PA from team leader's mahasiswa profile
-      academicSupervisor = await this.resolveAcademicSupervisorByLeaderId(team.leaderId);
+      academicSupervisor = await this.resolveAcademicSupervisorByLeaderMahasiswaId(team.leaderMahasiswaId);
       dosenKpName = await this.resolveTeamKpSupervisorByTeamId(team.id);
 
       // Get team members with user info
@@ -89,7 +89,7 @@ export class SubmissionRepository {
         .select({
           id: teamMembers.id,
           teamId: teamMembers.teamId,
-          userId: teamMembers.userId,
+          mahasiswaId: teamMembers.mahasiswaId,
           role: teamMembers.role,
           status: teamMembers.invitationStatus,
           invitedAt: teamMembers.invitedAt,
@@ -101,7 +101,7 @@ export class SubmissionRepository {
       teamMembers_list = (membersData as TeamMemberRow[]).map((member) => ({
         ...member,
         user: {
-          id: member.userId,
+          id: member.mahasiswaId,
           name: null,
           email: null,
           nim: null,
@@ -201,8 +201,8 @@ export class SubmissionRepository {
         id: submissionDocuments.id,
         submissionId: submissionDocuments.submissionId,
         documentType: submissionDocuments.documentType,
-        memberUserId: submissionDocuments.memberUserId,
-        uploadedByUserId: submissionDocuments.uploadedByUserId,
+        memberMahasiswaId: submissionDocuments.memberMahasiswaId,
+        uploadedByMahasiswaId: submissionDocuments.uploadedByMahasiswaId,
         originalName: submissionDocuments.originalName,
         fileName: submissionDocuments.fileName,
         fileType: submissionDocuments.fileType,
@@ -222,8 +222,8 @@ export class SubmissionRepository {
         id: submissionDocuments.id,
         submissionId: submissionDocuments.submissionId,
         documentType: submissionDocuments.documentType,
-        memberUserId: submissionDocuments.memberUserId,
-        uploadedByUserId: submissionDocuments.uploadedByUserId,
+        memberMahasiswaId: submissionDocuments.memberMahasiswaId,
+        uploadedByMahasiswaId: submissionDocuments.uploadedByMahasiswaId,
         originalName: submissionDocuments.originalName,
         fileName: submissionDocuments.fileName,
         fileType: submissionDocuments.fileType,
@@ -241,7 +241,7 @@ export class SubmissionRepository {
     return rows.map((row) => ({
       ...row,
       uploadedByUser: {
-        id: row.uploadedByUserId,
+        id: row.uploadedByMahasiswaId,
         name: null,
         email: null,
         nim: null,
@@ -256,8 +256,8 @@ export class SubmissionRepository {
         id: submissionDocuments.id,
         submissionId: submissionDocuments.submissionId,
         documentType: submissionDocuments.documentType,
-        memberUserId: submissionDocuments.memberUserId,
-        uploadedByUserId: submissionDocuments.uploadedByUserId,
+        memberMahasiswaId: submissionDocuments.memberMahasiswaId,
+        uploadedByMahasiswaId: submissionDocuments.uploadedByMahasiswaId,
         originalName: submissionDocuments.originalName,
         fileName: submissionDocuments.fileName,
         fileType: submissionDocuments.fileType,
@@ -280,7 +280,7 @@ export class SubmissionRepository {
     return {
       ...row,
       uploadedByUser: {
-        id: row.uploadedByUserId,
+        id: row.uploadedByMahasiswaId,
         name: null,
         email: null,
         nim: null,
@@ -306,15 +306,15 @@ export class SubmissionRepository {
   async findExistingDocument(
     submissionId: string,
     documentType: typeof submissionDocuments.$inferSelect.documentType,
-    memberUserId: string
+    memberMahasiswaId: string
   ) {
     const result = await this.db
       .select({
         id: submissionDocuments.id,
         submissionId: submissionDocuments.submissionId,
         documentType: submissionDocuments.documentType,
-        memberUserId: submissionDocuments.memberUserId,
-        uploadedByUserId: submissionDocuments.uploadedByUserId,
+        memberMahasiswaId: submissionDocuments.memberMahasiswaId,
+        uploadedByMahasiswaId: submissionDocuments.uploadedByMahasiswaId,
         originalName: submissionDocuments.originalName,
         fileName: submissionDocuments.fileName,
         fileType: submissionDocuments.fileType,
@@ -329,7 +329,7 @@ export class SubmissionRepository {
         and(
           eq(submissionDocuments.submissionId, submissionId),
           eq(submissionDocuments.documentType, documentType),
-          eq(submissionDocuments.memberUserId, memberUserId)
+          eq(submissionDocuments.memberMahasiswaId, memberMahasiswaId)
         )
       )
       .limit(1);
@@ -393,7 +393,7 @@ export class SubmissionRepository {
         let dosenKpName: string | null = null;
 
         if (team) {
-          academicSupervisor = await this.resolveAcademicSupervisorByLeaderId(team.leaderId);
+          academicSupervisor = await this.resolveAcademicSupervisorByLeaderMahasiswaId(team.leaderMahasiswaId);
           dosenKpName = await this.resolveTeamKpSupervisorByTeamId(team.id);
 
           // Get team members with user info
@@ -401,7 +401,7 @@ export class SubmissionRepository {
             .select({
               id: teamMembers.id,
               teamId: teamMembers.teamId,
-              userId: teamMembers.userId,
+              mahasiswaId: teamMembers.mahasiswaId,
               role: teamMembers.role,
               status: teamMembers.invitationStatus,
               invitedAt: teamMembers.invitedAt,
@@ -413,7 +413,7 @@ export class SubmissionRepository {
           teamMembers_list = (membersData as TeamMemberRow[]).map((member) => ({
             ...member,
             user: {
-              id: member.userId,
+              id: member.mahasiswaId,
               name: null,
               email: null,
               nim: null,
@@ -496,8 +496,8 @@ export class SubmissionRepository {
       id: `doc-${timestamp}`,
       submissionId,
       documentType: 'SURAT_PENGANTAR' as const,
-      memberUserId: adminId, // System-generated, uploaded by admin
-      uploadedByUserId: adminId,
+      memberMahasiswaId: adminId, // System-generated, uploaded by admin
+      uploadedByMahasiswaId: adminId,
       originalName: `Surat_Pengantar_Kerja_Praktik_${teamCode}.pdf`,
       fileName: `Surat_Pengantar_Kerja_Praktik_${teamCode}_${timestamp}.pdf`,
       fileType: 'application/pdf',

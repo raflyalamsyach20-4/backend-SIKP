@@ -2,7 +2,6 @@ import { createDbClient } from '@/db';
 import { createAppConfig } from '@/config';
 import { MockR2Bucket } from '@/services';
 import {
-  UserRepository,
   AuthSessionRepository,
   TeamRepository,
   SubmissionRepository,
@@ -26,19 +25,6 @@ import {
   SuratPermohonanService,
   SuratPengantarDosenService,
 } from '@/services';
-import {
-  TeamController,
-  SubmissionController,
-  AdminController,
-  TemplateController,
-  ResponseLetterController,
-  DosenController,
-  MahasiswaController,
-  SuratKesediaanController,
-  SuratPermohonanController,
-  SuratPengantarDosenController,
-  SsoSignatureController,
-} from '@/controllers';
 
 const resolveBucket = (config: ReturnType<typeof createAppConfig>) => {
   return config.storage.useMockR2
@@ -49,9 +35,7 @@ const resolveBucket = (config: ReturnType<typeof createAppConfig>) => {
 export const createRuntime = (env: CloudflareBindings) => {
   const config = createAppConfig(env);
   const dbClient = createDbClient(config.database.url);
-  const r2Bucket = resolveBucket(config);
-
-  const userRepository = new UserRepository(dbClient);
+  
   const authSessionRepository = new AuthSessionRepository(dbClient);
   const teamRepository = new TeamRepository(dbClient);
   const submissionRepository = new SubmissionRepository(dbClient);
@@ -60,81 +44,22 @@ export const createRuntime = (env: CloudflareBindings) => {
   const suratKesediaanRepository = new SuratKesediaanRepository(dbClient);
   const suratPermohonanRepository = new SuratPermohonanRepository(dbClient);
 
-  const storageService = new StorageService(
-    r2Bucket as R2Bucket,
-    config.storage.r2Domain,
-    config.storage.r2BucketName,
-    config.storage.apiBaseUrl
-  );
-  const teamResetService = new TeamResetService(submissionRepository, teamRepository);
-  const letterService = new LetterService(submissionRepository, storageService);
-  const templateService = new TemplateService(
-    dbClient,
-    { R2Bucket: r2Bucket as R2Bucket, s3Client: undefined },
-    config.storage.r2Domain,
-    config.storage.r2BucketName
-  );
-  const responseLetterService = new ResponseLetterService(
-    responseLetterRepository,
-    submissionRepository,
-    storageService,
-    teamResetService
-  );
-  const suratPengantarDosenService = new SuratPengantarDosenService(
-    submissionRepository,
-    teamRepository,
-    userRepository,
-    storageService
-  );
-  const suratKesediaanService = new SuratKesediaanService(
-    suratKesediaanRepository,
-    teamRepository,
-    userRepository,
-    storageService
-  );
-  const suratPermohonanService = new SuratPermohonanService(
-    suratPermohonanRepository,
-    teamRepository,
-    userRepository,
-    submissionRepository,
-    storageService
-  );
-  const teamService = new TeamService(
-    teamRepository,
-    userRepository,
-    submissionRepository,
-    responseLetterRepository
-  );
-  const submissionService = new SubmissionService(
-    submissionRepository,
-    teamRepository,
-    suratKesediaanRepository,
-    suratPermohonanRepository,
-    storageService
-  );
-  const adminService = new AdminService(
-    submissionRepository,
-    letterService,
-    responseLetterRepository,
-    teamRepository,
-    userRepository,
-    templateRepository
-  );
-  const dosenService = new DosenService(
-    userRepository,
-    storageService,
-    teamRepository,
-    suratKesediaanRepository,
-    suratPermohonanRepository,
-    suratPengantarDosenService
-  );
-  const mahasiswaService = new MahasiswaService(
-    userRepository,
-    storageService,
-    teamRepository,
-    submissionRepository,
-    responseLetterRepository
-  );
+  const storageService = new StorageService(env);
+  const teamResetService = new TeamResetService(env);
+  const letterService = new LetterService(env);
+  const templateService = new TemplateService(env);
+  
+  const responseLetterService = new ResponseLetterService(env);
+  
+  const suratPengantarDosenService = new SuratPengantarDosenService(env);
+  const suratKesediaanService = new SuratKesediaanService(env);
+  const suratPermohonanService = new SuratPermohonanService(env);
+
+  const teamService = new TeamService(env);
+  const submissionService = new SubmissionService(env);
+  const adminService = new AdminService(env);
+  const dosenService = new DosenService(env);
+  const mahasiswaService = new MahasiswaService(env);
 
   return {
     config,
@@ -152,20 +77,5 @@ export const createRuntime = (env: CloudflareBindings) => {
     adminService,
     dosenService,
     mahasiswaService,
-    teamController: new TeamController(teamService),
-    submissionController: new SubmissionController(submissionService),
-    adminController: new AdminController(adminService),
-    templateController: new TemplateController(
-      dbClient,
-      { R2Bucket: r2Bucket as R2Bucket, s3Client: undefined },
-      config.storage.r2Domain,
-      config.storage.r2BucketName
-    ),
-    responseLetterController: new ResponseLetterController(responseLetterService),
-    dosenController: new DosenController(dosenService),
-    mahasiswaController: new MahasiswaController(mahasiswaService),
-    suratKesediaanController: new SuratKesediaanController(suratKesediaanService),
-    suratPermohonanController: new SuratPermohonanController(suratPermohonanService),
-    suratPengantarDosenController: new SuratPengantarDosenController(suratPengantarDosenService),
   };
 };

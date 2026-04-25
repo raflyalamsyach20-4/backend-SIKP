@@ -1,13 +1,8 @@
 import { nanoid } from 'nanoid';
-import type { DbClient } from '@/db';
+import { createDbClient } from '@/db';
 import { TemplateRepository } from '@/repositories/template.repository';
 import { StorageService } from './storage.service';
 import type { Template, TemplateField } from '@/types';
-
-interface UploadConfig {
-  R2Bucket?: R2Bucket;
-  s3Client?: unknown;
-}
 
 type TemplateType = 'Template Only' | 'Generate & Template';
 
@@ -30,28 +25,12 @@ type UpdateTemplateInput = {
 
 export class TemplateService {
   private repository: TemplateRepository;
-  private storageService?: StorageService;
+  private storageService: StorageService;
 
-  constructor(
-    private db: DbClient,
-    private uploadConfig: UploadConfig,
-    r2Domain?: string,
-    r2BucketName?: string
-  ) {
+  constructor(private env: CloudflareBindings) {
+    const db = createDbClient(this.env.DATABASE_URL);
     this.repository = new TemplateRepository(db);
-    
-    // Initialize StorageService if R2Bucket is available
-    if (uploadConfig.R2Bucket) {
-      try {
-        this.storageService = new StorageService(
-          uploadConfig.R2Bucket,
-          r2Domain,
-          r2BucketName
-        );
-      } catch (error) {
-        console.warn('StorageService initialization failed:', error);
-      }
-    }
+    this.storageService = new StorageService(this.env);
   }
 
   async getAllTemplates(
@@ -101,21 +80,10 @@ export class TemplateService {
     }
 
     try {
-      let fileUrl = '';
-      let fileName = '';
-
-      // Upload file to R2 if StorageService is available
-      if (this.storageService) {
-        const uniqueFileName = this.storageService.generateUniqueFileName(file.name);
-        const uploadResult = await this.storageService.uploadFile(file, uniqueFileName, 'templates');
-        fileUrl = uploadResult.url;
-        fileName = uploadResult.key;
-      } else {
-        // Fallback: generate unique filename locally
-        const fileExtension = this.getFileExtension(file.name);
-        fileName = `template-${nanoid()}.${fileExtension}`;
-        fileUrl = '';
-      }
+      const uniqueFileName = this.storageService.generateUniqueFileName(file.name);
+      const uploadResult = await this.storageService.uploadFile(file, uniqueFileName, 'templates');
+      const fileUrl = uploadResult.url;
+      const fileName = uploadResult.key;
 
       // Create template record
       const template = await this.repository.create({
@@ -131,8 +99,8 @@ export class TemplateService {
         fields: data.type === 'Generate & Template' ? data.fields || null : null,
         version: 1,
         isActive: data.isActive ?? true,
-        createdBy: userId,
-        updatedBy: null,
+        createdByAdminId: userId,
+        updatedByAdminId: null,
         createdAt: new Date(),
         updatedAt: new Date(),
       });
@@ -169,20 +137,13 @@ export class TemplateService {
         }
 
         // Upload new file to R2
-        if (this.storageService) {
-          const uniqueFileName = this.storageService.generateUniqueFileName(updates.file.name);
-          const uploadResult = await this.storageService.uploadFile(updates.file, uniqueFileName, 'templates');
-          fileUrl = uploadResult.url;
-          fileName = uploadResult.key;
-        } else {
-          // Fallback
-          const fileExtension = this.getFileExtension(updates.file.name);
-          fileName = `template-${nanoid()}.${fileExtension}`;
-          fileUrl = '';
-        }
+        const uniqueFileName = this.storageService.generateUniqueFileName(updates.file.name);
+        const uploadResult = await this.storageService.uploadFile(updates.file, uniqueFileName, 'templates');
+        fileUrl = uploadResult.url;
+        fileName = uploadResult.key;
 
         // Delete old file from R2 if exists
-        if (template.fileName && this.storageService) {
+        if (template.fileName) {
           try {
             await this.storageService.deleteFile(template.fileName);
           } catch (deleteError) {
@@ -211,8 +172,8 @@ export class TemplateService {
       }
 
       // Prepare update data
-      const updateData: Parameters<TemplateRepository['update']>[1] = {
-        updatedBy: userId,
+      const updateData: any = {
+        updatedByAdminId: userId,
       };
 
       if (updates.name !== undefined) updateData.name = updates.name;
@@ -252,8 +213,8 @@ export class TemplateService {
     }
 
     try {
-      // Delete file from R2 if StorageService is available
-      if (template.fileName && this.storageService) {
+      // Delete file from R2
+      if (template.fileName) {
         try {
           await this.storageService.deleteFile(template.fileName);
         } catch (deleteError) {
@@ -392,4 +353,3 @@ export class TemplateService {
     return fileName.split('.').pop() || 'bin';
   }
 }
-

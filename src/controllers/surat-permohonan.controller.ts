@@ -10,20 +10,24 @@ import {
 } from '@/schemas/surat-permohonan.schema';
 
 export class SuratPermohonanController {
-  constructor(private suratPermohonanService: SuratPermohonanService) {}
+  private suratPermohonanService: SuratPermohonanService;
+
+  constructor(private c: Context<{ Bindings: CloudflareBindings }>) {
+    this.suratPermohonanService = new SuratPermohonanService(this.c.env);
+  }
 
   /**
    * Mahasiswa: ajukan surat permohonan KP
    * POST /api/mahasiswa/surat-permohonan/requests
    */
-  requestSuratPermohonan = async (c: Context) => {
+  requestSuratPermohonan = async () => {
     try {
-      const user = c.get('user') as JWTPayload;
-      const body = await c.req.json();
+      const user = this.c.get('user') as JWTPayload;
+      const body = await this.c.req.json();
 
       const validationResult = requestSuratPermohonanSchema.safeParse(body);
       if (!validationResult.success) {
-        return c.json(
+        return this.c.json(
           createResponse(false, 'Validation failed', {
             errors: validationResult.error.issues,
           }),
@@ -35,16 +39,16 @@ export class SuratPermohonanController {
 
       const result = await this.suratPermohonanService.requestSuratPermohonan(
         memberUserId,
-        user.userId
+        user.mahasiswaId!
       );
 
-      return c.json(
+      return this.c.json(
         createResponse(true, 'Pengajuan surat permohonan berhasil dikirim ke dosen', {
           requestId: result.requestId,
         })
       );
     } catch (error) {
-      return handleError(c, error, 'Failed to request surat permohonan');
+      return handleError(this.c, error, 'Failed to request surat permohonan');
     }
   };
 
@@ -52,14 +56,17 @@ export class SuratPermohonanController {
    * Dosen: list semua ajuan surat permohonan
    * GET /api/dosen/surat-permohonan/requests
    */
-  getRequests = async (c: Context) => {
+  getRequests = async () => {
     try {
-      const user = c.get('user') as JWTPayload;
-      const requests = await this.suratPermohonanService.getRequestsForDosen(user.userId, user.role);
+      const user = this.c.get('user') as JWTPayload;
+      const requests = await this.suratPermohonanService.getRequestsForDosen(
+        user.dosenId || user.userId,
+        user.role
+      );
 
-      return c.json(createResponse(true, 'OK', requests));
+      return this.c.json(createResponse(true, 'OK', requests));
     } catch (error) {
-      return handleError(c, error, 'Failed to get surat permohonan requests');
+      return handleError(this.c, error, 'Failed to get surat permohonan requests');
     }
   };
 
@@ -67,14 +74,17 @@ export class SuratPermohonanController {
    * Dosen: approve single request
    * PUT /api/dosen/surat-permohonan/requests/:requestId/approve
    */
-  approveSingle = async (c: Context) => {
+  approveSingle = async () => {
     try {
-      const user = c.get('user') as JWTPayload;
-      const requestId = c.req.param('requestId');
+      const user = this.c.get('user') as JWTPayload;
+      const requestId = this.c.req.param('requestId');
 
-      const result = await this.suratPermohonanService.approveSingleRequest(requestId, user.userId);
+      const result = await this.suratPermohonanService.approveSingleRequest(
+        requestId,
+        user.dosenId || user.userId
+      );
 
-      return c.json(
+      return this.c.json(
         createResponse(true, 'Pengajuan surat permohonan berhasil disetujui', {
           requestId: result.requestId,
           status: result.status,
@@ -83,7 +93,7 @@ export class SuratPermohonanController {
         })
       );
     } catch (error) {
-      return handleError(c, error, 'Failed to approve surat permohonan request');
+      return handleError(this.c, error, 'Failed to approve surat permohonan request');
     }
   };
 
@@ -91,14 +101,14 @@ export class SuratPermohonanController {
    * Dosen: approve bulk requests
    * PUT /api/dosen/surat-permohonan/requests/approve-bulk
    */
-  approveBulk = async (c: Context) => {
+  approveBulk = async () => {
     try {
-      const user = c.get('user') as JWTPayload;
-      const body = await c.req.json();
+      const user = this.c.get('user') as JWTPayload;
+      const body = await this.c.req.json();
 
       const validationResult = approveBulkSchema.safeParse(body);
       if (!validationResult.success) {
-        return c.json(
+        return this.c.json(
           createResponse(false, 'Validation failed', {
             errors: validationResult.error.issues,
           }),
@@ -107,16 +117,19 @@ export class SuratPermohonanController {
       }
 
       const { requestIds } = validationResult.data;
-      const result = await this.suratPermohonanService.approveBulkRequests(requestIds, user.userId);
+      const result = await this.suratPermohonanService.approveBulkRequests(
+        requestIds,
+        user.dosenId || user.userId
+      );
 
-      return c.json(
+      return this.c.json(
         createResponse(true, `${result.approvedCount} pengajuan berhasil disetujui`, {
           approvedCount: result.approvedCount,
           failed: result.failed,
         })
       );
     } catch (error) {
-      return handleError(c, error, 'Failed to approve bulk surat permohonan requests');
+      return handleError(this.c, error, 'Failed to approve bulk surat permohonan requests');
     }
   };
 
@@ -124,15 +137,15 @@ export class SuratPermohonanController {
    * Dosen: reject request
    * PUT /api/dosen/surat-permohonan/requests/:requestId/reject
    */
-  reject = async (c: Context) => {
+  reject = async () => {
     try {
-      const user = c.get('user') as JWTPayload;
-      const requestId = c.req.param('requestId');
-      const body = await c.req.json().catch(() => ({}));
+      const user = this.c.get('user') as JWTPayload;
+      const requestId = this.c.req.param('requestId');
+      const body = await this.c.req.json().catch(() => ({}));
 
       const validationResult = rejectRequestSchema.safeParse(body);
       if (!validationResult.success) {
-        return c.json(
+        return this.c.json(
           createResponse(false, 'Validation failed', {
             errors: validationResult.error.issues,
           }),
@@ -142,15 +155,15 @@ export class SuratPermohonanController {
 
       const result = await this.suratPermohonanService.rejectRequest(
         requestId,
-        user.userId,
+        user.dosenId || user.userId,
         validationResult.data.rejection_reason
       );
 
-      return c.json(
+      return this.c.json(
         createResponse(true, 'Pengajuan surat permohonan berhasil ditolak', result)
       );
     } catch (error) {
-      return handleError(c, error, 'Failed to reject surat permohonan request');
+      return handleError(this.c, error, 'Failed to reject surat permohonan request');
     }
   };
 
@@ -158,15 +171,15 @@ export class SuratPermohonanController {
    * Mahasiswa: Ajukan ulang request surat permohonan yang ditolak.
    * PUT /api/mahasiswa/surat-permohonan/requests/:requestId/reapply
    */
-  reapplyRequest = async (c: Context) => {
+  reapplyRequest = async () => {
     try {
-      const user = c.get('user') as JWTPayload;
-      const requestId = c.req.param('requestId');
-      const body = await c.req.json().catch(() => ({}));
+      const user = this.c.get('user') as JWTPayload;
+      const requestId = this.c.req.param('requestId');
+      const body = await this.c.req.json().catch(() => ({}));
 
       const validationResult = reapplyRequestSchema.safeParse(body);
       if (!validationResult.success) {
-        return c.json(
+        return this.c.json(
           createResponse(false, 'Validation failed', {
             errors: validationResult.error.issues,
           }),
@@ -175,13 +188,13 @@ export class SuratPermohonanController {
       }
 
       const { memberUserId } = validationResult.data;
-      const result = await this.suratPermohonanService.reapplyRequest(requestId, memberUserId, user.userId);
+      const result = await this.suratPermohonanService.reapplyRequest(requestId, memberUserId, user.mahasiswaId!);
 
-      return c.json(
+      return this.c.json(
         createResponse(true, 'Pengajuan ulang surat permohonan berhasil.', result)
       );
     } catch (error) {
-      return handleError(c, error, 'Failed to reapply surat permohonan request');
+      return handleError(this.c, error, 'Failed to reapply surat permohonan request');
     }
   };
 }

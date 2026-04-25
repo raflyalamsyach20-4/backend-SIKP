@@ -1,9 +1,9 @@
 import { Hono } from 'hono';
 import { authMiddleware, roleMiddleware } from '@/middlewares/auth.middleware';
 import { zValidator } from '@hono/zod-validator';
-import { createRuntime } from '@/runtime';
 import { emptyQuerySchema, nonEmptyStringParamsSchema } from '@/schemas/common.schema';
 import { rejectRequestSchema } from '@/schemas/surat-pengantar-dosen.schema';
+import { SuratPengantarDosenController } from '@/controllers';
 
 export const createDosenSuratPengantarRoutes = () => {
   const routes = new Hono<{ Bindings: CloudflareBindings }>()
@@ -12,8 +12,7 @@ export const createDosenSuratPengantarRoutes = () => {
       '/requests',
       zValidator('query', emptyQuerySchema),
       async (c) => {
-        const runtime = createRuntime(c.env);
-        return Reflect.apply(runtime.suratPengantarDosenController.getRequests, runtime.suratPengantarDosenController, [c, c.req.valid('query')]);
+        return new SuratPengantarDosenController(c).getRequests();
       }
     )
     .put(
@@ -21,8 +20,7 @@ export const createDosenSuratPengantarRoutes = () => {
       zValidator('param', nonEmptyStringParamsSchema),
       zValidator('query', emptyQuerySchema),
       async (c) => {
-        const runtime = createRuntime(c.env);
-        return Reflect.apply(runtime.suratPengantarDosenController.approve, runtime.suratPengantarDosenController, [c, c.req.valid('param'), c.req.valid('query')]);
+        return new SuratPengantarDosenController(c).approve();
       }
     )
     .put(
@@ -30,8 +28,7 @@ export const createDosenSuratPengantarRoutes = () => {
       zValidator('param', nonEmptyStringParamsSchema),
       zValidator('json', rejectRequestSchema),
       async (c) => {
-        const runtime = createRuntime(c.env);
-        return Reflect.apply(runtime.suratPengantarDosenController.reject, runtime.suratPengantarDosenController, [c, c.req.valid('param'), c.req.valid('json')]);
+        return new SuratPengantarDosenController(c).reject();
       }
     );
 

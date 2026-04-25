@@ -1,7 +1,6 @@
 import { Hono } from 'hono';
 import { authMiddleware, adminOnly } from '@/middlewares/auth.middleware';
 import { zValidator } from '@hono/zod-validator';
-import { createRuntime } from '@/runtime';
 import {
   emptyQuerySchema,
   nonEmptyStringParamsSchema,
@@ -12,6 +11,7 @@ import {
   rejectSubmissionSchema,
   generateLetterSchema,
 } from '@/schemas/admin.schema';
+import { AdminController } from '@/controllers';
 
 /**
  * Admin Routes
@@ -26,8 +26,7 @@ export const createAdminRoutes = () => {
       '/dashboard',
       zValidator('query', emptyQuerySchema),
       async (c) => {
-        const runtime = createRuntime(c.env);
-        return Reflect.apply(runtime.adminController.getDashboard, runtime.adminController, [c, c.req.valid('query')]);
+        return new AdminController(c).getDashboard();
       }
     )
     // Get submissions by status (more specific route first)
@@ -36,8 +35,7 @@ export const createAdminRoutes = () => {
       zValidator('param', nonEmptyStringParamsSchema),
       zValidator('query', emptyQuerySchema),
       async (c) => {
-        const runtime = createRuntime(c.env);
-        return Reflect.apply(runtime.adminController.getSubmissionsByStatus, runtime.adminController, [c, c.req.valid('param'), c.req.valid('query')]);
+        return new AdminController(c).getSubmissionsByStatus();
       }
     )
     // Get all submissions
@@ -45,8 +43,7 @@ export const createAdminRoutes = () => {
       '/submissions',
       zValidator('query', emptyQuerySchema),
       async (c) => {
-        const runtime = createRuntime(c.env);
-        return Reflect.apply(runtime.adminController.getAllSubmissions, runtime.adminController, [c, c.req.valid('query')]);
+        return new AdminController(c).getAllSubmissions();
       }
     )
     // Get submission by ID
@@ -55,8 +52,7 @@ export const createAdminRoutes = () => {
       zValidator('param', nonEmptyStringParamsSchema),
       zValidator('query', emptyQuerySchema),
       async (c) => {
-        const runtime = createRuntime(c.env);
-        return Reflect.apply(runtime.adminController.getSubmissionById, runtime.adminController, [c, c.req.valid('param'), c.req.valid('query')]);
+        return new AdminController(c).getSubmissionById();
       }
     )
     // Update submission status
@@ -65,8 +61,7 @@ export const createAdminRoutes = () => {
       zValidator('param', nonEmptyStringParamsSchema),
       zValidator('json', updateSubmissionStatusSchema),
       async (c) => {
-        const runtime = createRuntime(c.env);
-        return Reflect.apply(runtime.adminController.updateSubmissionStatus, runtime.adminController, [c, c.req.valid('param'), c.req.valid('json')]);
+        return new AdminController(c).updateSubmissionStatus();
       }
     )
     // Approve submission
@@ -75,8 +70,7 @@ export const createAdminRoutes = () => {
       zValidator('param', nonEmptyStringParamsSchema),
       zValidator('json', approveSubmissionSchema),
       async (c) => {
-        const runtime = createRuntime(c.env);
-        return Reflect.apply(runtime.adminController.approveSubmission, runtime.adminController, [c, c.req.valid('param'), c.req.valid('json')]);
+        return new AdminController(c).approveSubmission();
       }
     )
     // Reject submission
@@ -85,8 +79,7 @@ export const createAdminRoutes = () => {
       zValidator('param', nonEmptyStringParamsSchema),
       zValidator('json', rejectSubmissionSchema),
       async (c) => {
-        const runtime = createRuntime(c.env);
-        return Reflect.apply(runtime.adminController.rejectSubmission, runtime.adminController, [c, c.req.valid('param'), c.req.valid('json')]);
+        return new AdminController(c).rejectSubmission();
       }
     )
     // Generate letter
@@ -95,8 +88,7 @@ export const createAdminRoutes = () => {
       zValidator('param', nonEmptyStringParamsSchema),
       zValidator('json', generateLetterSchema),
       async (c) => {
-        const runtime = createRuntime(c.env);
-        return Reflect.apply(runtime.adminController.generateLetter, runtime.adminController, [c, c.req.valid('param'), c.req.valid('json')]);
+        return new AdminController(c).generateLetter();
       }
     )
     // Get statistics
@@ -104,8 +96,7 @@ export const createAdminRoutes = () => {
       '/statistics',
       zValidator('query', emptyQuerySchema),
       async (c) => {
-        const runtime = createRuntime(c.env);
-        return Reflect.apply(runtime.adminController.getStatistics, runtime.adminController, [c, c.req.valid('query')]);
+        return new AdminController(c).getStatistics();
       }
     );
 

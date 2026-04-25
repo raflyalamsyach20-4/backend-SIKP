@@ -20,7 +20,6 @@ const toErrorLike = (value: unknown): ErrorLike => {
   if (typeof value === 'object' && value !== null) {
     return value as ErrorLike;
   }
-
   return {};
 };
 
@@ -35,22 +34,24 @@ const toSafeErrorStatus = (statusCode?: number): ErrorResponseStatusCode => {
   ) {
     return statusCode;
   }
-
   return 500;
 };
 
 export class SubmissionController {
-  constructor(private submissionService: SubmissionService) {}
+  private submissionService: SubmissionService;
 
-  createSubmission = async (c: Context) => {
+  constructor(private c: Context<{ Bindings: CloudflareBindings }>) {
+    this.submissionService = new SubmissionService(this.c.env);
+  }
+
+  createSubmission = async () => {
     try {
-      const user = c.get('user') as JWTPayload;
-      const body = await c.req.json();
+      const user = this.c.get('user') as JWTPayload;
+      const body = await this.c.req.json();
       
-      // Validate request body
       const validationResult = createSubmissionSchema.safeParse(body);
       if (!validationResult.success) {
-        return c.json(
+        return this.c.json(
           createResponse(false, 'Validation failed', {
             errors: validationResult.error.issues,
           }),
@@ -63,7 +64,7 @@ export class SubmissionController {
       const normalizedCompanyBusinessType = data.companyBusinessType?.trim();
       const result = await this.submissionService.createSubmission(
         data.teamId,
-        user.userId,
+        user.mahasiswaId!,
         {
           letterPurpose: data.letterPurpose,
           companyName: data.companyName,
@@ -77,7 +78,7 @@ export class SubmissionController {
       );
 
       if (result.alreadyExists) {
-        return c.json(
+        return this.c.json(
           {
             success: true,
             message: 'Submission already exists',
@@ -90,12 +91,11 @@ export class SubmissionController {
         );
       }
 
-      return c.json(createResponse(true, 'Submission created', result.submission), 201);
+      return this.c.json(createResponse(true, 'Submission created', result.submission), 201);
     } catch (error) {
       const err = toErrorLike(error);
-
       if (err.code) {
-        return c.json(
+        return this.c.json(
           {
             success: false,
             message: err.message || 'Failed to create submission',
@@ -107,21 +107,19 @@ export class SubmissionController {
           toSafeErrorStatus(err.statusCode)
         );
       }
-
-      return handleError(c, error, 'Failed to create submission');
+      return handleError(this.c, error, 'Failed to create submission');
     }
   };
 
-  updateSubmission = async (c: Context) => {
+  updateSubmission = async () => {
     try {
-      const user = c.get('user') as JWTPayload;
-      const submissionId = c.req.param('submissionId');
-      const body = await c.req.json();
+      const user = this.c.get('user') as JWTPayload;
+      const submissionId = this.c.req.param('submissionId');
+      const body = await this.c.req.json();
       
-      // Validate request body
       const validationResult = updateSubmissionSchema.safeParse(body);
       if (!validationResult.success) {
-        return c.json(
+        return this.c.json(
           createResponse(false, 'Validation failed', {
             errors: validationResult.error.issues,
           }),
@@ -130,16 +128,7 @@ export class SubmissionController {
       }
 
       const validated = validationResult.data;
-      const data: {
-        letterPurpose?: string;
-        companyName?: string;
-        companyAddress?: string;
-        companyPhone?: string;
-        companyBusinessType?: string;
-        division?: string;
-        startDate?: string;
-        endDate?: string;
-      } = { ...validated };
+      const data: any = { ...validated };
       if (validated.companyPhone !== undefined) {
         const normalizedCompanyPhone = validated.companyPhone.trim();
         data.companyPhone = normalizedCompanyPhone || undefined;
@@ -148,37 +137,34 @@ export class SubmissionController {
         const normalizedCompanyBusinessType = validated.companyBusinessType.trim();
         data.companyBusinessType = normalizedCompanyBusinessType || undefined;
       }
-      if (validated.startDate) data.startDate = validated.startDate;
-      if (validated.endDate) data.endDate = validated.endDate;
 
       const submission = await this.submissionService.updateSubmission(
         submissionId,
-        user.userId,
+        user.mahasiswaId!,
         data
       );
 
-      return c.json(createResponse(true, 'Submission updated successfully', submission));
+      return this.c.json(createResponse(true, 'Submission updated successfully', submission));
     } catch (error) {
-      return handleError(c, error, 'Failed to update submission');
+      return handleError(this.c, error, 'Failed to update submission');
     }
   };
 
-  submitForReview = async (c: Context) => {
+  submitForReview = async () => {
     try {
-      const user = c.get('user') as JWTPayload;
-      const submissionId = c.req.param('submissionId');
+      const user = this.c.get('user') as JWTPayload;
+      const submissionId = this.c.req.param('submissionId');
 
       const submission = await this.submissionService.submitForReview(
         submissionId,
-        user.userId
+        user.mahasiswaId!
       );
 
-      return c.json(createResponse(true, 'Submission submitted for review', submission));
+      return this.c.json(createResponse(true, 'Submission submitted for review', submission));
     } catch (error) {
       const err = toErrorLike(error);
-
       if (err.code) {
-        return c.json(
+        return this.c.json(
           {
             success: false,
             message: err.message || 'Failed to submit for review',
@@ -190,92 +176,82 @@ export class SubmissionController {
           toSafeErrorStatus(err.statusCode)
         );
       }
-      return handleError(c, error, 'Failed to submit for review');
+      return handleError(this.c, error, 'Failed to submit for review');
     }
   };
 
-  getMySubmissions = async (c: Context) => {
+  getMySubmissions = async () => {
     try {
-      const user = c.get('user') as JWTPayload;
-      const submissions = await this.submissionService.getMySubmissions(user.userId);
+      const user = this.c.get('user') as JWTPayload;
+      const submissions = await this.submissionService.getMySubmissions(user.mahasiswaId!);
 
-      return c.json(createResponse(true, 'Submissions retrieved', submissions));
+      return this.c.json(createResponse(true, 'Submissions retrieved', submissions));
     } catch (error) {
-      return handleError(c, error, 'Failed to get submissions');
+      return handleError(this.c, error, 'Failed to get submissions');
     }
   };
 
-  getSubmissionById = async (c: Context) => {
+  getSubmissionById = async () => {
     try {
-      const user = c.get('user') as JWTPayload;
-      const submissionId = c.req.param('submissionId');
+      const user = this.c.get('user') as JWTPayload;
+      const submissionId = this.c.req.param('submissionId');
       const submission = await this.submissionService.getSubmissionById(submissionId);
 
       if (!submission) {
-        return c.json(createResponse(false, 'Submission not found'), 404);
+        return this.c.json(createResponse(false, 'Submission not found'), 404);
       }
 
-      // Authorization check:
-      // - ADMIN/KAPRODI/WAKIL_DEKAN can view all submissions
-      // - MAHASISWA can only view submissions from their own team
       if (!['ADMIN', 'KAPRODI', 'WAKIL_DEKAN', 'DOSEN'].includes(user.role)) {
-        const canAccess = await this.submissionService.canAccessSubmission(submissionId, user.userId);
+        const canAccess = await this.submissionService.canAccessSubmission(submissionId, user.mahasiswaId!);
         if (!canAccess) {
-          return c.json(createResponse(false, 'Forbidden: You do not have access to this submission'), 403);
+          return this.c.json(createResponse(false, 'Forbidden: You do not have access to this submission'), 403);
         }
       }
 
-      return c.json(createResponse(true, 'Submission retrieved', submission));
+      return this.c.json(createResponse(true, 'Submission retrieved', submission));
     } catch (error) {
-      return handleError(c, error, 'Failed to get submission');
+      return handleError(this.c, error, 'Failed to get submission');
     }
   };
 
-  /**
-   * Mahasiswa: Get latest surat request status matrix for all team members.
-   * GET /api/mahasiswa/submissions/:submissionId/letter-request-status
-   */
-  getLetterRequestStatus = async (c: Context) => {
+  getLetterRequestStatus = async () => {
     try {
-      const user = c.get('user') as JWTPayload;
-      const submissionId = c.req.param('submissionId');
+      const user = this.c.get('user') as JWTPayload;
+      const submissionId = this.c.req.param('submissionId');
 
-      const result = await this.submissionService.getLetterRequestStatus(submissionId, user.userId);
+      const result = await this.submissionService.getLetterRequestStatus(submissionId, user.mahasiswaId!);
 
-      return c.json(createResponse(true, 'Status ajuan surat berhasil diambil', result));
+      return this.c.json(createResponse(true, 'Status ajuan surat berhasil diambil', result));
     } catch (error) {
       const err = toErrorLike(error);
-
       if (err.statusCode === 403) {
-        return c.json(createResponse(false, err.message || 'Anda tidak memiliki akses ke submission ini', null), 403);
+        return this.c.json(createResponse(false, err.message || 'Anda tidak memiliki akses ke submission ini', null), 403);
       }
-
-      return handleError(c, error, 'Failed to get letter request status');
+      return handleError(this.c, error, 'Failed to get letter request status');
     }
   };
 
-  uploadDocument = async (c: Context) => {
+  uploadDocument = async () => {
     try {
-      const user = c.get('user') as JWTPayload;
-      const submissionId = c.req.param('submissionId');
+      const user = this.c.get('user') as JWTPayload;
+      const submissionId = this.c.req.param('submissionId');
       
-      const formData = await c.req.formData();
+      const formData = await this.c.req.formData();
       const file = formData.get('file');
       const documentType = formData.get('documentType') as string;
       const memberUserId = formData.get('memberUserId') as string;
       let uploadedByUserId = formData.get('uploadedByUserId') as string | null;
 
       if (!file || typeof file === 'string') {
-        return c.json(createResponse(false, 'No file provided or invalid file'), 400);
+        return this.c.json(createResponse(false, 'No file provided or invalid file'), 400);
       }
 
-      // Validate document type and memberUserId
       const validationResult = uploadDocumentSchema.safeParse({ 
         documentType,
         memberUserId
       });
       if (!validationResult.success) {
-        return c.json(
+        return this.c.json(
           createResponse(false, 'Invalid document type or memberUserId', {
             errors: validationResult.error.issues,
           }),
@@ -284,8 +260,6 @@ export class SubmissionController {
       }
 
       const validated = validationResult.data;
-
-      // ✅ FIX: Fallback uploadedByUserId to memberUserId if not provided
       const finalUploadedByUserId = uploadedByUserId && uploadedByUserId.trim() 
         ? uploadedByUserId 
         : validated.memberUserId;
@@ -296,15 +270,14 @@ export class SubmissionController {
         validated.memberUserId,
         file as File,
         validated.documentType,
-        user.userId // Authenticated user for authorization and fallback
+        user.mahasiswaId!
       );
 
-      return c.json(createResponse(true, 'Document uploaded successfully', document), 201);
+      return this.c.json(createResponse(true, 'Document uploaded successfully', document), 201);
     } catch (error) {
       const err = toErrorLike(error);
-
       if (err.code) {
-        return c.json(
+        return this.c.json(
           {
             success: false,
             message: err.message || 'Failed to upload document',
@@ -316,70 +289,48 @@ export class SubmissionController {
           toSafeErrorStatus(err.statusCode)
         );
       }
-      return handleError(c, error, 'Failed to upload document');
+      return handleError(this.c, error, 'Failed to upload document');
     }
   };
 
-  getDocuments = async (c: Context) => {
+  getDocuments = async () => {
     try {
-      const user = c.get('user') as JWTPayload;
-      const submissionId = c.req.param('submissionId');
-      const documents = await this.submissionService.getDocuments(submissionId, user.userId);
+      const user = this.c.get('user') as JWTPayload;
+      const submissionId = this.c.req.param('submissionId');
+      const documents = await this.submissionService.getDocuments(submissionId, user.mahasiswaId!);
 
-      return c.json(createResponse(true, 'Documents retrieved', documents));
+      return this.c.json(createResponse(true, 'Documents retrieved', documents));
     } catch (error) {
-      return handleError(c, error, 'Failed to get documents');
+      return handleError(this.c, error, 'Failed to get documents');
     }
   };
 
-  /**
-   * Delete a submission document
-   * Endpoint: DELETE /api/submissions/documents/:documentId
-   * Only allowed for REJECTED documents or documents in DRAFT submissions
-   */
-  deleteDocument = async (c: Context) => {
+  deleteDocument = async () => {
     try {
-      const user = c.get('user') as JWTPayload;
-      const documentId = c.req.param('documentId');
+      const user = this.c.get('user') as JWTPayload;
+      const documentId = this.c.req.param('documentId');
 
-      console.log('[SubmissionController.deleteDocument] Request:', {
-        documentId,
-        userId: user.userId,
-      });
+      const result = await this.submissionService.deleteDocument(documentId, user.mahasiswaId!);
 
-      const result = await this.submissionService.deleteDocument(documentId, user.userId);
-
-      console.log('[SubmissionController.deleteDocument] Success');
-      return c.json(createResponse(true, result.message, null));
+      return this.c.json(createResponse(true, result.message, null));
     } catch (error) {
-      return handleError(c, error, 'Failed to delete document');
+      return handleError(this.c, error, 'Failed to delete document');
     }
   };
 
-  /**
-   * Reset submission from REJECTED to DRAFT
-   * Allows team members to resubmit after rejection
-   * Endpoint: PUT /api/submissions/{id}/status/reset-draft
-   */
-  resetToDraft = async (c: Context) => {
+  resetToDraft = async () => {
     try {
-      const user = c.get('user') as JWTPayload;
-      const submissionId = c.req.param('submissionId');
-
-      console.log('[SubmissionController.resetToDraft] Request:', {
-        submissionId,
-        userId: user.userId,
-      });
+      const user = this.c.get('user') as JWTPayload;
+      const submissionId = this.c.req.param('submissionId');
 
       const submission = await this.submissionService.resetToDraft(
         submissionId,
-        user.userId
+        user.mahasiswaId!
       );
 
-      console.log('[SubmissionController.resetToDraft] Success');
-      return c.json(createResponse(true, 'Submission reset to draft', submission));
+      return this.c.json(createResponse(true, 'Submission reset to draft', submission));
     } catch (error) {
-      return handleError(c, error, 'Failed to reset submission to draft');
+      return handleError(this.c, error, 'Failed to reset submission to draft');
     }
   };
 }

@@ -2,55 +2,61 @@ import { Context } from 'hono';
 import { ZodError } from 'zod';
 import { createResponse, handleError } from '@/utils/helpers';
 import { SuratPengantarDosenService } from '@/services/surat-pengantar-dosen.service';
-import type { JWTPayload } from '@/types';
 import { rejectRequestSchema } from '@/schemas/surat-pengantar-dosen.schema';
+import type { JWTPayload } from '@/types';
 
 export class SuratPengantarDosenController {
-  constructor(private suratPengantarDosenService: SuratPengantarDosenService) {}
+  private suratPengantarDosenService: SuratPengantarDosenService;
 
-  getRequests = async (c: Context) => {
+  constructor(private c: Context<{ Bindings: CloudflareBindings }>) {
+    this.suratPengantarDosenService = new SuratPengantarDosenService(this.c.env);
+  }
+
+  getRequests = async () => {
     try {
-      const user = c.get('user') as JWTPayload;
-      const requests = await this.suratPengantarDosenService.getRequestsForVerifier(user.userId, user.role);
-      return c.json(createResponse(true, 'Daftar pengajuan surat pengantar berhasil diambil', requests));
+      const user = this.c.get('user') as JWTPayload;
+      const sessionId = this.c.get('sessionId');
+      const requests = await this.suratPengantarDosenService.getRequestsForVerifier(user.dosenId!, user.role, sessionId);
+      return this.c.json(createResponse(true, 'Daftar pengajuan surat pengantar berhasil diambil', requests));
     } catch (error) {
-      return handleError(c, error, 'Failed to get surat pengantar requests');
+      return handleError(this.c, error, 'Failed to get surat pengantar requests');
     }
   };
 
-  approve = async (c: Context) => {
+  approve = async () => {
     try {
-      const user = c.get('user') as JWTPayload;
-      const requestId = c.req.param('requestId');
-      const result = await this.suratPengantarDosenService.approveRequest(requestId, user.userId, user.role);
+      const user = this.c.get('user') as JWTPayload;
+      const sessionId = this.c.get('sessionId');
+      const requestId = this.c.req.param('requestId');
+      const result = await this.suratPengantarDosenService.approveRequest(requestId, user.dosenId!, user.role, sessionId);
 
-      return c.json(createResponse(true, 'Pengajuan surat pengantar berhasil disetujui', result));
+      return this.c.json(createResponse(true, 'Pengajuan surat pengantar berhasil disetujui', result));
     } catch (error) {
-      return handleError(c, error, 'Failed to approve surat pengantar request');
+      return handleError(this.c, error, 'Failed to approve surat pengantar request');
     }
   };
 
-  reject = async (c: Context) => {
+  reject = async () => {
     try {
-      const user = c.get('user') as JWTPayload;
-      const requestId = c.req.param('requestId');
-      const body = await c.req.json();
+      const user = this.c.get('user') as JWTPayload;
+      const requestId = this.c.req.param('requestId');
+      const body = await this.c.req.json();
       const validated = rejectRequestSchema.parse(body);
 
       const result = await this.suratPengantarDosenService.rejectRequest(
         requestId,
-        user.userId,
+        user.dosenId!,
         user.role,
         validated.rejection_reason.trim()
       );
 
-      return c.json(createResponse(true, 'Pengajuan surat pengantar berhasil ditolak', result));
+      return this.c.json(createResponse(true, 'Pengajuan surat pengantar berhasil ditolak', result));
     } catch (error) {
       if (error instanceof ZodError) {
-        return c.json(createResponse(false, 'Validation Error', { errors: error.issues }), 400);
+        return this.c.json(createResponse(false, 'Validation Error', { errors: error.issues }), 400);
       }
 
-      return handleError(c, error, 'Failed to reject surat pengantar request');
+      return handleError(this.c, error, 'Failed to reject surat pengantar request');
     }
   };
 }

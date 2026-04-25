@@ -3,7 +3,6 @@ import { authMiddleware, mahasiswaOnly } from '@/middlewares/auth.middleware';
 import { createMahasiswaSuratKesediaanRoutes } from './surat-kesediaan.route';
 import { createMahasiswaSuratPermohonanRoutes } from './surat-permohonan.route';
 import { zValidator } from '@hono/zod-validator';
-import { createRuntime } from '@/runtime';
 import {
   authCallbackSchema,
   authPrepareSchema,
@@ -14,7 +13,7 @@ import {
   emptyQuerySchema,
   nonEmptyStringParamsSchema,
 } from '@/schemas/common.schema';
-import { AuthController } from '@/controllers';
+import { AuthController, SubmissionController } from '@/controllers';
 
 /**
  * Auth Routes
@@ -100,12 +99,8 @@ export const createMahasiswaRoutes = () => {
       zValidator('param', nonEmptyStringParamsSchema),
       zValidator('query', emptyQuerySchema),
       async (c) => {
-        const runtime = createRuntime(c.env);
-        return Reflect.apply(runtime.submissionController.getLetterRequestStatus, runtime.submissionController, [
-          c,
-          c.req.valid('param'),
-          c.req.valid('query'),
-        ]);
+        const submissionController = new SubmissionController(c);
+        return submissionController.getLetterRequestStatus();
       }
     );
 

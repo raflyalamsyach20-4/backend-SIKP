@@ -36,6 +36,13 @@
       "when": 1775911847240,
       "tag": "0004_create_auth_sessions",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1777136519200,
+      "tag": "0005_rename_userId_to_identity_specific_ids",
+      "breakpoints": true
     }
   ]
 }

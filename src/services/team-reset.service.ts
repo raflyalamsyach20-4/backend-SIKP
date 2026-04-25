@@ -1,3 +1,4 @@
+import { createDbClient } from '@/db';
 import { NotFoundError } from '@/errors';
 import { SubmissionRepository } from '@/repositories/submission.repository';
 import { TeamRepository } from '@/repositories/team.repository';
@@ -19,10 +20,16 @@ import { TeamRepository } from '@/repositories/team.repository';
  * 3. Reset team status to PENDING
  */
 export class TeamResetService {
+  private submissionRepo: SubmissionRepository;
+  private teamRepo: TeamRepository;
+
   constructor(
-    private submissionRepo: SubmissionRepository,
-    private teamRepo: TeamRepository,
-  ) {}
+    env: CloudflareBindings
+  ) {
+    const db = createDbClient(env.DATABASE_URL);
+    this.submissionRepo = new SubmissionRepository(db);
+    this.teamRepo = new TeamRepository(db);
+  }
 
   /**
    * Archive a single submission and reset the team to PENDING.
