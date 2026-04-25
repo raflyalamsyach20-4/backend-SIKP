@@ -1,7 +1,6 @@
 import { Context } from 'hono';
 import { SubmissionService } from '@/services/submission.service';
 import { createResponse, handleError } from '@/utils/helpers';
-import type { JWTPayload } from '@/types';
 import {
   createSubmissionSchema,
   updateSubmissionSchema,
@@ -46,7 +45,7 @@ export class SubmissionController {
 
   createSubmission = async () => {
     try {
-      const user = this.c.get('user') as JWTPayload;
+      const user = this.c.get('user');
       const body = await this.c.req.json();
       
       const validationResult = createSubmissionSchema.safeParse(body);
@@ -113,7 +112,7 @@ export class SubmissionController {
 
   updateSubmission = async () => {
     try {
-      const user = this.c.get('user') as JWTPayload;
+      const user = this.c.get('user');
       const submissionId = this.c.req.param('submissionId');
       const body = await this.c.req.json();
       
@@ -152,7 +151,7 @@ export class SubmissionController {
 
   submitForReview = async () => {
     try {
-      const user = this.c.get('user') as JWTPayload;
+      const user = this.c.get('user');
       const submissionId = this.c.req.param('submissionId');
 
       const submission = await this.submissionService.submitForReview(
@@ -182,7 +181,7 @@ export class SubmissionController {
 
   getMySubmissions = async () => {
     try {
-      const user = this.c.get('user') as JWTPayload;
+      const user = this.c.get('user');
       const submissions = await this.submissionService.getMySubmissions(user.mahasiswaId!);
 
       return this.c.json(createResponse(true, 'Submissions retrieved', submissions));
@@ -193,7 +192,7 @@ export class SubmissionController {
 
   getSubmissionById = async () => {
     try {
-      const user = this.c.get('user') as JWTPayload;
+      const user = this.c.get('user');
       const submissionId = this.c.req.param('submissionId');
       const submission = await this.submissionService.getSubmissionById(submissionId);
 
@@ -216,7 +215,7 @@ export class SubmissionController {
 
   getLetterRequestStatus = async () => {
     try {
-      const user = this.c.get('user') as JWTPayload;
+      const user = this.c.get('user');
       const submissionId = this.c.req.param('submissionId');
 
       const result = await this.submissionService.getLetterRequestStatus(submissionId, user.mahasiswaId!);
@@ -233,7 +232,7 @@ export class SubmissionController {
 
   uploadDocument = async () => {
     try {
-      const user = this.c.get('user') as JWTPayload;
+      const user = this.c.get('user');
       const submissionId = this.c.req.param('submissionId');
       
       const formData = await this.c.req.formData();
@@ -295,7 +294,7 @@ export class SubmissionController {
 
   getDocuments = async () => {
     try {
-      const user = this.c.get('user') as JWTPayload;
+      const user = this.c.get('user');
       const submissionId = this.c.req.param('submissionId');
       const documents = await this.submissionService.getDocuments(submissionId, user.mahasiswaId!);
 
@@ -307,7 +306,7 @@ export class SubmissionController {
 
   deleteDocument = async () => {
     try {
-      const user = this.c.get('user') as JWTPayload;
+      const user = this.c.get('user');
       const documentId = this.c.req.param('documentId');
 
       const result = await this.submissionService.deleteDocument(documentId, user.mahasiswaId!);
@@ -320,7 +319,7 @@ export class SubmissionController {
 
   resetToDraft = async () => {
     try {
-      const user = this.c.get('user') as JWTPayload;
+      const user = this.c.get('user');
       const submissionId = this.c.req.param('submissionId');
 
       const submission = await this.submissionService.resetToDraft(

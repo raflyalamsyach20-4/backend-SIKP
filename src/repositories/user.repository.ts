@@ -1,6 +1,7 @@
-import { eq } from 'drizzle-orm';
+import { eq, gt } from 'drizzle-orm';
 import type { DbClient } from '@/db';
-import { teams, suratKesediaanRequests, suratPermohonanRequests } from '@/db/schema';
+import { teams, suratKesediaanRequests, suratPermohonanRequests, authSessions } from '@/db/schema';
+import type { SsoEnvelope, SsoProfileResponse } from '@/types';
 
 type BasicUser = {
   id: string;
@@ -55,7 +56,180 @@ type UpdatedDosenProfile = { id: string; esignatureUploadedAt: Date | null } & U
 type UserWithMahasiswaProfile = BasicUser & { mahasiswaProfile: MahasiswaProfile };
 
 export class UserRepository {
-  constructor(private db: DbClient) {}
+  private readonly profileCacheByProfileId = new Map<
+    string,
+    { profile: SsoProfileResponse; expiresAt: number }
+  >();
+  private readonly profileCacheByToken = new Map<
+    string,
+    { profile: SsoProfileResponse | null; expiresAt: number }
+  >();
+  private readonly PROFILE_CACHE_TTL_MS = 60 * 1000;
+
+  constructor(
+    private db: DbClient,
+    private ssoIdentitiesUrl?: string,
+  ) {}
+
+  private getPrimaryEmail(profile: SsoProfileResponse): string | null {
+    const primary = profile.emails.find((item) => item.isPrimary)?.email;
+    return primary || profile.emails[0]?.email || null;
+  }
+
+  private mapProfileRole(profile: SsoProfileResponse): BasicUser['role'] {
+    if (profile.identities.admin) {
+      return 'ADMIN';
+    }
+    if (profile.identities.dosen) {
+      return 'DOSEN';
+    }
+    if (profile.identities.mentor) {
+      return 'MENTOR';
+    }
+    return 'MAHASISWA';
+  }
+
+  private toBasicUserFromProfile(profile: SsoProfileResponse): BasicUser {
+    return {
+      id: profile.id,
+      authUserId: profile.authUserId || profile.id,
+      nama: profile.fullName || null,
+      email: this.getPrimaryEmail(profile),
+      phone: profile.identities.mentor?.noTelepon || null,
+      role: this.mapProfileRole(profile),
+      isActive: true,
+    };
+  }
+
+  private toMahasiswaProfileFromSso(profile: SsoProfileResponse): MahasiswaProfile {
+    const mahasiswa = profile.identities.mahasiswa;
+    return {
+      id: profile.id,
+      nim: mahasiswa?.nim || null,
+      fakultas: mahasiswa?.fakultas?.nama || null,
+      prodi: mahasiswa?.prodi?.nama || null,
+      semester: mahasiswa?.semesterAktif || null,
+      jumlahSksSelesai: mahasiswa?.jumlahSksLulus || null,
+      angkatan: mahasiswa?.angkatan
+        ? String(mahasiswa.angkatan)
+        : null,
+      dosenPaId: mahasiswa?.dosenPA?.profileId || null,
+      esignatureUrl: null,
+      esignatureKey: null,
+      esignatureUploadedAt: null,
+    };
+  }
+
+  private toDosenProfileFromSso(profile: SsoProfileResponse): DosenProfile {
+    const dosen = profile.identities.dosen;
+    const admin = profile.identities.admin;
+    return {
+      id: profile.id,
+      nip: admin?.nip || null,
+      jabatan: dosen?.jabatanFungsional || null,
+      fakultas: dosen?.fakultas?.nama || admin?.fakultas?.nama || null,
+      prodi: dosen?.prodi?.nama || admin?.prodi?.nama || null,
+      esignatureUrl: null,
+      esignatureKey: null,
+      esignatureUploadedAt: null,
+    };
+  }
+
+  private async fetchProfileFromSsoByToken(
+    accessToken: string,
+  ): Promise<SsoProfileResponse | null> {
+    if (!this.ssoIdentitiesUrl) {
+      return null;
+    }
+
+    const now = Date.now();
+    const cached = this.profileCacheByToken.get(accessToken);
+    if (cached && cached.expiresAt > now) {
+      return cached.profile;
+    }
+
+    try {
+      const response = await fetch(this.ssoIdentitiesUrl, {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          Accept: 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        this.profileCacheByToken.set(accessToken, {
+          profile: null,
+          expiresAt: now + this.PROFILE_CACHE_TTL_MS,
+        });
+        return null;
+      }
+
+      const payload = (await response.json()) as SsoEnvelope;
+      const profile = payload?.data || null;
+
+      this.profileCacheByToken.set(accessToken, {
+        profile,
+        expiresAt: now + this.PROFILE_CACHE_TTL_MS,
+      });
+
+      return profile;
+    } catch {
+      this.profileCacheByToken.set(accessToken, {
+        profile: null,
+        expiresAt: now + this.PROFILE_CACHE_TTL_MS,
+      });
+      return null;
+    }
+  }
+
+  private async resolveProfileByProfileId(
+    profileId: string,
+  ): Promise<SsoProfileResponse | null> {
+    if (!profileId || !this.ssoIdentitiesUrl) {
+      return null;
+    }
+
+    const now = Date.now();
+    const cachedProfile = this.profileCacheByProfileId.get(profileId);
+    if (cachedProfile && cachedProfile.expiresAt > now) {
+      return cachedProfile.profile;
+    }
+
+    const sessions = await this.db
+      .select({
+        accessToken: authSessions.accessToken,
+        expiresAt: authSessions.expiresAt,
+      })
+      .from(authSessions)
+      .where(gt(authSessions.expiresAt, new Date()))
+      .limit(100);
+
+    for (const session of sessions) {
+      const token = session.accessToken;
+      if (!token) {
+        continue;
+      }
+
+      const profile = await this.fetchProfileFromSsoByToken(token);
+      if (!profile || profile.id !== profileId) {
+        continue;
+      }
+
+      const expiresAt = Math.min(
+        session.expiresAt.getTime(),
+        now + this.PROFILE_CACHE_TTL_MS,
+      );
+
+      this.profileCacheByProfileId.set(profileId, {
+        profile,
+        expiresAt,
+      });
+
+      return profile;
+    }
+
+    return null;
+  }
 
   private async inferRole(userId: string): Promise<BasicUser['role']> {
     const dosenInTeam = await this.db
@@ -118,6 +292,11 @@ export class UserRepository {
   }
 
   async findById(id: string): Promise<BasicUser> {
+    const resolvedProfile = await this.resolveProfileByProfileId(id);
+    if (resolvedProfile) {
+      return this.toBasicUserFromProfile(resolvedProfile);
+    }
+
     return this.synthesizeUser(id);
   }
 
@@ -142,6 +321,11 @@ export class UserRepository {
   }
 
   async findMahasiswaByUserId(userId: string): Promise<MahasiswaProfile> {
+    const resolvedProfile = await this.resolveProfileByProfileId(userId);
+    if (resolvedProfile && resolvedProfile.identities.mahasiswa) {
+      return this.toMahasiswaProfileFromSso(resolvedProfile);
+    }
+
     return {
       id: userId,
       nim: null,
@@ -181,7 +365,8 @@ export class UserRepository {
   }
 
   async getMahasiswaMe(userId: string): Promise<MahasiswaMe> {
-    const user = await this.synthesizeUser(userId);
+    const user = await this.findById(userId);
+    const profile = await this.findMahasiswaByUserId(userId);
 
     return {
       id: user.id,
@@ -189,13 +374,13 @@ export class UserRepository {
       email: user.email,
       role: user.role,
       phone: user.phone,
-      nim: null,
-      fakultas: null,
-      prodi: null,
-      semester: null,
-      jumlahSksSelesai: null,
-      angkatan: null,
-      dosenPaId: null,
+      nim: profile.nim,
+      fakultas: profile.fakultas,
+      prodi: profile.prodi,
+      semester: profile.semester,
+      jumlahSksSelesai: profile.jumlahSksSelesai,
+      angkatan: profile.angkatan,
+      dosenPaId: profile.dosenPaId,
       esignatureUrl: null,
       esignatureKey: null,
       esignatureUploadedAt: null,
@@ -221,6 +406,11 @@ export class UserRepository {
   }
 
   async findDosenByUserId(userId: string): Promise<DosenProfile> {
+    const resolvedProfile = await this.resolveProfileByProfileId(userId);
+    if (resolvedProfile && (resolvedProfile.identities.dosen || resolvedProfile.identities.admin)) {
+      return this.toDosenProfileFromSso(resolvedProfile);
+    }
+
     return {
       id: userId,
       nip: null,
@@ -257,7 +447,8 @@ export class UserRepository {
   }
 
   async getDosenMe(userId: string): Promise<DosenMe> {
-    const user = await this.synthesizeUser(userId);
+    const user = await this.findById(userId);
+    const dosenProfile = await this.findDosenByUserId(userId);
 
     return {
       id: user.id,
@@ -265,10 +456,10 @@ export class UserRepository {
       email: user.email,
       role: 'DOSEN',
       phone: user.phone,
-      nip: null,
-      jabatan: null,
-      fakultas: null,
-      prodi: null,
+      nip: dosenProfile.nip,
+      jabatan: dosenProfile.jabatan,
+      fakultas: dosenProfile.fakultas,
+      prodi: dosenProfile.prodi,
       esignatureUrl: null,
       esignatureKey: null,
       esignatureUploadedAt: null,
