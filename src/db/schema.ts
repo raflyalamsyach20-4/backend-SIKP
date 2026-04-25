@@ -21,40 +21,6 @@ export const reportStatusEnum = pgEnum('report_status', ['DRAFT', 'SUBMITTED', '
 export const titleStatusEnum = pgEnum('title_status', ['PENDING', 'APPROVED', 'REJECTED']);
 export const approvalStatusEnum = pgEnum('approval_status', ['PENDING', 'APPROVED', 'REJECTED']);
 
-// Identity Tables
-export const users = pgTable('users', {
-  id: text('id').primaryKey(),
-  nama: varchar('nama', { length: 255 }).notNull(),
-  email: varchar('email', { length: 255 }).notNull(),
-  password: text('password'),
-  role: varchar('role', { length: 50 }).notNull(),
-  phone: varchar('phone', { length: 50 }),
-  isActive: boolean('is_active').notNull().default(true),
-});
-
-export const dosen = pgTable('dosen', {
-  id: text('id').primaryKey(),
-  nip: varchar('nip', { length: 50 }),
-  jabatan: varchar('jabatan', { length: 255 }),
-  fakultas: varchar('fakultas', { length: 255 }),
-  prodi: varchar('prodi', { length: 255 }),
-});
-
-// Pembimbing Lapangan Table
-export const pembimbingLapangan = pgTable('pembimbing_lapangan', {
-  id: text('id').primaryKey().references(() => users.id, { onDelete: 'cascade' }),
-  companyName: varchar('company_name', { length: 255 }),
-  position: varchar('position', { length: 100 }),
-  companyAddress: text('company_address'),
-  signature: text('signature'), // Base64 signature image
-  signatureSetAt: timestamp('signature_set_at'),
-});
-
-export const mahasiswa = pgTable('mahasiswa', {
-  id: text('id').primaryKey(),
-  nim: varchar('nim', { length: 50 }),
-  dosenPaId: text('dosen_pa_id'),
-});
 
 // Minimal auth session store for SSO cutover
 export const authSessions = pgTable('auth_sessions', {
@@ -179,10 +145,10 @@ export const generatedLetters = pgTable('generated_letters', {
 export const internships = pgTable('internships', {
   id: text('id').primaryKey(),
   submissionId: text('submission_id').notNull().references(() => submissions.id, { onDelete: 'cascade' }),
-  mahasiswaId: varchar('mahasiswa_id', { length: 20 }).notNull().references(() => mahasiswa.nim, { onDelete: 'cascade' }),
+  mahasiswaId: varchar('mahasiswa_id', { length: 20 }).notNull(),
   teamId: text('team_id').references(() => teams.id, { onDelete: 'set null' }),
-  pembimbingLapanganId: text('pembimbing_lapangan_id').references(() => pembimbingLapangan.id, { onDelete: 'set null' }),
-  dosenPembimbingId: text('dosen_pembimbing_id').references(() => dosen.id, { onDelete: 'set null' }),
+  pembimbingLapanganId: text('pembimbing_lapangan_id'),
+  dosenPembimbingId: text('dosen_pembimbing_id'),
   companyName: varchar('company_name', { length: 255 }).notNull(),
   division: varchar('division', { length: 255 }),
   startDate: date('start_date').notNull(),
@@ -202,7 +168,7 @@ export const logbooks = pgTable('logbooks', {
   hours: integer('hours'),
   status: logbookStatusEnum('status').notNull().default('PENDING'),
   rejectionReason: text('rejection_reason'),
-  verifiedBy: text('verified_by').references(() => pembimbingLapangan.id, { onDelete: 'set null' }),
+  verifiedBy: text('verified_by'),
   verifiedAt: timestamp('verified_at'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
@@ -212,7 +178,7 @@ export const logbooks = pgTable('logbooks', {
 export const assessments = pgTable('assessments', {
   id: text('id').primaryKey(),
   internshipId: text('internship_id').notNull().references(() => internships.id, { onDelete: 'cascade' }),
-  pembimbingLapanganId: text('pembimbing_lapangan_id').notNull().references(() => pembimbingLapangan.id, { onDelete: 'cascade' }),
+  pembimbingLapanganId: text('pembimbing_lapangan_id').notNull(),
   kehadiran: integer('kehadiran').notNull(), // 0-100
   kerjasama: integer('kerjasama').notNull(), // 0-100
   sikapEtika: integer('sikap_etika').notNull(), // 0-100
@@ -231,7 +197,7 @@ export const assessments = pgTable('assessments', {
 export const lecturerAssessments = pgTable('lecturer_assessments', {
   id: text('id').primaryKey(),
   internshipId: text('internship_id').notNull().references(() => internships.id, { onDelete: 'cascade' }),
-  dosenId: text('dosen_id').notNull().references(() => dosen.id, { onDelete: 'cascade' }),
+  dosenId: text('dosen_id').notNull(),
   formatKesesuaian: integer('format_kesesuaian').notNull(), // 0-100
   penguasaanMateri: integer('penguasaan_materi').notNull(), // 0-100
   analisisPerancangan: integer('analisis_perancangan').notNull(), // 0-100
@@ -274,7 +240,7 @@ export const reports = pgTable('reports', {
   fileSize: integer('file_size').notNull(),
   status: reportStatusEnum('status').notNull().default('DRAFT'),
   submittedAt: timestamp('submitted_at'),
-  reviewedBy: text('reviewed_by').references(() => dosen.id, { onDelete: 'set null' }),
+  reviewedBy: text('reviewed_by'),
   reviewedAt: timestamp('reviewed_at'),
   approvalStatus: approvalStatusEnum('approval_status').notNull().default('PENDING'),
   comments: text('comments'),
@@ -290,7 +256,7 @@ export const titleSubmissions = pgTable('title_submissions', {
   proposedTitle: varchar('proposed_title', { length: 500 }).notNull(),
   description: text('description'),
   status: titleStatusEnum('status').notNull().default('PENDING'),
-  approvedBy: text('approved_by').references(() => dosen.id, { onDelete: 'set null' }),
+  approvedBy: text('approved_by'),
   approvedAt: timestamp('approved_at'),
   rejectionReason: text('rejection_reason'),
   submittedAt: timestamp('submitted_at').defaultNow().notNull(),
@@ -305,13 +271,13 @@ export const titleRevisions = pgTable('title_revisions', {
   revisedTitle: varchar('revised_title', { length: 500 }).notNull(),
   changeReason: text('change_reason'),
   requestedAt: timestamp('requested_at').defaultNow().notNull(),
-  requestedBy: text('requested_by').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  requestedBy: text('requested_by').notNull(),
 });
 
 // Notifications Table
 export const notifications = pgTable('notifications', {
   id: text('id').primaryKey(),
-  userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  userId: text('user_id').notNull(),
   title: varchar('title', { length: 255 }).notNull(),
   message: text('message').notNull(),
   type: varchar('type', { length: 50 }).notNull(), // info, success, warning, error
@@ -322,7 +288,7 @@ export const notifications = pgTable('notifications', {
 // Mentor Approval Requests (Pengajuan pembimbing lapangan oleh mahasiswa)
 export const mentorApprovalRequests = pgTable('mentor_approval_requests', {
   id: text('id').primaryKey(),
-  studentUserId: text('student_user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  studentUserId: text('student_user_id').notNull(),
   mentorName: varchar('mentor_name', { length: 255 }).notNull(),
   mentorEmail: varchar('mentor_email', { length: 255 }).notNull(),
   mentorPhone: varchar('mentor_phone', { length: 20 }),
@@ -331,7 +297,7 @@ export const mentorApprovalRequests = pgTable('mentor_approval_requests', {
   companyAddress: text('company_address'),
   status: approvalStatusEnum('status').notNull().default('PENDING'),
   rejectionReason: text('rejection_reason'),
-  reviewedBy: text('reviewed_by').references(() => users.id, { onDelete: 'set null' }),
+  reviewedBy: text('reviewed_by'),
   reviewedAt: timestamp('reviewed_at'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
@@ -340,13 +306,13 @@ export const mentorApprovalRequests = pgTable('mentor_approval_requests', {
 // Mentor Email Change Requests
 export const mentorEmailChangeRequests = pgTable('mentor_email_change_requests', {
   id: text('id').primaryKey(),
-  mentorId: text('mentor_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  mentorId: text('mentor_id').notNull(),
   currentEmail: varchar('current_email', { length: 255 }).notNull(),
   requestedEmail: varchar('requested_email', { length: 255 }).notNull(),
   reason: text('reason'),
   status: approvalStatusEnum('status').notNull().default('PENDING'),
   rejectionReason: text('rejection_reason'),
-  reviewedBy: text('reviewed_by').references(() => users.id, { onDelete: 'set null' }),
+  reviewedBy: text('reviewed_by'),
   reviewedAt: timestamp('reviewed_at'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
@@ -355,7 +321,7 @@ export const mentorEmailChangeRequests = pgTable('mentor_email_change_requests',
 // Mentor Activation Tokens (one-time token for activation/password setup)
 export const mentorActivationTokens = pgTable('mentor_activation_tokens', {
   id: text('id').primaryKey(),
-  mentorId: text('mentor_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  mentorId: text('mentor_id').notNull(),
   token: varchar('token', { length: 255 }).notNull().unique(),
   expiresAt: timestamp('expires_at').notNull(),
   usedAt: timestamp('used_at'),
@@ -365,7 +331,7 @@ export const mentorActivationTokens = pgTable('mentor_activation_tokens', {
 // Audit Logs for approval/rejection critical actions
 export const auditLogs = pgTable('audit_logs', {
   id: text('id').primaryKey(),
-  actorUserId: text('actor_user_id').references(() => users.id, { onDelete: 'set null' }),
+  actorUserId: text('actor_user_id'),
   action: varchar('action', { length: 100 }).notNull(),
   entityType: varchar('entity_type', { length: 100 }).notNull(),
   entityId: text('entity_id').notNull(),
@@ -473,53 +439,7 @@ export const suratPermohonanRequests = pgTable('surat_permohonan_requests', {
 });
 
 // Relations
-export const usersRelations = relations(users, ({ one, many }) => ({
-  mahasiswaProfile: one(mahasiswa),
-  dosenProfile: one(dosen),
-  pembimbingLapanganProfile: one(pembimbingLapangan),
-  teamsLed: many(teams),
-  teamMemberships: many(teamMembers),
-  approvedSubmissions: many(submissions),
-  uploadedDocuments: many(submissionDocuments),
-  generatedLetters: many(generatedLetters),
-  createdTemplates: many(templates),
-  updatedTemplates: many(templates),
-}));
-
-export const mahasiswaRelations = relations(mahasiswa, ({ one, many }) => ({
-  user: one(users, {
-    fields: [mahasiswa.id],
-    references: [users.id],
-  }),
-  internships: many(internships),
-}));
-
-export const dosenRelations = relations(dosen, ({ one, many }) => ({
-  user: one(users, {
-    fields: [dosen.id],
-    references: [users.id],
-  }),
-  internships: many(internships),
-  lecturerAssessments: many(lecturerAssessments),
-  reviewedReports: many(reports),
-  approvedTitles: many(titleSubmissions),
-}));
-
-export const pembimbingLapanganRelations = relations(pembimbingLapangan, ({ one, many }) => ({
-  user: one(users, {
-    fields: [pembimbingLapangan.id],
-    references: [users.id],
-  }),
-  internships: many(internships),
-  assessments: many(assessments),
-  verifiedLogbooks: many(logbooks),
-}));
-
-export const teamsRelations = relations(teams, ({ one, many }) => ({
-  leader: one(users, {
-    fields: [teams.leaderId],
-    references: [users.id],
-  }),
+export const teamsRelations = relations(teams, ({ many }) => ({
   members: many(teamMembers),
   submissions: many(submissions),
 }));
@@ -539,6 +459,7 @@ export const submissionsRelations = relations(submissions, ({ one, many }) => ({
   documents: many(submissionDocuments),
   letters: many(generatedLetters),
   internships: many(internships),
+
   responseLetters: many(responseLetters),
 }));
 
@@ -570,14 +491,7 @@ export const suratPermohonanRequestsRelations = relations(suratPermohonanRequest
   }),
 }));
 export const templatesRelations = relations(templates, ({ one }) => ({
-  creator: one(users, {
-    fields: [templates.createdBy],
-    references: [users.id],
-  }),
-  updater: one(users, {
-    fields: [templates.updatedBy],
-    references: [users.id],
-  }),
+  // Removed creator/updater relations
 }));
 
 // Internship Relations
@@ -586,21 +500,9 @@ export const internshipsRelations = relations(internships, ({ one, many }) => ({
     fields: [internships.submissionId],
     references: [submissions.id],
   }),
-  mahasiswa: one(mahasiswa, {
-    fields: [internships.mahasiswaId],
-    references: [mahasiswa.nim],
-  }),
   team: one(teams, {
     fields: [internships.teamId],
     references: [teams.id],
-  }),
-  pembimbingLapangan: one(pembimbingLapangan, {
-    fields: [internships.pembimbingLapanganId],
-    references: [pembimbingLapangan.id],
-  }),
-  dosenPembimbing: one(dosen, {
-    fields: [internships.dosenPembimbingId],
-    references: [dosen.id],
   }),
   logbooks: many(logbooks),
   assessment: one(assessments),
@@ -615,20 +517,12 @@ export const logbooksRelations = relations(logbooks, ({ one }) => ({
     fields: [logbooks.internshipId],
     references: [internships.id],
   }),
-  verifier: one(pembimbingLapangan, {
-    fields: [logbooks.verifiedBy],
-    references: [pembimbingLapangan.id],
-  }),
 }));
 
 export const assessmentsRelations = relations(assessments, ({ one }) => ({
   internship: one(internships, {
     fields: [assessments.internshipId],
     references: [internships.id],
-  }),
-  pembimbingLapangan: one(pembimbingLapangan, {
-    fields: [assessments.pembimbingLapanganId],
-    references: [pembimbingLapangan.id],
   }),
   combinedGrade: one(combinedGrades),
 }));
@@ -637,10 +531,6 @@ export const lecturerAssessmentsRelations = relations(lecturerAssessments, ({ on
   internship: one(internships, {
     fields: [lecturerAssessments.internshipId],
     references: [internships.id],
-  }),
-  dosen: one(dosen, {
-    fields: [lecturerAssessments.dosenId],
-    references: [dosen.id],
   }),
   combinedGrade: one(combinedGrades),
 }));
@@ -665,20 +555,12 @@ export const reportsRelations = relations(reports, ({ one }) => ({
     fields: [reports.internshipId],
     references: [internships.id],
   }),
-  reviewer: one(dosen, {
-    fields: [reports.reviewedBy],
-    references: [dosen.id],
-  }),
 }));
 
 export const titleSubmissionsRelations = relations(titleSubmissions, ({ one, many }) => ({
   internship: one(internships, {
     fields: [titleSubmissions.internshipId],
     references: [internships.id],
-  }),
-  approver: one(dosen, {
-    fields: [titleSubmissions.approvedBy],
-    references: [dosen.id],
   }),
   revisions: many(titleRevisions),
 }));
@@ -688,15 +570,9 @@ export const titleRevisionsRelations = relations(titleRevisions, ({ one }) => ({
     fields: [titleRevisions.titleSubmissionId],
     references: [titleSubmissions.id],
   }),
-  requester: one(users, {
-    fields: [titleRevisions.requestedBy],
-    references: [users.id],
-  }),
 }));
 
 export const notificationsRelations = relations(notifications, ({ one }) => ({
-  user: one(users, {
-    fields: [notifications.userId],
-    references: [users.id],
-  }),
+  // Removed user relation
 }));
+

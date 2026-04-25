@@ -21,7 +21,7 @@ import { createInternshipRoutes } from '@/routes/internship.route';
 import { createLogbookRoutes } from '@/routes/logbook.route';
 import { createMentorshipRoutes } from '@/routes/mentorship.route';
 import { createInternshipMonitoringRoutes } from '@/routes/internship-monitoring.route';
-import { createMentorActivationRoutes } from '@/routes/mentor-activation.route';
+
 import { createPenilaianRoutes } from '@/routes/penilaian.route';
 
 /**
@@ -78,7 +78,7 @@ app.route('/api/internships', createInternshipRoutes());
 app.route('/api/logbooks', createLogbookRoutes());
 app.route('/api/mentorship', createMentorshipRoutes());
 app.route('/api/internship-monitoring', createInternshipMonitoringRoutes());
-app.route('/api/mentor-activation', createMentorActivationRoutes());
+
 app.route('/api/penilaian', createPenilaianRoutes());
 
 const legacyIdentityRouteGone = (c: Context) => {
@@ -94,7 +94,6 @@ app.all('/api/dosen', legacyIdentityRouteGone);
 app.all('/api/dosen/*', legacyIdentityRouteGone);
 app.all('/api/admin', legacyIdentityRouteGone);
 app.all('/api/admin/*', legacyIdentityRouteGone);
-
 /**
  * 404 Not Found Handler
  */

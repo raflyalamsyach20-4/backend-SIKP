@@ -4,12 +4,9 @@ import {
   auditLogs,
   internships,
   logbooks,
-  mahasiswa,
   mentorActivationTokens,
   mentorApprovalRequests,
   mentorEmailChangeRequests,
-  pembimbingLapangan,
-  users,
 } from '@/db/schema';
 
 export class MentorWorkflowRepository {
@@ -53,14 +50,9 @@ export class MentorWorkflowRepository {
           rejectionReason: mentorApprovalRequests.rejectionReason,
           createdAt: mentorApprovalRequests.createdAt,
           reviewedAt: mentorApprovalRequests.reviewedAt,
-          studentUserId: users.id,
-          studentName: users.nama,
-          studentEmail: users.email,
-          studentNim: mahasiswa.nim,
+          studentUserId: mentorApprovalRequests.studentUserId,
         })
         .from(mentorApprovalRequests)
-        .innerJoin(users, eq(mentorApprovalRequests.studentUserId, users.id))
-        .leftJoin(mahasiswa, eq(users.id, mahasiswa.id))
         .orderBy(desc(mentorApprovalRequests.createdAt));
     } catch (error) {
       console.error('[MentorWorkflowRepository.listMentorApprovalRequests] Error:', error);
@@ -81,30 +73,16 @@ export class MentorWorkflowRepository {
     }
   }
 
-  async getMahasiswaByUserId(userId: string) {
-    try {
-      const rows = await this.db
-        .select()
-        .from(mahasiswa)
-        .where(eq(mahasiswa.id, userId))
-        .limit(1);
-      return rows[0] ?? null;
-    } catch (error) {
-      console.error('[MentorWorkflowRepository.getMahasiswaByUserId] Error:', error);
-      throw error;
-    }
-  }
-
-  async getActiveInternshipByMahasiswaNim(nim: string) {
+  async getActiveInternshipByMahasiswaId(userId: string) {
     try {
       const rows = await this.db
         .select()
         .from(internships)
-        .where(and(eq(internships.mahasiswaId, nim), eq(internships.status, 'AKTIF')))
+        .where(and(eq(internships.mahasiswaId, userId), eq(internships.status, 'AKTIF')))
         .limit(1);
       return rows[0] ?? null;
     } catch (error) {
-      console.error('[MentorWorkflowRepository.getActiveInternshipByMahasiswaNim] Error:', error);
+      console.error('[MentorWorkflowRepository.getActiveInternshipByMahasiswaId] Error:', error);
       throw error;
     }
   }
@@ -117,88 +95,6 @@ export class MentorWorkflowRepository {
         .where(eq(internships.id, internshipId));
     } catch (error) {
       console.error('[MentorWorkflowRepository.assignMentorToInternship] Error:', error);
-      throw error;
-    }
-  }
-
-  async findUserByEmail(email: string) {
-    try {
-      const rows = await this.db
-        .select()
-        .from(users)
-        .where(eq(users.email, email))
-        .limit(1);
-      return rows[0] ?? null;
-    } catch (error) {
-      console.error('[MentorWorkflowRepository.findUserByEmail] Error:', error);
-      throw error;
-    }
-  }
-
-  async findUserById(userId: string) {
-    try {
-      const rows = await this.db
-        .select()
-        .from(users)
-        .where(eq(users.id, userId))
-        .limit(1);
-      return rows[0] ?? null;
-    } catch (error) {
-      console.error('[MentorWorkflowRepository.findUserById] Error:', error);
-      throw error;
-    }
-  }
-
-  async createMentorUser(data: typeof users.$inferInsert) {
-    try {
-      await this.db.insert(users).values(data);
-      return this.findUserById(data.id);
-    } catch (error) {
-      console.error('[MentorWorkflowRepository.createMentorUser] Error:', error);
-      throw error;
-    }
-  }
-
-  async updateUser(userId: string, data: Partial<typeof users.$inferInsert>) {
-    try {
-      await this.db.update(users).set(data).where(eq(users.id, userId));
-      return this.findUserById(userId);
-    } catch (error) {
-      console.error('[MentorWorkflowRepository.updateUser] Error:', error);
-      throw error;
-    }
-  }
-
-  async findMentorProfileById(mentorId: string) {
-    try {
-      const rows = await this.db
-        .select()
-        .from(pembimbingLapangan)
-        .where(eq(pembimbingLapangan.id, mentorId))
-        .limit(1);
-      return rows[0] ?? null;
-    } catch (error) {
-      console.error('[MentorWorkflowRepository.findMentorProfileById] Error:', error);
-      throw error;
-    }
-  }
-
-  async createMentorProfile(data: typeof pembimbingLapangan.$inferInsert) {
-    try {
-      await this.db.insert(pembimbingLapangan).values(data);
-      return this.findMentorProfileById(data.id);
-    } catch (error) {
-      console.error('[MentorWorkflowRepository.createMentorProfile] Error:', error);
-      throw error;
-    }
-  }
-
-  async updateMentorProfile(mentorId: string, data: Partial<typeof pembimbingLapangan.$inferInsert>) {
-    try {
-      await this.db.update(pembimbingLapangan).set(data).where(eq(pembimbingLapangan.id, mentorId));
-      return this.findMentorProfileById(mentorId);
-    } catch (error) {
-      console.error('[MentorWorkflowRepository.updateMentorProfile] Error:', error);
       throw error;
     }
   }
@@ -286,20 +182,8 @@ export class MentorWorkflowRepository {
   async listMentorEmailChangeRequests() {
     try {
       return await this.db
-        .select({
-          id: mentorEmailChangeRequests.id,
-          mentorId: mentorEmailChangeRequests.mentorId,
-          currentEmail: mentorEmailChangeRequests.currentEmail,
-          requestedEmail: mentorEmailChangeRequests.requestedEmail,
-          reason: mentorEmailChangeRequests.reason,
-          status: mentorEmailChangeRequests.status,
-          rejectionReason: mentorEmailChangeRequests.rejectionReason,
-          createdAt: mentorEmailChangeRequests.createdAt,
-          reviewedAt: mentorEmailChangeRequests.reviewedAt,
-          mentorName: users.nama,
-        })
+        .select()
         .from(mentorEmailChangeRequests)
-        .innerJoin(users, eq(mentorEmailChangeRequests.mentorId, users.id))
         .orderBy(desc(mentorEmailChangeRequests.createdAt));
     } catch (error) {
       console.error('[MentorWorkflowRepository.listMentorEmailChangeRequests] Error:', error);
@@ -331,17 +215,12 @@ export class MentorWorkflowRepository {
           hours: logbooks.hours,
           status: logbooks.status,
           rejectionReason: logbooks.rejectionReason,
-          studentUserId: users.id,
-          studentName: users.nama,
-          studentEmail: users.email,
-          nim: mahasiswa.nim,
+          studentId: internships.mahasiswaId,
           company: internships.companyName,
           mentorId: internships.pembimbingLapanganId,
         })
         .from(logbooks)
         .innerJoin(internships, eq(logbooks.internshipId, internships.id))
-        .innerJoin(mahasiswa, eq(internships.mahasiswaId, mahasiswa.nim))
-        .innerJoin(users, eq(mahasiswa.id, users.id))
         .orderBy(desc(logbooks.date), desc(logbooks.createdAt));
     } catch (error) {
       console.error('[MentorWorkflowRepository.listDosenLogbookMonitor] Error:', error);
@@ -366,8 +245,7 @@ export class MentorWorkflowRepository {
         })
         .from(logbooks)
         .innerJoin(internships, eq(logbooks.internshipId, internships.id))
-        .innerJoin(mahasiswa, eq(internships.mahasiswaId, mahasiswa.nim))
-        .where(eq(mahasiswa.id, studentUserId))
+        .where(eq(internships.mahasiswaId, studentUserId))
         .orderBy(desc(logbooks.date), desc(logbooks.createdAt));
     } catch (error) {
       console.error('[MentorWorkflowRepository.listDosenLogbookMonitorByStudent] Error:', error);
@@ -384,3 +262,4 @@ export class MentorWorkflowRepository {
     }
   }
 }
+

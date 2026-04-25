@@ -1,6 +1,6 @@
 import { eq, and, desc } from 'drizzle-orm';
 import type { DbClient } from '@/db';
-import { logbooks, internships, mahasiswa, users } from '@/db/schema';
+import { logbooks, internships } from '@/db/schema';
 import { generateId } from '@/utils/helpers';
 
 export interface CreateLogbookData {
@@ -30,10 +30,9 @@ export class LogbookRepository {
       const result = await this.db
         .select({ internshipId: internships.id })
         .from(internships)
-        .innerJoin(mahasiswa, eq(internships.mahasiswaId, mahasiswa.nim))
         .where(
           and(
-            eq(mahasiswa.id, userId),
+            eq(internships.mahasiswaId, userId),
             eq(internships.status, 'AKTIF')
           )
         )
@@ -260,10 +259,9 @@ export class LogbookRepository {
       const result = await this.db
         .select({ id: internships.id })
         .from(internships)
-        .innerJoin(mahasiswa, eq(internships.mahasiswaId, mahasiswa.nim))
         .where(
           and(
-            eq(mahasiswa.id, menteeUserId),
+            eq(internships.mahasiswaId, menteeUserId),
             eq(internships.pembimbingLapanganId, mentorId)
           )
         )

@@ -1,0 +1,1 @@
+ALTER TABLE "mahasiswa" ADD COLUMN IF NOT EXISTS "jumlah_sks_selesai" integer;

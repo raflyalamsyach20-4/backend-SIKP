@@ -1,7 +1,11 @@
 import { MahasiswaRepository } from '@/repositories/mahasiswa.repository';
+import { UserRepository } from '@/repositories/user.repository';
 
 export class InternshipService {
-  constructor(private mahasiswaRepo: MahasiswaRepository) {}
+  constructor(
+    private mahasiswaRepo: MahasiswaRepository,
+    private userRepo: UserRepository
+  ) {}
 
   /**
    * Get complete internship data including student, submission, internship, mentor, and lecturer info
@@ -13,16 +17,48 @@ export class InternshipService {
       throw new Error('No active internship found for this student. Please complete your submission first.');
     }
 
+    // Resolve Student Details
+    const studentProfile = await this.userRepo.getMahasiswaMe(userId);
+
+    // Resolve Mentor Details
+    let mentor = null;
+    if (data.pembimbingLapanganId) {
+      const mentorUser = await this.userRepo.findById(data.pembimbingLapanganId);
+      mentor = {
+        id: data.pembimbingLapanganId,
+        name: mentorUser.nama || '',
+        email: mentorUser.email || '',
+        company: data.company || '', // Company info comes from internship table
+        position: '', // Position might need another lookup or we store it in internships
+        phone: mentorUser.phone || '',
+        signature: null,
+      };
+    }
+
+    // Resolve Lecturer Details
+    let lecturer = null;
+    if (data.dosenPembimbingId) {
+      const lecturerProfile = await this.userRepo.getDosenMe(data.dosenPembimbingId);
+      lecturer = {
+        id: data.dosenPembimbingId,
+        name: lecturerProfile.nama || '',
+        email: lecturerProfile.email || '',
+        nip: lecturerProfile.nip || '',
+        phone: lecturerProfile.phone || '',
+        jabatan: lecturerProfile.jabatan || '',
+      };
+    }
+
     return {
       student: {
-        id: data.studentId,
-        name: data.studentName,
-        nim: data.nim,
-        email: data.email,
-        prodi: '',
-        fakultas: '',
-        angkatan: '',
-        semester: 0,
+        id: studentProfile.id,
+        name: studentProfile.nama,
+        nim: studentProfile.nim,
+        email: studentProfile.email,
+        prodi: studentProfile.prodi || '',
+        fakultas: studentProfile.fakultas || '',
+        angkatan: studentProfile.angkatan || '',
+        semester: studentProfile.semester || 0,
       },
       submission: {
         id: data.submissionId,
@@ -49,23 +85,9 @@ export class InternshipService {
         createdAt: data.internshipCreatedAt,
         updatedAt: data.internshipUpdatedAt,
       } : null,
-      mentor: data.pembimbingLapanganId && data.mentorUserData ? {
-        id: data.pembimbingLapanganId,
-        name: data.mentorUserData.nama || '',
-        email: data.mentorUserData.email || '',
-        company: data.mentorCompany || '',
-        position: data.mentorPosition || '',
-        phone: data.mentorUserData.phone || '',
-        signature: data.mentorSignature || null,
-      } : null,
-      lecturer: data.dosenPembimbingId && data.lecturerUserData ? {
-        id: data.dosenPembimbingId,
-        name: data.lecturerUserData.nama || '',
-        email: data.lecturerUserData.email || '',
-        nip: data.lecturerNip || '',
-        phone: data.lecturerUserData.phone || '',
-        jabatan: data.lecturerJabatan || '',
-      } : null,
+      mentor,
+      lecturer,
     };
   }
 }
+

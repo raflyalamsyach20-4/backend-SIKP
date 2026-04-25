@@ -1,22 +1,22 @@
 import type { AppConfig } from '@/config';
-import type { JWTPayload, UserRole } from '@/types';
+import type { JWTPayload, RbacRole } from '@/types';
 import { AuthService } from '@/services/auth.service';
 
-const WRITE_ALLOWED_ROLES: UserRole[] = [
-  'MAHASISWA',
-  'DOSEN',
-  'KAPRODI',
-  'WAKIL_DEKAN',
-  'ADMIN',
+const WRITE_ALLOWED_ROLES: RbacRole[] = [
+  'mahasiswa',
+  'dosen',
+  'kaprodi',
+  'wakil_dekan',
+  'admin',
 ];
 
-const READ_ALLOWED_ROLES: UserRole[] = [
-  'MAHASISWA',
-  'DOSEN',
-  'KAPRODI',
-  'WAKIL_DEKAN',
-  'ADMIN',
-  'MENTOR',
+const READ_ALLOWED_ROLES: RbacRole[] = [
+  'mahasiswa',
+  'dosen',
+  'kaprodi',
+  'wakil_dekan',
+  'admin',
+  'mentor',
 ];
 
 type ProxyPayload = { message?: string } | null;
@@ -104,8 +104,8 @@ export class SsoSignatureProxyService {
         headers: {
           Authorization: `Bearer ${token}`,
           Accept: 'application/json',
-          'X-Auth-User-Id': user.authUserId || '',
-          'X-Active-Identity': user.activeIdentity.identityType,
+          'X-Auth-User-Id': user.sub || user.userId || '',
+          'X-Active-Identity': user.activeIdentity?.identityType || '',
         },
         body: input.body,
         signal: controller.signal,

@@ -39,9 +39,11 @@ export class TeamController {
       const body = await c.req.json();
       const validated = inviteMemberSchema.parse(body);
 
+      if (!user.profileId) throw new Error('profileId not found in session');
+
       const invitation = await this.teamService.inviteMember(
         teamId,
-        user.userId, // ✅ userId is now profileId for team operations
+        user.profileId, // ✅ profileId used for team operations
         validated.memberNim
       );
 
@@ -58,9 +60,11 @@ export class TeamController {
       const body = await c.req.json();
       const validated = respondInvitationSchema.parse(body);
 
+      if (!user.profileId) throw new Error('profileId not found in session');
+
       const result = await this.teamService.respondToInvitation(
         memberId,
-        user.userId,
+        user.profileId,
         validated.accept
       );
 
@@ -84,7 +88,8 @@ export class TeamController {
   getMyTeams = async (c: Context) => {
     try {
       const user = c.get('user') as JWTPayload;
-      const teams = await this.teamService.getMyTeams(user.userId);
+      if (!user.profileId) throw new Error('profileId not found in session');
+      const teams = await this.teamService.getMyTeams(user.profileId);
 
       return c.json(createResponse(true, 'Teams retrieved', teams));
     } catch (error) {
@@ -97,9 +102,10 @@ export class TeamController {
       const user = c.get('user') as JWTPayload;
       const teamId = c.req.param('teamId');
 
-      console.log(`[TeamController.leaveTeam] Request from userId=${user.userId}, teamId=${teamId}`);
+      if (!user.profileId) throw new Error('profileId not found in session');
+      console.log(`[TeamController.leaveTeam] Request from profileId=${user.profileId}, teamId=${teamId}`);
 
-      const result = await this.teamService.leaveTeam(teamId, user.userId);
+      const result = await this.teamService.leaveTeam(teamId, user.profileId);
 
       console.log(`[TeamController.leaveTeam] ✅ Success: Member left team`);
       return c.json(createResponse(true, 'Successfully left the team', result));
@@ -115,9 +121,10 @@ export class TeamController {
       const teamId = c.req.param('teamId');
       const memberId = c.req.param('memberId');
 
-      console.log(`[TeamController.removeMember] Request from userId=${user.userId}, teamId=${teamId}, memberId=${memberId}`);
+      if (!user.profileId) throw new Error('profileId not found in session');
+      console.log(`[TeamController.removeMember] Request from profileId=${user.profileId}, teamId=${teamId}, memberId=${memberId}`);
 
-      const result = await this.teamService.removeMember(teamId, memberId, user.userId);
+      const result = await this.teamService.removeMember(teamId, memberId, user.profileId);
 
       console.log(`[TeamController.removeMember] ✅ Success: Member removed`);
       return c.json(createResponse(true, 'Member removed successfully', result));
@@ -132,7 +139,8 @@ export class TeamController {
       const user = c.get('user') as JWTPayload;
       const teamId = c.req.param('teamId');
 
-      const result = await this.teamService.deleteTeam(teamId, user.userId);
+      if (!user.profileId) throw new Error('profileId not found in session');
+      const result = await this.teamService.deleteTeam(teamId, user.profileId);
 
       return c.json(createResponse(true, 'Team deleted successfully', result));
     } catch (error) {
@@ -145,9 +153,10 @@ export class TeamController {
       const user = c.get('user') as JWTPayload;
       const teamId = c.req.param('teamId');
 
-      console.log(`[TeamController.finalizeTeam] Request from userId=${user.userId}, teamId=${teamId}`);
+      if (!user.profileId) throw new Error('profileId not found in session');
+      console.log(`[TeamController.finalizeTeam] Request from profileId=${user.profileId}, teamId=${teamId}`);
 
-      const result = await this.teamService.finalizeTeam(teamId, user.userId);
+      const result = await this.teamService.finalizeTeam(teamId, user.profileId);
 
       console.log(`[TeamController.finalizeTeam] ✅ Success: Team finalized`);
       return c.json(createResponse(true, 'Tim berhasil difinalisasi', result), 200);
@@ -176,7 +185,8 @@ export class TeamController {
   getMyInvitations = async (c: Context) => {
     try {
       const user = c.get('user') as JWTPayload;
-      const invitations = await this.teamService.getMyInvitations(user.userId);
+      if (!user.profileId) throw new Error('profileId not found in session');
+      const invitations = await this.teamService.getMyInvitations(user.profileId);
 
       return c.json(createResponse(true, 'Invitations retrieved', invitations));
     } catch (error) {
@@ -189,9 +199,10 @@ export class TeamController {
       const user = c.get('user') as JWTPayload;
       const memberId = c.req.param('memberId');
 
-      console.log(`[TeamController.cancelInvitation] Request from userId=${user.userId}, memberId=${memberId}`);
+      if (!user.profileId) throw new Error('profileId not found in session');
+      console.log(`[TeamController.cancelInvitation] Request from profileId=${user.profileId}, memberId=${memberId}`);
 
-      const result = await this.teamService.cancelInvitation(memberId, user.userId);
+      const result = await this.teamService.cancelInvitation(memberId, user.profileId);
 
       console.log(`[TeamController.cancelInvitation] ✅ Success: Invitation cancelled`);
       return c.json(createResponse(true, 'Invitation cancelled successfully', result));
@@ -206,9 +217,10 @@ export class TeamController {
       const user = c.get('user') as JWTPayload;
       const teamCode = c.req.param('teamCode');
 
-      console.log(`[TeamController.joinTeam] Request from userId=${user.userId}, teamCode=${teamCode}`);
+      if (!user.profileId) throw new Error('profileId not found in session');
+      console.log(`[TeamController.joinTeam] Request from profileId=${user.profileId}, teamCode=${teamCode}`);
 
-      const result = await this.teamService.joinTeam(teamCode, user.userId);
+      const result = await this.teamService.joinTeam(teamCode, user.profileId);
 
       console.log(`[TeamController.joinTeam] ✅ Success: Join request created`);
       return c.json(result, 201);
@@ -227,10 +239,11 @@ export class TeamController {
     try {
       const user = c.get('user') as JWTPayload;
       
-      console.log(`[TeamController.resetTeam] Request from userId=${user.userId}`);
+      if (!user.profileId) throw new Error('profileId not found in session');
+      console.log(`[TeamController.resetTeam] Request from profileId=${user.profileId}`);
 
       // Get user's teams
-      const myTeams = await this.teamService.getMyTeams(user.userId);
+      const myTeams = await this.teamService.getMyTeams(user.profileId);
       
       if (!myTeams || myTeams.length === 0) {
         console.error(`[TeamController.resetTeam] ❌ User has no teams`);

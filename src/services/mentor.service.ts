@@ -1,4 +1,4 @@
-import { MentorRepository, UpdateMentorProfileData, CreateAssessmentData, UpdateAssessmentData } from '@/repositories/mentor.repository';
+import { MentorRepository, CreateAssessmentData, UpdateAssessmentData } from '@/repositories/mentor.repository';
 import { LogbookRepository } from '@/repositories/logbook.repository';
 
 export class MentorService {
@@ -7,38 +7,9 @@ export class MentorService {
     private logbookRepo: LogbookRepository,
   ) {}
 
-  // ─── Profile ────────────────────────────────────────────────────────────────
+  // ─── Profile & Signature ───────────────────────────────────────────────────
+  // These are now handled via SSO / External Identity system.
 
-  async getProfile(mentorId: string) {
-    const profile = await this.mentorRepo.getProfile(mentorId);
-    if (!profile) throw new Error('Mentor profile not found');
-    return profile;
-  }
-
-  async updateProfile(mentorId: string, data: UpdateMentorProfileData) {
-    const updated = await this.mentorRepo.updateProfile(mentorId, data);
-    if (!updated) throw new Error('Mentor profile not found');
-    return updated;
-  }
-
-  // ─── Signature ──────────────────────────────────────────────────────────────
-
-  async getSignature(mentorId: string) {
-    const data = await this.mentorRepo.getSignature(mentorId);
-    if (!data) throw new Error('Mentor not found');
-    return data;
-  }
-
-  async updateSignature(mentorId: string, signatureBase64: string) {
-    if (!signatureBase64 || !signatureBase64.startsWith('data:image/')) {
-      throw new Error('Signature must be a valid Base64 data URL (e.g. data:image/png;base64,...)');
-    }
-    return this.mentorRepo.updateSignature(mentorId, signatureBase64);
-  }
-
-  async deleteSignature(mentorId: string) {
-    await this.mentorRepo.deleteSignature(mentorId);
-  }
 
   // ─── Mentees ────────────────────────────────────────────────────────────────
 

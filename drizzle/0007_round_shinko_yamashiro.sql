@@ -1,0 +1,2 @@
+-- Placeholder migration
+-- This migration was replaced by 0009_update_submission_schema

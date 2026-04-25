@@ -95,13 +95,13 @@ export class TemplateController {
       const user = c.get('user') as JWTPayload;
       
       // Check authorization
-      if (user.role !== 'ADMIN') {
+      if (user.role !== 'admin') {
         return c.json(createResponse(false, 'Anda tidak memiliki akses untuk endpoint ini'), 403);
       }
 
       const formData = await c.req.formData();
       const fileEntry = formData.get('file');
-      const file = fileEntry instanceof File ? fileEntry : null;
+      const file = (fileEntry as any) instanceof File ? (fileEntry as unknown as File) : null;
       const name = formData.get('name') as string;
       const typeRaw = formData.get('type') as string;
       const description = formData.get('description') as string;
@@ -164,7 +164,7 @@ export class TemplateController {
       const user = c.get('user') as JWTPayload;
       
       // Check authorization
-      if (user.role !== 'ADMIN') {
+      if (user.role !== 'admin') {
         return c.json(createResponse(false, 'Anda tidak memiliki akses untuk endpoint ini'), 403);
       }
 
@@ -172,7 +172,7 @@ export class TemplateController {
       const formData = await c.req.formData();
 
       const fileEntry = formData.get('file');
-      const file = fileEntry instanceof File ? fileEntry : null;
+      const file = (fileEntry as any) instanceof File ? (fileEntry as unknown as File) : null;
       const name = formData.get('name') as string;
       const typeRaw = formData.get('type') as string;
       const description = formData.get('description') as string;
@@ -237,7 +237,7 @@ export class TemplateController {
       const user = c.get('user') as JWTPayload;
       
       // Check authorization
-      if (user.role !== 'ADMIN') {
+      if (user.role !== 'admin') {
         return c.json(createResponse(false, 'Anda tidak memiliki akses untuk endpoint ini'), 403);
       }
 
@@ -267,7 +267,7 @@ export class TemplateController {
       const user = c.get('user') as JWTPayload;
       
       // Check authorization
-      if (user.role !== 'ADMIN') {
+      if (user.role !== 'admin') {
         return c.json(createResponse(false, 'Anda tidak memiliki akses untuk endpoint ini'), 403);
       }
 

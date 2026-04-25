@@ -1,10 +1,13 @@
-export type UserRole =
-  | "MAHASISWA"
-  | "ADMIN"
-  | "DOSEN"
-  | "KAPRODI"
-  | "WAKIL_DEKAN"
-  | "MENTOR";
+export * from "./sso.types";
+import type {
+  IdentityRole,
+  RbacRole,
+  SsoAdminIdentity,
+  SsoDosenIdentity,
+  SsoMahasiswaIdentity,
+  SsoMentorIdentity,
+} from "./sso.types";
+
 export type EffectivePermission = string;
 export type AuthProvider = "SSO_UNSRI";
 export type TeamStatus = "PENDING" | "FIXED";
@@ -23,60 +26,9 @@ export type SubmissionWorkflowStage =
   | "REJECTED_ADMIN"
   | "REJECTED_DOSEN";
 export type DocumentType = "KTP" | "TRANSKRIP" | "KRS" | "PROPOSAL" | "OTHER";
-// ✅ NEW: Document status type
 export type DocumentStatus = "PENDING" | "APPROVED" | "REJECTED";
 export type ResponseLetterStatus = "approved" | "rejected";
 export type ResponseLetterTrackingStatus = "pending" | "submitted" | "verified";
-
-// Base User interface
-export interface User {
-  id: string;
-  nama: string | null;
-  email: string;
-  password: string;
-  role: UserRole;
-  phone: string | null;
-  isActive: boolean;
-}
-
-// Mahasiswa interface
-export interface Mahasiswa {
-  nim: string;
-  id: string;
-  fakultas: string | null;
-  prodi: string | null;
-  semester: number | null;
-  jumlahSksSelesai: number | null;
-  angkatan: string | null;
-}
-
-// Admin interface
-export interface Admin {
-  id: string;
-  nip: string;
-  fakultas: string | null;
-  prodi: string | null;
-}
-
-// Dosen interface
-export interface Dosen {
-  id: string;
-  nip: string;
-  jabatan: string | null;
-  fakultas: string | null;
-  prodi: string | null;
-  esignatureUrl?: string | null;
-  esignatureKey?: string | null;
-  esignatureUploadedAt?: Date | null;
-}
-
-// Pembimbing Lapangan interface
-export interface PembimbingLapangan {
-  id: string;
-  companyName: string | null;
-  position: string | null;
-  companyAddress: string | null;
-}
 
 export interface Team {
   id: string;
@@ -135,7 +87,6 @@ export interface SubmissionDocument {
   fileUrl: string;
   documentType: DocumentType;
   uploadedBy: string;
-  // ✅ NEW: Document status fields
   status?: DocumentStatus;
   statusUpdatedAt?: Date;
   createdAt: Date;
@@ -159,29 +110,26 @@ export interface ApiResponse<T = unknown> {
   data?: T;
 }
 
-export interface AuthIdentity {
-  identityType: string;
-  roleName: string;
-  permissions?: EffectivePermission[];
-  identityId?: string | null;
-  displayName?: string | null;
-  identifier?: string | null;
-  metadata?: Record<string, unknown> | null;
-}
+export type AuthIdentity =
+  | (SsoMahasiswaIdentity & { identityType: "MAHASISWA" })
+  | (SsoDosenIdentity & { identityType: "DOSEN" })
+  | (SsoAdminIdentity & { identityType: "ADMIN" })
+  | (SsoMentorIdentity & { identityType: "MENTOR" });
 
 export interface JWTPayload {
   sub: string;
-  userId: string; // ✅ Primary user identifier (always set to profileId or authUserId)
+  userId: string;
+  nama: string;
   authUserId?: string;
   sessionId?: string;
   email: string;
-  role: UserRole;
-  effectiveRoles?: UserRole[];
+  role: RbacRole;
+  effectiveRoles?: RbacRole[];
   effectivePermissions?: EffectivePermission[];
-  activeIdentity?: AuthIdentity | null;
-  availableIdentities?: AuthIdentity[];
-  profileId?: string | null; // ✅ SSO profile ID from identity
-  dosenPAId?: string | null; // ✅ Dosen PA ID untuk mahasiswa
+  activeIdentity: AuthIdentity | null;
+  availableIdentities: AuthIdentity[];
+  profileId?: string | null;
+  dosenPAId?: string | null;
   nim?: string | null;
   nip?: string | null;
   nidn?: string | null;
@@ -190,7 +138,6 @@ export interface JWTPayload {
   jabatanFungsional?: string | null;
   jabatanStruktural?: string[] | null;
   angkatan?: number | null;
-  semester?: number | null;
   semesterAktif?: number | null;
   jumlahSksLulus?: number | null;
   prodi?: string | null;
@@ -203,13 +150,13 @@ export interface AuthSessionContext {
   user: JWTPayload;
   activeIdentity: AuthIdentity | null;
   availableIdentities: AuthIdentity[];
-  effectiveRoles: UserRole[];
+  effectiveRoles: RbacRole[];
   effectivePermissions: EffectivePermission[];
   expiresAt: Date;
   accessToken?: string | null;
   refreshToken?: string | null;
 }
-// Template Field interface
+
 export interface TemplateField {
   variable: string;
   label: string;
@@ -217,10 +164,9 @@ export interface TemplateField {
   required: boolean;
   placeholder?: string;
   order: number;
-  options?: Array<{ value: string; label: string }>; // For select type
+  options?: Array<{ value: string; label: string }>;
 }
 
-// Template interface
 export interface Template {
   id: string;
   name: string;
@@ -240,7 +186,6 @@ export interface Template {
   updatedAt: Date;
 }
 
-// Response Letter interface
 export interface ResponseLetter {
   id: string;
   submissionId: string | null;
@@ -270,7 +215,6 @@ export interface ResponseLetter {
   verifiedByAdminId: string | null;
 }
 
-// Response Letter with relations
 export interface ResponseLetterWithDetails extends ResponseLetter {
   submission?: Submission;
   team?: Team & {
@@ -278,13 +222,13 @@ export interface ResponseLetterWithDetails extends ResponseLetter {
     dosenKpName?: string | null;
     members?: Array<{
       id: string;
-      user: User & { mahasiswaProfile?: Mahasiswa };
+      user: any;
       role?: string;
       status?: string;
     }>;
   };
-  memberUser?: User & { mahasiswaProfile?: Mahasiswa };
-  verifiedBy?: User;
-  leader?: User & { mahasiswaProfile?: Mahasiswa };
-  members?: Array<User & { mahasiswaProfile?: Mahasiswa; role?: string }>;
+  memberUser?: any;
+  verifiedBy?: any;
+  leader?: any;
+  members?: Array<any>;
 }

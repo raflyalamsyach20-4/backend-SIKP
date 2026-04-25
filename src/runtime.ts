@@ -66,7 +66,7 @@ export const createRuntime = (env: CloudflareBindings) => {
   const dbClient = createDbClient(config.database.url);
   const r2Bucket = resolveBucket(config);
 
-  const userRepository = new UserRepository(dbClient);
+  const userRepository = new UserRepository(dbClient, config.sso.identitiesUrl);
   const authSessionRepository = new AuthSessionRepository(dbClient);
   const teamRepository = new TeamRepository(dbClient);
   const submissionRepository = new SubmissionRepository(dbClient);
@@ -153,13 +153,12 @@ export const createRuntime = (env: CloudflareBindings) => {
     storageService,
     teamRepository,
     submissionRepository,
-    responseLetterRepository,
-    mahasiswaRepository
+    responseLetterRepository
   );
   const logbookService = new LogbookService(logbookRepository, storageService);
   const mentorService = new MentorService(mentorRepository, logbookRepository);
   const mentorWorkflowService = new MentorWorkflowService(mentorWorkflowRepository);
-  const internshipService = new InternshipService(mahasiswaRepository);
+  const internshipService = new InternshipService(mahasiswaRepository, userRepository);
   const ssoSignatureProxyService = new SsoSignatureProxyService(authService, config);
 
   return {

@@ -30,31 +30,11 @@ export const createMentorshipRoutes = () => {
       const runtime = createRuntime(c.env);
       return Reflect.apply(runtime.mentorWorkflowController.submitMentorApprovalRequest, runtime.mentorWorkflowController, [c, c.req.valid('json')]);
     })
-    // Mentor Profile
-    .get('/profile', pembimbingLapanganOnly, zValidator('query', emptyQuerySchema), async (c) => {
-      const runtime = createRuntime(c.env);
-      return Reflect.apply(runtime.mentorController.getProfile, runtime.mentorController, [c, c.req.valid('query')]);
-    })
-    .put('/profile', pembimbingLapanganOnly, zValidator('json', mentorProfileSchema), async (c) => {
-      const runtime = createRuntime(c.env);
-      return Reflect.apply(runtime.mentorController.updateProfile, runtime.mentorController, [c, c.req.valid('json')]);
-    })
-    .get('/signature', pembimbingLapanganOnly, zValidator('query', emptyQuerySchema), async (c) => {
-      const runtime = createRuntime(c.env);
-      return Reflect.apply(runtime.mentorController.getSignature, runtime.mentorController, [c, c.req.valid('query')]);
-    })
-    .put('/signature', pembimbingLapanganOnly, zValidator('json', mentorSignatureSchema), async (c) => {
-      const runtime = createRuntime(c.env);
-      return Reflect.apply(runtime.mentorController.updateSignature, runtime.mentorController, [c, c.req.valid('json')]);
-    })
-    .post('/signature/delete', pembimbingLapanganOnly, zValidator('json', emptyQuerySchema), async (c) => {
-      const runtime = createRuntime(c.env);
-      return Reflect.apply(runtime.mentorController.deleteSignature, runtime.mentorController, [c, c.req.valid('json')]);
-    })
     .post('/email-change-requests', pembimbingLapanganOnly, zValidator('json', emptyQuerySchema), async (c) => {
       const runtime = createRuntime(c.env);
       return Reflect.apply(runtime.mentorWorkflowController.createMentorEmailChangeRequest, runtime.mentorWorkflowController, [c, c.req.valid('json')]);
     })
+
     // Mentee Management
     .get('/mentees', pembimbingLapanganOnly, zValidator('query', emptyQuerySchema), async (c) => {
       const runtime = createRuntime(c.env);

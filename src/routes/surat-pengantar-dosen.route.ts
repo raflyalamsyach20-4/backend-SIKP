@@ -8,7 +8,7 @@ import { rejectRequestSchema } from '@/schemas/surat-pengantar-dosen.schema';
 
 export const createDosenSuratPengantarRoutes = () => {
   const routes = new Hono<{ Bindings: CloudflareBindings }>()
-    .use('*', authMiddleware, roleMiddleware(['DOSEN', 'WAKIL_DEKAN']))
+    .use('*', authMiddleware, roleMiddleware(['dosen', 'wakil_dekan']))
     .get(
       '/requests',
       zValidator('query', emptyQuerySchema),

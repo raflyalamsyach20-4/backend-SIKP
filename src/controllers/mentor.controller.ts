@@ -8,7 +8,7 @@ export class MentorController {
 
   private getMentorId(c: Context): string | null {
     const user = c.get('user') as JWTPayload;
-    return user?.userId ?? null;
+    return user?.profileId ?? null;
   }
 
   private notFound(c: Context, msg = 'Resource not found') {
@@ -19,90 +19,6 @@ export class MentorController {
     return c.json(createResponse(false, msg), 403);
   }
 
-  // ─── Profile ────────────────────────────────────────────────────────────────
-
-  /**
-   * GET /api/mentorship/profile
-   */
-  getProfile = async (c: Context, query: any) => {
-    try {
-      const mentorId = this.getMentorId(c);
-      if (!mentorId) return c.json(createResponse(false, 'Unauthorized'), 401);
-
-      const profile = await this.mentorService.getProfile(mentorId);
-      return c.json(createResponse(true, 'Profile retrieved successfully', profile), 200);
-    } catch (error) {
-      if (error instanceof Error && error.message.includes('not found')) return this.notFound(c, error.message);
-      return handleError(c, error);
-    }
-  };
-
-  /**
-   * PUT /api/mentorship/profile
-   */
-  updateProfile = async (c: Context, validated: any) => {
-    try {
-      const mentorId = this.getMentorId(c);
-      if (!mentorId) return c.json(createResponse(false, 'Unauthorized'), 401);
-
-      const updated = await this.mentorService.updateProfile(mentorId, validated);
-      return c.json(createResponse(true, 'Profile updated successfully', updated), 200);
-    } catch (error) {
-      if (error instanceof Error && error.message.includes('not found')) return this.notFound(c, error.message);
-      return handleError(c, error);
-    }
-  };
-
-  // ─── Signature ──────────────────────────────────────────────────────────────
-
-  /**
-   * GET /api/mentorship/signature
-   */
-  getSignature = async (c: Context, query: any) => {
-    try {
-      const mentorId = this.getMentorId(c);
-      if (!mentorId) return c.json(createResponse(false, 'Unauthorized'), 401);
-
-      const data = await this.mentorService.getSignature(mentorId);
-      return c.json(createResponse(true, 'Signature data retrieved', data), 200);
-    } catch (error) {
-      if (error instanceof Error && error.message.includes('not found')) return this.notFound(c, error.message);
-      return handleError(c, error);
-    }
-  };
-
-  /**
-   * PUT /api/mentorship/signature
-   */
-  updateSignature = async (c: Context, validated: any) => {
-    try {
-      const mentorId = this.getMentorId(c);
-      if (!mentorId) return c.json(createResponse(false, 'Unauthorized'), 401);
-
-      const updated = await this.mentorService.updateSignature(mentorId, validated.signature);
-      return c.json(createResponse(true, 'Signature updated successfully', updated), 200);
-    } catch (error) {
-      if (error instanceof Error && error.message.includes('valid')) {
-        return c.json(createResponse(false, error.message), 400);
-      }
-      return handleError(c, error);
-    }
-  };
-
-  /**
-   * POST /api/mentorship/signature/delete
-   */
-  deleteSignature = async (c: Context, validated: any) => {
-    try {
-      const mentorId = this.getMentorId(c);
-      if (!mentorId) return c.json(createResponse(false, 'Unauthorized'), 401);
-
-      await this.mentorService.deleteSignature(mentorId);
-      return c.json(createResponse(true, 'Signature deleted successfully'), 200);
-    } catch (error) {
-      return handleError(c, error);
-    }
-  };
 
   // ─── Mentees ────────────────────────────────────────────────────────────────
 

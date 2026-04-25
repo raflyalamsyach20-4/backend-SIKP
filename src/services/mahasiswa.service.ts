@@ -1,4 +1,4 @@
-import { MahasiswaRepository } from '@/repositories/mahasiswa.repository';
+
 import { UserRepository } from '@/repositories/user.repository';
 import { TeamRepository } from '@/repositories/team.repository';
 import { SubmissionRepository } from '@/repositories/submission.repository';
@@ -49,8 +49,7 @@ export class MahasiswaService {
     private storageService: StorageService,
     private teamRepository: TeamRepository,
     private submissionRepository: SubmissionRepository,
-    private responseLetterRepository: ResponseLetterRepository,
-    private mahasiswaRepo: MahasiswaRepository
+    private responseLetterRepository: ResponseLetterRepository
   ) {}
 
   private normalizeDate(value: string | Date | null | undefined): Date | null {

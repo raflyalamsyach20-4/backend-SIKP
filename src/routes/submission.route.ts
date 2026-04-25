@@ -42,7 +42,7 @@ export const createSubmissionRoutes = () => {
     // Get submission by ID (mahasiswa + admin)
     .get(
       '/:submissionId',
-      roleMiddleware(['MAHASISWA', 'ADMIN', 'KAPRODI', 'WAKIL_DEKAN', 'DOSEN']),
+      roleMiddleware(['mahasiswa', 'admin', 'kaprodi', 'wakil_dekan', 'dosen']),
       zValidator('param', nonEmptyStringParamsSchema),
       zValidator('query', emptyQuerySchema),
       async (c) => {

@@ -5,10 +5,8 @@ import {
   submitResponseLetterSchema,
   verifyResponseLetterSchema,
   responseLetterIdParamSchema,
-  getResponseLettersQuerySchema,
 } from '@/validation/response-letter.validation';
 import type { JWTPayload } from '@/types';
-import { UserRoles } from '@/constants/roles';
 
 export class ResponseLetterController {
   constructor(private responseLetterService: ResponseLetterService) {}
@@ -68,7 +66,7 @@ export class ResponseLetterController {
       const user = c.get('user') as JWTPayload;
 
       // Only admin can access
-      if (user.role !== UserRoles.ADMIN) {
+      if (user.role !== 'admin') {
         return c.json(
           createResponse(false, 'You are not authorized to access this resource'),
           403
@@ -178,7 +176,7 @@ export class ResponseLetterController {
       const user = c.get('user') as JWTPayload;
 
       // Only admin can verify
-      if (user.role !== UserRoles.ADMIN) {
+      if (user.role !== 'admin') {
         return c.json(
           createResponse(false, 'You are not authorized to verify response letters'),
           403
@@ -238,7 +236,7 @@ export class ResponseLetterController {
       const user = c.get('user') as JWTPayload;
 
       // Only admin can delete
-      if (user.role !== UserRoles.ADMIN) {
+      if (user.role !== 'admin') {
         return c.json(
           createResponse(false, 'You are not authorized to delete response letters'),
           403

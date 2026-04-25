@@ -4,7 +4,7 @@ import { SuratKesediaanRepository } from '@/repositories/surat-kesediaan.reposit
 import { SuratPermohonanRepository } from '@/repositories/surat-permohonan.repository';
 import { StorageService } from '@/services/storage.service';
 import { SuratPengantarDosenService } from '@/services/surat-pengantar-dosen.service';
-import type { UserRole } from '@/types';
+import type { RbacRole } from '@/types';
 
 const MAX_SIGNATURE_SIZE_MB = 2;
 const ALLOWED_SIGNATURE_MIME_TYPES = ['image/png', 'image/jpeg', 'image/jpg'];
@@ -73,7 +73,7 @@ export class DosenService {
     return statusCandidates.includes('APPROVED') || statusCandidates.includes('DISETUJUI');
   }
 
-  private async countTotalSuratPengantarMasuk(userId: string, role: UserRole): Promise<number> {
+  private async countTotalSuratPengantarMasuk(userId: string, role: RbacRole): Promise<number> {
     const requests = await this.suratPengantarDosenService.getRequestsForVerifier(userId, role);
     return requests.filter((item) => this.isAdminApprovedForVerifierQueue(item)).length;
   }
@@ -125,7 +125,7 @@ export class DosenService {
     };
   }
 
-  async getWakdekDashboard(userId: string, role: UserRole): Promise<WakdekDashboardPayload> {
+  async getWakdekDashboard(userId: string, role: RbacRole): Promise<WakdekDashboardPayload> {
     const profile = await this.getMe(userId);
     if (!this.isWakilDekanAcademic(profile.jabatan)) {
       const forbidden: Error = new Error('Dashboard ini khusus wakil dekan bidang akademik.');

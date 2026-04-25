@@ -39,11 +39,32 @@ export interface AppConfig {
 	};
 }
 
-export interface CloudflareBindings extends globalThis.CloudflareBindings {
+export interface CloudflareBindings {
+	DATABASE_URL: string;
+	JWT_SECRET: string;
+	USE_MOCK_R2?: string;
+	SSO_BASE_URL?: string;
+	SSO_ISSUER?: string;
+	SSO_JWKS_URL?: string;
+	SSO_CLIENT_ID?: string;
+	SSO_CLIENT_SECRET?: string;
+	SSO_REDIRECT_URI?: string;
+	SSO_PROFILE_URL?: string;
+	SSO_PROFILE_SIGNATURE_URL?: string;
 	SSO_TOKEN_URL?: string;
 	SSO_USERINFO_URL?: string;
 	SSO_IDENTITIES_URL?: string;
 	SSO_REVOKE_URL?: string;
+	SSO_SIGNATURE_PATH?: string;
+	SSO_PROXY_TIMEOUT_MS?: string;
+	AUTH_SESSION_TTL_SECONDS?: string;
+	AUTH_SESSION_COOKIE_NAME?: string;
+	AUTH_COOKIE_SECURE?: string;
+	AUTH_COOKIE_SAMESITE?: string;
+	R2_BUCKET: R2Bucket;
+	R2_DOMAIN: string;
+	R2_BUCKET_NAME: string;
+	API_BASE_URL?: string;
 }
 
 export const createAppConfig = (env: CloudflareBindings): AppConfig => {

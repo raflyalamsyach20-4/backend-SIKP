@@ -2,12 +2,12 @@
  * User roles constants
  */
 export const UserRoles = {
-  MAHASISWA: 'MAHASISWA',
-  ADMIN: 'ADMIN',
-  KAPRODI: 'KAPRODI',
-  WAKIL_DEKAN: 'WAKIL_DEKAN',
-  DOSEN: 'DOSEN',
-  MENTOR: 'MENTOR',
+  MAHASISWA: 'mahasiswa',
+  ADMIN: 'admin',
+  KAPRODI: 'kaprodi',
+  WAKIL_DEKAN: 'wakil_dekan',
+  DOSEN: 'dosen',
+  MENTOR: 'mentor',
 } as const;
 
 export type UserRole = typeof UserRoles[keyof typeof UserRoles];

@@ -14,9 +14,9 @@ export class MentorWorkflowController {
   submitMentorApprovalRequest = async (c: Context, validated: any) => {
     try {
       const user = this.getUser(c);
-      if (!user?.userId) return c.json(createResponse(false, 'Unauthorized'), 401);
+      if (!user?.profileId) return c.json(createResponse(false, 'Unauthorized'), 401);
 
-      const data = await this.workflowService.submitMentorApprovalRequest(user.userId, validated);
+      const data = await this.workflowService.submitMentorApprovalRequest(user.profileId, validated);
 
       return c.json(createResponse(true, 'Mentor approval request submitted', data), 201);
     } catch (error) {
@@ -28,7 +28,7 @@ export class MentorWorkflowController {
   };
 
   // Dosen/Admin endpoints
-  getMentorApprovalRequests = async (c: Context, query: any) => {
+  getMentorApprovalRequests = async (c: Context, _query: any) => {
     try {
       const data = await this.workflowService.listMentorApprovalRequests();
       return c.json(createResponse(true, 'Mentor approval requests retrieved', data), 200);
@@ -37,19 +37,22 @@ export class MentorWorkflowController {
     }
   };
 
-  approveMentorApprovalRequest = async (c: Context, query: any) => {
+  approveMentorApprovalRequest = async (c: Context, validated: any) => {
     try {
       const user = this.getUser(c);
-      if (!user?.userId) return c.json(createResponse(false, 'Unauthorized'), 401);
+      if (!user?.profileId) return c.json(createResponse(false, 'Unauthorized'), 401);
 
       const requestId = c.req.param('id');
-      const data = await this.workflowService.approveMentorApprovalRequest(requestId, user.userId);
+      const data = await this.workflowService.approveMentorApprovalRequest(
+        requestId, 
+        user.profileId, 
+        validated.mentorProfileId
+      );
       return c.json(createResponse(true, 'Mentor approval request approved', data), 200);
     } catch (error) {
       if (error instanceof Error) {
         if (error.message.includes('not found')) return c.json(createResponse(false, error.message), 404);
         if (error.message.includes('Only pending')) return c.json(createResponse(false, error.message), 409);
-        if (error.message.includes('belongs to a non-mentor')) return c.json(createResponse(false, error.message), 409);
       }
       return handleError(c, error);
     }
@@ -58,10 +61,10 @@ export class MentorWorkflowController {
   rejectMentorApprovalRequest = async (c: Context, validated: any) => {
     try {
       const user = this.getUser(c);
-      if (!user?.userId) return c.json(createResponse(false, 'Unauthorized'), 401);
+      if (!user?.profileId) return c.json(createResponse(false, 'Unauthorized'), 401);
 
       const requestId = c.req.param('id');
-      const data = await this.workflowService.rejectMentorApprovalRequest(requestId, user.userId, validated.reason);
+      const data = await this.workflowService.rejectMentorApprovalRequest(requestId, user.profileId, validated.reason);
       return c.json(createResponse(true, 'Mentor approval request rejected', data), 200);
     } catch (error) {
       if (error instanceof Error) {
@@ -76,9 +79,9 @@ export class MentorWorkflowController {
   createMentorEmailChangeRequest = async (c: Context, validated: any) => {
     try {
       const user = this.getUser(c);
-      if (!user?.userId) return c.json(createResponse(false, 'Unauthorized'), 401);
+      if (!user?.profileId) return c.json(createResponse(false, 'Unauthorized'), 401);
 
-      const data = await this.workflowService.createMentorEmailChangeRequest(user.userId, validated.requestedEmail, validated.reason);
+      const data = await this.workflowService.createMentorEmailChangeRequest(user.profileId, validated.requestedEmail, validated.reason);
       return c.json(createResponse(true, 'Email change request submitted', data), 201);
     } catch (error) {
       if (error instanceof Error) {
@@ -89,7 +92,7 @@ export class MentorWorkflowController {
     }
   };
 
-  getMentorEmailChangeRequests = async (c: Context, query: any) => {
+  getMentorEmailChangeRequests = async (c: Context, _query: any) => {
     try {
       const data = await this.workflowService.listMentorEmailChangeRequests();
       return c.json(createResponse(true, 'Mentor email change requests retrieved', data), 200);
@@ -98,85 +101,8 @@ export class MentorWorkflowController {
     }
   };
 
-  approveMentorEmailChangeRequest = async (c: Context, query: any) => {
-    try {
-      const user = this.getUser(c);
-      if (!user?.userId) return c.json(createResponse(false, 'Unauthorized'), 401);
-
-      const requestId = c.req.param('id');
-      const data = await this.workflowService.approveMentorEmailChangeRequest(requestId, user.userId);
-      return c.json(createResponse(true, 'Mentor email change request approved', data), 200);
-    } catch (error) {
-      if (error instanceof Error) {
-        if (error.message.includes('not found')) return c.json(createResponse(false, error.message), 404);
-        if (error.message.includes('Only pending')) return c.json(createResponse(false, error.message), 409);
-        if (error.message.includes('already in use')) return c.json(createResponse(false, error.message), 409);
-      }
-      return handleError(c, error);
-    }
-  };
-
-  rejectMentorEmailChangeRequest = async (c: Context, validated: any) => {
-    try {
-      const user = this.getUser(c);
-      if (!user?.userId) return c.json(createResponse(false, 'Unauthorized'), 401);
-
-      const requestId = c.req.param('id');
-      const data = await this.workflowService.rejectMentorEmailChangeRequest(requestId, user.userId, validated.reason);
-      return c.json(createResponse(true, 'Mentor email change request rejected', data), 200);
-    } catch (error) {
-      if (error instanceof Error) {
-        if (error.message.includes('not found')) return c.json(createResponse(false, error.message), 404);
-        if (error.message.includes('Only pending')) return c.json(createResponse(false, error.message), 409);
-      }
-      return handleError(c, error);
-    }
-  };
-
-  // Mentor auth flow
-  inviteMentor = async (c: Context, validated: any) => {
-    try {
-      const user = this.getUser(c);
-      if (!user?.userId) return c.json(createResponse(false, 'Unauthorized'), 401);
-
-      const data = await this.workflowService.inviteMentorByEmail(validated.email, user.userId);
-      return c.json(createResponse(true, 'Mentor invitation token created', data), 200);
-    } catch (error) {
-      if (error instanceof Error && error.message.includes('not found')) {
-        return c.json(createResponse(false, error.message), 404);
-      }
-      return handleError(c, error);
-    }
-  };
-
-  activateMentor = async (c: Context, validated: any) => {
-    try {
-      const data = await this.workflowService.activateMentor(validated.token);
-      return c.json(createResponse(true, 'Mentor activation successful', data), 200);
-    } catch (error) {
-      if (error instanceof Error) {
-        if (error.message.includes('Invalid activation token')) return c.json(createResponse(false, error.message), 404);
-        if (error.message.includes('used') || error.message.includes('expired')) return c.json(createResponse(false, error.message), 410);
-      }
-      return handleError(c, error);
-    }
-  };
-
-  setMentorPassword = async (c: Context, validated: any) => {
-    try {
-      const data = await this.workflowService.setMentorPassword(validated.token, validated.password);
-      return c.json(createResponse(true, 'Mentor password has been set', data), 200);
-    } catch (error) {
-      if (error instanceof Error) {
-        if (error.message.includes('Invalid activation token')) return c.json(createResponse(false, error.message), 404);
-        if (error.message.includes('used') || error.message.includes('expired')) return c.json(createResponse(false, error.message), 410);
-      }
-      return handleError(c, error);
-    }
-  };
-
   // Dosen read-only logbook monitor
-  getDosenLogbookMonitor = async (c: Context, query: any) => {
+  getDosenLogbookMonitor = async (c: Context, _query: any) => {
     try {
       const data = await this.workflowService.getDosenLogbookMonitor();
       return c.json(createResponse(true, 'Logbook monitor data retrieved', data), 200);
@@ -185,7 +111,7 @@ export class MentorWorkflowController {
     }
   };
 
-  getDosenLogbookMonitorByStudent = async (c: Context, query: any) => {
+  getDosenLogbookMonitorByStudent = async (c: Context, _query: any) => {
     try {
       const studentId = c.req.param('studentId');
       const data = await this.workflowService.getDosenLogbookMonitorByStudent(studentId);

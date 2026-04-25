@@ -1,21 +1,10 @@
 import { eq, and, desc } from 'drizzle-orm';
 import type { DbClient } from '@/db';
 import {
-  users,
-  pembimbingLapangan,
   internships,
-  mahasiswa,
   assessments,
 } from '@/db/schema';
 import { generateId } from '@/utils/helpers';
-
-export interface UpdateMentorProfileData {
-  nama?: string;
-  phone?: string;
-  companyName?: string;
-  position?: string;
-  companyAddress?: string;
-}
 
 export interface CreateAssessmentData {
   internshipId: string;
@@ -39,106 +28,12 @@ export interface UpdateAssessmentData {
 export class MentorRepository {
   constructor(private db: DbClient) {}
 
-  // ─── Profile ────────────────────────────────────────────────────────────────
-
-  async getProfile(mentorId: string) {
-    try {
-      const result = await this.db
-        .select({
-          id: users.id,
-          nama: users.nama,
-          email: users.email,
-          phone: users.phone,
-          companyName: pembimbingLapangan.companyName,
-          position: pembimbingLapangan.position,
-          companyAddress: pembimbingLapangan.companyAddress,
-          signature: pembimbingLapangan.signature,
-          signatureSetAt: pembimbingLapangan.signatureSetAt,
-        })
-        .from(users)
-        .innerJoin(pembimbingLapangan, eq(users.id, pembimbingLapangan.id))
-        .where(eq(users.id, mentorId))
-        .limit(1);
-      return result[0] ?? null;
-    } catch (error) {
-      console.error('[MentorRepository.getProfile] Error:', error);
-      throw error;
-    }
-  }
-
-  async updateProfile(mentorId: string, data: UpdateMentorProfileData) {
-    try {
-      const userFields: Record<string, any> = {};
-      if (data.nama !== undefined) userFields.nama = data.nama;
-      if (data.phone !== undefined) userFields.phone = data.phone;
-
-      if (Object.keys(userFields).length > 0) {
-        await this.db.update(users).set(userFields).where(eq(users.id, mentorId));
-      }
-
-      const plFields: Record<string, any> = {};
-      if (data.companyName !== undefined) plFields.companyName = data.companyName;
-      if (data.position !== undefined) plFields.position = data.position;
-      if (data.companyAddress !== undefined) plFields.companyAddress = data.companyAddress;
-
-      if (Object.keys(plFields).length > 0) {
-        await this.db.update(pembimbingLapangan).set(plFields).where(eq(pembimbingLapangan.id, mentorId));
-      }
-
-      return this.getProfile(mentorId);
-    } catch (error) {
-      console.error('[MentorRepository.updateProfile] Error:', error);
-      throw error;
-    }
-  }
-
-  // ─── Signature ──────────────────────────────────────────────────────────────
-
-  async getSignature(mentorId: string) {
-    try {
-      const result = await this.db
-        .select({
-          signature: pembimbingLapangan.signature,
-          signatureSetAt: pembimbingLapangan.signatureSetAt,
-        })
-        .from(pembimbingLapangan)
-        .where(eq(pembimbingLapangan.id, mentorId))
-        .limit(1);
-      return result[0] ?? null;
-    } catch (error) {
-      console.error('[MentorRepository.getSignature] Error:', error);
-      throw error;
-    }
-  }
-
-  async updateSignature(mentorId: string, signatureBase64: string) {
-    try {
-      const now = new Date();
-      await this.db
-        .update(pembimbingLapangan)
-        .set({ signature: signatureBase64, signatureSetAt: now })
-        .where(eq(pembimbingLapangan.id, mentorId));
-      return this.getSignature(mentorId);
-    } catch (error) {
-      console.error('[MentorRepository.updateSignature] Error:', error);
-      throw error;
-    }
-  }
-
-  async deleteSignature(mentorId: string) {
-    try {
-      await this.db
-        .update(pembimbingLapangan)
-        .set({ signature: null, signatureSetAt: null })
-        .where(eq(pembimbingLapangan.id, mentorId));
-    } catch (error) {
-      console.error('[MentorRepository.deleteSignature] Error:', error);
-      throw error;
-    }
-  }
-
   // ─── Mentees ────────────────────────────────────────────────────────────────
 
+  /**
+   * Get all mentees supervised by this mentor
+   * Note: Mentee details (name, nim) should be resolved by the service/controller.
+   */
   async getMentees(mentorId: string) {
     try {
       const result = await this.db
@@ -149,17 +44,10 @@ export class MentorRepository {
           internshipEndDate: internships.endDate,
           companyName: internships.companyName,
           division: internships.division,
-          nim: mahasiswa.nim,
-          userId: users.id,
-          nama: users.nama,
-          email: users.email,
-          phone: users.phone,
-          signature: pembimbingLapangan.signature,
+          studentId: internships.mahasiswaId,
+          createdAt: internships.createdAt,
         })
         .from(internships)
-        .innerJoin(mahasiswa, eq(internships.mahasiswaId, mahasiswa.nim))
-        .innerJoin(users, eq(mahasiswa.id, users.id))
-        .innerJoin(pembimbingLapangan, eq(internships.pembimbingLapanganId, pembimbingLapangan.id))
         .where(eq(internships.pembimbingLapanganId, mentorId))
         .orderBy(desc(internships.createdAt));
       return result;
@@ -179,19 +67,13 @@ export class MentorRepository {
           internshipEndDate: internships.endDate,
           companyName: internships.companyName,
           division: internships.division,
-          nim: mahasiswa.nim,
-          userId: users.id,
-          nama: users.nama,
-          email: users.email,
-          phone: users.phone,
+          studentId: internships.mahasiswaId,
         })
         .from(internships)
-        .innerJoin(mahasiswa, eq(internships.mahasiswaId, mahasiswa.nim))
-        .innerJoin(users, eq(mahasiswa.id, users.id))
         .where(
           and(
             eq(internships.pembimbingLapanganId, mentorId),
-            eq(mahasiswa.id, studentUserId)
+            eq(internships.mahasiswaId, studentUserId)
           )
         )
         .limit(1);
@@ -203,18 +85,17 @@ export class MentorRepository {
   }
 
   /**
-   * Get internship ID for a mentee supervised by this mentor (by NIM or userId)
+   * Get internship ID for a mentee supervised by this mentor
    */
   async getInternshipIdForMentee(mentorId: string, studentUserId: string): Promise<string | null> {
     try {
       const result = await this.db
         .select({ internshipId: internships.id })
         .from(internships)
-        .innerJoin(mahasiswa, eq(internships.mahasiswaId, mahasiswa.nim))
         .where(
           and(
             eq(internships.pembimbingLapanganId, mentorId),
-            eq(mahasiswa.id, studentUserId)
+            eq(internships.mahasiswaId, studentUserId)
           )
         )
         .limit(1);
@@ -326,3 +207,4 @@ export class MentorRepository {
     }
   }
 }
+
