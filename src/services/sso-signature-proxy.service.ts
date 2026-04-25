@@ -1,22 +1,22 @@
 import type { AppConfig } from '@/config';
-import type { JWTPayload, UserRole } from '@/types';
+import type { JWTPayload, RbacRole } from '@/types';
 import { AuthService } from '@/services/auth.service';
 
-const WRITE_ALLOWED_ROLES: UserRole[] = [
-  'MAHASISWA',
-  'DOSEN',
-  'KAPRODI',
-  'WAKIL_DEKAN',
-  'ADMIN',
+const WRITE_ALLOWED_ROLES: RbacRole[] = [
+  'mahasiswa',
+  'dosen',
+  'kaprodi',
+  'wakil_dekan',
+  'admin',
 ];
 
-const READ_ALLOWED_ROLES: UserRole[] = [
-  'MAHASISWA',
-  'DOSEN',
-  'KAPRODI',
-  'WAKIL_DEKAN',
-  'ADMIN',
-  'MENTOR',
+const READ_ALLOWED_ROLES: RbacRole[] = [
+  'mahasiswa',
+  'dosen',
+  'kaprodi',
+  'wakil_dekan',
+  'admin',
+  'mentor',
 ];
 
 type ProxyPayload = { message?: string } | null;

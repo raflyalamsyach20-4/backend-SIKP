@@ -1,6 +1,6 @@
 import { Context, Next } from 'hono';
 import { getCookie } from 'hono/cookie';
-import type { JWTPayload, UserRole } from '@/types';
+import type { JWTPayload, RbacRole } from '@/types';
 import { createRuntime } from '@/runtime';
 
 export interface AuthContext {
@@ -48,7 +48,7 @@ export const authMiddleware = async (c: Context, next: Next) => {
   }
 };
 
-export const roleMiddleware = (allowedRoles: UserRole[]) => {
+export const roleMiddleware = (allowedRoles: RbacRole[]) => {
   return async (c: Context, next: Next) => {
     const user = c.get('user') as JWTPayload;
     
@@ -99,7 +99,7 @@ export const permissionMiddleware = (requiredPermissions: string[]) => {
 };
 
 // Helper middleware untuk role spesifik
-export const mahasiswaOnly = roleMiddleware(['MAHASISWA']);
-export const adminOnly = roleMiddleware(['ADMIN', 'KAPRODI', 'WAKIL_DEKAN']);
-export const dosenOnly = roleMiddleware(['DOSEN']);
-export const staffOnly = roleMiddleware(['ADMIN', 'KAPRODI', 'WAKIL_DEKAN', 'DOSEN']);
+export const mahasiswaOnly = roleMiddleware(['mahasiswa']);
+export const adminOnly = roleMiddleware(['admin', 'kaprodi', 'wakil_dekan']);
+export const dosenOnly = roleMiddleware(['dosen']);
+export const staffOnly = roleMiddleware(['admin', 'kaprodi', 'wakil_dekan', 'dosen']);

@@ -90,7 +90,7 @@ export const createDosenSuratKesediaanRoutes = () => {
     // GET /api/dosen/surat-kesediaan/requests
     .get(
       '/requests',
-      roleMiddleware(['DOSEN', 'WAKIL_DEKAN']),
+      roleMiddleware(['dosen', 'wakil_dekan']),
       zValidator('query', emptyQuerySchema),
       async (c) => {
         const runtime = createRuntime(c.env);

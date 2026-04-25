@@ -15,7 +15,7 @@ export const createDosenRoutes = () => {
     .use('/me/*', dosenOnly)
     .use('/me', dosenOnly)
     .use('/dashboard', dosenOnly)
-    .use('/dashboard/wakdek', roleMiddleware(['DOSEN', 'WAKIL_DEKAN']))
+    .use('/dashboard/wakdek', roleMiddleware(['dosen', 'wakil_dekan']))
     .get(
       '/dashboard',
       zValidator('query', emptyQuerySchema),
