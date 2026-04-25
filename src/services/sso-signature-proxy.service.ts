@@ -1,4 +1,3 @@
-import type { AppConfig } from '@/config';
 import type { JWTPayload, RbacRole } from '@/types';
 import { AuthService } from '@/services/auth.service';
 
@@ -39,20 +38,24 @@ const parseProxyPayload = (text: string): ProxyPayload => {
 };
 
 export class SsoSignatureProxyService {
+  private authService: AuthService;
+
   constructor(
-    private authService: AuthService,
-    private config: AppConfig
-  ) {}
+    private env: CloudflareBindings
+  ) {
+    this.authService = new AuthService(this.env);
+  }
 
   private get baseSignatureUrl(): string {
-    const baseUrl = this.config.sso.baseUrl;
+    const baseUrl = this.env.SSO_BASE_URL;
     if (!baseUrl) {
       const error = new Error('SSO_BASE_URL is not configured') as Error & { statusCode?: number };
       error.statusCode = 500;
       throw error;
     }
 
-    return `${baseUrl}${this.config.sso.signaturePath}`;
+    const signaturePath = this.env.SSO_SIGNATURE_PATH || '/profile/signature';
+    return `${baseUrl}${signaturePath}`;
   }
 
   private assertRole(user: JWTPayload, mode: 'read' | 'write') {
@@ -96,7 +99,8 @@ export class SsoSignatureProxyService {
 
     const token = await this.authService.getSessionAccessToken(sessionId);
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), this.config.sso.proxyTimeoutMs);
+    const timeoutMs = Number(this.env.SSO_PROXY_TIMEOUT_MS) || 10000;
+    const timeout = setTimeout(() => controller.abort(), timeoutMs);
 
     try {
       const response = await fetch(input.url, {
@@ -141,34 +145,6 @@ export class SsoSignatureProxyService {
       method: 'GET',
       url: this.baseSignatureUrl,
       mode: 'read',
-    });
-  }
-
-  async uploadSignature(sessionId: string, user: JWTPayload, signatureFile: File) {
-    const formData = new FormData();
-    formData.set('signatureFile', signatureFile);
-
-    return this.request(sessionId, user, {
-      method: 'POST',
-      url: this.baseSignatureUrl,
-      body: formData,
-      mode: 'write',
-    });
-  }
-
-  async activateSignature(sessionId: string, user: JWTPayload, signatureId: string) {
-    return this.request(sessionId, user, {
-      method: 'POST',
-      url: `${this.baseSignatureUrl}/${encodeURIComponent(signatureId)}/activate`,
-      mode: 'write',
-    });
-  }
-
-  async deleteSignature(sessionId: string, user: JWTPayload, signatureId: string) {
-    return this.request(sessionId, user, {
-      method: 'DELETE',
-      url: `${this.baseSignatureUrl}/${encodeURIComponent(signatureId)}`,
-      mode: 'write',
     });
   }
 }

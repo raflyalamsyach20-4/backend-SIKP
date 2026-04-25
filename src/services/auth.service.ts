@@ -14,6 +14,7 @@ import type {
   SsoEnvelope,
 } from "@/types";
 import { generateId } from "@/utils/helpers";
+import { createDbClient } from "@/db";
 
 const SSO_ROLE_MAP: Record<string, RbacRole> = {
   MAHASISWA: "mahasiswa",
@@ -51,64 +52,19 @@ type TokenExchangeResponse = {
 
 export class AuthService {
   private jwks?: ReturnType<typeof createRemoteJWKSet>;
+  private authSessionRepo: AuthSessionRepository;
 
   constructor(
-    private authSessionRepo: AuthSessionRepository,
-    private config: AppConfig,
-  ) {}
-
-  get sessionCookieName(): string {
-    return this.config.authSession.cookieName;
-  }
-
-  get sessionTtlSeconds(): number {
-    const ttl = Number.isFinite(this.config.authSession.ttlSeconds)
-      ? this.config.authSession.ttlSeconds
-      : 43200;
-
-    return ttl > 0 ? ttl : 43200;
-  }
-
-  get sessionCookieSecure(): boolean {
-    return this.config.authSession.cookieSecure;
-  }
-
-  get sessionCookieSameSite(): "Lax" | "Strict" | "None" {
-    return this.config.authSession.cookieSameSite;
-  }
-
-  get ssoRedirectUri(): string {
-    return this.config.sso.redirectUri;
-  }
-
-  get ssoProfileUrl(): string {
-    if (!this.config.sso.profileUrl) {
-      const error = new Error("SSO_PROFILE_URL is not configured") as Error & {
-        statusCode?: number;
-      };
-      error.statusCode = 500;
-      throw error;
-    }
-
-    return this.config.sso.profileUrl;
-  }
-
-  get ssoProfileSignatureUrl(): string {
-    if (!this.config.sso.profileSignatureUrl) {
-      const error = new Error(
-        "SSO_PROFILE_SIGNATURE_URL is not configured",
-      ) as Error & { statusCode?: number };
-      error.statusCode = 500;
-      throw error;
-    }
-
-    return this.config.sso.profileSignatureUrl;
+    private env: CloudflareBindings
+  ) {
+    const dbClient = createDbClient(this.env.DATABASE_URL);
+    this.authSessionRepo = new AuthSessionRepository(dbClient);
   }
 
   private getJwks() {
     if (!this.jwks) {
       this.assertSsoConfiguration();
-      this.jwks = createRemoteJWKSet(new URL(this.config.sso.jwksUrl));
+      this.jwks = createRemoteJWKSet(new URL(this.env.SSO_JWKS_URL));
     }
 
     return this.jwks;
@@ -116,16 +72,16 @@ export class AuthService {
 
   private assertSsoConfiguration() {
     const requiredConfig: Array<{ key: string; value: string }> = [
-      { key: "SSO_BASE_URL", value: this.config.sso.baseUrl },
-      { key: "SSO_ISSUER", value: this.config.sso.issuer },
-      { key: "SSO_JWKS_URL", value: this.config.sso.jwksUrl },
-      { key: "SSO_CLIENT_ID", value: this.config.sso.clientId },
-      { key: "SSO_CLIENT_SECRET", value: this.config.sso.clientSecret },
-      { key: "SSO_REDIRECT_URI", value: this.config.sso.redirectUri },
-      { key: "SSO_PROFILE_URL", value: this.config.sso.profileUrl },
+      { key: "SSO_BASE_URL", value: this.env.SSO_BASE_URL },
+      { key: "SSO_ISSUER", value: this.env.SSO_ISSUER },
+      { key: "SSO_JWKS_URL", value: this.env.SSO_JWKS_URL },
+      { key: "SSO_CLIENT_ID", value: this.env.SSO_CLIENT_ID },
+      { key: "SSO_CLIENT_SECRET", value: this.env.SSO_CLIENT_SECRET },
+      { key: "SSO_REDIRECT_URI", value: this.env.SSO_REDIRECT_URI },
+      { key: "SSO_PROFILE_URL", value: this.env.SSO_PROFILE_URL },
       {
         key: "SSO_PROFILE_SIGNATURE_URL",
-        value: this.config.sso.profileSignatureUrl,
+        value: this.env.SSO_PROFILE_SIGNATURE_URL,
       },
     ];
 
@@ -141,7 +97,7 @@ export class AuthService {
       throw error;
     }
 
-    if (!this.config.sso.redirectUri.endsWith("/callback")) {
+    if (!this.env.SSO_REDIRECT_URI.endsWith("/callback")) {
       const error = new Error(
         "SSO_REDIRECT_URI must end with /callback",
       ) as Error & { statusCode?: number };
@@ -181,8 +137,8 @@ export class AuthService {
 
   private async verifyToken(token: string): Promise<JoseJWTPayload> {
     const verified = await jwtVerify(token, this.getJwks(), {
-      issuer: this.config.sso.issuer,
-      audience: this.config.sso.clientId,
+      issuer: this.env.SSO_ISSUER,
+      audience: this.env.SSO_CLIENT_ID,
     });
 
     return verified.payload;
@@ -196,11 +152,11 @@ export class AuthService {
       code: payload.code,
       code_verifier: payload.codeVerifier,
       redirect_uri: payload.redirectUri,
-      client_id: this.config.sso.clientId,
-      client_secret: this.config.sso.clientSecret,
+      client_id: this.env.SSO_CLIENT_ID,
+      client_secret: this.env.SSO_CLIENT_SECRET,
     });
 
-    const response = await fetch(this.config.sso.tokenUrl, {
+    const response = await fetch(this.env.SSO_TOKEN_URL, {
       method: "POST",
       headers: {
         "Content-Type": "application/x-www-form-urlencoded",
@@ -226,7 +182,7 @@ export class AuthService {
       Accept: "application/json",
     };
 
-    const profileResp = await fetch(this.config.sso.identitiesUrl, { headers });
+    const profileResp = await fetch(this.env.SSO_PROFILE_URL, { headers });
     if (!profileResp.ok) {
       const body = await profileResp.text();
       const error = new Error(
@@ -273,7 +229,7 @@ export class AuthService {
       throw error;
     }
 
-    if (payload.redirectUri !== this.config.sso.redirectUri) {
+    if (payload.redirectUri !== this.env.SSO_REDIRECT_URI) {
       const error = new Error(
         "redirectUri does not match configured SSO_REDIRECT_URI",
       ) as Error & { statusCode?: number };
@@ -289,8 +245,8 @@ export class AuthService {
   ): string {
     this.assertSsoConfiguration();
 
-    const effectiveRedirectUri = redirectUri || this.config.sso.redirectUri;
-    if (effectiveRedirectUri !== this.config.sso.redirectUri) {
+    const effectiveRedirectUri = redirectUri || this.env.SSO_REDIRECT_URI;
+    if (effectiveRedirectUri !== this.env.SSO_REDIRECT_URI) {
       const error = new Error(
         "redirectUri does not match configured SSO_REDIRECT_URI",
       ) as Error & { statusCode?: number };
@@ -298,9 +254,9 @@ export class AuthService {
       throw error;
     }
 
-    const url = new URL(`${this.config.sso.baseUrl}/oauth/authorize`);
+    const url = new URL(`${this.env.SSO_BASE_URL}/oauth/authorize`);
     url.searchParams.set("response_type", "code");
-    url.searchParams.set("client_id", this.config.sso.clientId);
+    url.searchParams.set("client_id", this.env.SSO_CLIENT_ID);
     url.searchParams.set("redirect_uri", effectiveRedirectUri);
     url.searchParams.set("scope", "OPENID PROFILE EMAIL");
     url.searchParams.set("state", state);
@@ -477,7 +433,7 @@ export class AuthService {
     const activeIdentity = identities.length === 1 ? identities[0] : null;
 
     const sessionId = generateId();
-    const expiresAt = new Date(Date.now() + this.sessionTtlSeconds * 1000);
+    const expiresAt = new Date(Date.now() + Number(this.env.AUTH_SESSION_TTL_SECONDS) * 1000);
 
     await this.authSessionRepo.createSession({
       sessionId,
@@ -656,11 +612,11 @@ export class AuthService {
       try {
         const revokeBody = new URLSearchParams({
           token: session.refreshToken,
-          client_id: this.config.sso.clientId,
-          client_secret: this.config.sso.clientSecret,
+          client_id: this.env.SSO_CLIENT_ID,
+          client_secret: this.env.SSO_CLIENT_SECRET,
         });
 
-        await fetch(this.config.sso.revokeUrl, {
+        await fetch(this.env.SSO_REVOKE_URL, {
           method: "POST",
           headers: {
             "Content-Type": "application/x-www-form-urlencoded",
