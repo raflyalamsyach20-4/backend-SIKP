@@ -1,5 +1,5 @@
 import { createDbClient } from '@/db';
-import { createAppConfig, type CloudflareBindings } from '@/config';
+import { createAppConfig } from '@/config';
 import { MockR2Bucket } from '@/services';
 import {
   UserRepository,
@@ -12,7 +12,6 @@ import {
   SuratPermohonanRepository,
 } from '@/repositories';
 import {
-  AuthService,
   TeamService,
   SubmissionService,
   AdminService,
@@ -26,10 +25,8 @@ import {
   SuratKesediaanService,
   SuratPermohonanService,
   SuratPengantarDosenService,
-  SsoSignatureProxyService,
 } from '@/services';
 import {
-  AuthController,
   TeamController,
   SubmissionController,
   AdminController,
@@ -69,7 +66,6 @@ export const createRuntime = (env: CloudflareBindings) => {
     config.storage.r2BucketName,
     config.storage.apiBaseUrl
   );
-  const authService = new AuthService(authSessionRepository, config);
   const teamResetService = new TeamResetService(submissionRepository, teamRepository);
   const letterService = new LetterService(submissionRepository, storageService);
   const templateService = new TemplateService(
@@ -139,13 +135,11 @@ export const createRuntime = (env: CloudflareBindings) => {
     submissionRepository,
     responseLetterRepository
   );
-  const ssoSignatureProxyService = new SsoSignatureProxyService(authService, config);
 
   return {
     config,
     dbClient,
     storageService,
-    authService,
     teamResetService,
     letterService,
     templateService,
@@ -158,8 +152,6 @@ export const createRuntime = (env: CloudflareBindings) => {
     adminService,
     dosenService,
     mahasiswaService,
-    ssoSignatureProxyService,
-    authController: new AuthController(authService, userRepository),
     teamController: new TeamController(teamService),
     submissionController: new SubmissionController(submissionService),
     adminController: new AdminController(adminService),
@@ -175,6 +167,5 @@ export const createRuntime = (env: CloudflareBindings) => {
     suratKesediaanController: new SuratKesediaanController(suratKesediaanService),
     suratPermohonanController: new SuratPermohonanController(suratPermohonanService),
     suratPengantarDosenController: new SuratPengantarDosenController(suratPengantarDosenService),
-    ssoSignatureController: new SsoSignatureController(ssoSignatureProxyService),
   };
 };

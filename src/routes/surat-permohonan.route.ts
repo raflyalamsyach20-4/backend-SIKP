@@ -1,5 +1,4 @@
 import { Hono } from 'hono';
-import type { CloudflareBindings } from '@/config';
 import { authMiddleware, dosenOnly, mahasiswaOnly, roleMiddleware } from '@/middlewares/auth.middleware';
 import { zValidator } from '@hono/zod-validator';
 import { createRuntime } from '@/runtime';

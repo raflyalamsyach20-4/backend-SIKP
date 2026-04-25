@@ -1,5 +1,4 @@
 import { Context, Hono } from 'hono';
-import type { CloudflareBindings } from '@/config';
 import { zValidator } from '@hono/zod-validator';
 import { emptyQuerySchema } from '@/schemas/common.schema';
 import { createRuntime } from '@/runtime';

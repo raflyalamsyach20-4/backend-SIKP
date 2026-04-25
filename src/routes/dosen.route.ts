@@ -1,6 +1,5 @@
 import { Hono } from 'hono';
 import { authMiddleware, dosenOnly, roleMiddleware } from '@/middlewares/auth.middleware';
-import type { CloudflareBindings } from '@/config';
 import { createDosenSuratKesediaanRoutes } from './surat-kesediaan.route';
 import { createDosenSuratPermohonanRoutes } from './surat-permohonan.route';
 import { createDosenSuratPengantarRoutes } from './surat-pengantar-dosen.route';

@@ -3,7 +3,6 @@ import { cors } from 'hono/cors';
 import { logger } from 'hono/logger';
 
 // Configuration
-import type { CloudflareBindings } from '@/config';
 import { errorHandler } from '@/errors';
 
 // Routes
