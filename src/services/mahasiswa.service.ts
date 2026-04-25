@@ -5,7 +5,7 @@ import { ResponseLetterRepository } from '@/repositories/response-letter.reposit
 import { StorageService } from '@/services/storage.service';
 import { AuthService } from './auth.service';
 import { DosenService } from './dosen.service';
-import type { SsoMahasiswaDetail, SsoMahasiswaResponse } from '@/types';
+import type { SsoMahasiswaDetail, SsoMahasiswaResponse, SsoMahasiswaSearchResponse } from '@/types';
 
 type TeamRecord = NonNullable<Awaited<ReturnType<TeamRepository['findById']>>>;
 type SubmissionRecord = NonNullable<Awaited<ReturnType<SubmissionRepository['findById']>>>;
@@ -419,5 +419,46 @@ export class MahasiswaService {
       teamInfo: await this.resolveTeamInfo(team, sessionId),
       activities: [],
     };
+  }
+
+  /**
+   * Search Mahasiswa from SSO
+   */
+  async searchMahasiswa(params: {
+    search?: string;
+    prodiId?: string | null;
+    fakultasId?: string | null;
+    page?: string;
+    limit?: string;
+  }, sessionId: string): Promise<SsoMahasiswaSearchResponse> {
+    try {
+      const token = await this.authService.getSessionAccessToken(sessionId);
+      const baseUrl = this.env.SSO_BASE_URL;
+      
+      // Use URL constructor for safe parameter appending
+      const url = new URL(`${baseUrl}/api/mahasiswa`);
+      
+      if (params.search) url.searchParams.set('search', params.search);
+      if (params.prodiId) url.searchParams.set('prodiId', params.prodiId);
+      if (params.fakultasId) url.searchParams.set('fakultasId', params.fakultasId);
+      if (params.page) url.searchParams.set('page', params.page);
+      if (params.limit) url.searchParams.set('limit', params.limit);
+
+      const response = await fetch(url.toString(), {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          Accept: 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to search mahasiswa from SSO (${response.status})`);
+      }
+
+      return await response.json() as SsoMahasiswaSearchResponse;
+    } catch (error) {
+      console.error(`[MahasiswaService.searchMahasiswa] Error fetching from SSO:`, error);
+      throw error;
+    }
   }
 }

@@ -148,6 +148,8 @@ export interface JWTPayload {
   jumlahSksLulus?: number | null;
   prodi?: string | null;
   fakultas?: string | null;
+  prodiId?: string | null;
+  fakultasId?: string | null;
 }
 
 export interface AuthSessionContext {

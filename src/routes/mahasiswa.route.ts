@@ -7,6 +7,7 @@ export const createMahasiswaProfileRoutes = () => {
     .use('*', authMiddleware, mahasiswaOnly)
     .get('/dashboard', (c) => new MahasiswaController(c).dashboard())
     .get('/me', (c) => new MahasiswaController(c).me())
+    .get('/search', (c) => new MahasiswaController(c).search())
     .put('/me/profile', (c) => new MahasiswaController(c).updateProfile())
     .put('/me/esignature', (c) => new MahasiswaController(c).updateESignature())
     .delete('/me/esignature', (c) => new MahasiswaController(c).deleteESignature());

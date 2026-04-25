@@ -337,6 +337,8 @@ export class AuthService {
       jumlahSksLulus: profile.identities.mahasiswa?.jumlahSksLulus,
       prodi: profile.identities.mahasiswa?.prodi?.nama,
       fakultas: profile.identities.mahasiswa?.fakultas?.nama,
+      prodiId: profile.identities.mahasiswa?.prodi?.id,
+      fakultasId: profile.identities.mahasiswa?.fakultas?.id,
     };
 
     // ✅ VALIDATE: Mahasiswa must have dosenPAId

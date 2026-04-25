@@ -76,4 +76,50 @@ export class MahasiswaController {
       410
     );
   };
+
+  search = async () => {
+    try {
+      const user = this.c.get('user');
+      const sessionId = this.c.get('sessionId');
+      
+      // Use 'q' from frontend or 'search' as fallback
+      const q = this.c.req.query('q') || this.c.req.query('search');
+      const page = this.c.req.query('page');
+      const limit = this.c.req.query('limit');
+
+      // Requirement: always filter by prodi and fakultas of the current user
+      const prodiId = user.prodiId;
+      const fakultasId = user.fakultasId;
+
+      if (!prodiId || !fakultasId) {
+        console.warn(`[MahasiswaController.search] User ${user.userId} missing prodiId (${prodiId}) or fakultasId (${fakultasId})`);
+      }
+
+      const ssoResponse = await this.mahasiswaService.searchMahasiswa({
+        search: q,
+        prodiId,
+        fakultasId,
+        page,
+        limit,
+      }, sessionId);
+
+      if (!ssoResponse.success || !ssoResponse.data) {
+        return this.c.json(createResponse(false, 'Gagal mencari mahasiswa dari SSO', []));
+      }
+
+      // Map SSO response to MahasiswaSearchResult expected by frontend
+      const mappedResults = ssoResponse.data.map((item) => ({
+        id: item.id,
+        name: item.profile.fullName,
+        nim: item.nim,
+        email: item.profile.emails.find((e) => e.isPrimary)?.email || '',
+        prodi: item.prodi?.nama,
+        fakultas: item.fakultas?.nama,
+      }));
+
+      return this.c.json(createResponse(true, 'Mahasiswa search results retrieved', mappedResults));
+    } catch (error) {
+      return handleError(this.c, error, 'Failed to search mahasiswa');
+    }
+  };
 }

@@ -104,6 +104,7 @@ export type SsoAccessTokenPayload = JoseJWTPayload & {
 };
 
 export interface SsoProfile {
+  emails: SsoEmail[];
   fullName: string;
   id: string;
   authUserId: string | null;
@@ -124,10 +125,21 @@ export interface SsoDosenResponse {
   data: SsoDosenDetail;
 }
 export interface SsoMahasiswaDetail extends SsoMahasiswaIdentity {
-  profile: SsoProfileResponse;
+  profile: SsoProfile;
 }
 
 export interface SsoMahasiswaResponse {
   success: boolean;
   data: SsoMahasiswaDetail;
+}
+
+export interface SsoMahasiswaSearchResponse {
+  success: boolean;
+  data: SsoMahasiswaDetail[];
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+  };
 }
