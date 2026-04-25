@@ -45,6 +45,7 @@ export class SubmissionController {
   createSubmission = async (c: Context) => {
     try {
       const user = c.get('user') as JWTPayload;
+        if (!user.profileId) throw new Error('profileId not found in session');
       const body = await c.req.json();
       
       // Validate request body
@@ -63,7 +64,7 @@ export class SubmissionController {
       const normalizedCompanyBusinessType = data.companyBusinessType?.trim();
       const result = await this.submissionService.createSubmission(
         data.teamId,
-        user.userId,
+        user.profileId,
         {
           letterPurpose: data.letterPurpose,
           companyName: data.companyName,
@@ -115,6 +116,7 @@ export class SubmissionController {
   updateSubmission = async (c: Context) => {
     try {
       const user = c.get('user') as JWTPayload;
+        if (!user.profileId) throw new Error('profileId not found in session');
       const submissionId = c.req.param('submissionId');
       const body = await c.req.json();
       
@@ -153,7 +155,7 @@ export class SubmissionController {
 
       const submission = await this.submissionService.updateSubmission(
         submissionId,
-        user.userId,
+        user.profileId,
         data
       );
 
@@ -166,11 +168,12 @@ export class SubmissionController {
   submitForReview = async (c: Context) => {
     try {
       const user = c.get('user') as JWTPayload;
+        if (!user.profileId) throw new Error('profileId not found in session');
       const submissionId = c.req.param('submissionId');
 
       const submission = await this.submissionService.submitForReview(
         submissionId,
-        user.userId
+        user.profileId
       );
 
       return c.json(createResponse(true, 'Submission submitted for review', submission));
@@ -197,7 +200,8 @@ export class SubmissionController {
   getMySubmissions = async (c: Context) => {
     try {
       const user = c.get('user') as JWTPayload;
-      const submissions = await this.submissionService.getMySubmissions(user.userId);
+        if (!user.profileId) throw new Error('profileId not found in session');
+      const submissions = await this.submissionService.getMySubmissions(user.profileId);
 
       return c.json(createResponse(true, 'Submissions retrieved', submissions));
     } catch (error) {
@@ -208,6 +212,7 @@ export class SubmissionController {
   getSubmissionById = async (c: Context) => {
     try {
       const user = c.get('user') as JWTPayload;
+        if (!user.profileId) throw new Error('profileId not found in session');
       const submissionId = c.req.param('submissionId');
       const submission = await this.submissionService.getSubmissionById(submissionId);
 
@@ -219,7 +224,7 @@ export class SubmissionController {
       // - ADMIN/KAPRODI/WAKIL_DEKAN can view all submissions
       // - MAHASISWA can only view submissions from their own team
       if (!['ADMIN', 'KAPRODI', 'WAKIL_DEKAN', 'DOSEN'].includes(user.role)) {
-        const canAccess = await this.submissionService.canAccessSubmission(submissionId, user.userId);
+        const canAccess = await this.submissionService.canAccessSubmission(submissionId, user.profileId);
         if (!canAccess) {
           return c.json(createResponse(false, 'Forbidden: You do not have access to this submission'), 403);
         }
@@ -238,9 +243,10 @@ export class SubmissionController {
   getLetterRequestStatus = async (c: Context) => {
     try {
       const user = c.get('user') as JWTPayload;
+        if (!user.profileId) throw new Error('profileId not found in session');
       const submissionId = c.req.param('submissionId');
 
-      const result = await this.submissionService.getLetterRequestStatus(submissionId, user.userId);
+      const result = await this.submissionService.getLetterRequestStatus(submissionId, user.profileId);
 
       return c.json(createResponse(true, 'Status ajuan surat berhasil diambil', result));
     } catch (error) {
@@ -257,6 +263,7 @@ export class SubmissionController {
   uploadDocument = async (c: Context) => {
     try {
       const user = c.get('user') as JWTPayload;
+        if (!user.profileId) throw new Error('profileId not found in session');
       const submissionId = c.req.param('submissionId');
       
       const formData = await c.req.formData();
@@ -296,7 +303,7 @@ export class SubmissionController {
         validated.memberUserId,
         file as File,
         validated.documentType,
-        user.userId // Authenticated user for authorization and fallback
+        user.profileId // Authenticated user for authorization and fallback
       );
 
       return c.json(createResponse(true, 'Document uploaded successfully', document), 201);
@@ -323,8 +330,9 @@ export class SubmissionController {
   getDocuments = async (c: Context) => {
     try {
       const user = c.get('user') as JWTPayload;
+        if (!user.profileId) throw new Error('profileId not found in session');
       const submissionId = c.req.param('submissionId');
-      const documents = await this.submissionService.getDocuments(submissionId, user.userId);
+      const documents = await this.submissionService.getDocuments(submissionId, user.profileId);
 
       return c.json(createResponse(true, 'Documents retrieved', documents));
     } catch (error) {
@@ -340,14 +348,15 @@ export class SubmissionController {
   deleteDocument = async (c: Context) => {
     try {
       const user = c.get('user') as JWTPayload;
+        if (!user.profileId) throw new Error('profileId not found in session');
       const documentId = c.req.param('documentId');
 
       console.log('[SubmissionController.deleteDocument] Request:', {
         documentId,
-        userId: user.userId,
+        userId: user.profileId,
       });
 
-      const result = await this.submissionService.deleteDocument(documentId, user.userId);
+      const result = await this.submissionService.deleteDocument(documentId, user.profileId);
 
       console.log('[SubmissionController.deleteDocument] Success');
       return c.json(createResponse(true, result.message, null));
@@ -364,16 +373,17 @@ export class SubmissionController {
   resetToDraft = async (c: Context) => {
     try {
       const user = c.get('user') as JWTPayload;
+        if (!user.profileId) throw new Error('profileId not found in session');
       const submissionId = c.req.param('submissionId');
 
       console.log('[SubmissionController.resetToDraft] Request:', {
         submissionId,
-        userId: user.userId,
+        userId: user.profileId,
       });
 
       const submission = await this.submissionService.resetToDraft(
         submissionId,
-        user.userId
+        user.profileId
       );
 
       console.log('[SubmissionController.resetToDraft] Success');
