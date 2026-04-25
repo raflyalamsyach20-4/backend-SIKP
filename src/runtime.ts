@@ -54,7 +54,7 @@ export const createRuntime = (env: CloudflareBindings) => {
   const dbClient = createDbClient(config.database.url);
   const r2Bucket = resolveBucket(config);
 
-  const userRepository = new UserRepository(dbClient);
+  const userRepository = new UserRepository(dbClient, config.sso.identitiesUrl);
   const authSessionRepository = new AuthSessionRepository(dbClient);
   const teamRepository = new TeamRepository(dbClient);
   const submissionRepository = new SubmissionRepository(dbClient);
