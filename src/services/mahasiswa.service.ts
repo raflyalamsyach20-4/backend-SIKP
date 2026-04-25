@@ -48,7 +48,8 @@ export class MahasiswaService {
   private responseLetterRepository: ResponseLetterRepository;
   private storageService: StorageService;
   private authService: AuthService;
-  private dosenService: DosenService;
+  
+  private _dosenService?: DosenService;
 
   constructor(private env: CloudflareBindings) {
     const db = createDbClient(this.env.DATABASE_URL);
@@ -57,7 +58,13 @@ export class MahasiswaService {
     this.responseLetterRepository = new ResponseLetterRepository(db);
     this.storageService = new StorageService(this.env);
     this.authService = new AuthService(this.env);
-    this.dosenService = new DosenService(this.env);
+  }
+
+  private get dosenService(): DosenService {
+    if (!this._dosenService) {
+      this._dosenService = new DosenService(this.env);
+    }
+    return this._dosenService;
   }
 
   /**

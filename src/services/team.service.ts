@@ -10,16 +10,29 @@ export class TeamService {
   private teamRepo: TeamRepository;
   private submissionRepo: SubmissionRepository;
   private responseLetterRepo: ResponseLetterRepository;
-  private dosenService: DosenService;
-  private mahasiswaService: MahasiswaService;
+  
+  private _dosenService?: DosenService;
+  private _mahasiswaService?: MahasiswaService;
 
   constructor(private env: CloudflareBindings) {
     const db = createDbClient(this.env.DATABASE_URL);
     this.teamRepo = new TeamRepository(db);
     this.submissionRepo = new SubmissionRepository(db);
     this.responseLetterRepo = new ResponseLetterRepository(db);
-    this.dosenService = new DosenService(this.env);
-    this.mahasiswaService = new MahasiswaService(this.env);
+  }
+
+  private get dosenService(): DosenService {
+    if (!this._dosenService) {
+      this._dosenService = new DosenService(this.env);
+    }
+    return this._dosenService;
+  }
+
+  private get mahasiswaService(): MahasiswaService {
+    if (!this._mahasiswaService) {
+      this._mahasiswaService = new MahasiswaService(this.env);
+    }
+    return this._mahasiswaService;
   }
 
   private buildDefaultDraftPayload(teamCode: string) {
@@ -373,7 +386,7 @@ export class TeamService {
         console.log('[finalizeTeam] SUBMISSION_CREATE_IDEMPOTENT_HIT', {
           teamId,
           submissionId: submission.id,
-        });
+          });
       }
     } else {
       console.log('[finalizeTeam] SUBMISSION_CREATE_IDEMPOTENT_HIT', {

@@ -38,16 +38,23 @@ export class DosenService {
   private teamRepository: TeamRepository;
   private suratKesediaanRepository: SuratKesediaanRepository;
   private suratPermohonanRepository: SuratPermohonanRepository;
-  private suratPengantarDosenService: SuratPengantarDosenService;
   private authService: AuthService;
+  
+  private _suratPengantarDosenService?: SuratPengantarDosenService;
 
   constructor(private env: CloudflareBindings) {
     const db = createDbClient(this.env.DATABASE_URL);
     this.teamRepository = new TeamRepository(db);
     this.suratKesediaanRepository = new SuratKesediaanRepository(db);
     this.suratPermohonanRepository = new SuratPermohonanRepository(db);
-    this.suratPengantarDosenService = new SuratPengantarDosenService(this.env);
     this.authService = new AuthService(this.env);
+  }
+
+  private get suratPengantarDosenService(): SuratPengantarDosenService {
+    if (!this._suratPengantarDosenService) {
+      this._suratPengantarDosenService = new SuratPengantarDosenService(this.env);
+    }
+    return this._suratPengantarDosenService;
   }
 
   private isWakilDekanAcademic(jabatan?: string | null): boolean {

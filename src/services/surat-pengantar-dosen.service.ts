@@ -53,8 +53,9 @@ export class SuratPengantarDosenService {
   private submissionRepo: SubmissionRepository;
   private teamRepo: TeamRepository;
   private storageService: StorageService;
-  private mahasiswaService: MahasiswaService;
-  private dosenService: DosenService;
+  
+  private _mahasiswaService?: MahasiswaService;
+  private _dosenService?: DosenService;
 
   constructor(
     private env: CloudflareBindings
@@ -63,8 +64,20 @@ export class SuratPengantarDosenService {
     this.submissionRepo = new SubmissionRepository(db);
     this.teamRepo = new TeamRepository(db);
     this.storageService = new StorageService(this.env);
-    this.mahasiswaService = new MahasiswaService(this.env);
-    this.dosenService = new DosenService(this.env);
+  }
+
+  private get mahasiswaService(): MahasiswaService {
+    if (!this._mahasiswaService) {
+      this._mahasiswaService = new MahasiswaService(this.env);
+    }
+    return this._mahasiswaService;
+  }
+
+  private get dosenService(): DosenService {
+    if (!this._dosenService) {
+      this._dosenService = new DosenService(this.env);
+    }
+    return this._dosenService;
   }
 
   async getRequestsForVerifier(dosenId: string, role: RbacRole, sessionId: string) {
