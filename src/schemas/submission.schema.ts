@@ -63,5 +63,5 @@ export const updateSubmissionSchema = z.object({
 
 export const uploadDocumentSchema = z.object({
   documentType: z.enum(['PROPOSAL_KETUA', 'SURAT_KESEDIAAN', 'FORM_PERMOHONAN', 'KRS_SEMESTER_4', 'DAFTAR_KUMPULAN_NILAI', 'BUKTI_PEMBAYARAN_UKT']),
-  memberUserId: z.string().min(1),
+  memberMahasiswaId: z.string().min(1),
 });

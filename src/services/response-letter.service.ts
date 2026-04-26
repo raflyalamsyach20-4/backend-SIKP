@@ -6,18 +6,25 @@ import { StorageService } from './storage.service';
 import { TeamResetService } from './team-reset.service';
 import type { ResponseLetter, ResponseLetterWithDetails } from '@/types';
 import { generateId } from '@/utils/helpers';
+import { createDbClient } from '@/db';
 
 /**
  * Response Letter Service
  * Handles business logic for response letter operations
  */
 export class ResponseLetterService {
-  constructor(
-    private responseLetterRepo: ResponseLetterRepository,
-    private submissionRepo: SubmissionRepository,
-    private storageService: StorageService,
-    private teamResetService: TeamResetService
-  ) {}
+  private responseLetterRepo: ResponseLetterRepository;
+  private submissionRepo: SubmissionRepository;
+  private storageService: StorageService;
+  private teamResetService: TeamResetService;
+
+  constructor(private env: CloudflareBindings) {
+    const db = createDbClient(this.env.DATABASE_URL);
+    this.responseLetterRepo = new ResponseLetterRepository(db);
+    this.submissionRepo = new SubmissionRepository(db);
+    this.storageService = new StorageService(env);
+    this.teamResetService = new TeamResetService(env);
+  }
 
   /**
    * Submit a new response letter
@@ -37,7 +44,7 @@ export class ResponseLetterService {
     const teamId = submission.teamId;
 
     // Validate user is member of team
-    const isMember = await this.responseLetterRepo.isUserMemberOfTeam(userId, teamId);
+    const isMember = await this.responseLetterRepo.isMahasiswaMemberOfTeam(userId, teamId);
     if (!isMember) {
       throw new ForbiddenError('Anda bukan anggota tim ini');
     }
@@ -101,7 +108,7 @@ export class ResponseLetterService {
       fileType: file.type,
       fileSize: file.size,
       fileUrl: uploadResult.url,
-      memberUserId: userId,
+      memberMahasiswaId: userId,
       studentName: snapshot?.studentName ?? null,
       studentNim: snapshot?.studentNim ?? null,
       companyName: snapshot?.companyName ?? null,
@@ -154,7 +161,7 @@ export class ResponseLetterService {
       if (!submission) {
         throw new NotFoundError(ErrorMessages.SUBMISSION_NOT_FOUND);
       }
-      const isMember = await this.responseLetterRepo.isUserMemberOfTeam(
+      const isMember = await this.responseLetterRepo.isMahasiswaMemberOfTeam(
         userId,
         submission.teamId
       );
@@ -458,7 +465,7 @@ export class ResponseLetterService {
         };
       }
       
-      const isMember = await this.responseLetterRepo.isUserMemberOfTeam(
+      const isMember = await this.responseLetterRepo.isMahasiswaMemberOfTeam(
         userId,
         submission.teamId
       );

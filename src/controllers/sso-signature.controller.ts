@@ -4,18 +4,24 @@ import type { JWTPayload } from '@/types';
 import { SsoSignatureProxyService } from '@/services/sso-signature-proxy.service';
 
 export class SsoSignatureController {
-  constructor(private ssoSignatureProxyService: SsoSignatureProxyService) {}
+  private ssoSignatureProxyService: SsoSignatureProxyService;
 
-  getManageProfileUrl = async (c: Context) => {
+  constructor(
+    private c: Context<{ Bindings: CloudflareBindings }>
+  ) {
+    this.ssoSignatureProxyService = new SsoSignatureProxyService(this.c.env);
+  }
+
+  getManageProfileUrl = async () => {
     try {
-      const user = c.get('user') as JWTPayload;
-      const profileManageUrl = c.env.SSO_PROFILE_URL;
+      const user = this.c.get('user');
+      const profileManageUrl = this.c.env.SSO_PROFILE_URL;
 
       if (!profileManageUrl) {
-        return c.json(createResponse(false, 'SSO_PROFILE_URL is not configured'), 500);
+        return this.c.json(createResponse(false, 'SSO_PROFILE_URL is not configured'), 500);
       }
 
-      return c.json(
+      return this.c.json(
         createResponse(true, 'Profile management is handled by SSO', {
           manageUrl: profileManageUrl,
           authUserId: user.authUserId,
@@ -23,20 +29,20 @@ export class SsoSignatureController {
         })
       );
     } catch (error) {
-      return handleError(c, error, 'Failed to resolve profile management URL');
+      return handleError(this.c, error, 'Failed to resolve profile management URL');
     }
   };
 
-  getManageSignatureUrl = async (c: Context) => {
+  getManageSignatureUrl = async () => {
     try {
-      const user = c.get('user') as JWTPayload;
-      const signatureManageUrl = c.env.SSO_PROFILE_SIGNATURE_URL;
+      const user = this.c.get('user');
+      const signatureManageUrl = this.c.env.SSO_PROFILE_SIGNATURE_URL;
 
       if (!signatureManageUrl) {
-        return c.json(createResponse(false, 'SSO_PROFILE_SIGNATURE_URL is not configured'), 500);
+        return this.c.json(createResponse(false, 'SSO_PROFILE_SIGNATURE_URL is not configured'), 500);
       }
 
-      return c.json(
+      return this.c.json(
         createResponse(true, 'Signature management is handled by SSO', {
           manageUrl: signatureManageUrl,
           authUserId: user.authUserId,
@@ -44,70 +50,19 @@ export class SsoSignatureController {
         })
       );
     } catch (error) {
-      return handleError(c, error, 'Failed to resolve signature management URL');
+      return handleError(this.c, error, 'Failed to resolve signature management URL');
     }
   };
 
-  getActive = async (c: Context) => {
+  getActive = async () => {
     try {
-      const user = c.get('user') as JWTPayload;
-      const sessionId = c.get('sessionId') as string;
+      const user = this.c.get('user');
+      const sessionId = this.c.get('sessionId');
 
       const data = await this.ssoSignatureProxyService.getActiveSignature(sessionId, user);
-      return c.json(createResponse(true, 'Signature retrieved', data));
+      return this.c.json(createResponse(true, 'Signature retrieved', data));
     } catch (error) {
-      return handleError(c, error, 'Failed to retrieve signature');
-    }
-  };
-
-  upload = async (c: Context) => {
-    try {
-      return c.json(
-        createResponse(
-          false,
-          'Signature write is not available in SIKP. Please manage signature in SSO.',
-          {
-            manageUrl: c.env.SSO_PROFILE_SIGNATURE_URL || null,
-          }
-        ),
-        410
-      );
-    } catch (error) {
-      return handleError(c, error, 'Failed to upload signature');
-    }
-  };
-
-  activate = async (c: Context) => {
-    try {
-      return c.json(
-        createResponse(
-          false,
-          'Signature write is not available in SIKP. Please manage signature in SSO.',
-          {
-            manageUrl: c.env.SSO_PROFILE_SIGNATURE_URL || null,
-          }
-        ),
-        410
-      );
-    } catch (error) {
-      return handleError(c, error, 'Failed to activate signature');
-    }
-  };
-
-  remove = async (c: Context) => {
-    try {
-      return c.json(
-        createResponse(
-          false,
-          'Signature write is not available in SIKP. Please manage signature in SSO.',
-          {
-            manageUrl: c.env.SSO_PROFILE_SIGNATURE_URL || null,
-          }
-        ),
-        410
-      );
-    } catch (error) {
-      return handleError(c, error, 'Failed to delete signature');
+      return handleError(this.c, error, 'Failed to retrieve signature');
     }
   };
 }

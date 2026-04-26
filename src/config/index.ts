@@ -19,7 +19,6 @@ export interface AppConfig {
 		profileSignatureUrl: string;
 		tokenUrl: string;
 		userInfoUrl: string;
-		identitiesUrl: string;
 		revokeUrl: string;
 		signaturePath: string;
 		proxyTimeoutMs: number;
@@ -37,13 +36,6 @@ export interface AppConfig {
 		apiBaseUrl: string;
 		useMockR2: boolean;
 	};
-}
-
-export interface CloudflareBindings extends globalThis.CloudflareBindings {
-	SSO_TOKEN_URL?: string;
-	SSO_USERINFO_URL?: string;
-	SSO_IDENTITIES_URL?: string;
-	SSO_REVOKE_URL?: string;
 }
 
 export const createAppConfig = (env: CloudflareBindings): AppConfig => {
@@ -76,7 +68,6 @@ export const createAppConfig = (env: CloudflareBindings): AppConfig => {
 			profileSignatureUrl: env.SSO_PROFILE_SIGNATURE_URL || '',
 			tokenUrl: env.SSO_TOKEN_URL || `${ssoBaseUrl}/oauth/token`,
 			userInfoUrl: env.SSO_USERINFO_URL || `${ssoBaseUrl}/userinfo`,
-			identitiesUrl: env.SSO_IDENTITIES_URL || `${ssoBaseUrl}/profile`,
 			revokeUrl: env.SSO_REVOKE_URL || `${ssoBaseUrl}/oauth/revoke`,
 			signaturePath: ssoSignaturePath.startsWith('/') ? ssoSignaturePath : `/${ssoSignaturePath}`,
 			proxyTimeoutMs: Number.parseInt(env.SSO_PROXY_TIMEOUT_MS || '10000', 10),

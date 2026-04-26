@@ -1,8 +1,6 @@
 import { Hono } from 'hono';
 import { authMiddleware, mahasiswaOnly, dosenOnly, roleMiddleware } from '@/middlewares/auth.middleware';
-import type { CloudflareBindings } from '@/config';
 import { zValidator } from '@hono/zod-validator';
-import { createRuntime } from '@/runtime';
 import { emptyQuerySchema, nonEmptyStringParamsSchema } from '@/schemas/common.schema';
 import {
   requestSuratKesediaanSchema,
@@ -10,6 +8,7 @@ import {
   rejectRequestSchema,
   approveBulkSchema,
 } from '@/schemas/surat-kesediaan.schema';
+import { SuratKesediaanController } from '@/controllers';
 
 /**
  * Create Mahasiswa Surat Kesediaan Routes
@@ -23,8 +22,7 @@ export const createMahasiswaSuratKesediaanRoutes = () => {
       '/requests',
       zValidator('json', requestSuratKesediaanSchema),
       async (c) => {
-        const runtime = createRuntime(c.env);
-        return Reflect.apply(runtime.suratKesediaanController.requestSuratKesediaan, runtime.suratKesediaanController, [c, c.req.valid('json')]);
+        return new SuratKesediaanController(c).requestSuratKesediaan();
       }
     )
     // PUT /api/mahasiswa/surat-kesediaan/requests/:requestId/reapply
@@ -33,8 +31,7 @@ export const createMahasiswaSuratKesediaanRoutes = () => {
       zValidator('param', nonEmptyStringParamsSchema),
       zValidator('json', reapplyRequestSchema),
       async (c) => {
-        const runtime = createRuntime(c.env);
-        return Reflect.apply(runtime.suratKesediaanController.reapplyRequest, runtime.suratKesediaanController, [c, c.req.valid('param'), c.req.valid('json')]);
+        return new SuratKesediaanController(c).reapplyRequest();
       }
     );
 
@@ -53,8 +50,7 @@ export const createSuratKesediaanFallbackRoutes = () => {
       '/requests',
       zValidator('json', requestSuratKesediaanSchema),
       async (c) => {
-        const runtime = createRuntime(c.env);
-        return Reflect.apply(runtime.suratKesediaanController.requestSuratKesediaan, runtime.suratKesediaanController, [c, c.req.valid('json')]);
+        return new SuratKesediaanController(c).requestSuratKesediaan();
       }
     )
     // PUT /api/surat-kesediaan/requests/:requestId/reapply
@@ -63,8 +59,7 @@ export const createSuratKesediaanFallbackRoutes = () => {
       zValidator('param', nonEmptyStringParamsSchema),
       zValidator('json', reapplyRequestSchema),
       async (c) => {
-        const runtime = createRuntime(c.env);
-        return Reflect.apply(runtime.suratKesediaanController.reapplyRequest, runtime.suratKesediaanController, [c, c.req.valid('param'), c.req.valid('json')]);
+        return new SuratKesediaanController(c).reapplyRequest();
       }
     )
     // POST /api/surat-kesediaan/request
@@ -72,8 +67,7 @@ export const createSuratKesediaanFallbackRoutes = () => {
       '/request',
       zValidator('json', requestSuratKesediaanSchema),
       async (c) => {
-        const runtime = createRuntime(c.env);
-        return Reflect.apply(runtime.suratKesediaanController.requestSuratKesediaan, runtime.suratKesediaanController, [c, c.req.valid('json')]);
+        return new SuratKesediaanController(c).requestSuratKesediaan();
       }
     );
 
@@ -93,8 +87,7 @@ export const createDosenSuratKesediaanRoutes = () => {
       roleMiddleware(['dosen', 'wakil_dekan']),
       zValidator('query', emptyQuerySchema),
       async (c) => {
-        const runtime = createRuntime(c.env);
-        return Reflect.apply(runtime.suratKesediaanController.getRequests, runtime.suratKesediaanController, [c, c.req.valid('query')]);
+        return new SuratKesediaanController(c).getRequests();
       }
     )
     // PUT /api/dosen/surat-kesediaan/requests/:requestId/approve
@@ -104,8 +97,7 @@ export const createDosenSuratKesediaanRoutes = () => {
       zValidator('param', nonEmptyStringParamsSchema),
       zValidator('query', emptyQuerySchema),
       async (c) => {
-        const runtime = createRuntime(c.env);
-        return Reflect.apply(runtime.suratKesediaanController.approveSingle, runtime.suratKesediaanController, [c, c.req.valid('param'), c.req.valid('query')]);
+        return new SuratKesediaanController(c).approveSingle();
       }
     )
     // PUT /api/dosen/surat-kesediaan/requests/:requestId/reject
@@ -115,8 +107,7 @@ export const createDosenSuratKesediaanRoutes = () => {
       zValidator('param', nonEmptyStringParamsSchema),
       zValidator('json', rejectRequestSchema),
       async (c) => {
-        const runtime = createRuntime(c.env);
-        return Reflect.apply(runtime.suratKesediaanController.reject, runtime.suratKesediaanController, [c, c.req.valid('param'), c.req.valid('json')]);
+        return new SuratKesediaanController(c).reject();
       }
     )
     // PUT /api/dosen/surat-kesediaan/requests/approve-bulk
@@ -125,8 +116,7 @@ export const createDosenSuratKesediaanRoutes = () => {
       dosenOnly,
       zValidator('json', approveBulkSchema),
       async (c) => {
-        const runtime = createRuntime(c.env);
-        return Reflect.apply(runtime.suratKesediaanController.approveBulk, runtime.suratKesediaanController, [c, c.req.valid('json')]);
+        return new SuratKesediaanController(c).approveBulk();
       }
     );
 

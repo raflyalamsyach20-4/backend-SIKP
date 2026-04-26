@@ -3,10 +3,10 @@ import { cors } from 'hono/cors';
 import { logger } from 'hono/logger';
 
 // Configuration
-import type { CloudflareBindings } from '@/config';
 import { errorHandler } from '@/errors';
 
 // Routes
+import { createMahasiswaProfileRoutes } from '@/routes/mahasiswa.route';
 import { createAuthRoutes } from '@/routes/auth.route';
 import { createTeamRoutes } from '@/routes/team.route';
 import { createSubmissionRoutes } from '@/routes/submission.route';
@@ -74,8 +74,7 @@ const legacyIdentityRouteGone = (c: Context) => {
   }, 410);
 };
 
-app.all('/api/mahasiswa', legacyIdentityRouteGone);
-app.all('/api/mahasiswa/*', legacyIdentityRouteGone);
+app.route('/api/mahasiswa', createMahasiswaProfileRoutes());
 app.all('/api/dosen', legacyIdentityRouteGone);
 app.all('/api/dosen/*', legacyIdentityRouteGone);
 app.all('/api/admin', legacyIdentityRouteGone);

@@ -1,8 +1,8 @@
 import { z } from 'zod';
 
 export const requestSuratKesediaanSchema = z.object({
-  memberUserId: z.string().min(1),
-  dosenUserId: z.string().optional(),
+  memberMahasiswaId: z.string().min(1),
+  dosenId: z.string().optional(),
 });
 
 export const approveBulkSchema = z.object({
@@ -14,5 +14,5 @@ export const rejectRequestSchema = z.object({
 });
 
 export const reapplyRequestSchema = z.object({
-  memberUserId: z.string().min(1),
+  memberMahasiswaId: z.string().min(1),
 });

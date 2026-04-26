@@ -1,169 +1,178 @@
 import { Context } from 'hono';
 import { TeamService } from '@/services/team.service';
 import { createResponse, handleError } from '@/utils/helpers';
-import type { JWTPayload } from '@/types';
 import { inviteMemberSchema, respondInvitationSchema } from '@/schemas/team.schema';
-import { createRuntime } from '@/runtime';
+import { TeamResetService } from '@/services';
 
 type ErrorStatusCode = 400 | 401 | 403 | 404 | 409 | 422 | 500;
 
 export class TeamController {
-  constructor(private teamService: TeamService) {}
+  private teamService: TeamService;
+  private teamResetService: TeamResetService;
 
-  createTeam = async (c: Context) => {
+  constructor(private c: Context<{ Bindings: CloudflareBindings }>) {
+    this.teamService = new TeamService(this.c.env);
+    this.teamResetService = new TeamResetService(this.c.env);
+  }
+
+  createTeam = async () => {
     try {
-      const user = c.get('user') as JWTPayload;
+      const user = this.c.get('user');
       
-      console.log(`[TeamController.createTeam] Request from profileId=${user.profileId}, dosenPAId=${user.dosenPAId}`);
+      console.log(`[TeamController.createTeam] Request from mahasiswaId=${user.mahasiswaId}, profileId=${user.profileId}, dosenPAId=${user.dosenPAId}`);
 
-      // ✅ Use profileId (not authUserId/sub) as team leader identifier
-      if (!user.profileId) {
-        throw new Error('profileId not found in session - SSO profile incomplete');
+      if (!user.mahasiswaId) {
+        throw new Error('mahasiswaId not found in session - SSO profile incomplete or student identity not selected');
       }
 
-      // ✅ Pass profileId and dosenPAId directly from JWT
-      const team = await this.teamService.createTeam(user.profileId, user.dosenPAId);
+      const team = await this.teamService.createTeam(user.mahasiswaId, user.dosenPAId);
 
       console.log(`[TeamController.createTeam] ✅ Success: ${team.code}`);
-      return c.json(createResponse(true, 'Team created successfully', team), 201);
+      return this.c.json(createResponse(true, 'Team created successfully', team), 201);
     } catch (error) {
       console.error(`[TeamController.createTeam] ❌ Error:`, error);
-      return handleError(c, error, 'Failed to create team');
+      return handleError(this.c, error, 'Failed to create team');
     }
   };
 
-  inviteMember = async (c: Context) => {
+  inviteMember = async () => {
     try {
-      const user = c.get('user') as JWTPayload;
-      const teamId = c.req.param('teamId');
-      const body = await c.req.json();
+      const user = this.c.get('user');
+      const teamId = this.c.req.param('teamId');
+      const body = await this.c.req.json();
       const validated = inviteMemberSchema.parse(body);
 
-      if (!user.profileId) throw new Error('profileId not found in session');
+      if (!user.mahasiswaId) {
+        throw new Error('mahasiswaId not found in session - student identity required');
+      }
 
       const invitation = await this.teamService.inviteMember(
         teamId,
-        user.profileId, // ✅ profileId used for team operations
-        validated.memberNim
+        user.mahasiswaId,
+        validated.memberNim,
+        this.c.get('sessionId')
       );
 
-      return c.json(createResponse(true, 'Invitation sent successfully', invitation), 201);
+      return this.c.json(createResponse(true, 'Invitation sent successfully', invitation), 201);
     } catch (error) {
-      return handleError(c, error, 'Failed to invite member');
+      return handleError(this.c, error, 'Failed to invite member');
     }
   };
 
-  respondToInvitation = async (c: Context) => {
+  respondToInvitation = async () => {
     try {
-      const user = c.get('user') as JWTPayload;
-      const memberId = c.req.param('memberId');
-      const body = await c.req.json();
+      const user = this.c.get('user');
+      const memberId = this.c.req.param('memberId');
+      const body = await this.c.req.json();
       const validated = respondInvitationSchema.parse(body);
 
-      if (!user.profileId) throw new Error('profileId not found in session');
+      if (!user.mahasiswaId) {
+        throw new Error('mahasiswaId not found in session');
+      }
 
       const result = await this.teamService.respondToInvitation(
         memberId,
-        user.profileId,
+        user.mahasiswaId,
         validated.accept
       );
 
-      return c.json(createResponse(true, 'Invitation response recorded', result));
+      return this.c.json(createResponse(true, 'Invitation response recorded', result));
     } catch (error) {
-      return handleError(c, error, 'Failed to respond to invitation');
+      return handleError(this.c, error, 'Failed to respond to invitation');
     }
   };
 
-  getTeamMembers = async (c: Context) => {
+  getTeamMembers = async () => {
     try {
-      const teamId = c.req.param('teamId');
-      const members = await this.teamService.getTeamMembers(teamId);
+      const teamId = this.c.req.param('teamId');
+      const members = await this.teamService.getTeamMembers(teamId, this.c.get('sessionId'));
 
-      return c.json(createResponse(true, 'Team members retrieved', members));
+      return this.c.json(createResponse(true, 'Team members retrieved', members));
     } catch (error) {
-      return handleError(c, error, 'Failed to get team members');
+      return handleError(this.c, error, 'Failed to get team members');
     }
   };
 
-  getMyTeams = async (c: Context) => {
+  getMyTeams = async () => {
     try {
-      const user = c.get('user') as JWTPayload;
-      if (!user.profileId) throw new Error('profileId not found in session');
-      const teams = await this.teamService.getMyTeams(user.profileId);
+      const user = this.c.get('user');
+      const sessionId = this.c.get('sessionId');
+      
+      if (!user.mahasiswaId) throw new Error('mahasiswaId not found in session');
+      const teams = await this.teamService.getMyTeams(user.mahasiswaId, sessionId);
 
-      return c.json(createResponse(true, 'Teams retrieved', teams));
+      return this.c.json(createResponse(true, 'Teams retrieved', teams));
     } catch (error) {
-      return handleError(c, error, 'Failed to get teams');
+      return handleError(this.c, error, 'Failed to get teams');
     }
   };
 
-  leaveTeam = async (c: Context) => {
+  leaveTeam = async () => {
     try {
-      const user = c.get('user') as JWTPayload;
-      const teamId = c.req.param('teamId');
+      const user = this.c.get('user');
+      const teamId = this.c.req.param('teamId');
 
-      if (!user.profileId) throw new Error('profileId not found in session');
-      console.log(`[TeamController.leaveTeam] Request from profileId=${user.profileId}, teamId=${teamId}`);
+      if (!user.mahasiswaId) throw new Error('mahasiswaId not found in session');
+      console.log(`[TeamController.leaveTeam] Request from mahasiswaId=${user.mahasiswaId}, teamId=${teamId}`);
 
-      const result = await this.teamService.leaveTeam(teamId, user.profileId);
+      const result = await this.teamService.leaveTeam(teamId, user.mahasiswaId);
 
       console.log(`[TeamController.leaveTeam] ✅ Success: Member left team`);
-      return c.json(createResponse(true, 'Successfully left the team', result));
+      return this.c.json(createResponse(true, 'Successfully left the team', result));
     } catch (error) {
       console.error(`[TeamController.leaveTeam] ❌ Error:`, error);
-      return handleError(c, error, 'Failed to leave team');
+      return handleError(this.c, error, 'Failed to leave team');
     }
   };
 
-  removeMember = async (c: Context) => {
+  removeMember = async () => {
     try {
-      const user = c.get('user') as JWTPayload;
-      const teamId = c.req.param('teamId');
-      const memberId = c.req.param('memberId');
+      const user = this.c.get('user');
+      const teamId = this.c.req.param('teamId');
+      const memberId = this.c.req.param('memberId');
 
-      if (!user.profileId) throw new Error('profileId not found in session');
-      console.log(`[TeamController.removeMember] Request from profileId=${user.profileId}, teamId=${teamId}, memberId=${memberId}`);
+      if (!user.mahasiswaId) throw new Error('mahasiswaId not found in session');
+      console.log(`[TeamController.removeMember] Request from mahasiswaId=${user.mahasiswaId}, teamId=${teamId}, memberId=${memberId}`);
 
-      const result = await this.teamService.removeMember(teamId, memberId, user.profileId);
+      const result = await this.teamService.removeMember(teamId, memberId, user.mahasiswaId);
 
       console.log(`[TeamController.removeMember] ✅ Success: Member removed`);
-      return c.json(createResponse(true, 'Member removed successfully', result));
+      return this.c.json(createResponse(true, 'Member removed successfully', result));
     } catch (error) {
       console.error(`[TeamController.removeMember] ❌ Error:`, error);
-      return handleError(c, error, 'Failed to remove member');
+      return handleError(this.c, error, 'Failed to remove member');
     }
   };
 
-  deleteTeam = async (c: Context) => {
+  deleteTeam = async () => {
     try {
-      const user = c.get('user') as JWTPayload;
-      const teamId = c.req.param('teamId');
+      const user = this.c.get('user');
+      const teamId = this.c.req.param('teamId');
 
-      if (!user.profileId) throw new Error('profileId not found in session');
-      const result = await this.teamService.deleteTeam(teamId, user.profileId);
+      if (!user.mahasiswaId) throw new Error('mahasiswaId not found in session');
+      const result = await this.teamService.deleteTeam(teamId, user.mahasiswaId);
 
-      return c.json(createResponse(true, 'Team deleted successfully', result));
+      return this.c.json(createResponse(true, 'Team deleted successfully', result));
     } catch (error) {
-      return handleError(c, error, 'Failed to delete team');
+      return handleError(this.c, error, 'Failed to delete team');
     }
   };
 
-  finalizeTeam = async (c: Context) => {
+  finalizeTeam = async () => {
     try {
-      const user = c.get('user') as JWTPayload;
-      const teamId = c.req.param('teamId');
+      const user = this.c.get('user');
+      const teamId = this.c.req.param('teamId');
 
-      if (!user.profileId) throw new Error('profileId not found in session');
-      console.log(`[TeamController.finalizeTeam] Request from profileId=${user.profileId}, teamId=${teamId}`);
+      if (!user.mahasiswaId) throw new Error('mahasiswaId not found in session');
+      console.log(`[TeamController.finalizeTeam] Request from mahasiswaId=${user.mahasiswaId}, teamId=${teamId}`);
 
-      const result = await this.teamService.finalizeTeam(teamId, user.profileId);
+      const result = await this.teamService.finalizeTeam(teamId, user.mahasiswaId);
 
       console.log(`[TeamController.finalizeTeam] ✅ Success: Team finalized`);
-      return c.json(createResponse(true, 'Tim berhasil difinalisasi', result), 200);
+      return this.c.json(createResponse(true, 'Tim berhasil difinalisasi', result), 200);
     } catch (error) {
       console.error(`[TeamController.finalizeTeam] ❌ Error:`, error);
       
-      // Return appropriate status code from error
       const appError = error as Error & { statusCode?: number };
       const statusCodeRaw = appError.statusCode || 500;
       const statusCode: ErrorStatusCode =
@@ -175,98 +184,92 @@ export class TeamController {
         statusCodeRaw === 422
           ? statusCodeRaw
           : 500;
-      return c.json(
+      return this.c.json(
         createResponse(false, appError.message || 'Failed to finalize team', null),
         statusCode
       );
     }
   };
 
-  getMyInvitations = async (c: Context) => {
+  getMyInvitations = async () => {
     try {
-      const user = c.get('user') as JWTPayload;
-      if (!user.profileId) throw new Error('profileId not found in session');
-      const invitations = await this.teamService.getMyInvitations(user.profileId);
+      const user = this.c.get('user');
 
-      return c.json(createResponse(true, 'Invitations retrieved', invitations));
+      if (!user.mahasiswaId) throw new Error('mahasiswaId not found in session');
+      const invitations = await this.teamService.getMyInvitations(user.mahasiswaId, this.c.get('sessionId'));
+
+      return this.c.json(createResponse(true, 'Invitations retrieved', invitations));
     } catch (error) {
-      return handleError(c, error, 'Failed to get invitations');
+      return handleError(this.c, error, 'Failed to get invitations');
     }
   };
 
-  cancelInvitation = async (c: Context) => {
+  cancelInvitation = async () => {
     try {
-      const user = c.get('user') as JWTPayload;
-      const memberId = c.req.param('memberId');
+      const user = this.c.get('user');
+      const memberId = this.c.req.param('memberId');
 
-      if (!user.profileId) throw new Error('profileId not found in session');
-      console.log(`[TeamController.cancelInvitation] Request from profileId=${user.profileId}, memberId=${memberId}`);
+      if (!user.mahasiswaId) throw new Error('mahasiswaId not found in session');
+      console.log(`[TeamController.cancelInvitation] Request from mahasiswaId=${user.mahasiswaId}, memberId=${memberId}`);
 
-      const result = await this.teamService.cancelInvitation(memberId, user.profileId);
+      const result = await this.teamService.cancelInvitation(memberId, user.mahasiswaId);
 
       console.log(`[TeamController.cancelInvitation] ✅ Success: Invitation cancelled`);
-      return c.json(createResponse(true, 'Invitation cancelled successfully', result));
+      return this.c.json(createResponse(true, 'Invitation cancelled successfully', result));
     } catch (error) {
       console.error(`[TeamController.cancelInvitation] ❌ Error:`, error);
-      return handleError(c, error, 'Failed to cancel invitation');
+      return handleError(this.c, error, 'Failed to cancel invitation');
     }
   };
 
-  joinTeam = async (c: Context) => {
+  joinTeam = async () => {
     try {
-      const user = c.get('user') as JWTPayload;
-      const teamCode = c.req.param('teamCode');
+      const user = this.c.get('user');
+      const teamCode = this.c.req.param('teamCode');
 
-      if (!user.profileId) throw new Error('profileId not found in session');
-      console.log(`[TeamController.joinTeam] Request from profileId=${user.profileId}, teamCode=${teamCode}`);
+      if (!user.mahasiswaId) throw new Error('mahasiswaId not found in session');
+      console.log(`[TeamController.joinTeam] Request from mahasiswaId=${user.mahasiswaId}, teamCode=${teamCode}`);
 
-      const result = await this.teamService.joinTeam(teamCode, user.profileId);
+      const result = await this.teamService.joinTeam(teamCode, user.mahasiswaId, this.c.get('sessionId'));
 
       console.log(`[TeamController.joinTeam] ✅ Success: Join request created`);
-      return c.json(result, 201);
+      return this.c.json(result, 201);
     } catch (error) {
       console.error(`[TeamController.joinTeam] ❌ Error:`, error);
-      return handleError(c, error, 'Failed to join team');
+      return handleError(this.c, error, 'Failed to join team');
     }
   };
 
-  /**
-   * Reset team (student-initiated)
-   * Deletes all submissions and resets team status to PENDING
-   * POST /api/teams/reset
-   */
-  resetTeam = async (c: Context) => {
+  resetTeam = async () => {
     try {
-      const user = c.get('user') as JWTPayload;
+      const user = this.c.get('user');
+      const sessionId = this.c.get('sessionId');
       
-      if (!user.profileId) throw new Error('profileId not found in session');
-      console.log(`[TeamController.resetTeam] Request from profileId=${user.profileId}`);
+      if (!user.mahasiswaId) throw new Error('mahasiswaId not found in session');
+      console.log(`[TeamController.resetTeam] Request from mahasiswaId=${user.mahasiswaId}`);
 
-      // Get user's teams
-      const myTeams = await this.teamService.getMyTeams(user.profileId);
+      const myTeams = await this.teamService.getMyTeams(user.mahasiswaId, sessionId);
       
       if (!myTeams || myTeams.length === 0) {
         console.error(`[TeamController.resetTeam] ❌ User has no teams`);
-        return c.json(
+        return this.c.json(
           createResponse(false, 'Anda tidak memiliki tim yang dapat direset'),
           404
         );
       }
 
-      // Get the first team (user can only have one active team)
       const team = myTeams[0];
       console.log(`[TeamController.resetTeam] Found team: ${team.code} (${team.id})`);
 
-      const runtime = createRuntime(c.env);
-      const result = await runtime.teamResetService.resetTeamByTeamId(team.id);
+      const result = await this.teamResetService.resetTeamByTeamId(team.id);
 
       console.log(`[TeamController.resetTeam] ✅ Success: Team reset completed`);
-      return c.json(
+      return this.c.json(
         createResponse(true, 'Tim berhasil direset. Anda dapat membuat submission baru.', result)
       );
     } catch (error) {
       console.error(`[TeamController.resetTeam] ❌ Error:`, error);
-      return handleError(c, error, 'Failed to reset team');
+      return handleError(this.c, error, 'Failed to reset team');
     }
   };
 }

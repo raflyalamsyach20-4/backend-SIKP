@@ -59,12 +59,12 @@ export class StorageService {
   private apiBaseUrl: string;
   private r2Bucket: R2Bucket | null;
 
-  constructor(r2Bucket: R2Bucket | undefined, r2Domain?: string, r2BucketName?: string, apiBaseUrl?: string) {
+  constructor(env: CloudflareBindings) {
     // Get from parameters (passed from index.ts) or fall back to environment variables
-    this.r2Domain = r2Domain || process.env.R2_DOMAIN || '';
-    this.r2BucketName = r2BucketName || process.env.R2_BUCKET_NAME || '';
-    this.apiBaseUrl = (apiBaseUrl || process.env.API_BASE_URL || '').replace(/\/$/, '');
-    this.r2Bucket = r2Bucket || null;
+    this.r2Domain = env.R2_DOMAIN || '';
+    this.r2BucketName = env.R2_BUCKET_NAME || '';
+    this.apiBaseUrl = (env.API_BASE_URL || '').replace(/\/$/, '');
+    this.r2Bucket = env.R2_BUCKET || null;
 
     if (!this.r2Domain) {
       throw new Error('R2_DOMAIN is not set. Please set R2_DOMAIN in wrangler.jsonc or environment variables');

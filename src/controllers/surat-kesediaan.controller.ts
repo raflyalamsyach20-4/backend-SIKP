@@ -1,7 +1,6 @@
 import { Context } from 'hono';
 import { SuratKesediaanService } from '@/services/surat-kesediaan.service';
 import { createResponse, handleError } from '@/utils/helpers';
-import type { JWTPayload } from '@/types';
 import {
   requestSuratKesediaanSchema,
   approveBulkSchema,
@@ -10,21 +9,26 @@ import {
 } from '@/schemas/surat-kesediaan.schema';
 
 export class SuratKesediaanController {
-  constructor(private suratKesediaanService: SuratKesediaanService) {}
+  private suratKesediaanService: SuratKesediaanService;
+
+  constructor(private c: Context<{ Bindings: CloudflareBindings }>) {
+    this.suratKesediaanService = new SuratKesediaanService(this.c.env);
+  }
 
   /**
    * Mahasiswa: Ajukan surat kesediaan ke dosen
    * POST /api/mahasiswa/surat-kesediaan/requests
    */
-  requestSuratKesediaan = async (c: Context) => {
+  requestSuratKesediaan = async () => {
     try {
-      const user = c.get('user') as JWTPayload;
-      const body = await c.req.json();
+      const user = this.c.get('user');
+      const sessionId = this.c.get('sessionId');
+      const body = await this.c.req.json();
 
       // Validate request body
       const validationResult = requestSuratKesediaanSchema.safeParse(body);
       if (!validationResult.success) {
-        return c.json(
+        return this.c.json(
           createResponse(false, 'Validation failed', {
             errors: validationResult.error.issues,
           }),
@@ -32,21 +36,22 @@ export class SuratKesediaanController {
         );
       }
 
-      const { memberUserId, dosenUserId } = validationResult.data;
+      const { memberMahasiswaId, dosenId } = validationResult.data;
 
       const result = await this.suratKesediaanService.requestSuratKesediaan(
-        memberUserId,
-        user.userId,
-        dosenUserId
+        memberMahasiswaId,
+        user.mahasiswaId!,
+        dosenId!,
+        sessionId
       );
 
-      return c.json(
+      return this.c.json(
         createResponse(true, 'Pengajuan surat kesediaan berhasil dikirim ke dosen', {
           requestId: result.requestId,
         })
       );
     } catch (error) {
-      return handleError(c, error, 'Failed to request surat kesediaan');
+      return handleError(this.c, error, 'Failed to request surat kesediaan');
     }
   };
 
@@ -54,17 +59,22 @@ export class SuratKesediaanController {
    * Dosen: Lihat list ajuan surat kesediaan
    * GET /api/dosen/surat-kesediaan/requests
    */
-  getRequests = async (c: Context) => {
+  getRequests = async () => {
     try {
-      const user = c.get('user') as JWTPayload;
+      const user = this.c.get('user');
+      const sessionId = this.c.get('sessionId');
 
-      const requests = await this.suratKesediaanService.getRequestsForDosen(user.userId, user.role);
+      const requests = await this.suratKesediaanService.getRequestsForDosen(
+        user.dosenId || user.userId,
+        user.role,
+        sessionId
+      );
 
-      return c.json(
+      return this.c.json(
         createResponse(true, 'OK', requests)
       );
     } catch (error) {
-      return handleError(c, error, 'Failed to get requests');
+      return handleError(this.c, error, 'Failed to get requests');
     }
   };
 
@@ -72,14 +82,19 @@ export class SuratKesediaanController {
    * Dosen: Approve single request
    * PUT /api/dosen/surat-kesediaan/requests/:requestId/approve
    */
-  approveSingle = async (c: Context) => {
+  approveSingle = async () => {
     try {
-      const user = c.get('user') as JWTPayload;
-      const requestId = c.req.param('requestId');
+      const user = this.c.get('user');
+      const requestId = this.c.req.param('requestId');
+      const sessionId = this.c.get('sessionId');
 
-      const result = await this.suratKesediaanService.approveSingleRequest(requestId, user.userId);
+      const result = await this.suratKesediaanService.approveSingleRequest(
+        requestId,
+        user.dosenId || user.userId,
+        sessionId
+      );
 
-      return c.json(
+      return this.c.json(
         createResponse(true, 'Pengajuan berhasil disetujui dan surat telah ditandatangani', {
           requestId: result.requestId,
           status: result.status,
@@ -88,7 +103,7 @@ export class SuratKesediaanController {
         })
       );
     } catch (error) {
-      return handleError(c, error, 'Failed to approve request');
+      return handleError(this.c, error, 'Failed to approve request');
     }
   };
 
@@ -96,15 +111,16 @@ export class SuratKesediaanController {
    * Dosen: Approve bulk requests
    * PUT /api/dosen/surat-kesediaan/requests/approve-bulk
    */
-  approveBulk = async (c: Context) => {
+  approveBulk = async () => {
     try {
-      const user = c.get('user') as JWTPayload;
-      const body = await c.req.json();
+      const user = this.c.get('user');
+      const sessionId = this.c.get('sessionId');
+      const body = await this.c.req.json();
 
       // Validate request body
       const validationResult = approveBulkSchema.safeParse(body);
       if (!validationResult.success) {
-        return c.json(
+        return this.c.json(
           createResponse(false, 'Validation failed', {
             errors: validationResult.error.issues,
           }),
@@ -115,19 +131,20 @@ export class SuratKesediaanController {
       const { requestIds } = validationResult.data;
       const result = await this.suratKesediaanService.approveBulkRequests(
         requestIds,
-        user.userId
+        user.dosenId || user.userId,
+        sessionId
       );
 
       const summaryMessage = `${result.approvedCount} pengajuan berhasil disetujui`;
 
-      return c.json(
+      return this.c.json(
         createResponse(true, summaryMessage, {
           approvedCount: result.approvedCount,
           failed: result.failed,
         })
       );
     } catch (error) {
-      return handleError(c, error, 'Failed to approve bulk requests');
+      return handleError(this.c, error, 'Failed to approve bulk requests');
     }
   };
 
@@ -135,15 +152,15 @@ export class SuratKesediaanController {
    * Dosen: Reject single request
    * PUT /api/dosen/surat-kesediaan/requests/:requestId/reject
    */
-  reject = async (c: Context) => {
+  reject = async () => {
     try {
-      const user = c.get('user') as JWTPayload;
-      const requestId = c.req.param('requestId');
-      const body = await c.req.json().catch(() => ({}));
+      const user = this.c.get('user');
+      const requestId = this.c.req.param('requestId');
+      const body = await this.c.req.json().catch(() => ({}));
 
       const validationResult = rejectRequestSchema.safeParse(body);
       if (!validationResult.success) {
-        return c.json(
+        return this.c.json(
           createResponse(false, 'Validation failed', {
             errors: validationResult.error.issues,
           }),
@@ -153,15 +170,15 @@ export class SuratKesediaanController {
 
       const result = await this.suratKesediaanService.rejectRequest(
         requestId,
-        user.userId,
+        user.dosenId || user.userId,
         validationResult.data.rejection_reason
       );
 
-      return c.json(
+      return this.c.json(
         createResponse(true, 'Pengajuan surat kesediaan berhasil ditolak', result)
       );
     } catch (error) {
-      return handleError(c, error, 'Failed to reject request');
+      return handleError(this.c, error, 'Failed to reject request');
     }
   };
 
@@ -169,15 +186,15 @@ export class SuratKesediaanController {
    * Mahasiswa: Ajukan ulang request surat kesediaan yang ditolak.
    * PUT /api/mahasiswa/surat-kesediaan/requests/:requestId/reapply
    */
-  reapplyRequest = async (c: Context) => {
+  reapplyRequest = async () => {
     try {
-      const user = c.get('user') as JWTPayload;
-      const requestId = c.req.param('requestId');
-      const body = await c.req.json().catch(() => ({}));
+      const user = this.c.get('user');
+      const requestId = this.c.req.param('requestId');
+      const body = await this.c.req.json().catch(() => ({}));
 
       const validationResult = reapplyRequestSchema.safeParse(body);
       if (!validationResult.success) {
-        return c.json(
+        return this.c.json(
           createResponse(false, 'Validation failed', {
             errors: validationResult.error.issues,
           }),
@@ -185,14 +202,14 @@ export class SuratKesediaanController {
         );
       }
 
-      const { memberUserId } = validationResult.data;
-      const result = await this.suratKesediaanService.reapplyRequest(requestId, memberUserId, user.userId);
+      const { memberMahasiswaId } = validationResult.data;
+      const result = await this.suratKesediaanService.reapplyRequest(requestId, memberMahasiswaId, user.mahasiswaId!);
 
-      return c.json(
+      return this.c.json(
         createResponse(true, 'Pengajuan ulang surat kesediaan berhasil.', result)
       );
     } catch (error) {
-      return handleError(c, error, 'Failed to reapply surat kesediaan request');
+      return handleError(this.c, error, 'Failed to reapply surat kesediaan request');
     }
   };
 }

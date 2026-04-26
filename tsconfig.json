@@ -14,7 +14,8 @@
     "isolatedModules": true,
     "paths": {
       "@/*": ["./src/*"]
-    }
+    },
+    "types": ["./worker-configuration.d.ts"]
   },
   "include": ["src/**/*", "worker-configuration.d.ts"],
   "exclude": ["node_modules", "dist", "drizzle"]
