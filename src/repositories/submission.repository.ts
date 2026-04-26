@@ -302,7 +302,7 @@ export class SubmissionRepository {
     return result[0] || null;
   }
 
-  // ✅ NEW: Find existing document by submissionId, documentType, and memberUserId
+  // ✅ NEW: Find existing document by submissionId, documentType, and memberMahasiswaId
   async findExistingDocument(
     submissionId: string,
     documentType: typeof submissionDocuments.$inferSelect.documentType,

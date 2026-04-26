@@ -75,21 +75,21 @@ export class SuratPermohonanService {
       throw error;
     }
 
-    const dosenUserId = fixedTeam.dosenKpId || null;
-    if (!dosenUserId) {
+    const dosenId = fixedTeam.dosenKpId || null;
+    if (!dosenId) {
       const error: Error = new Error('Dosen KP tim belum ditetapkan. Silakan hubungi admin.');
       error.statusCode = 422;
       throw error;
     }
 
-    const dosen = await this.dosenService.getDosenById(dosenUserId, sessionId);
+    const dosen = await this.dosenService.getDosenById(dosenId, sessionId);
     if (!dosen) {
       const error: Error = new Error('Dosen tidak ditemukan.');
       error.statusCode = 400;
       throw error;
     }
 
-    const existing = await this.suratPermohonanRepo.findExistingPending(memberMahasiswaId,dosenUserId);
+    const existing = await this.suratPermohonanRepo.findExistingPending(memberMahasiswaId,dosenId);
     if (existing) {
       const error: Error = new Error('Pengajuan surat permohonan untuk mahasiswa ini sudah dalam proses.');
       error.statusCode = 409;
@@ -102,7 +102,7 @@ export class SuratPermohonanService {
     await this.suratPermohonanRepo.create({
       id: requestId,
       memberMahasiswaId: memberMahasiswaId,
-      dosenId: dosenUserId,
+      dosenId: dosenId,
       submissionId: submission.id,
       status: 'MENUNGGU',
       mahasiswaEsignatureUrl,
@@ -115,11 +115,11 @@ export class SuratPermohonanService {
   /**
    * Dosen melihat list ajuan surat permohonan.
    */
-  async getRequestsForDosen(dosenUserId: string, role: RbacRole) {
+  async getRequestsForDosen(dosenId: string, role: RbacRole) {
     const requests =
       role === 'wakil_dekan'
         ? await this.suratPermohonanRepo.findAllWithDetails()
-        : await this.suratPermohonanRepo.findByDosenIdWithDetails(dosenUserId);
+        : await this.suratPermohonanRepo.findByDosenIdWithDetails(dosenId);
 
     return requests.map((req) => {
       const proxiedMahasiswaEsignatureUrl = this.storageService.getEsignatureAssetProxyUrlFromPublicUrl(req.mahasiswaEsignatureUrl);
@@ -202,7 +202,7 @@ export class SuratPermohonanService {
     };
   }
 
-  async rejectRequest(requestId: string, dosenUserId: string, reason: string) {
+  async rejectRequest(requestId: string, dosenId: string, reason: string) {
     const request = await this.suratPermohonanRepo.findById(requestId);
     if (!request) {
       const error: Error = new Error('Pengajuan tidak ditemukan.');
@@ -210,7 +210,7 @@ export class SuratPermohonanService {
       throw error;
     }
 
-    if (request.dosenId !== dosenUserId) {
+    if (request.dosenId !== dosenId) {
       const error: Error = new Error('Anda tidak berhak mengubah pengajuan ini.');
       error.statusCode = 403;
       throw error;
@@ -222,7 +222,7 @@ export class SuratPermohonanService {
       throw error;
     }
 
-    const updated = await this.suratPermohonanRepo.rejectPending(requestId, dosenUserId, reason.trim());
+    const updated = await this.suratPermohonanRepo.rejectPending(requestId, dosenId, reason.trim());
     if (!updated) {
       const error: Error = new Error('Pengajuan sudah diproses.');
       error.statusCode = 409;

@@ -97,8 +97,8 @@ export class ResponseLetterRepository {
   }
 
   /**
-   * Find response letter by user ID (memberUserId)
-   * Returns the most recent response letter for the user
+   * Find response letter by mahasiswa ID (memberMahasiswaId)
+   * Returns the most recent response letter for the mahasiswa
    */
   async findByMahasiswaId(mahasiswaId: string): Promise<ResponseLetter | null> {
     const [responseLetter] = await this.db

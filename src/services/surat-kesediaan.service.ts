@@ -112,14 +112,14 @@ export class SuratKesediaanService {
   /**
    * Dosen melihat list ajuan surat kesediaan
    */
-  async getRequestsForDosen(dosenUserId: string, role: RbacRole, sessionId: string) {
+  async getRequestsForDosen(dosenId: string, role: RbacRole, sessionId: string) {
     const requests =
       role === 'wakil_dekan'
         ? await this.suratKesediaanRepo.findAllWithDetails()
-        : await this.suratKesediaanRepo.findByDosenIdWithDetails(dosenUserId);
+        : await this.suratKesediaanRepo.findByDosenIdWithDetails(dosenId);
     
     // Get dosen info for response
-    const dosenProfile = await this.dosenService.getDosenById(dosenUserId, sessionId);
+    const dosenProfile = await this.dosenService.getDosenById(dosenId, sessionId);
     
     return requests.map(req => ({
       id: req.id,
@@ -144,7 +144,7 @@ export class SuratKesediaanService {
     }));
   }
 
-  async rejectRequest(requestId: string, dosenUserId: string, reason: string) {
+  async rejectRequest(requestId: string, dosenId: string, reason: string) {
     const request = await this.suratKesediaanRepo.findById(requestId);
     if (!request) {
       const error: Error = new Error('Pengajuan tidak ditemukan.');
@@ -152,7 +152,7 @@ export class SuratKesediaanService {
       throw error;
     }
 
-    if (request.dosenId !== dosenUserId) {
+    if (request.dosenId !== dosenId) {
       const error: Error = new Error('Anda tidak berhak mengubah pengajuan ini.');
       error.statusCode = 403;
       throw error;
@@ -164,7 +164,7 @@ export class SuratKesediaanService {
       throw error;
     }
 
-    const updated = await this.suratKesediaanRepo.rejectPending(requestId, dosenUserId, reason);
+    const updated = await this.suratKesediaanRepo.rejectPending(requestId, dosenId, reason);
     if (!updated) {
       const error: Error = new Error('Pengajuan sudah diproses.');
       error.statusCode = 409;
@@ -183,8 +183,8 @@ export class SuratKesediaanService {
    * Mahasiswa ajukan ulang request yang sudah ditolak.
    * Requirement: update existing row, bukan create row baru.
    */
-  async reapplyRequest(requestId: string, memberUserId: string, authUserId: string) {
-    if (memberUserId !== authUserId) {
+  async reapplyRequest(requestId: string, memberMahasiswaId: string, mahasiswaId: string) {
+    if (memberMahasiswaId !== mahasiswaId) {
       const error: Error = new Error('Anda tidak memiliki akses untuk request ini.');
       error.statusCode = 403;
       throw error;
@@ -197,7 +197,7 @@ export class SuratKesediaanService {
       throw error;
     }
 
-    if (request.memberMahasiswaId !== memberUserId) {
+    if (request.memberMahasiswaId !== memberMahasiswaId) {
       const error: Error = new Error('Anda tidak memiliki akses untuk request ini.');
       error.statusCode = 403;
       throw error;
@@ -210,7 +210,7 @@ export class SuratKesediaanService {
       throw error;
     }
 
-    const updated = await this.suratKesediaanRepo.reapplyRejected(requestId, memberUserId);
+    const updated = await this.suratKesediaanRepo.reapplyRejected(requestId, memberMahasiswaId);
     if (!updated) {
       const error: Error = new Error('Ajuan ulang hanya diperbolehkan untuk request yang ditolak.');
       error.statusCode = 409;
@@ -231,7 +231,7 @@ export class SuratKesediaanService {
     dosenId: string,
     sessionId: string
   ) {
-    console.log(`[approve] start requestId=${requestId} dosenUserId=${dosenId}`);
+    console.log(`[approve] start requestId=${requestId} dosenId=${dosenId}`);
     const dosenSigningContext = await this.getDosenSigningContext(dosenId, sessionId);
     return await this.approveAndSignRequest(requestId,dosenId,dosenSigningContext);
   }
@@ -310,7 +310,7 @@ export class SuratKesediaanService {
 
   private async approveAndSignRequest(
     requestId: string,
-    dosenUserId: string,
+    dosenId: string,
     dosenSigningContext: DosenSigningContext
   ) {
     console.log(`[approve] validating request ownership requestId=${requestId}`);
@@ -321,7 +321,7 @@ export class SuratKesediaanService {
       throw error;
     }
 
-    if (request.dosenId !== dosenUserId) {
+    if (request.dosenId !== dosenId) {
       const error: Error = new Error('Anda tidak berhak mengubah pengajuan ini.');
       error.statusCode = 403;
       throw error;
@@ -364,8 +364,8 @@ export class SuratKesediaanService {
     const approvedAt = new Date();
 
     console.log(`[approve] updating DB requestId=${requestId}`);
-    const updatedRequest = await this.suratKesediaanRepo.approveWithSignedFile(requestId, dosenUserId, {
-      approvedByDosenId: dosenUserId,
+    const updatedRequest = await this.suratKesediaanRepo.approveWithSignedFile(requestId, dosenId, {
+      approvedByDosenId: dosenId,
       approvedAt,
       signedFileUrl,
       signedFileKey,

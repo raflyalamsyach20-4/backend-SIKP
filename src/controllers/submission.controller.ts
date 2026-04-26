@@ -238,7 +238,7 @@ export class SubmissionController {
       const formData = await this.c.req.formData();
       const file = formData.get('file');
       const documentType = formData.get('documentType') as string;
-      const memberUserId = formData.get('memberUserId') as string;
+      const memberMahasiswaId = formData.get('memberMahasiswaId') as string;
       let uploadedByUserId = formData.get('uploadedByUserId') as string | null;
 
       if (!file || typeof file === 'string') {
@@ -247,11 +247,11 @@ export class SubmissionController {
 
       const validationResult = uploadDocumentSchema.safeParse({ 
         documentType,
-        memberUserId
+        memberMahasiswaId
       });
       if (!validationResult.success) {
         return this.c.json(
-          createResponse(false, 'Invalid document type or memberUserId', {
+          createResponse(false, 'Invalid document type or memberMahasiswaId', {
             errors: validationResult.error.issues,
           }),
           400
@@ -261,12 +261,12 @@ export class SubmissionController {
       const validated = validationResult.data;
       const finalUploadedByUserId = uploadedByUserId && uploadedByUserId.trim() 
         ? uploadedByUserId 
-        : validated.memberUserId;
+        : validated.memberMahasiswaId;
 
       const document = await this.submissionService.uploadDocument(
         submissionId,
         finalUploadedByUserId,
-        validated.memberUserId,
+        validated.memberMahasiswaId,
         file as File,
         validated.documentType,
         user.mahasiswaId!
