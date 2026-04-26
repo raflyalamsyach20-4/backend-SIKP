@@ -59,8 +59,8 @@ export class AdminService {
   constructor(
     private env: CloudflareBindings
   ) {
-    const db = createDbClient(env.DATABASE_URL);
-    this.letterService = new LetterService(env);
+    const db = createDbClient(this.env.DATABASE_URL);
+    this.letterService = new LetterService(this.env);
     this.submissionRepo = new SubmissionRepository(db);
     this.responseLetterRepo = new ResponseLetterRepository(db);
     this.teamRepo = new TeamRepository(db);

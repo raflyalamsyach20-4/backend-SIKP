@@ -1,4 +1,3 @@
-export { UserRepository } from './user.repository';
 export { AuthSessionRepository } from './auth-session.repository';
 export { TeamRepository } from './team.repository';
 export { SubmissionRepository } from './submission.repository';
