@@ -1,7 +1,6 @@
 import { Context } from 'hono';
 import { SuratKesediaanService } from '@/services/surat-kesediaan.service';
 import { createResponse, handleError } from '@/utils/helpers';
-import type { JWTPayload } from '@/types';
 import {
   requestSuratKesediaanSchema,
   approveBulkSchema,
@@ -22,7 +21,8 @@ export class SuratKesediaanController {
    */
   requestSuratKesediaan = async () => {
     try {
-      const user = this.c.get('user') as JWTPayload;
+      const user = this.c.get('user');
+      const sessionId = this.c.get('sessionId');
       const body = await this.c.req.json();
 
       // Validate request body
@@ -36,12 +36,13 @@ export class SuratKesediaanController {
         );
       }
 
-      const { memberUserId, dosenUserId } = validationResult.data;
+      const { memberMahasiswaId, dosenId } = validationResult.data;
 
       const result = await this.suratKesediaanService.requestSuratKesediaan(
-        memberUserId,
+        memberMahasiswaId,
         user.mahasiswaId!,
-        dosenUserId
+        dosenId!,
+        sessionId
       );
 
       return this.c.json(
@@ -60,11 +61,13 @@ export class SuratKesediaanController {
    */
   getRequests = async () => {
     try {
-      const user = this.c.get('user') as JWTPayload;
+      const user = this.c.get('user');
+      const sessionId = this.c.get('sessionId');
 
       const requests = await this.suratKesediaanService.getRequestsForDosen(
         user.dosenId || user.userId,
-        user.role
+        user.role,
+        sessionId
       );
 
       return this.c.json(
@@ -81,12 +84,14 @@ export class SuratKesediaanController {
    */
   approveSingle = async () => {
     try {
-      const user = this.c.get('user') as JWTPayload;
+      const user = this.c.get('user');
       const requestId = this.c.req.param('requestId');
+      const sessionId = this.c.get('sessionId');
 
       const result = await this.suratKesediaanService.approveSingleRequest(
         requestId,
-        user.dosenId || user.userId
+        user.dosenId || user.userId,
+        sessionId
       );
 
       return this.c.json(
@@ -108,7 +113,8 @@ export class SuratKesediaanController {
    */
   approveBulk = async () => {
     try {
-      const user = this.c.get('user') as JWTPayload;
+      const user = this.c.get('user');
+      const sessionId = this.c.get('sessionId');
       const body = await this.c.req.json();
 
       // Validate request body
@@ -125,7 +131,8 @@ export class SuratKesediaanController {
       const { requestIds } = validationResult.data;
       const result = await this.suratKesediaanService.approveBulkRequests(
         requestIds,
-        user.dosenId || user.userId
+        user.dosenId || user.userId,
+        sessionId
       );
 
       const summaryMessage = `${result.approvedCount} pengajuan berhasil disetujui`;
@@ -147,7 +154,7 @@ export class SuratKesediaanController {
    */
   reject = async () => {
     try {
-      const user = this.c.get('user') as JWTPayload;
+      const user = this.c.get('user');
       const requestId = this.c.req.param('requestId');
       const body = await this.c.req.json().catch(() => ({}));
 
@@ -181,7 +188,7 @@ export class SuratKesediaanController {
    */
   reapplyRequest = async () => {
     try {
-      const user = this.c.get('user') as JWTPayload;
+      const user = this.c.get('user');
       const requestId = this.c.req.param('requestId');
       const body = await this.c.req.json().catch(() => ({}));
 
@@ -195,8 +202,8 @@ export class SuratKesediaanController {
         );
       }
 
-      const { memberUserId } = validationResult.data;
-      const result = await this.suratKesediaanService.reapplyRequest(requestId, memberUserId, user.mahasiswaId!);
+      const { memberMahasiswaId } = validationResult.data;
+      const result = await this.suratKesediaanService.reapplyRequest(requestId, memberMahasiswaId, user.mahasiswaId!);
 
       return this.c.json(
         createResponse(true, 'Pengajuan ulang surat kesediaan berhasil.', result)

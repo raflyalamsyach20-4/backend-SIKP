@@ -49,8 +49,8 @@ export interface SsoDosenIdentity {
   id: string;
   nidn: string;
   bidangKeahlian: string | null;
-  jabatanFungsional: string | null;
-  jabatanStruktural: string[] | null;
+  jabatanFungsional: DosenJabatanFungsional | null;
+  jabatanStruktural: DosenJabatanStruktural[] | null;
   prodi: SsoProdi | null;
   fakultas: SsoFakultas | null;
 }
@@ -111,8 +111,8 @@ export interface SsoProfile {
 }
 
 export interface SsoDosenDetail {
-  jabatanFungsional: "GURU_BESAR" | "LEKTOR_KEPALA" | "LEKTOR" | "ASISTEN_AHLI" | string;
-  jabatanStruktural: ("DEKAN" | "WAKIL_DEKAN" | "KAPRODI" | string)[];
+  jabatanFungsional: DosenJabatanFungsional;
+  jabatanStruktural: DosenJabatanStruktural[];
   profile: SsoProfile;
   fakultas: SsoFakultas | null;
   prodi: SsoProdi | null;
@@ -141,5 +141,25 @@ export interface SsoMahasiswaSearchResponse {
     limit: number;
     total: number;
     totalPages: number;
+  };
+}
+
+export type DosenJabatanStruktural = "DEKAN" | "WAKIL_DEKAN" | "KAPRODI";
+
+export type DosenJabatanFungsional = "GURU_BESAR" | "LEKTOR_KEPALA" | "LEKTOR" | "ASISTEN_AHLI";
+
+export interface SsoActiveSignature {
+  signatureId: string;
+  createdAt: string;
+  isActive: boolean;
+  signatureHash: string;
+  mimeType: string;
+  svg: string;
+}
+
+export interface SsoSignatureResponse {
+  success: boolean;
+  data: {
+    activeSignature: SsoActiveSignature | null;
   };
 }

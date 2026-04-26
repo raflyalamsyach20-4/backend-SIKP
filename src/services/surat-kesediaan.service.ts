@@ -1,13 +1,15 @@
 import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
 import { SuratKesediaanRepository } from '@/repositories/surat-kesediaan.repository';
 import { TeamRepository } from '@/repositories/team.repository';
-import { UserRepository } from '@/repositories/user.repository';
 import { StorageService } from '@/services/storage.service';
 import { generateId } from '@/utils/helpers';
 import type { RbacRole } from '@/types';
 import { createDbClient } from '@/db';
+import { MahasiswaService } from './mahasiswa.service';
+import { DosenService } from './dosen.service';
+import { SsoSignatureProxyService } from './sso-signature-proxy.service';
 
-const ALLOWED_SIGNATURE_MIME_TYPES = ['image/png', 'image/jpeg', 'image/jpg'];
+const ALLOWED_SIGNATURE_MIME_TYPES = ['image/png', 'image/jpeg', 'image/jpg', 'image/svg+xml'];
 
 type BulkApproveFailure = {
   requestId: string;
@@ -25,40 +27,44 @@ type DosenSigningContext = {
 export class SuratKesediaanService {
   private suratKesediaanRepo: SuratKesediaanRepository;
   private teamRepo: TeamRepository;
-  private userRepo: UserRepository;
   private storageService: StorageService;
+  private mahasiswaService: MahasiswaService;
+  private dosenService: DosenService;
+  private ssoSignatureProxyService: SsoSignatureProxyService;
 
   constructor(
     private env: CloudflareBindings
   ) {
-    const db = createDbClient(env.DATABASE_URL);
+    const db = createDbClient(this.env.DATABASE_URL);
     this.suratKesediaanRepo = new SuratKesediaanRepository(db);
     this.teamRepo = new TeamRepository(db);
-    this.userRepo = new UserRepository(db);
-    this.storageService = new StorageService(env);
+    this.storageService = new StorageService(this.env);
+    this.mahasiswaService = new MahasiswaService(this.env);
+    this.dosenService = new DosenService(this.env);
+    this.ssoSignatureProxyService = new SsoSignatureProxyService(this.env);
   }
 
   /**
    * Mahasiswa mengajukan surat kesediaan ke dosen
    */
   async requestSuratKesediaan(
-    memberUserId: string,
-    authUserId: string,
-    _dosenUserId?: string
+    memberMahasiswaId: string,
+    mahasiswaId: string,
+    dosenId:string,
+    sessionId: string
   ) {
     // 1. Validate target member exists
-    const memberUser = await this.userRepo.findById(memberUserId);
-    if (!memberUser || memberUser.role !== 'MAHASISWA') {
+    const memberMahasiswa = await this.mahasiswaService.getMahasiswaById(memberMahasiswaId, sessionId);
+    if (!memberMahasiswa) {
       const error: Error = new Error('Pengguna tidak ditemukan.');
       error.statusCode = 404;
       throw error;
     }
 
     // 2. Resolve team context for self/teammate request
-    const requestTeam = await this.resolveTeamForRequest(memberUserId, authUserId);
+    const requestTeam = await this.resolveTeamForRequest(memberMahasiswa.id, mahasiswaId);
 
     // 3. Target dosen must follow team-level dosen_kp_id
-    const dosenId = _dosenUserId
     if (!dosenId) {
       const error: Error = new Error('Dosen KP tim belum ditetapkan. Silakan hubungi admin.');
       error.statusCode = 422;
@@ -66,16 +72,15 @@ export class SuratKesediaanService {
     }
 
     // 4. Validate dosen exists and active
-    const dosenUser = await this.userRepo.findById(dosenId);
-    if (!dosenUser || dosenUser.role !== 'DOSEN' || !dosenUser.isActive) {
+    const dosenUser = await this.dosenService.getDosenById(dosenId, sessionId);
+    if (!dosenUser) {
       const error: Error = new Error('Dosen tidak valid.');
       error.statusCode = 400;
       throw error;
     }
 
     // Guard: wakil dekan tidak menangani surat kesediaan
-    const dosenProfile = await this.userRepo.findDosenByUserId(dosenId);
-    if (String(dosenProfile?.jabatan || '').toLowerCase().includes('wakil dekan')) {
+    if (dosenUser.jabatanStruktural.includes('WAKIL_DEKAN')) {
       const error: Error = new Error('Dosen ini tidak dapat menerima surat kesediaan.');
       error.statusCode = 400;
       throw error;
@@ -83,7 +88,7 @@ export class SuratKesediaanService {
 
     // 5. Prevent duplicate pending request for member+dosen
     const existing = await this.suratKesediaanRepo.findExistingPending(
-      memberUserId,
+      memberMahasiswaId,
       dosenId
     );
     if (existing) {
@@ -96,7 +101,7 @@ export class SuratKesediaanService {
     const requestId = generateId();
     const result = await this.suratKesediaanRepo.create({
       id: requestId,
-      memberMahasiswaId: memberUserId,
+      memberMahasiswaId: memberMahasiswaId,
       dosenId: dosenId,
       status: 'MENUNGGU',
     });
@@ -107,14 +112,14 @@ export class SuratKesediaanService {
   /**
    * Dosen melihat list ajuan surat kesediaan
    */
-  async getRequestsForDosen(dosenUserId: string, role: RbacRole) {
+  async getRequestsForDosen(dosenUserId: string, role: RbacRole, sessionId: string) {
     const requests =
       role === 'wakil_dekan'
         ? await this.suratKesediaanRepo.findAllWithDetails()
         : await this.suratKesediaanRepo.findByDosenIdWithDetails(dosenUserId);
     
     // Get dosen info for response
-    const dosenUser = await this.userRepo.findById(dosenUserId);
+    const dosenProfile = await this.dosenService.getDosenById(dosenUserId, sessionId);
     
     return requests.map(req => ({
       id: req.id,
@@ -128,9 +133,9 @@ export class SuratKesediaanService {
       noHp: req.noHp,
       jenisSurat: req.jenisSurat,
       status: req.status,
-      dosenNama: dosenUser?.nama || 'Unknown',
-      dosenNip: req.dosenNip,
-      dosenJabatan: req.dosenJabatan,
+      dosenNama: dosenProfile?.profile?.fullName || 'Unknown',
+      dosenNip: dosenProfile?.nidn || null,
+      dosenJabatan: dosenProfile?.jabatanStruktural?.join(', ') || dosenProfile?.jabatanFungsional || 'Unknown',
       dosenEsignatureUrl: req.dosenEsignatureUrl,
       rejectedAt: req.status === 'DITOLAK' ? req.approvedAt : null,
       rejectionReason: req.status === 'DITOLAK' ? (req.rejectionReason ?? null) : null,
@@ -223,11 +228,12 @@ export class SuratKesediaanService {
    */
   async approveSingleRequest(
     requestId: string,
-    dosenUserId: string
+    dosenId: string,
+    sessionId: string
   ) {
-    console.log(`[approve] start requestId=${requestId} dosenUserId=${dosenUserId}`);
-    const dosenSigningContext = await this.getDosenSigningContext(dosenUserId);
-    return await this.approveAndSignRequest(requestId, dosenUserId, dosenSigningContext);
+    console.log(`[approve] start requestId=${requestId} dosenUserId=${dosenId}`);
+    const dosenSigningContext = await this.getDosenSigningContext(dosenId, sessionId);
+    return await this.approveAndSignRequest(requestId,dosenId,dosenSigningContext);
   }
 
   /**
@@ -235,14 +241,15 @@ export class SuratKesediaanService {
    */
   async approveBulkRequests(
     requestIds: string[],
-    dosenUserId: string
+    dosenId: string,
+    sessionId: string
   ) {
     const failed: BulkApproveFailure[] = [];
     let approvedCount = 0;
 
     let dosenSigningContext: DosenSigningContext;
     try {
-      dosenSigningContext = await this.getDosenSigningContext(dosenUserId);
+      dosenSigningContext = await this.getDosenSigningContext(dosenId, sessionId);
     } catch (error) {
       const err = error as Error;
       const reason = err.message || 'Gagal memuat e-signature dosen.';
@@ -254,7 +261,7 @@ export class SuratKesediaanService {
 
     for (const requestId of requestIds) {
       try {
-        await this.approveAndSignRequest(requestId, dosenUserId, dosenSigningContext);
+        await this.approveAndSignRequest(requestId, dosenId, dosenSigningContext);
         approvedCount += 1;
       } catch (error) {
         const err = error as Error;
@@ -271,19 +278,19 @@ export class SuratKesediaanService {
     };
   }
 
-  private async resolveTeamForRequest(memberUserId: string, authUserId: string) {
-    const memberTeams = await this.teamRepo.findTeamsByMahasiswaId(memberUserId);
+  private async resolveTeamForRequest(memberMahasiswaId: string, mahasiswaId: string) {
+    const memberTeams = await this.teamRepo.findTeamsByMahasiswaId(memberMahasiswaId);
     if (!memberTeams.length) {
       const error: Error = new Error('Mahasiswa belum tergabung dalam tim.');
       error.statusCode = 422;
       throw error;
     }
 
-    if (memberUserId === authUserId) {
+    if (memberMahasiswaId === mahasiswaId) {
       return this.pickPreferredTeam(memberTeams);
     }
 
-    const authTeams = await this.teamRepo.findTeamsByMahasiswaId(authUserId);
+    const authTeams = await this.teamRepo.findTeamsByMahasiswaId(mahasiswaId);
     const authTeamIds = new Set(authTeams.map((team) => team.id));
     const sharedTeams = memberTeams.filter((team) => authTeamIds.has(team.id));
 
@@ -399,71 +406,67 @@ export class SuratKesediaanService {
     };
   }
 
-  private async getDosenSigningContext(dosenUserId: string): Promise<DosenSigningContext> {
-    const dosenProfile = await this.userRepo.getDosenMe(dosenUserId);
+  private async getDosenSigningContext(dosenId: string, sessionId: string): Promise<DosenSigningContext> {
+    const [dosenProfile, activeSignature] = await Promise.all([
+      this.dosenService.getDosenById(dosenId, sessionId),
+      this.ssoSignatureProxyService.getActiveSignature(sessionId),
+    ]);
+
     if (!dosenProfile) {
       const error: Error = new Error('Profil dosen tidak ditemukan.');
       error.statusCode = 404;
       throw error;
     }
 
-    if (!dosenProfile.esignatureUrl) {
-      const error: Error = new Error('E-signature dosen belum tersedia. Silakan lengkapi di halaman profil.');
+    if (!activeSignature) {
+      const error: Error = new Error('E-signature dosen belum tersedia. Silakan lengkapi di halaman profil SSO.');
       error.statusCode = 422;
       throw error;
     }
 
-    console.log(`[approve] e-signature loaded dosenUserId=${dosenUserId} url=${dosenProfile.esignatureUrl}`);
+    console.log(`[SuratKesediaanService.getDosenSigningContext] Active signature found: ${activeSignature.signatureId} (${activeSignature.mimeType})`);
 
-    const { imageBuffer, mimeType } = await this.downloadAndValidateSignatureImage(dosenProfile.esignatureUrl);
-
-    return {
-      dosenNama: dosenProfile.nama || '-',
-      dosenNip: dosenProfile.nip || null,
-      dosenJabatan: dosenProfile.jabatan || null,
-      signatureImageBuffer: imageBuffer,
-      signatureMimeType: mimeType,
-    };
-  }
-
-  private async downloadAndValidateSignatureImage(esignatureUrl: string) {
-    console.log(`[approve] fetching e-signature image url=${esignatureUrl}`);
-    let response: Response;
-    try {
-      response = await fetch(esignatureUrl);
-    } catch {
-      const error: Error = new Error('Gagal mengakses file e-signature dosen.');
+    // Validate MIME Type
+    if (!ALLOWED_SIGNATURE_MIME_TYPES.includes(activeSignature.mimeType)) {
+      const error: Error = new Error(`Format file e-signature dosen tidak didukung (${activeSignature.mimeType}). Gunakan PNG/JPG/JPEG.`);
       error.statusCode = 422;
       throw error;
     }
 
-    if (!response.ok) {
-      const error: Error = new Error('File e-signature dosen tidak dapat diakses.');
-      error.statusCode = 422;
-      throw error;
+    // Handle SVG or other image types
+    let imageBuffer: Buffer;
+    if (activeSignature.mimeType === 'image/svg+xml') {
+      // NOTE: pdf-lib doesn't support SVG directly. 
+      // If SSO returns SVG, we might need a converter.
+      // However, for now we treat it as a buffer if it's passed as such, 
+      // or we might need to ask the user if they want to support SVG.
+      // Assuming the 'svg' field contains the actual content.
+      imageBuffer = Buffer.from(activeSignature.svg);
+    } else {
+      // If it's PNG/JPG, 'svg' might be base64 encoded or raw content?
+      // Based on the user's structure, we'll assume it's the data.
+      // If it's base64 (common for JSON responses), we should decode it.
+      const isBase64 = activeSignature.svg.startsWith('data:') || /^[A-Za-z0-9+/=]+$/.test(activeSignature.svg.substring(0, 100));
+      imageBuffer = isBase64 
+        ? Buffer.from(activeSignature.svg.replace(/^data:image\/\w+;base64,/, ''), 'base64')
+        : Buffer.from(activeSignature.svg);
     }
 
-    const mimeType = (response.headers.get('content-type') || '').split(';')[0].trim().toLowerCase();
-    if (!ALLOWED_SIGNATURE_MIME_TYPES.includes(mimeType)) {
-      const error: Error = new Error('Format file e-signature dosen tidak valid. Gunakan PNG/JPG/JPEG.');
-      error.statusCode = 422;
-      throw error;
-    }
-
-    const imageArrayBuffer = await response.arrayBuffer();
-    if (imageArrayBuffer.byteLength === 0) {
+    if (imageBuffer.length === 0) {
       const error: Error = new Error('File e-signature dosen kosong atau rusak.');
       error.statusCode = 422;
       throw error;
     }
 
-    console.log(`[approve] e-signature validated mimeType=${mimeType} size=${imageArrayBuffer.byteLength}`);
-
     return {
-      imageBuffer: Buffer.from(imageArrayBuffer),
-      mimeType,
+      dosenNama: dosenProfile.profile?.fullName || '-',
+      dosenNip: dosenProfile.nidn || null,
+      dosenJabatan: dosenProfile.jabatanStruktural?.join(', ') || dosenProfile.jabatanFungsional || null,
+      signatureImageBuffer: imageBuffer,
+      signatureMimeType: activeSignature.mimeType,
     };
   }
+
 
   private async generateSignedPdf(
     requestDetails: Awaited<ReturnType<SuratKesediaanRepository['findByIdWithDetails']>>,
