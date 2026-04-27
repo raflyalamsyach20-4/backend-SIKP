@@ -81,6 +81,8 @@ export class SuratPermohonanRepository {
     return await this.db
       .select({
         id: suratPermohonanRequests.id,
+        memberMahasiswaId: suratPermohonanRequests.memberMahasiswaId,
+        dosenId: suratPermohonanRequests.dosenId,
         tanggal: suratPermohonanRequests.requestedAt,
         nim: sql<string | null>`null`,
         namaMahasiswa: suratPermohonanRequests.memberMahasiswaId,
@@ -120,6 +122,8 @@ export class SuratPermohonanRepository {
     return await this.db
       .select({
         id: suratPermohonanRequests.id,
+        memberMahasiswaId: suratPermohonanRequests.memberMahasiswaId,
+        dosenId: suratPermohonanRequests.dosenId,
         tanggal: suratPermohonanRequests.requestedAt,
         nim: sql<string | null>`null`,
         namaMahasiswa: suratPermohonanRequests.memberMahasiswaId,

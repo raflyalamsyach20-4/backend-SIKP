@@ -121,27 +121,65 @@ export class SuratKesediaanService {
     // Get dosen info for response
     const dosenProfile = await this.dosenService.getDosenById(dosenId, sessionId);
     
-    return requests.map(req => ({
-      id: req.id,
-      tanggal: this.formatDateOnly(req.tanggal),
-      nim: req.nim,
-      namaMahasiswa: req.namaMahasiswa,
-      programStudi: req.programStudi,
-      angkatan: req.angkatan,
-      semester: req.semester,
-      email: req.email,
-      noHp: req.noHp,
-      jenisSurat: req.jenisSurat,
-      status: req.status,
-      dosenNama: dosenProfile?.profile?.fullName || 'Unknown',
-      dosenNip: dosenProfile?.nidn || null,
-      dosenJabatan: dosenProfile?.jabatanStruktural?.join(', ') || dosenProfile?.jabatanFungsional || 'Unknown',
-      dosenEsignatureUrl: req.dosenEsignatureUrl,
-      rejectedAt: req.status === 'DITOLAK' ? req.approvedAt : null,
-      rejectionReason: req.status === 'DITOLAK' ? (req.rejectionReason ?? null) : null,
-      approvedAt: req.approvedAt,
-      signedFileUrl: req.signedFileUrl,
-    }));
+    // Enrich requests with student and team data
+    const enrichedRequests = await Promise.all(
+      requests.map(async (req) => {
+        const mahasiswa = await this.mahasiswaService.getMahasiswaById(req.namaMahasiswa, sessionId);
+        const team = await this.teamRepo.findTeamsByMahasiswaId(req.namaMahasiswa);
+        const preferredTeam = team && team.length > 0 ? team[0] : null;
+        
+        let teamMembers = undefined;
+        if (preferredTeam) {
+          const members = await this.teamRepo.findMembersByTeamId(preferredTeam.id);
+          if (members.length > 0) {
+            const enrichedMembers = await Promise.all(
+              members.map(async (member) => {
+                const memberData = await this.mahasiswaService.getMahasiswaById(member.mahasiswaId, sessionId);
+                return {
+                  id: member.id,
+                  name: memberData?.profile?.fullName || member.mahasiswaId,
+                  nim: memberData?.nim || null,
+                  prodi: memberData?.prodi?.nama || null,
+                  role: member.role === 'KETUA' ? 'Ketua' : 'Anggota',
+                };
+              })
+            );
+            teamMembers = enrichedMembers;
+          }
+        }
+
+        const supervisorName = preferredTeam?.dosenKpId
+          ? (await this.dosenService.getDosenById(preferredTeam.dosenKpId, sessionId))?.profile?.fullName
+          : undefined;
+
+        return {
+          id: req.id,
+          memberMahasiswaId: req.namaMahasiswa,
+          tanggal: this.formatDateOnly(req.tanggal),
+          nim: mahasiswa?.nim || null,
+          namaMahasiswa: mahasiswa?.profile?.fullName || 'Unknown',
+          programStudi: mahasiswa?.prodi?.nama || null,
+          angkatan: mahasiswa?.angkatan || null,
+          semester: mahasiswa?.semesterAktif || null,
+          email: mahasiswa?.profile?.emails?.[0]?.email || null,
+          noHp: null,
+          jenisSurat: req.jenisSurat,
+          status: req.status,
+          supervisor: supervisorName,
+          teamMembers,
+          dosenNama: dosenProfile?.profile?.fullName || 'Unknown',
+          dosenNip: dosenProfile?.nidn || null,
+          dosenJabatan: dosenProfile?.jabatanStruktural?.join(', ') || dosenProfile?.jabatanFungsional || 'Unknown',
+          dosenEsignatureUrl: req.dosenEsignatureUrl,
+          rejectedAt: req.status === 'DITOLAK' ? req.approvedAt : null,
+          rejectionReason: req.status === 'DITOLAK' ? (req.rejectionReason ?? null) : null,
+          approvedAt: req.approvedAt,
+          signedFileUrl: req.signedFileUrl,
+        };
+      })
+    );
+    
+    return enrichedRequests;
   }
 
   async rejectRequest(requestId: string, dosenId: string, reason: string) {

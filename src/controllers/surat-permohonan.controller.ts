@@ -61,9 +61,11 @@ export class SuratPermohonanController {
   getRequests = async () => {
     try {
       const user = this.c.get('user');
+      const sessionId = this.c.get('sessionId');
       const requests = await this.suratPermohonanService.getRequestsForDosen(
         user.dosenId || user.userId,
-        user.role
+        user.role,
+        sessionId
       );
 
       return this.c.json(createResponse(true, 'OK', requests));
