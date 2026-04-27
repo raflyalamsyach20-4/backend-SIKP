@@ -1,102 +1,94 @@
-import { Hono, Context } from 'hono';
-import { cors } from 'hono/cors';
-import { logger } from 'hono/logger';
+import { Hono, Context } from 'hono'
+import { cors } from 'hono/cors'
+import { logger } from 'hono/logger'
 
 // Configuration
-import { errorHandler } from '@/errors';
+import { errorHandler } from '@/errors'
 
 // Routes
-import { createMahasiswaProfileRoutes } from '@/routes/mahasiswa.route';
-import { createAuthRoutes } from '@/routes/auth.route';
-import { createTeamRoutes } from '@/routes/team.route';
-import { createSubmissionRoutes } from '@/routes/submission.route';
-import { createTemplateRoutes } from '@/routes/template.route';
-import { createUtilRoutes } from '@/routes/utils.route';
-import { createResponseLetterRoutes } from '@/routes/response-letter.routes';
-import { createSuratKesediaanFallbackRoutes } from '@/routes/surat-kesediaan.route';
-import { createSuratPermohonanFallbackRoutes } from '@/routes/surat-permohonan.route';
-import { createAssetRoutes } from '@/routes/assets.route';
-import { createSsoSignatureRoutes } from '@/routes/sso-signature.route';
+import { createMahasiswaProfileRoutes } from '@/routes/mahasiswa.route'
+import { createAuthRoutes } from '@/routes/auth.route'
+import { createTeamRoutes } from '@/routes/team.route'
+import { createSubmissionRoutes } from '@/routes/submission.route'
+import { createTemplateRoutes } from '@/routes/template.route'
+import { createUtilRoutes } from '@/routes/utils.route'
+import { createResponseLetterRoutes } from '@/routes/response-letter.routes'
+import { createSuratKesediaanFallbackRoutes } from '@/routes/surat-kesediaan.route'
+import { createSuratPermohonanFallbackRoutes } from '@/routes/surat-permohonan.route'
+import { createAssetRoutes } from '@/routes/assets.route'
+import { createSsoSignatureRoutes } from '@/routes/sso-signature.route'
+import { createDosenRoutes } from './routes/dosen.route'
+import { createAdminRoutes } from './routes/admin.route'
 
 /**
  * Main Application
  */
-const app = new Hono<{ Bindings: CloudflareBindings }>();
+const app = new Hono<{ Bindings: CloudflareBindings }>()
 
 /**
  * Global Middlewares
  */
-app.use('*', logger());
-app.use('*', cors({
+.use('*', logger())
+.use('*', cors({
   origin: (origin) => origin || '*',
   allowMethods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowHeaders: ['Content-Type', 'Authorization'],
   credentials: true,
-}));
+}))
 
 /**
  * Health Check Endpoints
  */
-app.get('/', (c) => {
+.get('/', (c) => {
   return c.json({
     success: true,
     message: 'Backend SIKP API is running',
     version: '1.0.0',
     timestamp: new Date().toISOString(),
-  });
-});
+  })
+})
 
-app.get('/health', (c) => {
+.get('/health', (c) => {
   return c.json({
     status: 'healthy',
     timestamp: new Date().toISOString(),
-  });
-});
+  })
+})
 
 /**
  * API Routes
  */
-app.route('/api/auth', createAuthRoutes());
-app.route('/api/teams', createTeamRoutes());
-app.route('/api/submissions', createSubmissionRoutes());
-app.route('/api/templates', createTemplateRoutes());
-app.route('/api/utils', createUtilRoutes());
-app.route('/api/response-letters', createResponseLetterRoutes());
-app.route('/api/surat-kesediaan', createSuratKesediaanFallbackRoutes());
-app.route('/api/surat-permohonan', createSuratPermohonanFallbackRoutes());
-app.route('/api/assets', createAssetRoutes());
-app.route('/api/profile', createSsoSignatureRoutes());
-
-const legacyIdentityRouteGone = (c: Context) => {
-  return c.json({
-    success: false,
-    message: 'This legacy identity route has been removed in SSO big-bang cutover.',
-  }, 410);
-};
-
-app.route('/api/mahasiswa', createMahasiswaProfileRoutes());
-app.all('/api/dosen', legacyIdentityRouteGone);
-app.all('/api/dosen/*', legacyIdentityRouteGone);
-app.all('/api/admin', legacyIdentityRouteGone);
-app.all('/api/admin/*', legacyIdentityRouteGone);
+.route('/api/auth', createAuthRoutes())
+.route('/api/teams', createTeamRoutes())
+.route('/api/submissions', createSubmissionRoutes())
+.route('/api/templates', createTemplateRoutes())
+.route('/api/utils', createUtilRoutes())
+.route('/api/response-letters', createResponseLetterRoutes())
+.route('/api/surat-kesediaan', createSuratKesediaanFallbackRoutes())
+.route('/api/surat-permohonan', createSuratPermohonanFallbackRoutes())
+.route('/api/assets', createAssetRoutes())
+.route('/api/profile', createSsoSignatureRoutes())
+.route('/api/mahasiswa', createMahasiswaProfileRoutes())
+.route('/api/dosen', createDosenRoutes())
+.route('/api/admin', createAdminRoutes())
 
 /**
  * 404 Not Found Handler
  */
-app.notFound((c) => {
+.notFound((c) => {
   return c.json({
     success: false,
     message: 'Route not found',
     path: c.req.path,
-  }, 404);
-});
+  }, 404)
+})
 
 /**
  * Global Error Handler
  */
-app.onError((err, c) => {
-  return errorHandler(err, c);
-});
+.onError((err, c) => {
+  return errorHandler(err, c)
+})
 
-export default app;
+export default app
 
