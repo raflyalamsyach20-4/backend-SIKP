@@ -17,6 +17,8 @@ import { createSuratKesediaanFallbackRoutes } from '@/routes/surat-kesediaan.rou
 import { createSuratPermohonanFallbackRoutes } from '@/routes/surat-permohonan.route';
 import { createAssetRoutes } from '@/routes/assets.route';
 import { createSsoSignatureRoutes } from '@/routes/sso-signature.route';
+import { createDosenRoutes } from './routes/dosen.route';
+import { createAdminRoutes } from './routes/admin.route';
 
 /**
  * Main Application
@@ -75,10 +77,8 @@ const legacyIdentityRouteGone = (c: Context) => {
 };
 
 app.route('/api/mahasiswa', createMahasiswaProfileRoutes());
-app.all('/api/dosen', legacyIdentityRouteGone);
-app.all('/api/dosen/*', legacyIdentityRouteGone);
-app.all('/api/admin', legacyIdentityRouteGone);
-app.all('/api/admin/*', legacyIdentityRouteGone);
+app.route('/api/dosen', createDosenRoutes());
+app.route('/api/admin', createAdminRoutes());
 
 /**
  * 404 Not Found Handler
