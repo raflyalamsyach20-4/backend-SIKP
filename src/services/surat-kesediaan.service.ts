@@ -50,7 +50,6 @@ export class SuratKesediaanService {
   async requestSuratKesediaan(
     memberMahasiswaId: string,
     mahasiswaId: string,
-    dosenId:string,
     sessionId: string
   ) {
     // 1. Validate target member exists
@@ -65,6 +64,7 @@ export class SuratKesediaanService {
     const requestTeam = await this.resolveTeamForRequest(memberMahasiswa.id, mahasiswaId);
 
     // 3. Target dosen must follow team-level dosen_kp_id
+    const dosenId = requestTeam.dosenKpId;
     if (!dosenId) {
       const error: Error = new Error('Dosen KP tim belum ditetapkan. Silakan hubungi admin.');
       error.statusCode = 422;

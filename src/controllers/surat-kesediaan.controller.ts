@@ -36,12 +36,11 @@ export class SuratKesediaanController {
         );
       }
 
-      const { memberMahasiswaId, dosenId } = validationResult.data;
+      const { memberMahasiswaId } = validationResult.data;
 
       const result = await this.suratKesediaanService.requestSuratKesediaan(
         memberMahasiswaId,
         user.mahasiswaId!,
-        dosenId!,
         sessionId
       );
 

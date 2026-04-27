@@ -2,7 +2,6 @@ import { z } from 'zod';
 
 export const requestSuratKesediaanSchema = z.object({
   memberMahasiswaId: z.string().min(1),
-  dosenId: z.string().optional(),
 });
 
 export const approveBulkSchema = z.object({
