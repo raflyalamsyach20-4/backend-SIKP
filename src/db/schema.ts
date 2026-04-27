@@ -216,6 +216,8 @@ export const suratPermohonanRequests = pgTable('surat_permohonan_requests', {
   dosenId: text('dosen_id').notNull(),
   submissionId: text('submission_id').notNull().references(() => submissions.id),
   status: suratPermohonanStatusEnum('status').notNull().default('MENUNGGU'),
+  mahasiswaEsignatureUrl: text('mahasiswa_esignature_url'),
+  mahasiswaEsignatureSnapshotAt: timestamp('mahasiswa_esignature_snapshot_at'),
   signedFileUrl: text('signed_file_url'),
   signedFileKey: text('signed_file_key'),
   requestedAt: timestamp('requested_at').defaultNow().notNull(),

@@ -43,6 +43,13 @@
       "when": 1777136519200,
       "tag": "0005_rename_userId_to_identity_specific_ids",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1777308912419,
+      "tag": "0006_steep_prodigy",
+      "breakpoints": true
     }
   ]
 }

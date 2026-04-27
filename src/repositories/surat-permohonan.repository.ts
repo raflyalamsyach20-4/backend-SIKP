@@ -7,10 +7,7 @@ type SuratPermohonanCreateInput = typeof suratPermohonanRequests.$inferInsert & 
   mahasiswaEsignatureSnapshotAt?: Date | null;
 };
 
-type SuratPermohonanUpdateInput = Partial<typeof suratPermohonanRequests.$inferInsert> & {
-  mahasiswaEsignatureUrl?: string | null;
-  mahasiswaEsignatureSnapshotAt?: Date | null;
-};
+type SuratPermohonanUpdateInput = Partial<typeof suratPermohonanRequests.$inferInsert>;
 
 export class SuratPermohonanRepository {
   constructor(private db: DbClient) {}
@@ -24,6 +21,8 @@ export class SuratPermohonanRepository {
       status: suratPermohonanRequests.status,
       signedFileUrl: suratPermohonanRequests.signedFileUrl,
       signedFileKey: suratPermohonanRequests.signedFileKey,
+      mahasiswaEsignatureUrl: suratPermohonanRequests.mahasiswaEsignatureUrl,
+      mahasiswaEsignatureSnapshotAt: suratPermohonanRequests.mahasiswaEsignatureSnapshotAt,
       requestedAt: suratPermohonanRequests.requestedAt,
       approvedAt: suratPermohonanRequests.approvedAt,
       approvedByDosenId: suratPermohonanRequests.approvedByDosenId,
@@ -47,8 +46,6 @@ export class SuratPermohonanRepository {
     const result = await this.db
       .select({
         ...this.getBaseSelection(),
-        mahasiswaEsignatureUrl: sql<string | null>`null`,
-        mahasiswaEsignatureSnapshotAt: sql<Date | null>`null`,
         mahasiswaNama: suratPermohonanRequests.memberMahasiswaId,
         mahasiswaNim: sql<string | null>`null`,
         mahasiswaProdi: sql<string | null>`null`,
@@ -94,8 +91,8 @@ export class SuratPermohonanRepository {
         noHp: sql<string | null>`null`,
         jenisSurat: sql<string>`'Surat Permohonan'`,
         status: suratPermohonanRequests.status,
-        mahasiswaEsignatureUrl: sql<string | null>`null`,
-        mahasiswaEsignatureSnapshotAt: sql<Date | null>`null`,
+        mahasiswaEsignatureUrl: suratPermohonanRequests.mahasiswaEsignatureUrl,
+        mahasiswaEsignatureSnapshotAt: suratPermohonanRequests.mahasiswaEsignatureSnapshotAt,
         signedFileUrl: suratPermohonanRequests.signedFileUrl,
         approvedAt: suratPermohonanRequests.approvedAt,
         rejectedAt: suratPermohonanRequests.approvedAt,
@@ -135,8 +132,8 @@ export class SuratPermohonanRepository {
         noHp: sql<string | null>`null`,
         jenisSurat: sql<string>`'Surat Permohonan'`,
         status: suratPermohonanRequests.status,
-        mahasiswaEsignatureUrl: sql<string | null>`null`,
-        mahasiswaEsignatureSnapshotAt: sql<Date | null>`null`,
+        mahasiswaEsignatureUrl: suratPermohonanRequests.mahasiswaEsignatureUrl,
+        mahasiswaEsignatureSnapshotAt: suratPermohonanRequests.mahasiswaEsignatureSnapshotAt,
         signedFileUrl: suratPermohonanRequests.signedFileUrl,
         approvedAt: suratPermohonanRequests.approvedAt,
         rejectedAt: suratPermohonanRequests.approvedAt,
@@ -175,26 +172,14 @@ export class SuratPermohonanRepository {
   }
 
   async create(data: SuratPermohonanCreateInput) {
-    const {
-      mahasiswaEsignatureUrl: _legacyEsign,
-      mahasiswaEsignatureSnapshotAt: _legacySnapshot,
-      ...insertData
-    } = data;
-
-    const result = await this.db.insert(suratPermohonanRequests).values(insertData).returning();
+    const result = await this.db.insert(suratPermohonanRequests).values(data).returning();
     return result[0];
   }
 
   async update(id: string, data: SuratPermohonanUpdateInput) {
-    const {
-      mahasiswaEsignatureUrl: _legacyEsign,
-      mahasiswaEsignatureSnapshotAt: _legacySnapshot,
-      ...updateData
-    } = data;
-
     const result = await this.db
       .update(suratPermohonanRequests)
-      .set({ ...updateData, updatedAt: new Date() })
+      .set({ ...data, updatedAt: new Date() })
       .where(eq(suratPermohonanRequests.id, id))
       .returning();
 
@@ -264,11 +249,10 @@ export class SuratPermohonanRepository {
       mahasiswaEsignatureSnapshotAt?: Date | null;
     }
   ) {
-    const _legacyData = data;
-
     const result = await this.db
       .update(suratPermohonanRequests)
       .set({
+        ...data,
         status: 'MENUNGGU',
         rejectionReason: null,
         approvedByDosenId: null,

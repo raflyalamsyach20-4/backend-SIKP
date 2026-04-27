@@ -116,17 +116,49 @@ export class SuratPermohonanService {
    * Dosen melihat list ajuan surat permohonan.
    */
   async getRequestsForDosen(dosenId: string, role: RbacRole, sessionId: string) {
+    console.info('[SuratPermohonanService.getRequestsForDosen] start', {
+      dosenId,
+      role,
+      sessionId,
+    });
+
     const requests =
       role === 'wakil_dekan'
         ? await this.suratPermohonanRepo.findAllWithDetails()
         : await this.suratPermohonanRepo.findByDosenIdWithDetails(dosenId);
 
+    console.info('[SuratPermohonanService.getRequestsForDosen] fetched-requests', {
+      count: requests.length,
+      ids: requests.map((req) => req.id),
+    });
+
     // Enrich requests with student and dosen data
     const enrichedRequests = await Promise.all(
       requests.map(async (req) => {
         const mahasiswaId = req.memberMahasiswaId || req.namaMahasiswa;
+        console.info('[SuratPermohonanService.getRequestsForDosen] resolve-identities', {
+          requestId: req.id,
+          mahasiswaId,
+          dosenId: req.dosenId,
+          status: req.status,
+        });
+
         const mahasiswa = await this.mahasiswaService.getMahasiswaById(mahasiswaId, sessionId);
         const dosen = await this.dosenService.getDosenById(req.dosenId, sessionId);
+
+        if (!mahasiswa) {
+          console.warn('[SuratPermohonanService.getRequestsForDosen] mahasiswa-not-found', {
+            requestId: req.id,
+            mahasiswaId,
+          });
+        }
+
+        if (!dosen) {
+          console.warn('[SuratPermohonanService.getRequestsForDosen] dosen-not-found', {
+            requestId: req.id,
+            dosenId: req.dosenId,
+          });
+        }
         
         const team = await this.teamRepo.findTeamsByMahasiswaId(mahasiswaId);
         const preferredTeam = team && team.length > 0 ? team[0] : null;
@@ -149,6 +181,11 @@ export class SuratPermohonanService {
             );
             teamMembers = enrichedMembers;
           }
+        } else {
+          console.warn('[SuratPermohonanService.getRequestsForDosen] team-not-found', {
+            requestId: req.id,
+            mahasiswaId,
+          });
         }
 
         const supervisorName = preferredTeam?.dosenKpId
@@ -195,6 +232,11 @@ export class SuratPermohonanService {
         };
       })
     );
+
+    console.info('[SuratPermohonanService.getRequestsForDosen] done', {
+      count: enrichedRequests.length,
+      unknownMahasiswaCount: enrichedRequests.filter((item) => item.namaMahasiswa === 'Unknown').length,
+    });
     
     return enrichedRequests;
   }
