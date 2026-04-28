@@ -90,7 +90,6 @@ export class SuratKesediaanRepository {
         angkatan: sql<number | null>`null`,
         semester: sql<number | null>`null`,
         email: sql<string | null>`null`,
-        noHp: sql<string | null>`null`,
         jenisSurat: sql<string>`'Surat Kesediaan'`,
         status: suratKesediaanRequests.status,
         approvedAt: suratKesediaanRequests.approvedAt,

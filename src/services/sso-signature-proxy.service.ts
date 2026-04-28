@@ -27,9 +27,14 @@ export class SsoSignatureProxyService {
    */
   async getActiveSignature(sessionId: string, _user?: JWTPayload): Promise<SsoActiveSignature | null> {
     try {
+      console.log(`[SsoSignatureProxyService.getActiveSignature] START sessionId=${sessionId}`);
       const accessToken = await this.authService.getSessionAccessToken(sessionId);
+      console.log(`[SsoSignatureProxyService.getActiveSignature] Token acquired, length=${accessToken?.length || 0}`);
       
-      const response = await fetch(this.baseSignatureUrl, {
+      const url = this.baseSignatureUrl;
+      console.log(`[SsoSignatureProxyService.getActiveSignature] Fetching from SSO: ${url}`);
+      
+      const response = await fetch(url, {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${accessToken}`,
@@ -37,15 +42,19 @@ export class SsoSignatureProxyService {
         },
       });
 
+      console.log(`[SsoSignatureProxyService.getActiveSignature] Response status: ${response.status}`);
+
       if (!response.ok) {
-        console.error(`[SsoSignatureProxyService.getActiveSignature] Proxy failed with status: ${response.status}`);
+        const responseText = await response.text();
+        console.error(`[SsoSignatureProxyService.getActiveSignature] Failed with status ${response.status}. Response: ${responseText.substring(0, 200)}`);
         return null;
       }
 
       const payload = (await response.json()) as SsoSignatureResponse;
+      console.log(`[SsoSignatureProxyService.getActiveSignature] Success. Active signature: ${payload.data?.activeSignature?.signatureId || 'NONE'}`);
       return payload.data.activeSignature;
     } catch (error) {
-      console.error(`[SsoSignatureProxyService.getActiveSignature] Error fetching signature from SSO:`, error);
+      console.error(`[SsoSignatureProxyService.getActiveSignature] Exception:`, error instanceof Error ? error.message : error);
       return null;
     }
   }

@@ -1,4 +1,4 @@
-import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
+import { PDFDocument, StandardFonts, rgb, type PDFPage } from 'pdf-lib';
 import { SuratPermohonanRepository } from '@/repositories/surat-permohonan.repository';
 import { TeamRepository } from '@/repositories/team.repository';
 import { SubmissionRepository } from '@/repositories/submission.repository';
@@ -53,6 +53,132 @@ export class SuratPermohonanService {
     this.mahasiswaService = new MahasiswaService(this.env);
     this.dosenService = new DosenService(this.env);
     this.ssoSignatureProxyService = new SsoSignatureProxyService(this.env);
+  }
+
+  private getSignatureSource(activeSignature: Record<string, unknown>): string | null {
+    const candidates = [
+      activeSignature.signatureImage,
+      activeSignature.signatureUrl,
+      activeSignature.url,
+      activeSignature.svg,
+      activeSignature.data,
+      activeSignature.content,
+    ];
+
+    for (const candidate of candidates) {
+      if (typeof candidate === 'string' && candidate.trim().length > 0) {
+        return candidate.trim();
+      }
+    }
+
+    return null;
+  }
+
+  private async resolveSignatureBuffer(source: string): Promise<Buffer> {
+    if (/^https?:\/\//i.test(source)) {
+      const response = await fetch(source);
+      if (!response.ok) {
+        throw new Error(`Gagal mengambil file e-signature dari URL (${response.status}).`);
+      }
+
+      const arrayBuffer = await response.arrayBuffer();
+      return Buffer.from(arrayBuffer);
+    }
+
+    if (source.startsWith('data:')) {
+      const commaIndex = source.indexOf(',');
+      if (commaIndex === -1) {
+        throw new Error('Format data URL e-signature tidak valid.');
+      }
+
+      const metadata = source.slice(5, commaIndex);
+      const payload = source.slice(commaIndex + 1);
+
+      if (/;base64/i.test(metadata)) {
+        return Buffer.from(payload, 'base64');
+      }
+
+      return Buffer.from(decodeURIComponent(payload), 'utf8');
+    }
+
+    const cleaned = source.replace(/^data:image\/\w+;base64,/, '').replace(/\s+/g, '');
+    const looksBase64 = /^[A-Za-z0-9+/=]+$/.test(cleaned);
+    return Buffer.from(looksBase64 ? cleaned : source, looksBase64 ? 'base64' : 'utf8');
+  }
+
+  private extractSvgViewBox(svgText: string): { width: number; height: number } {
+    const viewBoxMatch = svgText.match(/viewBox\s*=\s*"([^"]+)"/i);
+    if (viewBoxMatch) {
+      const parts = viewBoxMatch[1].trim().split(/[\s,]+/).map((value) => Number(value));
+      if (parts.length === 4 && parts.every((value) => Number.isFinite(value))) {
+        return { width: parts[2], height: parts[3] };
+      }
+    }
+
+    const widthMatch = svgText.match(/width\s*=\s*"([^"]+)"/i);
+    const heightMatch = svgText.match(/height\s*=\s*"([^"]+)"/i);
+    const width = widthMatch ? Number.parseFloat(widthMatch[1]) : NaN;
+    const height = heightMatch ? Number.parseFloat(heightMatch[1]) : NaN;
+
+    if (Number.isFinite(width) && Number.isFinite(height) && width > 0 && height > 0) {
+      return { width, height };
+    }
+
+    return { width: 200, height: 80 };
+  }
+
+  private extractSvgPathData(svgText: string): Array<{ d: string; strokeWidth: number }> {
+    const paths: Array<{ d: string; strokeWidth: number }> = [];
+    const pathRegex = /<path\b[^>]*\bd=(["'])(.*?)\1[^>]*>/gis;
+    let match: RegExpExecArray | null;
+
+    while ((match = pathRegex.exec(svgText)) !== null) {
+      const element = match[0];
+      const strokeWidthMatch = element.match(/stroke-width\s*=\s*(["'])([^"']+)\1/i);
+      const strokeWidth = strokeWidthMatch ? Number.parseFloat(strokeWidthMatch[2]) : 2.5;
+
+      if (match[2].trim().length > 0) {
+        paths.push({
+          d: match[2],
+          strokeWidth: Number.isFinite(strokeWidth) && strokeWidth > 0 ? strokeWidth : 2.5,
+        });
+      }
+    }
+
+    return paths;
+  }
+
+  private drawSignatureSvg(
+    page: PDFPage,
+    svgText: string,
+    x: number,
+    y: number,
+    width: number,
+    height: number
+  ) {
+    const paths = this.extractSvgPathData(svgText);
+    if (paths.length === 0) {
+      throw new Error('File e-signature SVG tidak memiliki path yang bisa dirender.');
+    }
+
+    const box = this.extractSvgViewBox(svgText);
+    const innerWidth = Math.max(width - 16, 1);
+    const innerHeight = Math.max(height - 12, 1);
+    const scale = Math.min(innerWidth / box.width, innerHeight / box.height);
+    const scaledWidth = box.width * scale;
+    const scaledHeight = box.height * scale;
+    const offsetX = x + 8 + (innerWidth - scaledWidth) / 2;
+    const offsetY = y + 6 + (innerHeight - scaledHeight) / 2;
+
+    for (const pathData of paths) {
+      page.drawSvgPath(pathData.d, {
+        x: offsetX,
+        y: offsetY,
+        scale,
+        borderColor: rgb(0, 0, 0),
+        borderWidth: Math.max(pathData.strokeWidth * scale * 1.8, 0.9),
+      });
+    }
   }
 
   /**
@@ -530,15 +656,20 @@ export class SuratPermohonanService {
       throw error;
     }
 
+    const signatureSource = this.getSignatureSource(activeSignature as unknown as Record<string, unknown>);
+    if (!signatureSource) {
+      const error: Error = new Error('File e-signature mahasiswa tidak tersedia. Silakan lengkapi di halaman profil SSO.');
+      error.statusCode = 422;
+      throw error;
+    }
+
     // SNAPSHOT: Upload to SIKP storage to keep a persistent record at time of request
-    let imageBuffer: Buffer;
-    if (activeSignature.mimeType === 'image/svg+xml') {
-      imageBuffer = Buffer.from(activeSignature.svg);
-    } else {
-      const isBase64 = activeSignature.svg.startsWith('data:') || /^[A-Za-z0-9+/=]+$/.test(activeSignature.svg.substring(0, 100));
-      imageBuffer = isBase64 
-        ? Buffer.from(activeSignature.svg.replace(/^data:image\/\w+;base64,/, ''), 'base64')
-        : Buffer.from(activeSignature.svg);
+    const imageBuffer = await this.resolveSignatureBuffer(signatureSource);
+
+    if (imageBuffer.length === 0) {
+      const error: Error = new Error('File e-signature mahasiswa kosong atau rusak.');
+      error.statusCode = 422;
+      throw error;
     }
 
     const ext = activeSignature.mimeType === 'image/svg+xml' ? 'svg' : (activeSignature.mimeType.split('/')[1] || 'png');
@@ -547,7 +678,7 @@ export class SuratPermohonanService {
     const { url } = await this.storageService.uploadFile(
       imageBuffer,
       fileName,
-      'signatures/mahasiswa',
+      'esignatures/mahasiswa',
       activeSignature.mimeType
     );
 
@@ -568,7 +699,9 @@ export class SuratPermohonanService {
       return requestDetails.mahasiswaEsignatureUrl;
     }
 
-    return await this.resolveMahasiswaEsignatureUrl(requestDetails.memberMahasiswaId, sessionId);
+    const error: Error = new Error('Gagal mengakses file e-signature mahasiswa. Tanda tangan mahasiswa tidak ditemukan pada data pengajuan. Silakan minta mahasiswa untuk membatalkan dan mengajukan ulang.');
+    error.statusCode = 422;
+    throw error;
   }
 
   private async getMahasiswaSigningContext(
@@ -599,6 +732,8 @@ export class SuratPermohonanService {
   }
 
   private async getDosenSigningContext(dosenId: string, sessionId: string): Promise<DosenSigningContext> {
+    console.log(`[SuratPermohonanService.getDosenSigningContext] Fetching context dosenId=${dosenId}`);
+    
     const [dosenProfile, activeSignature] = await Promise.all([
       this.dosenService.getDosenById(dosenId, sessionId),
       this.ssoSignatureProxyService.getActiveSignature(sessionId),
@@ -611,10 +746,13 @@ export class SuratPermohonanService {
     }
 
     if (!activeSignature) {
+      console.error(`[SuratPermohonanService.getDosenSigningContext] SSO returned null activeSignature. sessionId=${sessionId}`);
       const error: Error = new Error('E-signature dosen belum tersedia. Silakan lengkapi di halaman profil SSO.');
       error.statusCode = 422;
       throw error;
     }
+
+    console.log(`[SuratPermohonanService.getDosenSigningContext] Active signature found: ${activeSignature.signatureId} (${activeSignature.mimeType})`);
 
     // Handle SVG or other image types
     let imageBuffer: Buffer;
@@ -646,29 +784,45 @@ export class SuratPermohonanService {
     esignatureUrl: string,
     ownerLabel: 'dosen' | 'mahasiswa'
   ) {
-    let response: Response;
-    try {
-      response = await fetch(esignatureUrl);
-    } catch {
-      const error: Error = new Error(`Gagal mengakses file e-signature ${ownerLabel}.`);
-      error.statusCode = 422;
-      throw error;
+    let mimeType = '';
+    let imageArrayBuffer: ArrayBuffer | undefined;
+
+    const r2Domain = (this.env.R2_DOMAIN || '').replace(/\/$/, '');
+    if (r2Domain && esignatureUrl.startsWith(`${r2Domain}/`)) {
+      const key = esignatureUrl.slice(r2Domain.length + 1);
+      const file = await this.storageService.getFile(key);
+      if (file) {
+        mimeType = file.httpMetadata?.contentType || 'application/octet-stream';
+        imageArrayBuffer = await file.arrayBuffer();
+      }
     }
 
-    if (!response.ok) {
-      const error: Error = new Error(`File e-signature ${ownerLabel} tidak dapat diakses.`);
-      error.statusCode = 422;
-      throw error;
+    if (!imageArrayBuffer) {
+      let response: Response;
+      try {
+        response = await fetch(esignatureUrl);
+      } catch {
+        const error: Error = new Error(`Gagal mengakses file e-signature ${ownerLabel}.`);
+        error.statusCode = 422;
+        throw error;
+      }
+
+      if (!response.ok) {
+        const error: Error = new Error(`File e-signature ${ownerLabel} tidak dapat diakses.`);
+        error.statusCode = 422;
+        throw error;
+      }
+
+      mimeType = (response.headers.get('content-type') || '').split(';')[0].trim().toLowerCase();
+      imageArrayBuffer = await response.arrayBuffer();
     }
 
-    const mimeType = (response.headers.get('content-type') || '').split(';')[0].trim().toLowerCase();
     if (!ALLOWED_SIGNATURE_MIME_TYPES.includes(mimeType)) {
       const error: Error = new Error(`Format file e-signature ${ownerLabel} tidak valid. Gunakan PNG/JPG/JPEG.`);
       error.statusCode = 422;
       throw error;
     }
 
-    const imageArrayBuffer = await response.arrayBuffer();
     if (imageArrayBuffer.byteLength === 0) {
       const error: Error = new Error(`File e-signature ${ownerLabel} kosong atau rusak.`);
       error.statusCode = 422;
@@ -929,7 +1083,10 @@ export class SuratPermohonanService {
 
     try {
       const dosenImageBytes = new Uint8Array(dosenSigningContext.signatureImageBuffer);
-      if (dosenSigningContext.signatureMimeType === 'image/png') {
+      if (dosenSigningContext.signatureMimeType === 'image/svg+xml') {
+        const svgText = Buffer.from(dosenImageBytes).toString('utf8');
+        this.drawSignatureSvg(page, svgText, leftSignX, signatureY, signatureWidth, signatureHeight);
+      } else if (dosenSigningContext.signatureMimeType === 'image/png') {
         const pngImage = await pdfDoc.embedPng(dosenImageBytes);
         page.drawImage(pngImage, {
           x: leftSignX,
@@ -948,7 +1105,10 @@ export class SuratPermohonanService {
       }
 
       const mahasiswaImageBytes = new Uint8Array(mahasiswaSigningContext.signatureImageBuffer);
-      if (mahasiswaSigningContext.signatureMimeType === 'image/png') {
+      if (mahasiswaSigningContext.signatureMimeType === 'image/svg+xml') {
+        const svgText = Buffer.from(mahasiswaImageBytes).toString('utf8');
+        this.drawSignatureSvg(page, svgText, rightSignX, signatureY, signatureWidth, signatureHeight);
+      } else if (mahasiswaSigningContext.signatureMimeType === 'image/png') {
         const pngImage = await pdfDoc.embedPng(mahasiswaImageBytes);
         page.drawImage(pngImage, {
           x: rightSignX,
