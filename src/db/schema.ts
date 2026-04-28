@@ -44,7 +44,7 @@ export const authSessions = pgTable('auth_sessions', {
 export const teams = pgTable('teams', {
   id: text('id').primaryKey(),
   code: varchar('code', { length: 50 }).notNull().unique(),
-  leaderId: text('leader_id').notNull(),
+  leaderMahasiswaId: text('leader_mahasiswa_id').notNull(),
   dosenKpId: text('dosen_kp_id'),
   status: teamStatusEnum('status').notNull().default('PENDING'),
 });
@@ -53,12 +53,12 @@ export const teams = pgTable('teams', {
 export const teamMembers = pgTable('team_members', {
   id: text('id').primaryKey(),
   teamId: text('team_id').notNull().references(() => teams.id, { onDelete: 'cascade' }),
-  userId: text('user_id').notNull(),
+  mahasiswaId: text('mahasiswa_id').notNull(),
   role: text('role').notNull().default('ANGGOTA'), // KETUA or ANGGOTA
   invitationStatus: invitationStatusEnum('invitation_status').notNull().default('PENDING'),
   invitedAt: timestamp('invited_at').defaultNow().notNull(),
   respondedAt: timestamp('responded_at'),
-  invitedBy: text('invited_by'),
+  invitedByMahasiswaId: text('invited_by_mahasiswa_id'),
 });
 
 // Submissions Table
@@ -77,14 +77,14 @@ export const submissions = pgTable('submissions', {
   rejectionReason: text('rejection_reason'),
   submittedAt: timestamp('submitted_at'),
   approvedAt: timestamp('approved_at'),
-  approvedBy: text('approved_by'),
+  approvedByAdminId: text('approved_by_admin_id'),
   adminVerificationStatus: submissionVerificationStatusEnum('admin_verification_status').notNull().default('PENDING'),
   adminVerifiedAt: timestamp('admin_verified_at'),
-  adminVerifiedBy: text('admin_verified_by'),
+  adminVerifiedByAdminId: text('admin_verified_by_admin_id'),
   adminRejectionReason: text('admin_rejection_reason'),
   dosenVerificationStatus: submissionVerificationStatusEnum('dosen_verification_status').notNull().default('PENDING'),
   dosenVerifiedAt: timestamp('dosen_verified_at'),
-  dosenVerifiedBy: text('dosen_verified_by'),
+  dosenVerifiedByDosenId: text('dosen_verified_by_dosen_id'),
   dosenRejectionReason: text('dosen_rejection_reason'),
   letterNumber: varchar('letter_number', { length: 100 }),
   workflowStage: workflowStageEnum('workflow_stage').notNull().default('DRAFT'),
@@ -100,7 +100,7 @@ export const submissions = pgTable('submissions', {
     idxWorkflowStage: index('idx_submissions_workflow_stage').on(table.workflowStage),
     idxAdminVerificationStatus: index('idx_submissions_admin_status').on(table.adminVerificationStatus),
     idxDosenVerificationStatus: index('idx_submissions_dosen_status').on(table.dosenVerificationStatus),
-    idxDosenQueue: index('idx_submissions_dosen_queue').on(table.workflowStage, table.dosenVerifiedBy, table.createdAt),
+    idxDosenQueue: index('idx_submissions_dosen_queue').on(table.workflowStage, table.dosenVerifiedByDosenId, table.createdAt),
     uqLetterNumber: uniqueIndex('submissions_letter_number_unique').on(table.letterNumber),
   };
 });
@@ -110,8 +110,8 @@ export const submissionDocuments = pgTable('submission_documents', {
   id: text('id').primaryKey(),
   submissionId: text('submission_id').notNull().references(() => submissions.id, { onDelete: 'cascade' }),
   documentType: documentTypeEnum('document_type').notNull(),
-  memberUserId: text('member_user_id').notNull(),
-  uploadedByUserId: text('uploaded_by_user_id').notNull(),
+  memberMahasiswaId: text('member_mahasiswa_id').notNull(),
+  uploadedByMahasiswaId: text('uploaded_by_mahasiswa_id').notNull(),
   originalName: varchar('original_name', { length: 255 }).notNull(),
   fileName: varchar('file_name', { length: 255 }).notNull(),
   fileType: varchar('file_type', { length: 100 }).notNull(),
@@ -122,7 +122,7 @@ export const submissionDocuments = pgTable('submission_documents', {
   createdAt: timestamp('created_at').defaultNow().notNull(),
 }, (table) => {
   return {
-    uqDocPerMember: uniqueIndex('uq_document_per_member').on(table.submissionId, table.documentType, table.memberUserId),
+    uqDocPerMember: uniqueIndex('uq_document_per_member').on(table.submissionId, table.documentType, table.memberMahasiswaId),
     idxSubmissionStatus: index('idx_submission_status').on(table.submissionId, table.status),
     idxStatusUpdated: index('idx_status_updated').on(table.statusUpdatedAt),
   };
@@ -136,7 +136,7 @@ export const generatedLetters = pgTable('generated_letters', {
   fileName: varchar('file_name', { length: 255 }).notNull(),
   fileUrl: text('file_url').notNull(),
   fileType: varchar('file_type', { length: 10 }).notNull(),
-  generatedBy: text('generated_by').notNull(),
+  generatedByAdminId: text('generated_by_admin_id').notNull(),
   generatedAt: timestamp('generated_at').defaultNow().notNull(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 });
@@ -353,8 +353,8 @@ export const templates = pgTable('templates', {
   fields: json('fields'),
   version: integer('version').notNull().default(1),
   isActive: boolean('is_active').notNull().default(true),
-  createdBy: text('created_by').notNull(),
-  updatedBy: text('updated_by'),
+  createdByAdminId: text('created_by_admin_id').notNull(),
+  updatedByAdminId: text('updated_by_admin_id'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 }, (table) => {
@@ -374,7 +374,7 @@ export const responseLetters = pgTable('response_letters', {
   fileType: varchar('file_type', { length: 100 }),
   fileSize: bigint('file_size', { mode: 'number' }),
   fileUrl: text('file_url'),
-  memberUserId: text('member_user_id'),
+  memberMahasiswaId: text('member_mahasiswa_id'),
   letterStatus: letterStatusEnum('letter_status').notNull(),
   studentName: varchar('student_name', { length: 255 }),
   studentNim: varchar('student_nim', { length: 50 }),
@@ -397,10 +397,10 @@ export const responseLetters = pgTable('response_letters', {
 // Surat Kesediaan Requests Table
 export const suratKesediaanRequests = pgTable('surat_kesediaan_requests', {
   id: text('id').primaryKey(),
-  memberUserId: text('member_user_id').notNull(),
-  dosenUserId: text('dosen_user_id').notNull(),
+  memberMahasiswaId: text('member_mahasiswa_id').notNull(),
+  dosenId: text('dosen_id').notNull(),
   status: suratKesediaanStatusEnum('status').notNull().default('MENUNGGU'),
-  approvedBy: text('approved_by'),
+  approvedByDosenId: text('approved_by_dosen_id'),
   approvedAt: timestamp('approved_at'),
   signedFileUrl: text('signed_file_url'),
   signedFileKey: text('signed_file_key'),
@@ -408,9 +408,9 @@ export const suratKesediaanRequests = pgTable('surat_kesediaan_requests', {
   createdAt: timestamp('created_at').defaultNow().notNull(),
 }, (table) => {
   return {
-    uqRequest: uniqueIndex('uq_surat_kesediaan_request').on(table.memberUserId, table.dosenUserId),
-    idxDosenStatus: index('idx_surat_kesediaan_dosen_status').on(table.dosenUserId, table.status),
-    idxMemberStatus: index('idx_surat_kesediaan_member_status').on(table.memberUserId, table.status),
+    uqRequest: uniqueIndex('uq_surat_kesediaan_request').on(table.memberMahasiswaId, table.dosenId),
+    idxDosenStatus: index('idx_surat_kesediaan_dosen_status').on(table.dosenId, table.status),
+    idxMemberStatus: index('idx_surat_kesediaan_member_status').on(table.memberMahasiswaId, table.status),
     idxCreatedAt: index('idx_surat_kesediaan_created_at').on(table.createdAt),
   };
 });
@@ -418,23 +418,25 @@ export const suratKesediaanRequests = pgTable('surat_kesediaan_requests', {
 // Surat Permohonan Requests Table
 export const suratPermohonanRequests = pgTable('surat_permohonan_requests', {
   id: text('id').primaryKey(),
-  memberUserId: text('member_user_id').notNull(),
-  dosenUserId: text('dosen_user_id').notNull(),
+  memberMahasiswaId: text('member_mahasiswa_id').notNull(),
+  dosenId: text('dosen_id').notNull(),
   submissionId: text('submission_id').notNull().references(() => submissions.id),
   status: suratPermohonanStatusEnum('status').notNull().default('MENUNGGU'),
+  mahasiswaEsignatureUrl: text('mahasiswa_esignature_url'),
+  mahasiswaEsignatureSnapshotAt: timestamp('mahasiswa_esignature_snapshot_at'),
   signedFileUrl: text('signed_file_url'),
   signedFileKey: text('signed_file_key'),
   requestedAt: timestamp('requested_at').defaultNow().notNull(),
   approvedAt: timestamp('approved_at'),
-  approvedBy: text('approved_by'),
+  approvedByDosenId: text('approved_by_dosen_id'),
   rejectionReason: text('rejection_reason'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 }, (table) => {
   return {
-    idxDosenStatusRequestedAt: index('idx_permohonan_dosen').on(table.dosenUserId, table.status, table.requestedAt),
+    idxDosenStatusRequestedAt: index('idx_permohonan_dosen').on(table.dosenId, table.status, table.requestedAt),
     idxRequestedAt: index('idx_surat_permohonan_requested_at').on(table.requestedAt),
-    idxMemberDosenStatus: index('idx_surat_permohonan_member_dosen_status').on(table.memberUserId, table.dosenUserId, table.status),
+    idxMemberDosenStatus: index('idx_surat_permohonan_member_dosen_status').on(table.memberMahasiswaId, table.dosenId, table.status),
   };
 });
 

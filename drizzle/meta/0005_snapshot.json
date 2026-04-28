@@ -1,6 +1,6 @@
 {
-  "id": "8c1395bf-7533-4432-9702-d2bdf6f4b1c0",
-  "prevId": "d9948e2f-0996-497e-8251-158b42e27d75",
+  "id": "d9948e2f-0996-497e-8251-158b42e27d75",
+  "prevId": "7363c57a-1a3d-48d0-bafc-33f2450d5d0c",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -1061,18 +1061,6 @@
           "primaryKey": false,
           "notNull": true,
           "default": "'MENUNGGU'"
-        },
-        "mahasiswa_esignature_url": {
-          "name": "mahasiswa_esignature_url",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "mahasiswa_esignature_snapshot_at": {
-          "name": "mahasiswa_esignature_snapshot_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": false
         },
         "signed_file_url": {
           "name": "signed_file_url",

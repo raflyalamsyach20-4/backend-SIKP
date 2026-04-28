@@ -1,12 +1,11 @@
-
-import { UserRepository } from '@/repositories/user.repository';
+import { createDbClient } from '@/db';
 import { TeamRepository } from '@/repositories/team.repository';
 import { SubmissionRepository } from '@/repositories/submission.repository';
 import { ResponseLetterRepository } from '@/repositories/response-letter.repository';
 import { StorageService } from '@/services/storage.service';
-
-const MAX_SIGNATURE_SIZE_MB = 2;
-const ALLOWED_SIGNATURE_MIME_TYPES = ['image/png', 'image/jpeg', 'image/jpg'];
+import { AuthService } from './auth.service';
+import { DosenService } from './dosen.service';
+import type { SsoMahasiswaDetail, SsoMahasiswaResponse, SsoMahasiswaSearchResponse } from '@/types';
 
 type TeamRecord = NonNullable<Awaited<ReturnType<TeamRepository['findById']>>>;
 type SubmissionRecord = NonNullable<Awaited<ReturnType<SubmissionRepository['findById']>>>;
@@ -44,25 +43,98 @@ type DashboardPayload = {
 };
 
 export class MahasiswaService {
-  constructor(
-    private userRepository: UserRepository,
-    private storageService: StorageService,
-    private teamRepository: TeamRepository,
-    private submissionRepository: SubmissionRepository,
-    private responseLetterRepository: ResponseLetterRepository
-  ) {}
+  private teamRepository: TeamRepository;
+  private submissionRepository: SubmissionRepository;
+  private responseLetterRepository: ResponseLetterRepository;
+  private storageService: StorageService;
+  private authService: AuthService;
+  
+  private _dosenService?: DosenService;
+
+  constructor(private env: CloudflareBindings) {
+    const db = createDbClient(this.env.DATABASE_URL);
+    this.teamRepository = new TeamRepository(db);
+    this.submissionRepository = new SubmissionRepository(db);
+    this.responseLetterRepository = new ResponseLetterRepository(db);
+    this.storageService = new StorageService(this.env);
+    this.authService = new AuthService(this.env);
+  }
+
+  private get dosenService(): DosenService {
+    if (!this._dosenService) {
+      this._dosenService = new DosenService(this.env);
+    }
+    return this._dosenService;
+  }
+
+  /**
+   * Fetch Mahasiswa detail from SSO by ID
+   */
+  async getMahasiswaById(mahasiswaId: string, sessionId: string): Promise<SsoMahasiswaDetail | null> {
+    try {
+      const token = await this.authService.getSessionAccessToken(sessionId);
+      const baseUrl = this.env.SSO_BASE_URL;
+      const url = `${baseUrl}/api/mahasiswa/${mahasiswaId}`;
+
+      const response = await fetch(url, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          Accept: 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        if (response.status === 404) {
+          console.warn(`[MahasiswaService.getMahasiswaById] Mahasiswa ID ${mahasiswaId} not found in SSO`);
+          return null;
+        }
+        throw new Error(`Failed to fetch mahasiswa from SSO (${response.status})`);
+      }
+
+      const payload = (await response.json()) as SsoMahasiswaResponse;
+      return payload.data;
+    } catch (error) {
+      console.error(`[MahasiswaService.getMahasiswaById] Error fetching from SSO:`, error);
+      return null;
+    }
+  }
+
+  /**
+   * Fetch Mahasiswa detail from SSO by NIM
+   */
+  async getMahasiswaByNim(nim: string, sessionId: string): Promise<SsoMahasiswaDetail | null> {
+    try {
+      const token = await this.authService.getSessionAccessToken(sessionId);
+      const baseUrl = this.env.SSO_BASE_URL;
+      const url = `${baseUrl}/api/mahasiswa/nim/${nim}`;
+
+      const response = await fetch(url, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          Accept: 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        if (response.status === 404) {
+          console.warn(`[MahasiswaService.getMahasiswaByNim] Mahasiswa NIM ${nim} not found in SSO`);
+          return null;
+        }
+        throw new Error(`Failed to fetch mahasiswa from SSO (${response.status})`);
+      }
+
+      const payload = (await response.json()) as SsoMahasiswaResponse;
+      return payload.data;
+    } catch (error) {
+      console.error(`[MahasiswaService.getMahasiswaByNim] Error fetching from SSO:`, error);
+      return null;
+    }
+  }
 
   private normalizeDate(value: string | Date | null | undefined): Date | null {
-    if (!value) {
-      return null;
-    }
-
+    if (!value) return null;
     const parsed = value instanceof Date ? value : new Date(value);
-    if (Number.isNaN(parsed.getTime())) {
-      return null;
-    }
-
-    return parsed;
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
   }
 
   private toDateOnly(date: Date): Date {
@@ -73,9 +145,9 @@ export class MahasiswaService {
     return value.toISOString().split('T')[0];
   }
 
-  private async resolvePrimaryTeam(userId: string): Promise<TeamRecord | null> {
-    const memberTeams = await this.teamRepository.findTeamsByMemberId(userId);
-    const leaderTeams = await this.teamRepository.findByLeaderId(userId);
+  private async resolvePrimaryTeam(mahasiswaId: string): Promise<TeamRecord | null> {
+    const memberTeams = await this.teamRepository.findTeamsByMahasiswaId(mahasiswaId);
+    const leaderTeams = await this.teamRepository.findByLeaderMahasiswaId(mahasiswaId);
 
     const allTeamsMap = new Map<string, TeamRecord>();
     [...memberTeams, ...leaderTeams].forEach((team) => {
@@ -85,21 +157,15 @@ export class MahasiswaService {
     });
 
     const allTeams = Array.from(allTeamsMap.values()).sort((a, b) => {
-      if (a.status === b.status) {
-        return 0;
-      }
+      if (a.status === b.status) return 0;
       return a.status === 'FIXED' ? -1 : 1;
     });
 
-    if (allTeams.length === 0) {
-      return null;
-    }
+    if (allTeams.length === 0) return null;
 
     for (const team of allTeams) {
       const submissions = await this.submissionRepository.findByTeamId(team.id);
-      if (submissions.length > 0) {
-        return team;
-      }
+      if (submissions.length > 0) return team;
     }
 
     return allTeams[0];
@@ -107,9 +173,7 @@ export class MahasiswaService {
 
   private async resolveCurrentSubmission(teamId: string): Promise<SubmissionRecord | null> {
     const submissions = await this.submissionRepository.findByTeamId(teamId);
-    if (submissions.length === 0) {
-      return null;
-    }
+    if (submissions.length === 0) return null;
 
     const ordered = [...submissions].sort((a, b) => {
       const aDate = this.normalizeDate(a.updatedAt || a.createdAt)?.getTime() || 0;
@@ -168,14 +232,10 @@ export class MahasiswaService {
   }
 
   private resolveHariTersisa(submission: SubmissionRecord | null): number | null {
-    if (!submission) {
-      return null;
-    }
+    if (!submission) return null;
 
     const endDate = this.normalizeDate(submission.endDate);
-    if (!endDate) {
-      return null;
-    }
+    if (!endDate) return null;
 
     const today = this.toDateOnly(new Date());
     const end = this.toDateOnly(endDate);
@@ -300,7 +360,7 @@ export class MahasiswaService {
     if ((responseLetter && !responseLetter.verified) || submission.responseLetterStatus === 'submitted') {
       return {
         title: 'Menunggu pemverifikasian surat balasan',
-        description: 'Surat balasan sudah dikirim dan sedang menunggu verifikasi.',
+        description: 'Surat balasan sudah dikirim and sedang menunggu verifikasi.',
         actionLabel: 'Lihat Surat Balasan',
         actionUrl: '/mahasiswa/kp/surat-balasan',
       };
@@ -314,34 +374,38 @@ export class MahasiswaService {
     };
   }
 
-  private async resolveTeamInfo(team: TeamRecord | null): Promise<DashboardPayload['teamInfo']> {
-    if (!team) {
-      return null;
-    }
+  private async resolveTeamInfo(team: TeamRecord | null, sessionId: string): Promise<DashboardPayload['teamInfo']> {
+    if (!team) return null;
 
-    const members = await this.teamRepository.findMembersWithUserDataByTeamId(team.id);
-    const acceptedMembers = members.filter((member) => member.invitationStatus === 'ACCEPTED');
+    const members = await this.teamRepository.findMembersByTeamId(team.id);
+    const acceptedMembers = members.filter((m) => m.invitationStatus === 'ACCEPTED');
 
-    const dosenKp = team.dosenKpId ? await this.userRepository.findDosenByUserId(team.dosenKpId) : null;
-    const dosenUser = team.dosenKpId ? await this.userRepository.findById(team.dosenKpId) : null;
+    const enrichedMembers = await Promise.all(
+      acceptedMembers.map(async (m) => {
+        const student = await this.getMahasiswaById(m.mahasiswaId, sessionId);
+        return {
+          name: student?.profile.fullName || 'Tanpa Nama',
+          nim: student?.nim || null,
+          role: m.role === 'KETUA' ? 'Ketua' : 'Anggota',
+        };
+      })
+    );
+
+    const dosenSsoData = team.dosenKpId ? await this.dosenService.getDosenById(team.dosenKpId, sessionId) : null;
 
     return {
       teamId: team.id,
       teamName: team.code,
-      members: acceptedMembers.map((member) => ({
-        name: member.user.nama || 'Tanpa Nama',
-        nim: member.user.nim || null,
-        role: member.role === 'KETUA' ? 'Ketua' : 'Anggota',
-      })),
+      members: enrichedMembers,
       mentorName: null,
       mentorEmail: null,
-      dosenName: dosenUser?.nama || null,
-      dosenNip: dosenKp?.nip || null,
+      dosenName: dosenSsoData?.profile.fullName || null,
+      dosenNip: dosenSsoData?.nidn || null,
     };
   }
 
-  async getDashboard(userId: string): Promise<DashboardPayload> {
-    const team = await this.resolvePrimaryTeam(userId);
+  async getDashboard(mahasiswaId: string, sessionId: string): Promise<DashboardPayload> {
+    const team = await this.resolvePrimaryTeam(mahasiswaId);
     const submission = team ? await this.resolveCurrentSubmission(team.id) : null;
     const responseLetter = submission
       ? await this.responseLetterRepository.findBySubmissionId(submission.id)
@@ -352,171 +416,49 @@ export class MahasiswaService {
       hariTersisa: this.resolveHariTersisa(submission),
       tahapBerikutnya: this.resolveTahapBerikutnya(team, submission, responseLetter),
       statusPengajuan: this.resolveStatusPengajuan(submission),
-      teamInfo: await this.resolveTeamInfo(team),
+      teamInfo: await this.resolveTeamInfo(team, sessionId),
       activities: [],
     };
   }
 
-  async getMe(userId: string) {
-    const profile = await this.userRepository.getMahasiswaMe(userId);
-    if (!profile) {
-      const notFound: Error = new Error('Mahasiswa profile not found');
-      notFound.statusCode = 404;
-      throw notFound;
-    }
-
-    return profile;
-  }
-
-  async updateProfile(
-    userId: string,
-    data: {
-      nama?: string;
-      email?: string;
-      phone?: string;
-      fakultas?: string | null;
-      prodi?: string | null;
-      semester?: number | null;
-      jumlahSksSelesai?: number | null;
-      angkatan?: string | null;
-    }
-  ) {
-    // Verify profile exists
-    const profile = await this.getMe(userId);
-
-    // Validate email uniqueness if email is being updated
-    if (data.email && data.email !== profile.email) {
-      const existingEmail = await this.userRepository.findByEmail(data.email);
-      if (existingEmail && existingEmail.id !== userId) {
-        const emailExists: Error = new Error('Email already in use');
-        emailExists.statusCode = 400;
-        throw emailExists;
-      }
-    }
-
-    // Prepare update data for users table
-    const usersUpdateData: Record<string, unknown> = {};
-    if (data.nama !== undefined) usersUpdateData.nama = data.nama;
-    if (data.email !== undefined) usersUpdateData.email = data.email;
-    if (data.phone !== undefined) usersUpdateData.phone = data.phone;
-
-    // Prepare update data for mahasiswa table
-    const mahasiswaUpdateData: Record<string, unknown> = {};
-    if (data.fakultas !== undefined) mahasiswaUpdateData.fakultas = data.fakultas;
-    if (data.prodi !== undefined) mahasiswaUpdateData.prodi = data.prodi;
-    if (data.semester !== undefined) mahasiswaUpdateData.semester = data.semester;
-    if (data.jumlahSksSelesai !== undefined) mahasiswaUpdateData.jumlahSksSelesai = data.jumlahSksSelesai;
-    if (data.angkatan !== undefined) mahasiswaUpdateData.angkatan = data.angkatan;
-
+  /**
+   * Search Mahasiswa from SSO
+   */
+  async searchMahasiswa(params: {
+    search?: string;
+    prodiId?: string | null;
+    fakultasId?: string | null;
+    page?: string;
+    limit?: string;
+  }, sessionId: string): Promise<SsoMahasiswaSearchResponse> {
     try {
-      if (Object.keys(usersUpdateData).length > 0) {
-        await this.userRepository.update(userId, usersUpdateData);
-      }
+      const token = await this.authService.getSessionAccessToken(sessionId);
+      const baseUrl = this.env.SSO_BASE_URL;
+      
+      // Use URL constructor for safe parameter appending
+      const url = new URL(`${baseUrl}/api/mahasiswa`);
+      
+      if (params.search) url.searchParams.set('search', params.search);
+      if (params.prodiId) url.searchParams.set('prodiId', params.prodiId);
+      if (params.fakultasId) url.searchParams.set('fakultasId', params.fakultasId);
+      if (params.page) url.searchParams.set('page', params.page);
+      if (params.limit) url.searchParams.set('limit', params.limit);
 
-      if (Object.keys(mahasiswaUpdateData).length > 0) {
-        await this.userRepository.updateMahasiswaByUserId(userId, mahasiswaUpdateData);
-      }
-
-      return await this.getMe(userId);
-    } catch (error) {
-      console.error('[MahasiswaService.updateProfile] Failed to update profile:', error);
-      throw error;
-    }
-  }
-
-  async updateESignature(userId: string, signatureFile: File) {
-    const profile = await this.getMe(userId);
-
-    if (!ALLOWED_SIGNATURE_MIME_TYPES.includes(signatureFile.type)) {
-      const invalidType: Error = new Error('Invalid file type. Only PNG, JPG, and JPEG are allowed');
-      invalidType.statusCode = 400;
-      throw invalidType;
-    }
-
-    if (!this.storageService.validateFileSize(signatureFile.size, MAX_SIGNATURE_SIZE_MB)) {
-      const invalidSize: Error = new Error('File size exceeds 2MB limit');
-      invalidSize.statusCode = 400;
-      throw invalidSize;
-    }
-
-    const fallbackName = `esignature-${Date.now()}.png`;
-    const sourceFileName = signatureFile.name && signatureFile.name.trim() ? signatureFile.name : fallbackName;
-    const uniqueFileName = this.storageService.generateUniqueFileName(sourceFileName);
-
-    let uploadResult: { url: string; key: string };
-    try {
-      uploadResult = await this.storageService.uploadFile(
-        signatureFile,
-        uniqueFileName,
-        `esignatures/${userId}`,
-        signatureFile.type
-      );
-    } catch (error) {
-      console.error('[MahasiswaService.updateESignature] Upload to R2 failed:', error);
-      throw error;
-    }
-
-    const { url, key } = uploadResult;
-
-    try {
-      const updated = await this.userRepository.updateMahasiswaByUserId(userId, {
-        esignatureUrl: url,
-        esignatureKey: key,
-        esignatureUploadedAt: new Date(),
+      const response = await fetch(url.toString(), {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          Accept: 'application/json',
+        },
       });
 
-      if (!updated) {
-        await this.storageService.deleteFile(key);
-        const updateFailed: Error = new Error('Failed to update e-signature metadata');
-        updateFailed.statusCode = 500;
-        throw updateFailed;
+      if (!response.ok) {
+        throw new Error(`Failed to search mahasiswa from SSO (${response.status})`);
       }
 
-      if (profile.esignatureKey && profile.esignatureKey !== key) {
-        try {
-          await this.storageService.deleteFile(profile.esignatureKey);
-        } catch (error) {
-          console.warn('[MahasiswaService.updateESignature] Failed to delete old signature from R2:', error);
-        }
-      }
-
-      return {
-        url,
-        key,
-        uploadedAt: updated.esignatureUploadedAt,
-      };
+      return await response.json() as SsoMahasiswaSearchResponse;
     } catch (error) {
-      console.error('[MahasiswaService.updateESignature] Failed to update e-signature:', error);
+      console.error(`[MahasiswaService.searchMahasiswa] Error fetching from SSO:`, error);
       throw error;
     }
-  }
-
-  async deleteESignature(userId: string) {
-    const profile = await this.getMe(userId);
-
-    const oldKey = profile.esignatureKey;
-
-    const updated = await this.userRepository.updateMahasiswaByUserId(userId, {
-      esignatureUrl: null,
-      esignatureKey: null,
-      esignatureUploadedAt: null,
-    });
-
-    if (!updated) {
-      const updateFailed: Error = new Error('Failed to clear e-signature metadata');
-      updateFailed.statusCode = 500;
-      console.error('[MahasiswaService.deleteESignature] Failed to update database while deleting signature metadata');
-      throw updateFailed;
-    }
-
-    if (oldKey) {
-      try {
-        await this.storageService.deleteFile(oldKey);
-      } catch (error) {
-        console.warn('[MahasiswaService.deleteESignature] Failed to delete signature from R2:', error);
-      }
-    }
-
-    return { deleted: true };
   }
 }

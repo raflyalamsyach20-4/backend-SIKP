@@ -26,11 +26,6 @@
     "format:check": "prettier --check \"src/**/*.{ts,tsx,js,json,md,yml,yaml}\"",
     "check": "bun run format && bun run format:check && bun run lint"
   },
-  "lint-staged": {
-    "*.{ts,tsx}": [
-      "bash -c 'bun run typecheck'"
-    ]
-  },
   "dependencies": {
     "@hono/zod-validator": "^0.7.6",
     "@neondatabase/serverless": "1.0.2",
@@ -59,7 +54,6 @@
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-prettier": "^5.5.5",
     "husky": "^9.1.7",
-    "lint-staged": "^16.2.4",
     "prettier": "^3.8.3",
     "tsx": "^4.7.0",
     "typescript": "^6.0.3",

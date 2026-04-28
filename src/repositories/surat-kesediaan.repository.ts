@@ -21,12 +21,12 @@ export class SuratKesediaanRepository {
     const result = await this.db
       .select({
         id: suratKesediaanRequests.id,
-        memberUserId: suratKesediaanRequests.memberUserId,
-        dosenUserId: suratKesediaanRequests.dosenUserId,
+        memberMahasiswaId: suratKesediaanRequests.memberMahasiswaId,
+        dosenId: suratKesediaanRequests.dosenId,
         status: suratKesediaanRequests.status,
         createdAt: suratKesediaanRequests.createdAt,
         approvedAt: suratKesediaanRequests.approvedAt,
-        approvedBy: suratKesediaanRequests.approvedBy,
+        approvedByDosenId: suratKesediaanRequests.approvedByDosenId,
         signedFileUrl: suratKesediaanRequests.signedFileUrl,
         signedFileKey: suratKesediaanRequests.signedFileKey,
         mahasiswaNama: sql<string | null>`null`,
@@ -36,7 +36,7 @@ export class SuratKesediaanRepository {
         mahasiswaSemester: sql<number | null>`null`,
         mahasiswaEmail: sql<string | null>`null`,
         mahasiswaPhone: sql<string | null>`null`,
-        dosenNama: suratKesediaanRequests.dosenUserId,
+        dosenNama: suratKesediaanRequests.dosenId,
         dosenNip: sql<string | null>`null`,
         dosenJabatan: sql<string | null>`null`,
         dosenEsignatureUrl: sql<string | null>`null`,
@@ -51,13 +51,13 @@ export class SuratKesediaanRepository {
   /**
    * Find requests for a dosen with member and submission data
    */
-  async findByDosenIdWithDetails(dosenUserId: string) {
+  async findByDosenIdWithDetails(dosenId: string) {
     const result = await this.db
       .select({
         id: suratKesediaanRequests.id,
         tanggal: suratKesediaanRequests.createdAt,
         nim: sql<string | null>`null`,
-        namaMahasiswa: suratKesediaanRequests.memberUserId,
+        namaMahasiswa: suratKesediaanRequests.memberMahasiswaId,
         programStudi: sql<string | null>`null`,
         angkatan: sql<number | null>`null`,
         semester: sql<number | null>`null`,
@@ -73,7 +73,7 @@ export class SuratKesediaanRepository {
         dosenEsignatureUrl: sql<string | null>`null`,
       })
       .from(suratKesediaanRequests)
-      .where(eq(suratKesediaanRequests.dosenUserId, dosenUserId))
+      .where(eq(suratKesediaanRequests.dosenId, dosenId))
       .orderBy(desc(suratKesediaanRequests.createdAt));
 
     return result;
@@ -85,7 +85,7 @@ export class SuratKesediaanRepository {
         id: suratKesediaanRequests.id,
         tanggal: suratKesediaanRequests.createdAt,
         nim: sql<string | null>`null`,
-        namaMahasiswa: suratKesediaanRequests.memberUserId,
+        namaMahasiswa: suratKesediaanRequests.memberMahasiswaId,
         programStudi: sql<string | null>`null`,
         angkatan: sql<number | null>`null`,
         semester: sql<number | null>`null`,
@@ -107,14 +107,14 @@ export class SuratKesediaanRepository {
   /**
    * Check if request already exists with status MENUNGGU
    */
-  async findExistingPending(memberUserId: string, dosenUserId: string) {
+  async findExistingPending(memberMahasiswaId: string, dosenId: string) {
     const result = await this.db
       .select()
       .from(suratKesediaanRequests)
       .where(
         and(
-          eq(suratKesediaanRequests.memberUserId, memberUserId),
-          eq(suratKesediaanRequests.dosenUserId, dosenUserId),
+          eq(suratKesediaanRequests.memberMahasiswaId, memberMahasiswaId),
+          eq(suratKesediaanRequests.dosenId, dosenId),
           eq(suratKesediaanRequests.status, 'MENUNGGU')
         )
       )
@@ -142,9 +142,9 @@ export class SuratKesediaanRepository {
 
   async approveWithSignedFile(
     id: string,
-    dosenUserId: string,
+    dosenId: string,
     data: {
-      approvedBy: string;
+      approvedByDosenId: string;
       approvedAt: Date;
       signedFileUrl: string;
       signedFileKey: string;
@@ -154,7 +154,7 @@ export class SuratKesediaanRepository {
       .update(suratKesediaanRequests)
       .set({
         status: 'DISETUJUI',
-        approvedBy: data.approvedBy,
+        approvedByDosenId: data.approvedByDosenId,
         approvedAt: data.approvedAt,
         signedFileUrl: data.signedFileUrl,
         signedFileKey: data.signedFileKey,
@@ -162,7 +162,7 @@ export class SuratKesediaanRepository {
       .where(
         and(
           eq(suratKesediaanRequests.id, id),
-          eq(suratKesediaanRequests.dosenUserId, dosenUserId),
+          eq(suratKesediaanRequests.dosenId, dosenId),
           eq(suratKesediaanRequests.status, 'MENUNGGU')
         )
       )
@@ -171,19 +171,19 @@ export class SuratKesediaanRepository {
     return result[0] || null;
   }
 
-  async rejectPending(id: string, dosenUserId: string, reason: string) {
+  async rejectPending(id: string, dosenId: string, reason: string) {
     const result = await this.db
       .update(suratKesediaanRequests)
       .set({
         status: 'DITOLAK',
-        approvedBy: dosenUserId,
+        approvedByDosenId: dosenId,
         approvedAt: new Date(),
         rejectionReason: reason,
       })
       .where(
         and(
           eq(suratKesediaanRequests.id, id),
-          eq(suratKesediaanRequests.dosenUserId, dosenUserId),
+          eq(suratKesediaanRequests.dosenId, dosenId),
           eq(suratKesediaanRequests.status, 'MENUNGGU')
         )
       )
@@ -192,21 +192,21 @@ export class SuratKesediaanRepository {
     return result[0] || null;
   }
 
-  async reapplyRejected(id: string, memberUserId: string) {
+  async reapplyRejected(id: string, memberMahasiswaId: string) {
     const result = await this.db
       .update(suratKesediaanRequests)
       .set({
         status: 'MENUNGGU',
         rejectionReason: null,
         approvedAt: null,
-        approvedBy: null,
+        approvedByDosenId: null,
         signedFileUrl: null,
         signedFileKey: null,
       })
       .where(
         and(
           eq(suratKesediaanRequests.id, id),
-          eq(suratKesediaanRequests.memberUserId, memberUserId),
+          eq(suratKesediaanRequests.memberMahasiswaId, memberMahasiswaId),
           sql`${suratKesediaanRequests.status}::text in ('DITOLAK', 'REJECTED')`
         )
       )
@@ -232,32 +232,32 @@ export class SuratKesediaanRepository {
       .where(inArray(suratKesediaanRequests.id, ids));
   }
 
-  async findLatestByMember(memberUserId: string) {
+  async findLatestByMahasiswaId(memberMahasiswaId: string) {
     const result = await this.db
       .select()
       .from(suratKesediaanRequests)
-      .where(eq(suratKesediaanRequests.memberUserId, memberUserId))
+      .where(eq(suratKesediaanRequests.memberMahasiswaId, memberMahasiswaId))
       .orderBy(desc(suratKesediaanRequests.createdAt))
       .limit(1);
 
     return result[0] || null;
   }
 
-  async findLatestByMemberIds(memberUserIds: string[]) {
-    if (memberUserIds.length === 0) return [];
+  async findLatestByMahasiswaIds(memberMahasiswaIds: string[]) {
+    if (memberMahasiswaIds.length === 0) return [];
 
     return await this.db
       .select({
         id: suratKesediaanRequests.id,
-        memberUserId: suratKesediaanRequests.memberUserId,
+        memberMahasiswaId: suratKesediaanRequests.memberMahasiswaId,
         status: suratKesediaanRequests.status,
-        dosenName: suratKesediaanRequests.dosenUserId,
+        dosenName: suratKesediaanRequests.dosenId,
         signedFileUrl: suratKesediaanRequests.signedFileUrl,
         rejectionReason: suratKesediaanRequests.rejectionReason,
         submittedAt: suratKesediaanRequests.createdAt,
       })
       .from(suratKesediaanRequests)
-      .where(inArray(suratKesediaanRequests.memberUserId, memberUserIds))
+      .where(inArray(suratKesediaanRequests.memberMahasiswaId, memberMahasiswaIds))
       .orderBy(desc(suratKesediaanRequests.createdAt));
   }
 }

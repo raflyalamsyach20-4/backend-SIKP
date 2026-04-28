@@ -1,11 +1,10 @@
 import { Hono } from 'hono';
 import { authMiddleware, mahasiswaOnly } from '@/middlewares/auth.middleware';
-import type { CloudflareBindings } from '@/config';
 import { createTeamSchema } from '@/validation/team.validation';
 import { zValidator } from '@hono/zod-validator';
-import { createRuntime } from '@/runtime';
 import { emptyQuerySchema, nonEmptyStringParamsSchema } from '@/schemas/common.schema';
 import { inviteMemberSchema, respondInvitationSchema } from '@/schemas/team.schema';
+import { TeamController } from '@/controllers/team.controller';
 
 /**
  * Team Routes
@@ -20,121 +19,76 @@ export const createTeamRoutes = () => {
       '/',
       zValidator('json', createTeamSchema),
       zValidator('query', emptyQuerySchema),
-      async (c) => {
-        const runtime = createRuntime(c.env);
-        return Reflect.apply(runtime.teamController.createTeam, runtime.teamController, [c, c.req.valid('json'), c.req.valid('query')]);
-      }
+      async (c) => new TeamController(c).createTeam()
     )
     .get(
       '/my-teams',
       zValidator('query', emptyQuerySchema),
-      async (c) => {
-        const runtime = createRuntime(c.env);
-        return Reflect.apply(runtime.teamController.getMyTeams, runtime.teamController, [c, c.req.valid('query')]);
-      }
+      async (c) => new TeamController(c).getMyTeams()
     )
     .get(
       '/my-invitations',
       zValidator('query', emptyQuerySchema),
-      async (c) => {
-        const runtime = createRuntime(c.env);
-        return Reflect.apply(runtime.teamController.getMyInvitations, runtime.teamController, [c, c.req.valid('query')]);
-      }
+      async (c) => new TeamController(c).getMyInvitations()
     )
     .post(
       '/:teamId/invite',
       zValidator('param', nonEmptyStringParamsSchema),
       zValidator('json', inviteMemberSchema),
-      async (c) => {
-        const runtime = createRuntime(c.env);
-        return Reflect.apply(runtime.teamController.inviteMember, runtime.teamController, [c, c.req.valid('param'), c.req.valid('json')]);
-      }
+      async (c) => new TeamController(c).inviteMember()
     )
     .post(
       '/invitations/:memberId/respond',
       zValidator('param', nonEmptyStringParamsSchema),
       zValidator('json', respondInvitationSchema),
-      async (c) => {
-        const runtime = createRuntime(c.env);
-        return Reflect.apply(runtime.teamController.respondToInvitation, runtime.teamController, [c, c.req.valid('param'), c.req.valid('json')]);
-      }
+      async (c) => new TeamController(c).respondToInvitation()
     )
     .post(
       '/invitations/:memberId/cancel',
       zValidator('param', nonEmptyStringParamsSchema),
       zValidator('query', emptyQuerySchema),
-      async (c) => {
-        const runtime = createRuntime(c.env);
-        return Reflect.apply(runtime.teamController.cancelInvitation, runtime.teamController, [c, c.req.valid('param'), c.req.valid('query')]);
-      }
+      async (c) => new TeamController(c).cancelInvitation()
     )
     .post(
       '/:teamCode/join',
       zValidator('param', nonEmptyStringParamsSchema),
       zValidator('query', emptyQuerySchema),
-      async (c) => {
-        const runtime = createRuntime(c.env);
-        return Reflect.apply(runtime.teamController.joinTeam, runtime.teamController, [c, c.req.valid('param'), c.req.valid('query')]);
-      }
+      async (c) => new TeamController(c).joinTeam()
     )
     .get(
       '/:teamId/members',
       zValidator('param', nonEmptyStringParamsSchema),
       zValidator('query', emptyQuerySchema),
-      async (c) => {
-        const runtime = createRuntime(c.env);
-        return Reflect.apply(runtime.teamController.getTeamMembers, runtime.teamController, [c, c.req.valid('param'), c.req.valid('query')]);
-      }
+      async (c) => new TeamController(c).getTeamMembers()
     )
     .post(
       '/:teamId/finalize',
       zValidator('param', nonEmptyStringParamsSchema),
       zValidator('query', emptyQuerySchema),
-      async (c) => {
-        const runtime = createRuntime(c.env);
-        return Reflect.apply(runtime.teamController.finalizeTeam, runtime.teamController, [c, c.req.valid('param'), c.req.valid('query')]);
-      }
+      async (c) => new TeamController(c).finalizeTeam()
     )
     .post(
       '/:teamId/leave',
       zValidator('param', nonEmptyStringParamsSchema),
       zValidator('query', emptyQuerySchema),
-      async (c) => {
-        const runtime = createRuntime(c.env);
-        return Reflect.apply(runtime.teamController.leaveTeam, runtime.teamController, [c, c.req.valid('param'), c.req.valid('query')]);
-      }
+      async (c) => new TeamController(c).leaveTeam()
     )
     .post(
       '/:teamId/members/:memberId/remove',
       zValidator('param', nonEmptyStringParamsSchema),
       zValidator('query', emptyQuerySchema),
-      async (c) => {
-        const runtime = createRuntime(c.env);
-        return Reflect.apply(runtime.teamController.removeMember, runtime.teamController, [c, c.req.valid('param'), c.req.valid('query')]);
-      }
+      async (c) => new TeamController(c).removeMember()
     )
     .post(
       '/:teamId/delete',
       zValidator('param', nonEmptyStringParamsSchema),
       zValidator('query', emptyQuerySchema),
-      async (c) => {
-        const runtime = createRuntime(c.env);
-        return Reflect.apply(runtime.teamController.deleteTeam, runtime.teamController, [c, c.req.valid('param'), c.req.valid('query')]);
-      }
+      async (c) => new TeamController(c).deleteTeam()
     )
-
-  /**
-   * Student: Reset team (delete submissions and reset to PENDING)
-   * POST /api/teams/reset
-   * Auth: Required (Mahasiswa only)
-   */
     .post(
       '/reset',
       zValidator('query', emptyQuerySchema),
-      async (c) => {
-        const runtime = createRuntime(c.env);
-        return Reflect.apply(runtime.teamController.resetTeam, runtime.teamController, [c, c.req.valid('query')]);
-      }
+      async (c) => new TeamController(c).resetTeam()
     );
 
   return team;

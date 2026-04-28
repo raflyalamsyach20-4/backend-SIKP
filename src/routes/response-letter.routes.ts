@@ -1,10 +1,9 @@
 import { Hono } from 'hono';
 import { authMiddleware } from '@/middlewares/auth.middleware';
-import type { CloudflareBindings } from '@/config';
 import { zValidator } from '@hono/zod-validator';
-import { createRuntime } from '@/runtime';
 import { emptyQuerySchema, nonEmptyStringParamsSchema } from '@/schemas/common.schema';
 import { submitResponseLetterSchema, verifyResponseLetterSchema } from '@/validation/response-letter.validation';
+import { ResponseLetterController } from '@/controllers';
 
 /**
  * Response Letter Routes
@@ -25,8 +24,7 @@ export const createResponseLetterRoutes = () => {
       '/',
       zValidator('form', submitResponseLetterSchema),
       async (c) => {
-        const runtime = createRuntime(c.env);
-        return Reflect.apply(runtime.responseLetterController.submitResponseLetter, runtime.responseLetterController, [c, c.req.valid('form')]);
+        return new ResponseLetterController(c).submitResponseLetter();
       }
     )
 
@@ -40,8 +38,7 @@ export const createResponseLetterRoutes = () => {
       '/admin',
       zValidator('query', emptyQuerySchema),
       async (c) => {
-        const runtime = createRuntime(c.env);
-        return Reflect.apply(runtime.responseLetterController.getAllResponseLetters, runtime.responseLetterController, [c, c.req.valid('query')]);
+        return new ResponseLetterController(c).getAllResponseLetters();
       }
     )
 
@@ -54,8 +51,7 @@ export const createResponseLetterRoutes = () => {
       '/my',
       zValidator('query', emptyQuerySchema),
       async (c) => {
-        const runtime = createRuntime(c.env);
-        return Reflect.apply(runtime.responseLetterController.getMyResponseLetter, runtime.responseLetterController, [c, c.req.valid('query')]);
+        return new ResponseLetterController(c).getMyResponseLetter();
       }
     )
 
@@ -69,8 +65,7 @@ export const createResponseLetterRoutes = () => {
       zValidator('param', nonEmptyStringParamsSchema),
       zValidator('query', emptyQuerySchema),
       async (c) => {
-        const runtime = createRuntime(c.env);
-        return Reflect.apply(runtime.responseLetterController.getResponseLetterStatus, runtime.responseLetterController, [c, c.req.valid('param'), c.req.valid('query')]);
+        return new ResponseLetterController(c).getResponseLetterStatus();
       }
     )
 
@@ -85,8 +80,7 @@ export const createResponseLetterRoutes = () => {
       zValidator('param', nonEmptyStringParamsSchema),
       zValidator('query', emptyQuerySchema),
       async (c) => {
-        const runtime = createRuntime(c.env);
-        return Reflect.apply(runtime.responseLetterController.getResponseLetterById, runtime.responseLetterController, [c, c.req.valid('param'), c.req.valid('query')]);
+        return new ResponseLetterController(c).getResponseLetterById();
       }
     )
 
@@ -101,8 +95,7 @@ export const createResponseLetterRoutes = () => {
       zValidator('param', nonEmptyStringParamsSchema),
       zValidator('json', verifyResponseLetterSchema),
       async (c) => {
-        const runtime = createRuntime(c.env);
-        return Reflect.apply(runtime.responseLetterController.verifyResponseLetter, runtime.responseLetterController, [c, c.req.valid('param'), c.req.valid('json')]);
+        return new ResponseLetterController(c).verifyResponseLetter();
       }
     )
 
@@ -116,8 +109,7 @@ export const createResponseLetterRoutes = () => {
       zValidator('param', nonEmptyStringParamsSchema),
       zValidator('query', emptyQuerySchema),
       async (c) => {
-        const runtime = createRuntime(c.env);
-        return Reflect.apply(runtime.responseLetterController.deleteResponseLetter, runtime.responseLetterController, [c, c.req.valid('param'), c.req.valid('query')]);
+        return new ResponseLetterController(c).deleteResponseLetter();
       }
     );
 

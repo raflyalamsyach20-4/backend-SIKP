@@ -31,7 +31,9 @@
 	"r2_buckets": [
 		{
 			"binding": "R2_BUCKET",
-			"bucket_name": "document-sikp-mi"
+			"bucket_name": "document-sikp-mi",
+			"preview_bucket_name": "document-sikp-mi",
+			"remote": true,
 		}
 	]
 	// "kv_namespaces": [

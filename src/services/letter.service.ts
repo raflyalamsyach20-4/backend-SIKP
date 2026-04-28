@@ -3,6 +3,7 @@ import { Document, Packer, Paragraph, TextRun } from 'docx';
 import { SubmissionRepository } from '@/repositories/submission.repository';
 import { StorageService } from './storage.service';
 import { generateId } from '@/utils/helpers';
+import { createDbClient } from '@/db';
 
 type LetterSubmission = {
   id: string;
@@ -17,10 +18,16 @@ type LetterSubmission = {
 };
 
 export class LetterService {
+  private submissionRepo: SubmissionRepository;
+  private storageService: StorageService;
+
   constructor(
-    private submissionRepo: SubmissionRepository,
-    private storageService: StorageService
-  ) {}
+    private env: CloudflareBindings
+  ) {
+    const db = createDbClient(this.env.DATABASE_URL);
+    this.submissionRepo = new SubmissionRepository(db);
+    this.storageService = new StorageService(this.env);
+  }
 
   async generateLetter(submissionId: string, adminId: string, format: 'pdf' | 'docx' = 'pdf') {
     const submission = await this.submissionRepo.findById(submissionId);
@@ -63,7 +70,7 @@ export class LetterService {
       fileName,
       fileUrl: url,
       fileType: format.toUpperCase(),
-      generatedBy: adminId,
+      generatedByAdminId: adminId,
     });
 
     return letter;
