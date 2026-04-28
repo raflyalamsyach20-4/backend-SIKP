@@ -211,7 +211,7 @@ export class SuratKesediaanService {
           rejectedAt: req.status === 'DITOLAK' ? req.approvedAt : null,
           rejectionReason: req.status === 'DITOLAK' ? (req.rejectionReason ?? null) : null,
           approvedAt: req.approvedAt,
-          signedFileUrl: req.signedFileUrl,
+          signedFileUrl: this.storageService.getAssetProxyUrl(req.signedFileUrl),
         };
       })
     );

@@ -167,6 +167,8 @@ export const logbooks = pgTable('logbooks', {
   description: text('description').notNull(),
   hours: integer('hours'),
   status: logbookStatusEnum('status').notNull().default('PENDING'),
+  attachmentUrl: text('attachment_url'),
+  attachmentKey: text('attachment_key'),
   rejectionReason: text('rejection_reason'),
   verifiedBy: text('verified_by'),
   verifiedAt: timestamp('verified_at'),
@@ -283,6 +285,20 @@ export const notifications = pgTable('notifications', {
   type: varchar('type', { length: 50 }).notNull(), // info, success, warning, error
   isRead: boolean('is_read').notNull().default(false),
   createdAt: timestamp('created_at').defaultNow().notNull(),
+});
+
+// Mentors Table (Profiles for Field Mentors)
+export const mentors = pgTable('mentors', {
+  id: text('id').primaryKey(), // Using the same ID as SSO profileId or unique ID
+  fullName: varchar('full_name', { length: 255 }).notNull(),
+  email: varchar('email', { length: 255 }).notNull().unique(),
+  phone: varchar('phone', { length: 20 }),
+  companyName: varchar('company_name', { length: 255 }),
+  position: varchar('position', { length: 100 }),
+  signatureUrl: text('signature_url'),
+  signatureKey: text('signature_key'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
 });
 
 // Mentor Approval Requests (Pengajuan pembimbing lapangan oleh mahasiswa)

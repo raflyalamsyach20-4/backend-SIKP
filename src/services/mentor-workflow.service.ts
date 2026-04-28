@@ -61,6 +61,18 @@ export class MentorWorkflowService {
     // Assign the mentor (using their SSO profileId) to the internship
     await this.workflowRepo.assignMentorToInternship(internship.id, mentorProfileId);
 
+    // Create or update local mentor profile
+    await this.workflowRepo.createMentorProfile({
+      id: mentorProfileId,
+      fullName: request.mentorName,
+      email: request.mentorEmail,
+      phone: request.mentorPhone,
+      companyName: request.companyName,
+      position: request.position,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+
     const updatedRequest = await this.workflowRepo.updateMentorApprovalRequest(requestId, {
       status: 'APPROVED',
       reviewedBy: reviewerUserId,

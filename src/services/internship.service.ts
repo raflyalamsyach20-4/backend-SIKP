@@ -1,18 +1,24 @@
 import { createDbClient } from '@/db';
 import { MahasiswaRepository } from '@/repositories/mahasiswa.repository';
+import { MentorRepository } from '@/repositories/mentor.repository';
 import { MahasiswaService } from './mahasiswa.service';
 import { DosenService } from './dosen.service';
+import { StorageService } from './storage.service';
 
 export class InternshipService {
   private mahasiswaRepo: MahasiswaRepository;
+  private mentorRepo: MentorRepository;
   private mahasiswaService: MahasiswaService;
   private dosenService: DosenService;
+  private storageService: StorageService;
 
   constructor(private env: CloudflareBindings) {
     const db = createDbClient(this.env.DATABASE_URL);
     this.mahasiswaRepo = new MahasiswaRepository(db);
+    this.mentorRepo = new MentorRepository(db);
     this.mahasiswaService = new MahasiswaService(this.env);
     this.dosenService = new DosenService(this.env);
+    this.storageService = new StorageService(this.env);
   }
 
   /**
@@ -36,16 +42,28 @@ export class InternshipService {
     // We can potentially use a generic profile lookup if available.
     let mentor = null;
     if (data.pembimbingLapanganId) {
-      // TODO: Implement Mentor profile resolution when dedicated service is available
-      mentor = {
-        id: data.pembimbingLapanganId,
-        name: 'Mentor (SSO Identity)', // Placeholder until mentor lookup is implemented
-        email: '',
-        company: data.company || '',
-        position: '',
-        phone: '',
-        signature: null,
-      };
+      const mentorProfile = await this.mentorRepo.findProfileById(data.pembimbingLapanganId);
+      if (mentorProfile) {
+        mentor = {
+          id: mentorProfile.id,
+          name: mentorProfile.fullName,
+          email: mentorProfile.email,
+          company: mentorProfile.companyName || data.company || '',
+          position: mentorProfile.position || '',
+          phone: mentorProfile.phone || '',
+          signature: this.storageService.getAssetProxyUrl(mentorProfile.signatureUrl),
+        };
+      } else {
+        mentor = {
+          id: data.pembimbingLapanganId,
+          name: 'Mentor (Identity Reserved)',
+          email: '',
+          company: data.company || '',
+          position: '',
+          phone: '',
+          signature: null,
+        };
+      }
     }
 
     // Resolve Lecturer Details from SSO

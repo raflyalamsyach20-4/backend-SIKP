@@ -48,7 +48,13 @@ export class LogbookService {
     }
 
     const entries = await this.logbookRepo.findByInternshipId(internshipId);
-    return { internshipId, entries };
+    
+    const enrichedEntries = entries.map(entry => ({
+      ...entry,
+      attachmentUrl: this.storageService.getAssetProxyUrl(entry.attachmentUrl)
+    }));
+
+    return { internshipId, entries: enrichedEntries };
   }
 
   /**
@@ -78,7 +84,10 @@ export class LogbookService {
       throw this.createError('Logbook entry not found or access denied.', 403);
     }
 
-    return entry;
+    return {
+      ...entry,
+      attachmentUrl: this.storageService.getAssetProxyUrl(entry.attachmentUrl)
+    };
   }
 
   /**
@@ -127,11 +136,28 @@ export class LogbookService {
     const entry = await this.getLogbookById(userId, logbookId);
 
     // Upload to storage
-    const path = `logbooks/${logbookId}/${Date.now()}_${file.name}`;
-    const url = await this.storageService.uploadFile(file, path);
+    const fileName = this.storageService.generateUniqueFileName(file.name);
+    const folder = `logbooks/${logbookId}`;
+    
+    const { url, key } = await this.storageService.uploadFile(
+      file,
+      fileName,
+      folder,
+      file.type
+    );
 
     // Update database
-    return this.logbookRepo.update(logbookId, { photoUrl: url.url });
+    const updated = await this.logbookRepo.update(logbookId, { 
+      attachmentUrl: url,
+      attachmentKey: key
+    });
+
+    if (!updated) return null;
+
+    return {
+      ...updated,
+      attachmentUrl: this.storageService.getAssetProxyUrl(updated.attachmentUrl)
+    };
   }
 }
 

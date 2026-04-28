@@ -79,7 +79,7 @@ Menghapus file monolitik `magang.route.ts` dan memecahnya menjadi file rute spes
 
 ### 17. Refaktor Service & Controller Identity-Aware
 - **`InternshipService`**: Sekarang mengambil data profil mahasiswa, mentor, dan dosen pembimbing secara dinamis melalui `UserRepository`. Data persona tidak lagi disimpan/diambil dari database lokal magang.
-- **`MentorController`**: Menghapus endpoint profil dan tanda tangan (signature) yang redundan, beralih menggunakan identity proxy dari SSO.
+- **`MentorController`**: Diperbarui untuk mendukung manajemen profil mandiri bagi pembimbing lapangan, termasuk fitur unggah e-signature yang disimpan di R2.
 - **Dependency Injection**: Memperbarui `runtime.ts` untuk menginjeksikan `UserRepository` ke dalam `InternshipService`.
 
 ### 18. Resolusi Konflik Merge & Type Safety
@@ -96,6 +96,20 @@ Menghapus file monolitik `magang.route.ts` dan memecahnya menjadi file rute spes
 - **Full SSO Identity Mapping**: `InternshipService` kini sepenuhnya bergantung pada `MahasiswaService` dan `DosenService` untuk resolusi identitas via SSO `sessionId`. Tidak ada lagi pengambilan data user dari database lokal.
 - **Hardening Typecheck**: Seluruh modul magang telah diverifikasi dengan `bun run typecheck` dan memberikan hasil bersih (0 errors).
 - **Paritas Fitur dengan Main**: Struktur folder, penamaan file, dan pola eksekusi kode kini 100% identik dengan branch `main`.
+
+### 21. Integrasi Cloudflare R2 pada Logbook
+- **Storage Path**: Foto kegiatan logbook kini disimpan di R2 bucket `document-sikp-mi` dengan prefix `logbooks/{logbookId}/`.
+- **Database Schema**: Menambahkan kolom `attachment_url` dan `attachment_key` pada tabel `logbooks` untuk persistensi data file.
+- **Enrichment Logic**: `LogbookService` secara otomatis mengubah public R2 URL menjadi internal proxy URL agar aman dan mendukung CORS.
+
+### 22. Manajemen Profil & E-Signature Mentor Lapangan
+- **Tabel `mentors`**: Membuat tabel baru untuk menyimpan profil pembimbing lapangan (nama, email, instansi) serta referensi tanda tangan digital.
+- **E-Signature Storage**: Mengimplementasikan fitur unggah tanda tangan mentor ke R2 (`signatures/mentors/{mentorId}/`), memberikan fungsionalitas tanda tangan digital bagi pihak eksternal.
+- **Workflow Sync**: `MentorWorkflowService` secara otomatis mendaftarkan profil mentor ke database lokal saat pengajuan pembimbing lapangan oleh mahasiswa disetujui.
+
+### 23. Asset Proxy & Security Hardening
+- **Allowed Prefixes**: Memperbarui `assets.route.ts` untuk mengizinkan proxying folder `logbooks/`, `signatures/`, dan `surat-kesediaan/`.
+- **Global Helper**: Menambahkan metode `getAssetProxyUrl` pada `StorageService` untuk standarisasi konversi URL R2 di seluruh modul (Logbook, Mentor, dan Surat Kesediaan).
 
 ---
 

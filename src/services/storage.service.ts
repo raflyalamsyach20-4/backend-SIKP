@@ -164,7 +164,7 @@ export class StorageService {
     return `${this.r2Domain}/${key}`;
   }
 
-  getEsignatureAssetProxyUrlFromPublicUrl(publicUrl: string | null | undefined): string | null {
+  getAssetProxyUrl(publicUrl: string | null | undefined): string | null {
     if (!publicUrl) return null;
 
     const normalizedDomain = this.r2Domain.replace(/\/$/, '');
@@ -178,6 +178,10 @@ export class StorageService {
     }
 
     return `${this.apiBaseUrl}/api/assets/r2/${encodeURIComponent(key)}`;
+  }
+
+  getEsignatureAssetProxyUrlFromPublicUrl(publicUrl: string | null | undefined): string | null {
+    return this.getAssetProxyUrl(publicUrl);
   }
 
   validateFileType(fileName: string, allowedTypes: string[]): boolean {

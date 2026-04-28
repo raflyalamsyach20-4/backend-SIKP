@@ -1,19 +1,63 @@
 import { createDbClient } from '@/db';
 import { MentorRepository, CreateAssessmentData, UpdateAssessmentData } from '@/repositories/mentor.repository';
 import { LogbookRepository } from '@/repositories/logbook.repository';
+import { StorageService } from './storage.service';
 
 export class MentorService {
   private mentorRepo: MentorRepository;
   private logbookRepo: LogbookRepository;
+  private storageService: StorageService;
 
   constructor(private env: CloudflareBindings) {
     const db = createDbClient(this.env.DATABASE_URL);
     this.mentorRepo = new MentorRepository(db);
     this.logbookRepo = new LogbookRepository(db);
+    this.storageService = new StorageService(this.env);
   }
 
   // ─── Profile & Signature ───────────────────────────────────────────────────
-  // These are now handled via SSO / External Identity system.
+
+  async getProfile(mentorId: string) {
+    const profile = await this.mentorRepo.findProfileById(mentorId);
+    if (!profile) throw new Error('Mentor profile not found');
+    
+    return {
+      ...profile,
+      signatureUrl: this.storageService.getAssetProxyUrl(profile.signatureUrl)
+    };
+  }
+
+  async updateSignature(mentorId: string, file: File) {
+    // 1. Validate file type
+    const allowedTypes = ['image/png', 'image/jpeg', 'image/jpg'];
+    if (!allowedTypes.includes(file.type)) {
+      throw new Error('Invalid file type. Only PNG and JPEG are allowed for signatures.');
+    }
+
+    // 2. Upload to R2
+    const fileName = this.storageService.generateUniqueFileName(file.name);
+    const folder = `signatures/mentors/${mentorId}`;
+    
+    const { url, key } = await this.storageService.uploadFile(
+      file,
+      fileName,
+      folder,
+      file.type
+    );
+
+    // 3. Update DB
+    const updated = await this.mentorRepo.updateProfile(mentorId, {
+      signatureUrl: url,
+      signatureKey: key
+    });
+
+    if (!updated) return null;
+
+    return {
+      ...updated,
+      signatureUrl: this.storageService.getAssetProxyUrl(updated.signatureUrl)
+    };
+  }
 
 
   // ─── Mentees ────────────────────────────────────────────────────────────────

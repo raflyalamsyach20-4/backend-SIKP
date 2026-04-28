@@ -21,8 +21,12 @@ export const createMentorshipRoutes = () => {
     .post('/requests', mahasiswaOnly, zValidator('json', submitMentorApprovalRequestSchema), async (c) => {
       return new MentorWorkflowController(c).submitMentorApprovalRequest(c.req.valid('json'));
     })
-    .post('/email-change-requests', pembimbingLapanganOnly, zValidator('json', emptyQuerySchema), async (c) => {
-      return new MentorWorkflowController(c).createMentorEmailChangeRequest(c.req.valid('json'));
+    // Mentor Profile & Signature
+    .get('/profile', pembimbingLapanganOnly, zValidator('query', emptyQuerySchema), async (c) => {
+      return new MentorController(c).getProfile();
+    })
+    .post('/profile/signature', pembimbingLapanganOnly, async (c) => {
+      return new MentorController(c).updateSignature();
     })
 
     // Mentee Management

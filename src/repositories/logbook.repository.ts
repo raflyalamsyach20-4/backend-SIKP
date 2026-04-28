@@ -16,7 +16,8 @@ export interface UpdateLogbookData {
   activity?: string;
   description?: string;
   hours?: number;
-  photoUrl?: string;
+  attachmentUrl?: string;
+  attachmentKey?: string;
 }
 
 export class LogbookRepository {
@@ -112,7 +113,8 @@ export class LogbookRepository {
       if (data.activity !== undefined) fields.activity = data.activity;
       if (data.description !== undefined) fields.description = data.description;
       if (data.hours !== undefined) fields.hours = data.hours;
-      if (data.photoUrl !== undefined) fields.photoUrl = data.photoUrl;
+      if (data.attachmentUrl !== undefined) fields.attachmentUrl = data.attachmentUrl;
+      if (data.attachmentKey !== undefined) fields.attachmentKey = data.attachmentKey;
 
       await this.db.update(logbooks).set(fields).where(eq(logbooks.id, id));
       return this.findById(id);

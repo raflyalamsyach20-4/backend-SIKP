@@ -23,6 +23,49 @@ export class MentorController {
     return this.c.json(createResponse(false, msg), 403);
   }
 
+  // ─── Profile & Signature ───────────────────────────────────────────────────
+
+  /**
+   * GET /api/mentorship/profile
+   */
+  getProfile = async () => {
+    try {
+      const mentorId = this.getMentorId();
+      if (!mentorId) return this.c.json(createResponse(false, 'Unauthorized'), 401);
+
+      const profile = await this.mentorService.getProfile(mentorId);
+      return this.c.json(createResponse(true, 'Mentor profile retrieved successfully', profile), 200);
+    } catch (error) {
+      if (error instanceof Error && error.message.includes('not found')) return this.notFound(error.message);
+      return handleError(this.c, error);
+    }
+  };
+
+  /**
+   * POST /api/mentorship/profile/signature
+   */
+  updateSignature = async () => {
+    try {
+      const mentorId = this.getMentorId();
+      if (!mentorId) return this.c.json(createResponse(false, 'Unauthorized'), 401);
+
+      const body = await this.c.req.parseBody();
+      const file = body['file'] as File;
+
+      if (!file) {
+        return this.c.json(createResponse(false, 'No file uploaded'), 400);
+      }
+
+      const updated = await this.mentorService.updateSignature(mentorId, file);
+      return this.c.json(createResponse(true, 'Signature uploaded successfully', updated), 200);
+    } catch (error) {
+      if (error instanceof Error && error.message.includes('Invalid file type')) {
+        return this.c.json(createResponse(false, error.message), 400);
+      }
+      return handleError(this.c, error);
+    }
+  };
+
 
   // ─── Mentees ────────────────────────────────────────────────────────────────
 

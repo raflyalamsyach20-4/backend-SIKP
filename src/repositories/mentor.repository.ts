@@ -3,6 +3,7 @@ import type { DbClient } from '@/db';
 import {
   internships,
   assessments,
+  mentors,
 } from '@/db/schema';
 import { generateId } from '@/utils/helpers';
 
@@ -203,6 +204,35 @@ export class MentorRepository {
       return this.findAssessmentById(id);
     } catch (error) {
       console.error('[MentorRepository.updateAssessment] Error:', error);
+      throw error;
+    }
+  }
+
+  // ─── Profile ───────────────────────────────────────────────────────────────
+
+  async findProfileById(id: string) {
+    try {
+      const result = await this.db
+        .select()
+        .from(mentors)
+        .where(eq(mentors.id, id))
+        .limit(1);
+      return result[0] ?? null;
+    } catch (error) {
+      console.error('[MentorRepository.findProfileById] Error:', error);
+      throw error;
+    }
+  }
+
+  async updateProfile(id: string, data: Partial<typeof mentors.$inferInsert>) {
+    try {
+      await this.db
+        .update(mentors)
+        .set({ ...data, updatedAt: new Date() })
+        .where(eq(mentors.id, id));
+      return this.findProfileById(id);
+    } catch (error) {
+      console.error('[MentorRepository.updateProfile] Error:', error);
       throw error;
     }
   }

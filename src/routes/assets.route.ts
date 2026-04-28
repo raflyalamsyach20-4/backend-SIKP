@@ -58,7 +58,10 @@ export const createAssetRoutes = () => {
       const rawPathPart = markerIndex >= 0 ? pathname.slice(markerIndex + marker.length) : '';
       const objectKey = normalizeR2Key(rawPathPart);
 
-      if (!objectKey.startsWith('esignatures/')) {
+      const allowedPrefixes = ['esignatures/', 'logbooks/', 'surat-kesediaan/', 'signatures/'];
+      const isAllowed = allowedPrefixes.some(prefix => objectKey.startsWith(prefix));
+
+      if (!isAllowed) {
         return c.json({ success: false, message: 'Forbidden asset path' }, 403);
       }
 

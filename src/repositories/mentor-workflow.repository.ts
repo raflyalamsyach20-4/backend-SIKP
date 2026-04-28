@@ -7,6 +7,7 @@ import {
   mentorActivationTokens,
   mentorApprovalRequests,
   mentorEmailChangeRequests,
+  mentors,
 } from '@/db/schema';
 
 export class MentorWorkflowRepository {
@@ -258,6 +259,20 @@ export class MentorWorkflowRepository {
       await this.db.insert(auditLogs).values(data);
     } catch (error) {
       console.error('[MentorWorkflowRepository.createAuditLog] Error:', error);
+      throw error;
+    }
+  }
+
+  async createMentorProfile(data: typeof mentors.$inferInsert) {
+    try {
+      await this.db.insert(mentors).values(data).onConflictDoUpdate({
+        target: mentors.id,
+        set: { ...data, updatedAt: new Date() }
+      });
+      const rows = await this.db.select().from(mentors).where(eq(mentors.id, data.id)).limit(1);
+      return rows[0] ?? null;
+    } catch (error) {
+      console.error('[MentorWorkflowRepository.createMentorProfile] Error:', error);
       throw error;
     }
   }
