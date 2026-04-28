@@ -27,7 +27,7 @@ export class MahasiswaRepository {
     const result = await this.db
       .select({
         // Student ID (from input or joined tables)
-        studentId: teamMembers.userId,
+        studentId: teamMembers.mahasiswaId,
         
         // Submission data
         submissionId: submissions.id,
@@ -40,7 +40,7 @@ export class MahasiswaRepository {
         submissionStatus: submissions.status,
         submittedAt: submissions.submittedAt,
         approvedAt: submissions.approvedAt,
-        approvedBy: submissions.approvedBy,
+        approvedBy: submissions.approvedByAdminId,
         
         // Internship data
         internshipId: internships.id,
@@ -64,11 +64,11 @@ export class MahasiswaRepository {
       .leftJoin(
         internships, 
         and(
-          eq(teamMembers.userId, internships.mahasiswaId),
+          eq(teamMembers.mahasiswaId, internships.mahasiswaId),
           eq(submissions.id, internships.submissionId)
         )
       )
-      .where(eq(teamMembers.userId, userId))
+      .where(eq(teamMembers.mahasiswaId, userId))
       .limit(1);
 
     return result[0] || null;

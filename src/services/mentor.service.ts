@@ -1,11 +1,16 @@
+import { createDbClient } from '@/db';
 import { MentorRepository, CreateAssessmentData, UpdateAssessmentData } from '@/repositories/mentor.repository';
 import { LogbookRepository } from '@/repositories/logbook.repository';
 
 export class MentorService {
-  constructor(
-    private mentorRepo: MentorRepository,
-    private logbookRepo: LogbookRepository,
-  ) {}
+  private mentorRepo: MentorRepository;
+  private logbookRepo: LogbookRepository;
+
+  constructor(private env: CloudflareBindings) {
+    const db = createDbClient(this.env.DATABASE_URL);
+    this.mentorRepo = new MentorRepository(db);
+    this.logbookRepo = new LogbookRepository(db);
+  }
 
   // ─── Profile & Signature ───────────────────────────────────────────────────
   // These are now handled via SSO / External Identity system.

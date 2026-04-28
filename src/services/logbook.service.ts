@@ -1,11 +1,16 @@
+import { createDbClient } from '@/db';
 import { LogbookRepository, CreateLogbookData, UpdateLogbookData } from '@/repositories/logbook.repository';
 import { StorageService } from './storage.service';
 
 export class LogbookService {
-  constructor(
-    private logbookRepo: LogbookRepository,
-    private storageService: StorageService
-  ) {}
+  private logbookRepo: LogbookRepository;
+  private storageService: StorageService;
+
+  constructor(private env: CloudflareBindings) {
+    const db = createDbClient(this.env.DATABASE_URL);
+    this.logbookRepo = new LogbookRepository(db);
+    this.storageService = new StorageService(this.env);
+  }
 
   private createError(message: string, statusCode: number) {
     const error = new Error(message) as Error & { statusCode?: number };

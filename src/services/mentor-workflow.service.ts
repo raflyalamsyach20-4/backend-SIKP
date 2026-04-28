@@ -1,8 +1,14 @@
+import { createDbClient } from '@/db';
 import { MentorWorkflowRepository } from '@/repositories/mentor-workflow.repository';
 import { generateId } from '@/utils/helpers';
 
 export class MentorWorkflowService {
-  constructor(private workflowRepo: MentorWorkflowRepository) {}
+  private workflowRepo: MentorWorkflowRepository;
+
+  constructor(private env: CloudflareBindings) {
+    const db = createDbClient(this.env.DATABASE_URL);
+    this.workflowRepo = new MentorWorkflowRepository(db);
+  }
 
   async submitMentorApprovalRequest(studentUserId: string, data: {
     mentorName: string;

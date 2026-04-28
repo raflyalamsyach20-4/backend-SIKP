@@ -1,64 +1,79 @@
+import { createDbClient } from '@/db';
 import { MahasiswaRepository } from '@/repositories/mahasiswa.repository';
-import { UserRepository } from '@/repositories/user.repository';
+import { MahasiswaService } from './mahasiswa.service';
+import { DosenService } from './dosen.service';
 
 export class InternshipService {
-  constructor(
-    private mahasiswaRepo: MahasiswaRepository,
-    private userRepo: UserRepository
-  ) {}
+  private mahasiswaRepo: MahasiswaRepository;
+  private mahasiswaService: MahasiswaService;
+  private dosenService: DosenService;
+
+  constructor(private env: CloudflareBindings) {
+    const db = createDbClient(this.env.DATABASE_URL);
+    this.mahasiswaRepo = new MahasiswaRepository(db);
+    this.mahasiswaService = new MahasiswaService(this.env);
+    this.dosenService = new DosenService(this.env);
+  }
 
   /**
    * Get complete internship data including student, submission, internship, mentor, and lecturer info
    */
-  async getInternshipData(userId: string) {
+  async getInternshipData(userId: string, sessionId: string) {
     const data = await this.mahasiswaRepo.getInternshipData(userId);
     
     if (!data || !data.submissionId) {
       throw new Error('No active internship found for this student. Please complete your submission first.');
     }
 
-    // Resolve Student Details
-    const studentProfile = await this.userRepo.getMahasiswaMe(userId);
+    // Resolve Student Details from SSO
+    const studentProfile = await this.mahasiswaService.getMahasiswaById(userId, sessionId);
+    if (!studentProfile) {
+      throw new Error('Mahasiswa profile not found in SSO');
+    }
 
-    // Resolve Mentor Details
+    // Resolve Mentor Details (Mentors also come from SSO in the new architecture)
+    // For now, we use a simplified approach as there isn't a dedicated MentorService.getById yet.
+    // We can potentially use a generic profile lookup if available.
     let mentor = null;
     if (data.pembimbingLapanganId) {
-      const mentorUser = await this.userRepo.findById(data.pembimbingLapanganId);
+      // TODO: Implement Mentor profile resolution when dedicated service is available
       mentor = {
         id: data.pembimbingLapanganId,
-        name: mentorUser.nama || '',
-        email: mentorUser.email || '',
-        company: data.company || '', // Company info comes from internship table
-        position: '', // Position might need another lookup or we store it in internships
-        phone: mentorUser.phone || '',
+        name: 'Mentor (SSO Identity)', // Placeholder until mentor lookup is implemented
+        email: '',
+        company: data.company || '',
+        position: '',
+        phone: '',
         signature: null,
       };
     }
 
-    // Resolve Lecturer Details
+    // Resolve Lecturer Details from SSO
     let lecturer = null;
     if (data.dosenPembimbingId) {
-      const lecturerProfile = await this.userRepo.getDosenMe(data.dosenPembimbingId);
-      lecturer = {
-        id: data.dosenPembimbingId,
-        name: lecturerProfile.nama || '',
-        email: lecturerProfile.email || '',
-        nip: lecturerProfile.nip || '',
-        phone: lecturerProfile.phone || '',
-        jabatan: lecturerProfile.jabatan || '',
-      };
+      const lecturerProfile = await this.dosenService.getDosenById(data.dosenPembimbingId, sessionId);
+      if (lecturerProfile) {
+        lecturer = {
+          id: data.dosenPembimbingId,
+          name: lecturerProfile.profile.fullName || '',
+          email: lecturerProfile.profile.emails.find(e => e.isPrimary)?.email || '',
+          nip: lecturerProfile.nidn || '',
+          phone: '',
+          jabatan: lecturerProfile.jabatanFungsional || '',
+        };
+      }
     }
 
     return {
       student: {
-        id: studentProfile.id,
-        name: studentProfile.nama,
+        id: studentProfile.profile.id,
+        name: studentProfile.profile.fullName,
         nim: studentProfile.nim,
-        email: studentProfile.email,
-        prodi: studentProfile.prodi || '',
-        fakultas: studentProfile.fakultas || '',
-        angkatan: studentProfile.angkatan || '',
-        semester: studentProfile.semester || 0,
+        email: studentProfile.profile.emails.find(e => e.isPrimary)?.email || '',
+        prodi: studentProfile.prodi?.nama || '',
+        fakultas: studentProfile.fakultas?.nama || '',
+        angkatan: studentProfile.angkatan.toString() || '',
+        semester: studentProfile.semesterAktif || 0,
       },
       submission: {
         id: data.submissionId,

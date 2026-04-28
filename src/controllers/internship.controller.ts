@@ -4,37 +4,42 @@ import { createResponse, handleError } from '@/utils/helpers';
 import type { JWTPayload } from '@/types';
 
 export class InternshipController {
-  constructor(private internshipService: InternshipService) {}
+  private internshipService: InternshipService;
+
+  constructor(private c: Context<{ Bindings: CloudflareBindings }>) {
+    this.internshipService = new InternshipService(this.c.env);
+  }
 
   /**
    * GET /api/internships
    */
-  getInternship = async (c: Context, query: any) => {
+  getInternship = async () => {
     try {
-      const user = c.get('user') as JWTPayload;
+      const user = this.c.get('user') as JWTPayload;
       const userId = user?.userId;
+      const sessionId = user?.sessionId;
       
-      if (!userId) {
-        return c.json(
-          createResponse(false, 'Unauthorized: User ID not found'),
+      if (!userId || !sessionId) {
+        return this.c.json(
+          createResponse(false, 'Unauthorized: User ID or Session ID not found'),
           401
         );
       }
 
-      const internshipData = await this.internshipService.getInternshipData(userId);
+      const internshipData = await this.internshipService.getInternshipData(userId, sessionId);
 
-      return c.json(
+      return this.c.json(
         createResponse(true, 'Internship data retrieved successfully', internshipData),
         200
       );
     } catch (error) {
       if (error instanceof Error && (error.message.includes('No active internship') || error.message.includes('not found'))) {
-        return c.json(
+        return this.c.json(
           createResponse(false, error.message),
           404
         );
       }
-      return handleError(c, error);
+      return handleError(this.c, error);
     }
   };
 }

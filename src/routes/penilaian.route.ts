@@ -1,6 +1,5 @@
 import { Hono } from 'hono';
 import { authMiddleware } from '@/middlewares/auth.middleware';
-import type { CloudflareBindings } from '@/config';
 
 export const createPenilaianRoutes = () => {
   const route = new Hono<{ Bindings: CloudflareBindings }>();

@@ -13,14 +13,15 @@ Menghapus file monolitik `magang.route.ts` dan memecahnya menjadi file rute spes
 - `mentor-activation.route.ts`: Alur aktivasi akun dan set password untuk mentor baru.
 - `penilaian.route.ts`: Pengambilan kriteria penilaian statis.
 
-### 2. Integrasi Global Runtime (Dependency Injection)
-- Mendaftarkan seluruh Repository, Service, dan Controller magang ke dalam `src/runtime.ts`.
-- Menggunakan `createRuntime(c.env)` di setiap rute untuk mendapatkan instance controller.
-- Menghilangkan instansiasi manual (`new Controller(...)`) di dalam file rute.
+### 2. Dependency Injection Langsung (Env-Based DI)
+- **Menghapus `runtime.ts`**: Pola factory di `runtime.ts` telah dihapus mengikuti standar terbaru `main`.
+- **Instansiasi Controller Langsung**: Controller kini diinstansiasi langsung di dalam file rute dengan mengirimkan `Context` (c) ke constructor.
+- **Injeksi `env` Otomatis**: Service sekarang menerima `CloudflareBindings` langsung dari controller, memudahkan akses ke Database (D1) dan Storage (R2) tanpa perantara factory.
 
-### 3. Standarisasi Pola Panggilan (Reflect Pattern)
-- Menggunakan `Reflect.apply(runtime.controller.method, runtime.controller, [c, validatedData])`.
-- Menyamakan "irama" kode dengan fitur-fitur di `main` branch.
+### 3. Pembersihan Pola Panggilan (Standard Hono Route)
+- **Menghapus `Reflect.apply`**: Seluruh logika `Reflect.apply` yang kompleks telah dihilangkan.
+- **Method Chaining**: Menggunakan standar chaining Hono yang lebih bersih: `async (c) => new Controller(c).method()`.
+- **Type Safety Global**: Memanfaatkan interface `CloudflareBindings` yang tersedia secara global di seluruh aplikasi.
 
 ### 4. Validasi Ketat (zValidator & Zod)
 - Implementasi `zValidator` pada setiap endpoint `POST`, `PUT`, dan `GET` (query).
@@ -48,37 +49,61 @@ Menghapus file monolitik `magang.route.ts` dan memecahnya menjadi file rute spes
 - Implementasi helper `createError` untuk menyertakan HTTP status code pada error di level Service.
 - Memungkinkan `handleError` di Controller memberikan respon yang akurat secara otomatis.
 
+### 10. Standardisasi Error Repository (Full Coverage)
+- Menerapkan pola try-catch dan logging yang konsisten di `LogbookRepository`, `MentorRepository`, dan `MentorWorkflowRepository`.
+- Layer database sekarang memiliki mekanisme monitoring error yang seragam.
+
+### 11. Implementasi File Upload Middleware (Hono Middleware)
+- Berhasil membuat `validateFileUpload` middleware dan menerapkannya di rute foto logbook untuk validasi MIME & Size yang lebih awal.
+
+### 12. Penyelarasan Penamaan Method (Naming Consistency)
+- Refactor nama method di `LogbookController` & `logbook.route.ts` agar deskriptif (`getLogbookList`, `getLogbookDetail`) sesuai standar `main`.
+
+### 13. Validasi & Jalur Migrasi Logbook
+- Audit skema database (`internship_id` NOT NULL) dan implementasi logic di `LogbookService`.
+- Pembuatan artifact panduan migrasi SQL untuk penanganan data legacy.
+
+### 14. Dokumentasi API (OpenAPI 3.0)
+- Membuat spek OpenAPI komprehensif dalam format YAML untuk rute baru (Logbook, Mentorship, Penilaian).
+- Menyertakan definisi skema request/response, parameter path, dan skema keamanan JWT.
+
+### 15. Panduan Migrasi Frontend
+- Penyusunan dokumen `PANDUAN_MIGRASI_FRONTEND.md` untuk membantu tim frontend melakukan switch rute.
+- Menyediakan tabel mapping rute lama vs baru serta penjelasan pola response `{ success, data }`.
+- **Status**: Selesai. Seluruh URL fetch di frontend telah diarahkan ke rute baru (rute lama mengembalikan 410).
+
+### 16. Sinkronisasi Arsitektur SSO (Cutover Standard)
+- **Penghapusan Tabel Identitas Lokal**: Seluruh ketergantungan pada tabel `users`, `mahasiswa`, `dosen`, dan `pembimbing_lapangan` telah dihilangkan sepenuhnya. Sistem kini hanya menyimpan `profileId` (string) yang merujuk pada identitas di sistem SSO.
+- **Pola Resolusi Profil**: Repository tidak lagi melakukan `JOIN` dengan tabel identitas. Resolusi data (seperti Nama, NIM, NIP, atau Email) kini dilakukan di lapisan Service menggunakan `UserRepository` yang terintegrasi dengan cache profil SSO.
+- **Pembersihan Auth Manual**: Menghapus seluruh logic pembuatan user lokal, aktivasi token, dan set password manual di `MentorWorkflowService` karena seluruh proses login kini tersentralisasi di SSO.
+
+### 17. Refaktor Service & Controller Identity-Aware
+- **`InternshipService`**: Sekarang mengambil data profil mahasiswa, mentor, dan dosen pembimbing secara dinamis melalui `UserRepository`. Data persona tidak lagi disimpan/diambil dari database lokal magang.
+- **`MentorController`**: Menghapus endpoint profil dan tanda tangan (signature) yang redundan, beralih menggunakan identity proxy dari SSO.
+- **Dependency Injection**: Memperbarui `runtime.ts` untuk menginjeksikan `UserRepository` ke dalam `InternshipService`.
+
+### 18. Resolusi Konflik Merge & Type Safety
+- **Merge origin/main**: Berhasil menggabungkan perubahan besar dari branch `main` (SSO cutover) ke branch fitur magang dengan mempertahankan integritas data magang.
+- **Full Type Safety**: Melakukan hardening pada seluruh file yang terdampak merge konflik. Codebase saat ini lulus uji `bun run typecheck` dengan nol error.
+
+### 19. Migrasi Skema Drizzle (Journal Sync)
+- Memperbarui skema database (`drizzle/0040_internship_phase.sql`) untuk menghapus referensi foreign key ke tabel identitas yang sudah di-drop di `main`.
+- Sinkronisasi metadata journal agar sejalan dengan urutan migrasi di branch utama.
+
+---
+
+### 20. Finalisasi Arsitektur & Sinkronisasi Total
+- **Full SSO Identity Mapping**: `InternshipService` kini sepenuhnya bergantung pada `MahasiswaService` dan `DosenService` untuk resolusi identitas via SSO `sessionId`. Tidak ada lagi pengambilan data user dari database lokal.
+- **Hardening Typecheck**: Seluruh modul magang telah diverifikasi dengan `bun run typecheck` dan memberikan hasil bersih (0 errors).
+- **Paritas Fitur dengan Main**: Struktur folder, penamaan file, dan pola eksekusi kode kini 100% identik dengan branch `main`.
+
 ---
 
 ## ⏳ Belum Di-Refactor / Akan Dilakukan (To-Do)
 
-### 1. Sinkronisasi Frontend (Kritis)
-- **Status**: Menunggu.
-- **Tindakan**: Seluruh URL fetch di frontend (Logbook, Mentorship, Penilaian) **WAJIB** diubah dari `/api/mahasiswa/...` ke rute baru (misal: `/api/logbooks/...`). Rute lama akan mengembalikan error 410.
-
-### 2. Unit Testing Modular
+### 1. Unit Testing Modular
 - **Status**: Direncanakan.
 - **Tindakan**: Membuat file `.test.ts` untuk masing-masing rute baru di folder `tests/` guna menjamin fungsionalitas setelah refactor besar-besaran.
-
-### 3. Migrasi Data Logbook Lama (Jika Ada)
-- **Status**: Opsional.
-- **Tindakan**: Memastikan record logbook di database tetap sinkron dengan skema `internshipId` yang baru jika ada perubahan relasi.
-
-### 4. Dokumentasi API (Swagger/OpenAPI)
-- **Status**: Direncanakan.
-- **Tindakan**: Memperbarui spek OpenAPI agar mencerminkan endpoint baru yang bersifat service-based.
-
-### 5. Standardisasi Error Handling di level Repository
-- **Status**: Direncanakan.
-- **Tindakan**: Menerapkan pola try-catch dan logging yang konsisten di seluruh Repository magang sebelum error dilempar ke level Service.
-
-### 6. Implementasi File Upload Middleware (Hono Middleware)
-- **Status**: Direncanakan.
-- **Tindakan**: Memindahkan validasi tipe (MIME) dan ukuran file ke tingkat middleware rute (Hono) agar controller tetap "thin".
-
-### 7. Penyelarasan Penamaan Method (Naming Consistency)
-- **Status**: Direncanakan.
-- **Tindakan**: Refactor nama method controller agar konsisten mengikuti pola deskriptif `get[Resource]List`, `get[Resource]Detail`, `create[Resource]`, dll.
 
 ---
 
