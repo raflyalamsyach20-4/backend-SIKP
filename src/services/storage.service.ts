@@ -61,7 +61,14 @@ export class StorageService {
       if (this.s3Fallback && !this.isRemoteR2()) {
         console.log('[StorageService] 🔄 Using S3 fallback (Local Dev Mode)...');
         const resolvedContentType = resolveContentType(file, contentType);
-        await this.s3Fallback.uploadFile(fileKey, file, resolvedContentType);
+        
+        // Convert UploadableFile to Buffer/File for S3 fallback
+        const uploadBody = await getUploadBody(file);
+        const buffer = uploadBody instanceof ReadableStream 
+          ? await new Response(uploadBody).arrayBuffer().then(ab => Buffer.from(ab))
+          : Buffer.from(uploadBody as any);
+
+        await this.s3Fallback.uploadFile(fileKey, buffer, resolvedContentType);
         
         const url = `${this.r2Domain}/${fileKey}`;
         console.log(`[StorageService] ✅ Uploaded via S3. URL: ${url}`);
@@ -120,7 +127,8 @@ export class StorageService {
 
   async getFile(key: string): Promise<R2ObjectBody | null> {
     if (this.s3Fallback && !this.isRemoteR2()) {
-      return await this.s3Fallback.getFile(key);
+      // Cast to any then to R2ObjectBody to satisfy the return type in dev mode
+      return (await this.s3Fallback.getFile(key)) as any;
     }
 
     if (!this.r2Bucket) return null;
