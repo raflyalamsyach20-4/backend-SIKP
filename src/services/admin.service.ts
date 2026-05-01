@@ -4,7 +4,6 @@ import { TeamRepository } from '@/repositories/team.repository';
 import { TemplateRepository } from '@/repositories/template.repository';
 import { LetterService } from './letter.service';
 import { MahasiswaService } from './mahasiswa.service';
-import { AuthService } from './auth.service';
 import { submissions } from '@/db/schema';
 import { createDbClient } from '@/db';
 import type { SsoMahasiswaDetail } from '@/types';
@@ -63,7 +62,6 @@ export class AdminService {
   private teamRepo: TeamRepository;
   private templateRepo: TemplateRepository;
   private mahasiswaService: MahasiswaService;
-  private authService: AuthService;
 
   constructor(
     private env: CloudflareBindings
@@ -75,7 +73,6 @@ export class AdminService {
     this.teamRepo = new TeamRepository(db);
     this.templateRepo = new TemplateRepository(db);
     this.mahasiswaService = new MahasiswaService(this.env);
-    this.authService = new AuthService(this.env);
   }
 
   private getLastFourMonths(): Array<{ monthDate: Date; monthKey: string; monthLabel: string }> {
@@ -158,7 +155,7 @@ export class AdminService {
       this.teamRepo.countDistinctDosenKpInFixedTeams(),
       this.templateRepo.countAll(),
       this.submissionRepo.findAll(),
-      this.fetchMahasiswaCountBySemester(4, sessionId),
+      this.mahasiswaService.fetchMahasiswaCountBySemester(4, sessionId),
     ]);
 
     return {
@@ -172,32 +169,6 @@ export class AdminService {
       statistikPengajuan: this.buildMonthlyStats(allSubmissions),
       activities: [],
     };
-  }
-
-  private async fetchMahasiswaCountBySemester(semester: number, sessionId: string): Promise<number> {
-    try {
-      const token = await this.authService.getSessionAccessToken(sessionId);
-      const baseUrl = this.env.SSO_BASE_URL;
-      const url = `${baseUrl}/api/integrations/profile-service/mahasiswa/count-by-semester/${semester}`;
-
-      const response = await fetch(url, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          Accept: 'application/json',
-        },
-      });
-
-      if (!response.ok) {
-        console.warn(`[AdminService.fetchMahasiswaCountBySemester] Failed to fetch count from SSO: ${response.status}`);
-        return 0;
-      }
-
-      const payload = await response.json() as { success: boolean; data: { count: number } };
-      return payload.data.count;
-    } catch (error) {
-      console.error(`[AdminService.fetchMahasiswaCountBySemester] Error:`, error);
-      return 0;
-    }
   }
 
   private getCurrentStage(submission: SubmissionLike) {
