@@ -184,8 +184,18 @@ export class AdminService {
       };
     });
 
+    const validDocIds = new Set(enrichedDocuments.map(d => d.id));
+    const rawDocumentReviews = (submission as any).documentReviews || {};
+    const filteredReviews: Record<string, string> = {};
+    for (const [docId, status] of Object.entries(rawDocumentReviews)) {
+      if (validDocIds.has(docId)) {
+        filteredReviews[docId] = status as string;
+      }
+    }
+
     return {
       ...submission,
+      documentReviews: filteredReviews,
       team: {
         ...team,
         dosenKpName: dosenName,
