@@ -33,3 +33,11 @@ export const updatePenilaianKriteriaSchema = z.object({
       .passthrough()
   ).min(1),
 });
+
+export const approveMentorRequestSchema = z.object({
+  mentorProfileId: z.string().min(1, 'Mentor Profile ID is required'),
+});
+
+export const rejectMentorRequestSchema = z.object({
+  reason: z.string().min(1, 'Rejection reason is required'),
+});

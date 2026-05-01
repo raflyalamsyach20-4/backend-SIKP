@@ -11,9 +11,12 @@ import {
   rejectSubmissionSchema,
   generateLetterSchema,
   updatePenilaianKriteriaSchema,
+  approveMentorRequestSchema,
+  rejectMentorRequestSchema,
 } from '@/schemas/admin.schema';
 import { AdminController } from '@/controllers';
 import { PenilaianController } from '@/controllers/penilaian.controller';
+import { MentorWorkflowController } from '@/controllers/mentor-workflow.controller';
 
 /**
  * Admin Routes
@@ -107,6 +110,30 @@ export const createAdminRoutes = () => {
       zValidator('json', updatePenilaianKriteriaSchema),
       async (c) => {
         return new PenilaianController().updateKriteria(c);
+      }
+    )
+    // Mentorship Requests Approval Flow
+    .get(
+      '/mentorship/requests',
+      zValidator('query', emptyQuerySchema),
+      async (c) => {
+        return new MentorWorkflowController(c).getMentorApprovalRequests();
+      }
+    )
+    .post(
+      '/mentorship/requests/:id/approve',
+      zValidator('param', nonEmptyStringParamsSchema),
+      zValidator('json', approveMentorRequestSchema),
+      async (c) => {
+        return new MentorWorkflowController(c).approveMentorApprovalRequest(c.req.valid('json'));
+      }
+    )
+    .post(
+      '/mentorship/requests/:id/reject',
+      zValidator('param', nonEmptyStringParamsSchema),
+      zValidator('json', rejectMentorRequestSchema),
+      async (c) => {
+        return new MentorWorkflowController(c).rejectMentorApprovalRequest(c.req.valid('json'));
       }
     );
 

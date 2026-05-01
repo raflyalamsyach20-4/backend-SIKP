@@ -522,6 +522,10 @@ export const internshipsRelations = relations(internships, ({ one, many }) => ({
     fields: [internships.teamId],
     references: [teams.id],
   }),
+  mentor: one(mentors, {
+    fields: [internships.pembimbingLapanganId],
+    references: [mentors.id],
+  }),
   logbooks: many(logbooks),
   assessment: one(assessments),
   lecturerAssessment: one(lecturerAssessments),
