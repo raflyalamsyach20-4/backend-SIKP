@@ -427,7 +427,7 @@ export class MahasiswaService {
       mentorName: null,
       mentorEmail: null,
       dosenName: dosenSsoData?.profile.fullName || null,
-      dosenNip: dosenSsoData?.nidn || null,
+      dosenNip: dosenSsoData?.nip || null,
     };
   }
 
@@ -470,6 +470,7 @@ export class MahasiswaService {
       if (params.fakultasId) url.searchParams.set('fakultasId', params.fakultasId);
       if (params.page) url.searchParams.set('page', params.page);
       if (params.limit) url.searchParams.set('limit', params.limit);
+      url.searchParams.set('isLinked', 'true');
 
       const response = await fetch(url.toString(), {
         headers: {

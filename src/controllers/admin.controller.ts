@@ -19,7 +19,8 @@ export class AdminController {
 
   getDashboard = async () => {
     try {
-      const dashboard = await this.adminService.getDashboard();
+      const sessionId = this.c.get('sessionId') as string;
+      const dashboard = await this.adminService.getDashboard(sessionId);
       return this.c.json(createResponse(true, 'Admin dashboard retrieved', dashboard));
     } catch (error) {
       return handleError(this.c, error, 'Failed to get admin dashboard');
