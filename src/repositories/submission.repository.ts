@@ -1,6 +1,6 @@
 import { asc, eq, desc, inArray, and, isNull } from 'drizzle-orm';
 import type { DbClient } from '@/db';
-import { submissions, submissionDocuments, generatedLetters, teams, teamMembers } from '@/db/schema';
+import { submissions, submissionDocuments, generatedLetters, teams, teamMembers, internships } from '@/db/schema';
 
 type TeamMemberRow = {
   id: string;
@@ -52,6 +52,20 @@ export class SubmissionRepository {
   async findById(id: string) {
     const result = await this.db.select().from(submissions).where(eq(submissions.id, id)).limit(1);
     return result[0] || null;
+  }
+
+  async findInternshipBySubmissionAndMahasiswa(submissionId: string, mahasiswaId: string) {
+    const rows = await this.db
+      .select()
+      .from(internships)
+      .where(and(eq(internships.submissionId, submissionId), eq(internships.mahasiswaId, mahasiswaId)))
+      .limit(1);
+    return rows[0] || null;
+  }
+
+  async createInternship(data: typeof internships.$inferInsert) {
+    const result = await this.db.insert(internships).values(data).returning();
+    return result[0];
   }
 
   /**

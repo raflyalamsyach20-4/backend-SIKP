@@ -8,6 +8,7 @@ import { MahasiswaService } from './mahasiswa.service';
 import { submissions } from '@/db/schema';
 import { createDbClient } from '@/db';
 import type { SsoMahasiswaDetail } from '@/types';
+import { generateId } from '@/utils/helpers';
 
 type AdminActivity = {
   action: string;
@@ -225,6 +226,47 @@ export class AdminService {
     const year = date.getFullYear();
     const month = `${date.getMonth() + 1}`.padStart(2, '0');
     return `${year}-${month}`;
+  }
+
+  private async ensureInternshipsForSubmission(submission: SubmissionRecord) {
+    if (!submission.teamId) {
+      return;
+    }
+
+    const team = await this.teamRepo.findById(submission.teamId);
+    const members = await this.teamRepo.findMembersByTeamId(submission.teamId);
+    const acceptedMembers = members.filter((member) => member.invitationStatus === 'ACCEPTED');
+    const targets = acceptedMembers.length > 0 ? acceptedMembers : members;
+
+    const now = new Date();
+    await Promise.all(
+      targets.map(async (member) => {
+        const existing = await this.submissionRepo.findInternshipBySubmissionAndMahasiswa(
+          submission.id,
+          member.mahasiswaId
+        );
+
+        if (existing) {
+          return;
+        }
+
+        await this.submissionRepo.createInternship({
+          id: generateId(),
+          submissionId: submission.id,
+          mahasiswaId: member.mahasiswaId,
+          teamId: submission.teamId,
+          pembimbingLapanganId: null,
+          dosenPembimbingId: team?.dosenKpId ?? null,
+          companyName: submission.companyName,
+          division: submission.division ?? null,
+          startDate: submission.startDate,
+          endDate: submission.endDate,
+          status: 'AKTIF',
+          createdAt: now,
+          updatedAt: now,
+        });
+      })
+    );
   }
 
   private buildMonthlyStats(submissions: SubmissionLike[]): MonthlySubmissionStat[] {
@@ -516,6 +558,9 @@ export class AdminService {
 
     const updated = await this.submissionRepo.update(submissionId, updateData);
     if (!updated) throw new Error('Failed to update submission status');
+    if (status === 'APPROVED') {
+      await this.ensureInternshipsForSubmission(updated);
+    }
     return updated;
   }
 
