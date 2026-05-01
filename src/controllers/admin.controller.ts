@@ -29,21 +29,26 @@ export class AdminController {
 
   getAllSubmissions = async () => {
     try {
-      const sessionId = this.c.get('sessionId') as string;
+      const sessionId = this.c.get('sessionId');
       const submissions = await this.adminService.getAllSubmissions(sessionId);
       
+      const first = submissions[0];
       console.log('[AdminController.getAllSubmissions] Response:', {
         count: submissions.length,
-        firstSubmission: submissions[0] ? {
-          id: submissions[0].id,
-          hasDocuments: !!submissions[0].documents,
-          documentCount: submissions[0].documents?.length || 0,
-          firstDocument: submissions[0].documents?.[0] ? {
-            id: submissions[0].documents[0].id,
-            type: submissions[0].documents[0].documentType,
-            uploadedByUser: submissions[0].documents[0].uploadedByUser
-          } : null
-        } : null
+        firstSubmission: first
+          ? {
+              id: (first as any).id ?? null,
+              hasDocuments: !!first.documents,
+              documentCount: first.documents?.length ?? 0,
+              firstDocument: first.documents?.[0]
+                ? {
+                    id: (first.documents![0] as any).id ?? null,
+                    type: (first.documents![0] as any).documentType ?? null,
+                    uploadedByUser: (first.documents![0] as any).uploadedByUser ?? null,
+                  }
+                : null,
+            }
+          : null,
       });
       
       return this.c.json(createResponse(true, 'OK', submissions));
@@ -55,7 +60,7 @@ export class AdminController {
   getSubmissionsByStatus = async () => {
     try {
       const status = this.c.req.param('status') as 'DRAFT' | 'PENDING_REVIEW' | 'REJECTED' | 'APPROVED';
-      const sessionId = this.c.get('sessionId') as string;
+      const sessionId = this.c.get('sessionId');
       const submissions = await this.adminService.getSubmissionsByStatus(status, sessionId);
       return this.c.json(createResponse(true, 'Submissions retrieved', submissions));
     } catch (error) {
@@ -66,7 +71,7 @@ export class AdminController {
   getSubmissionById = async () => {
     try {
       const submissionId = this.c.req.param('submissionId');
-      const sessionId = this.c.get('sessionId') as string;
+      const sessionId = this.c.get('sessionId');
       const submission = await this.adminService.getSubmissionById(submissionId, sessionId);
       return this.c.json(createResponse(true, 'Submission retrieved', submission));
     } catch (error) {

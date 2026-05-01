@@ -126,16 +126,31 @@ export class DosenService {
 
   async getDosenById(dosenId: string, sessionId: string): Promise<SsoDosenDetail | null> {
     try {
-      const token = await this.authService.getSessionAccessToken(sessionId);
+      let token = await this.authService.getSessionAccessToken(sessionId);
+      if (!token) {
+        token = await this.authService.getServiceAccessToken();
+        console.warn('[DosenService.getDosenById] Using service token fallback for dosen lookup', { dosenId });
+      }
       const baseUrl = this.env.SSO_BASE_URL;
       const url = `${baseUrl}/api/dosen/${dosenId}`;
 
-      const response = await fetch(url, {
+      let response = await fetch(url, {
         headers: {
           Authorization: `Bearer ${token}`,
           Accept: 'application/json',
         },
       });
+
+      if (!response.ok && (response.status === 401 || response.status === 403)) {
+        console.warn(`[DosenService.getDosenById] Session token rejected (${response.status}), falling back to service token`);
+        const serviceToken = await this.authService.getServiceAccessToken();
+        response = await fetch(url, {
+          headers: {
+            Authorization: `Bearer ${serviceToken}`,
+            Accept: 'application/json',
+          },
+        });
+      }
 
       if (!response.ok) {
         if (response.status === 404) return null;

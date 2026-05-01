@@ -3,6 +3,7 @@ import { ResponseLetterRepository } from '@/repositories/response-letter.reposit
 import { TeamRepository } from '@/repositories/team.repository';
 import { TemplateRepository } from '@/repositories/template.repository';
 import { LetterService } from './letter.service';
+import { DosenService } from './dosen.service';
 import { MahasiswaService } from './mahasiswa.service';
 import { submissions } from '@/db/schema';
 import { createDbClient } from '@/db';
@@ -61,6 +62,7 @@ export class AdminService {
   private responseLetterRepo: ResponseLetterRepository;
   private teamRepo: TeamRepository;
   private templateRepo: TemplateRepository;
+  private dosenService: DosenService;
   private mahasiswaService: MahasiswaService;
 
   constructor(
@@ -68,11 +70,130 @@ export class AdminService {
   ) {
     const db = createDbClient(this.env.DATABASE_URL);
     this.letterService = new LetterService(this.env);
+    this.dosenService = new DosenService(this.env);
+    this.mahasiswaService = new MahasiswaService(this.env);
     this.submissionRepo = new SubmissionRepository(db);
     this.responseLetterRepo = new ResponseLetterRepository(db);
     this.teamRepo = new TeamRepository(db);
     this.templateRepo = new TemplateRepository(db);
     this.mahasiswaService = new MahasiswaService(this.env);
+  }
+
+  private normalizeIdentityName(value?: string | null): string | null {
+    if (!value) return null;
+    const trimmed = value.trim();
+    return trimmed.length > 0 ? trimmed : null;
+  }
+
+  private async buildStudentIdentityMap(
+    submission: SubmissionLike & { team?: { members?: Array<{ user?: { id?: string | null } | null }> } | null | undefined },
+    sessionId: string,
+  ) {
+    const ids = new Set<string>();
+
+    submission.team?.members?.forEach((member) => {
+      const memberId = member.user?.id;
+      if (memberId) ids.add(memberId);
+    });
+
+    return await Promise.all(
+      Array.from(ids).map(async (id) => {
+        const mahasiswa = await this.mahasiswaService.getMahasiswaById(id, sessionId);
+        return [
+          id,
+          {
+            id,
+            name: mahasiswa?.profile.fullName || null,
+            nim: mahasiswa?.nim || null,
+            prodi: mahasiswa?.prodi?.nama || null,
+          },
+        ] as const;
+      }),
+    ).then((entries) => new Map(entries));
+  }
+
+  private async enrichSubmissionForAdmin(
+    submission: SubmissionLike & {
+      team?: {
+        id: string;
+        code: string;
+        leaderMahasiswaId: string;
+        dosenKpId?: string | null;
+        dosenKpName?: string | null;
+        academicSupervisor?: string | null;
+        status: 'PENDING' | 'FIXED';
+        members?: Array<{
+          id: string;
+          user?: { id?: string | null; name?: string | null; email?: string | null; nim?: string | null; prodi?: string | null };
+          role?: string | null;
+          status?: string | null;
+        }>;
+      } | null;
+      documents?: Array<{
+        id: string;
+        uploadedByMahasiswaId: string;
+        uploadedByUser?: { id: string; name: string | null; email: string | null; nim: string | null; prodi: string | null };
+      }>;
+    },
+    sessionId: string,
+  ) {
+    if (!submission.team) {
+      return submission;
+    }
+
+    const team = submission.team;
+    const [dosenDetail, studentMap] = await Promise.all([
+      team.dosenKpId
+        ? this.dosenService.getDosenById(team.dosenKpId, sessionId)
+        : Promise.resolve(null),
+      this.buildStudentIdentityMap(submission, sessionId),
+    ]);
+
+    const dosenName = this.normalizeIdentityName(dosenDetail?.profile.fullName) ||
+      this.normalizeIdentityName(team.dosenKpName) ||
+      this.normalizeIdentityName(team.academicSupervisor) ||
+      null;
+
+    const enrichedMembers = (team.members || []).map((member) => {
+      const memberId = member.user?.id;
+      const identity = memberId ? studentMap.get(memberId) : undefined;
+
+      return {
+        ...member,
+        user: {
+          id: memberId || member.id,
+          name: identity?.name || member.user?.name || null,
+          email: member.user?.email || null,
+          nim: identity?.nim || member.user?.nim || null,
+          prodi: identity?.prodi || member.user?.prodi || null,
+        },
+      };
+    });
+
+    const enrichedDocuments = (submission.documents || []).map((doc) => {
+      const identity = studentMap.get(doc.uploadedByMahasiswaId);
+      return {
+        ...doc,
+        uploadedByUser: {
+          id: doc.uploadedByMahasiswaId,
+          name: identity?.name || null,
+          email: null,
+          nim: identity?.nim || null,
+          prodi: identity?.prodi || null,
+        },
+      };
+    });
+
+    return {
+      ...submission,
+      team: {
+        ...team,
+        dosenKpName: dosenName,
+        academicSupervisor: dosenName,
+        members: enrichedMembers,
+      },
+      documents: enrichedDocuments,
+    };
   }
 
   private getLastFourMonths(): Array<{ monthDate: Date; monthKey: string; monthLabel: string }> {
