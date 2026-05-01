@@ -115,6 +115,43 @@ export class SuratPengantarDosenService {
         ? await this.mahasiswaService.getMahasiswaById(team.leaderMahasiswaId, sessionId)
         : null;
 
+      let team_members: any[] = [];
+      let academic_supervisor: string | null = null;
+
+      if (team) {
+        if (team.dosenKpId) {
+          const dosenKp = await this.dosenService.getDosenById(team.dosenKpId, sessionId);
+          if (dosenKp) {
+            academic_supervisor = dosenKp.profile.fullName;
+          }
+        }
+        if (!academic_supervisor) {
+          academic_supervisor = student?.dosenPA?.profile?.fullName || null;
+        }
+
+        const teamMembers = await this.teamRepo.findMembersByTeamId(team.id);
+        const acceptedMembers = teamMembers.filter(m => m.invitationStatus === 'ACCEPTED');
+        
+        for (const member of acceptedMembers) {
+          const memberStudent = await this.mahasiswaService.getMahasiswaById(member.mahasiswaId, sessionId);
+          if (memberStudent) {
+            team_members.push({
+              id: memberStudent.id,
+              name: memberStudent.profile.fullName,
+              nim: memberStudent.nim,
+              prodi: memberStudent.prodi?.nama || '-',
+              role: member.role
+            });
+          }
+        }
+        
+        team_members.sort((a, b) => {
+          if (a.role === 'KETUA') return -1;
+          if (b.role === 'KETUA') return 1;
+          return 0;
+        });
+      }
+
       items.push({
         id: submission.id,
         teamCode: team?.code ?? 'TEAM_DIBUBARKAN',
@@ -124,6 +161,8 @@ export class SuratPengantarDosenService {
         companyName: submission.companyName,
         signedFileUrl,
         letterNumber: submission.letterNumber,
+        academic_supervisor,
+        team_members
       });
     }
 

@@ -27,6 +27,7 @@
     "check": "bun run format && bun run format:check && bun run lint"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1040.0",
     "@hono/zod-validator": "^0.7.6",
     "@neondatabase/serverless": "1.0.2",
     "bcryptjs": "^2.4.3",

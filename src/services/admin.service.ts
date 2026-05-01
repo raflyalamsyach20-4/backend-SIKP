@@ -370,8 +370,20 @@ export class AdminService {
     let dosenKpName: string | null = null;
 
     if (team) {
-      academicSupervisor = await this.submissionRepo.resolveAcademicSupervisorByLeaderMahasiswaId(team.leaderMahasiswaId);
-      dosenKpName = await this.submissionRepo.resolveTeamKpSupervisorByTeamId(team.id);
+      const dosenKpId = await this.submissionRepo.resolveTeamKpSupervisorByTeamId(team.id);
+      if (dosenKpId) {
+        const dosenKpDetail = await this.dosenService.getDosenById(dosenKpId, sessionId);
+        if (dosenKpDetail) {
+          dosenKpName = dosenKpDetail.profile.fullName;
+        }
+      }
+
+      const leaderStudent = await this.getMahasiswaCached(team.leaderMahasiswaId, sessionId, mahasiswaCache);
+      if (leaderStudent?.dosenPA) {
+        academicSupervisor = leaderStudent.dosenPA.profile.fullName;
+      } else {
+        academicSupervisor = await this.submissionRepo.resolveAcademicSupervisorByLeaderMahasiswaId(team.leaderMahasiswaId);
+      }
 
       const memberRows = await this.teamRepo.findMembersByTeamId(team.id);
       members = await this.enrichTeamMembers(memberRows, sessionId, mahasiswaCache);

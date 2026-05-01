@@ -32,7 +32,7 @@
 		{
 			"binding": "R2_BUCKET",
 			"bucket_name": "document-sikp-mi",
-			"preview_bucket_name": "document-sikp-mi",
+			"preview_bucket_name": "document-sikp-mi"
 		}
 	]
 	// "kv_namespaces": [

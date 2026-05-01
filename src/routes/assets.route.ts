@@ -58,10 +58,12 @@ export const createAssetRoutes = () => {
       const rawPathPart = markerIndex >= 0 ? pathname.slice(markerIndex + marker.length) : '';
       const objectKey = normalizeR2Key(rawPathPart);
 
-      const isSignatureAsset =
-        objectKey.startsWith('esignatures/') || objectKey.startsWith('signatures/');
+      const isAllowedAsset =
+        objectKey.startsWith('esignatures/') || 
+        objectKey.startsWith('signatures/') ||
+        objectKey.startsWith('submissions/');
 
-      if (!isSignatureAsset) {
+      if (!isAllowedAsset) {
         return c.json({ success: false, message: 'Forbidden asset path' }, 403);
       }
 

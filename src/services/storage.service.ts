@@ -1,63 +1,13 @@
 import { nanoid } from 'nanoid';
-
-type UploadableFile =
-  | File
-  | Blob
-  | ArrayBuffer
-  | Uint8Array
-  | ReadableStream<Uint8Array>;
-
-const hasArrayBuffer = (value: UploadableFile): value is File | Blob => {
-  return typeof value === 'object' && value !== null && 'arrayBuffer' in value;
-};
-
-const getUploadBody = async (
-  file: UploadableFile
-): Promise<ArrayBuffer | Uint8Array | ReadableStream<Uint8Array>> => {
-  if (file instanceof ArrayBuffer || file instanceof Uint8Array || file instanceof ReadableStream) {
-    return file;
-  }
-
-  if (hasArrayBuffer(file)) {
-    return await file.arrayBuffer();
-  }
-
-  return new Uint8Array();
-};
-
-const getFileSize = (file: UploadableFile): number | undefined => {
-  if (file instanceof ArrayBuffer) {
-    return file.byteLength;
-  }
-
-  if (file instanceof Uint8Array) {
-    return file.byteLength;
-  }
-
-  if (typeof file === 'object' && file !== null && 'size' in file && typeof file.size === 'number') {
-    return file.size;
-  }
-
-  return undefined;
-};
-
-const resolveContentType = (file: UploadableFile, explicit?: string): string => {
-  if (explicit) {
-    return explicit;
-  }
-
-  if (typeof file === 'object' && file !== null && 'type' in file && typeof file.type === 'string' && file.type) {
-    return file.type;
-  }
-
-  return 'application/octet-stream';
-};
+import { S3R2Storage } from './s3-r2-storage';
+import { getFileSize, getUploadBody, resolveContentType, type UploadableFile } from '@/utils/file-utils';
 
 export class StorageService {
   private r2Domain: string;
   private r2BucketName: string;
   private apiBaseUrl: string;
   private r2Bucket: R2Bucket | null;
+  private s3Fallback: S3R2Storage | null = null;
 
   constructor(env: CloudflareBindings) {
     // Get from parameters (passed from index.ts) or fall back to environment variables
@@ -65,6 +15,15 @@ export class StorageService {
     this.r2BucketName = env.R2_BUCKET_NAME || '';
     this.apiBaseUrl = (env.API_BASE_URL || '').replace(/\/$/, '');
     this.r2Bucket = env.R2_BUCKET || null;
+
+    // Initialize S3 fallback if credentials available (usually in local .env)
+    if (env.R2_ACCESS_KEY_ID && env.R2_SECRET_ACCESS_KEY && env.R2_S3_ENDPOINT) {
+      this.s3Fallback = new S3R2Storage(this.r2BucketName, {
+        accessKeyId: env.R2_ACCESS_KEY_ID,
+        secretAccessKey: env.R2_SECRET_ACCESS_KEY,
+        endpoint: env.R2_S3_ENDPOINT,
+      });
+    }
 
     if (!this.r2Domain) {
       throw new Error('R2_DOMAIN is not set. Please set R2_DOMAIN in wrangler.jsonc or environment variables');
@@ -77,7 +36,7 @@ export class StorageService {
     }
 
     // In production, ensure R2 bucket binding exists to avoid silent mock usage
-    if (!this.r2Bucket && process.env.NODE_ENV !== 'development') {
+    if (!this.r2Bucket && !this.s3Fallback && process.env.NODE_ENV !== 'development') {
       throw new Error('R2_BUCKET binding is missing. Deploy to Cloudflare Workers or set USE_MOCK_R2=true for local dev');
     }
   }
@@ -98,12 +57,21 @@ export class StorageService {
       }
       console.log(`[StorageService] R2_BUCKET available: ${this.r2Bucket ? 'YES' : 'NO'}`);
       
-      // ✅ Check if R2_BUCKET is initialized
+      // ✅ Use S3 fallback if available (Common in local dev to bypass local mock R2)
+      if (this.s3Fallback && !this.isRemoteR2()) {
+        console.log('[StorageService] 🔄 Using S3 fallback (Local Dev Mode)...');
+        const resolvedContentType = resolveContentType(file, contentType);
+        await this.s3Fallback.uploadFile(fileKey, file, resolvedContentType);
+        
+        const url = `${this.r2Domain}/${fileKey}`;
+        console.log(`[StorageService] ✅ Uploaded via S3. URL: ${url}`);
+        return { url, key: fileKey };
+      }
+
+      // ✅ Fallback to R2 binding if no S3 fallback or we are in remote mode
       if (!this.r2Bucket) {
-        console.error('[StorageService] ❌ R2_BUCKET is not initialized');
-        console.error('[StorageService] This is a Cloudflare Workers binding that requires deployment.');
-        console.error('[StorageService] Local development requires: npx wrangler deploy');
-        throw new Error('R2_BUCKET is not available. This feature requires Cloudflare Workers deployment. Please run: npx wrangler deploy');
+        console.error('[StorageService] ❌ R2_BUCKET is not initialized and no S3 fallback found');
+        throw new Error('R2_BUCKET is not available and S3 fallback is not configured.');
       }
 
       const body = await getUploadBody(file);
@@ -143,18 +111,20 @@ export class StorageService {
     }
   }
 
-  async getFile(key: string): Promise<R2ObjectBody | null> {
-    if (!this.r2Bucket) {
-      return null;
-    }
-    return await this.r2Bucket.get(key);
+  private isRemoteR2(): boolean {
+    // If we have a bucket binding and we're NOT in development, it's definitely remote.
+    // In development (local wrangler dev), we prioritize S3 fallback to avoid local mock.
+    if (process.env.NODE_ENV === 'production') return true;
+    return false;
   }
 
-  async deleteFile(key: string): Promise<void> {
-    if (!this.r2Bucket) {
-      return;
+  async getFile(key: string): Promise<R2ObjectBody | null> {
+    if (this.s3Fallback && !this.isRemoteR2()) {
+      return await this.s3Fallback.getFile(key);
     }
-    await this.r2Bucket.delete(key);
+
+    if (!this.r2Bucket) return null;
+    return await this.r2Bucket.get(key);
   }
 
   async getSignedUrl(key: string, expiresIn: number = 3600): Promise<string> {
@@ -188,6 +158,22 @@ export class StorageService {
   validateFileSize(size: number, maxSizeMB: number): boolean {
     const maxSizeBytes = maxSizeMB * 1024 * 1024;
     return size <= maxSizeBytes;
+  }
+
+  async deleteFile(fileKey: string): Promise<void> {
+    if (this.s3Fallback && !this.isRemoteR2()) {
+      await this.s3Fallback.deleteFile(fileKey);
+      return;
+    }
+
+    if (!this.r2Bucket) return;
+
+    try {
+      await this.r2Bucket.delete(fileKey);
+      console.log(`[StorageService] ✅ File deleted from R2: ${fileKey}`);
+    } catch (error) {
+      console.error(`[StorageService] ❌ Failed to delete file:`, error);
+    }
   }
 
   generateUniqueFileName(originalName: string): string {
