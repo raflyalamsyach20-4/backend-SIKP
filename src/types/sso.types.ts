@@ -1,5 +1,8 @@
 import { type JWTPayload as JoseJWTPayload } from "jose";
 
+/**
+ * Section 1: Base & Shared Types
+ */
 export type RbacRole = "mahasiswa" | "dosen" | "admin" | "mentor" | "wakil_dekan" | "kaprodi" | "user" | "superadmin";
 export type IdentityRole = "MAHASISWA" | "DOSEN" | "ADMIN" | "MENTOR";
 
@@ -22,6 +25,30 @@ export interface SsoFakultas {
   nama: string;
 }
 
+/**
+ * Section 2: Generic API Wrappers
+ */
+export interface SsoApiResponse<T> {
+  success: boolean;
+  data: T;
+}
+
+export interface SsoPagination {
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
+}
+
+export interface SsoPaginatedResponse<T> {
+  success: boolean;
+  data: T[];
+  pagination: SsoPagination;
+}
+
+/**
+ * Section 3: Identity & Profile Types (Core Identity Source)
+ */
 export interface SsoDosenPA {
   profile: {
     fullName: string;
@@ -104,6 +131,9 @@ export type SsoAccessTokenPayload = JoseJWTPayload & {
   permissions: string[];
 };
 
+/**
+ * Section 4: Detailed Domain Types (Detailed Profile Data)
+ */
 export interface SsoProfile {
   emails: SsoEmail[];
   fullName: string;
@@ -122,34 +152,26 @@ export interface SsoDosenDetail {
   bidangKeahlian: string | null;
 }
 
-export interface SsoDosenResponse {
-  success: boolean;
-  data: SsoDosenDetail;
-}
 export interface SsoMahasiswaDetail extends SsoMahasiswaIdentity {
   profile: SsoProfile;
 }
 
-export interface SsoMahasiswaResponse {
-  success: boolean;
-  data: SsoMahasiswaDetail;
-}
+/**
+ * Section 5: Specific API Response Types
+ */
+export type SsoDosenResponse = SsoApiResponse<SsoDosenDetail>;
+export type SsoMahasiswaResponse = SsoApiResponse<SsoMahasiswaDetail>;
+export type SsoMahasiswaSearchResponse = SsoPaginatedResponse<SsoMahasiswaDetail>;
 
-export interface SsoMahasiswaSearchResponse {
-  success: boolean;
-  data: SsoMahasiswaDetail[];
-  pagination: {
-    page: number;
-    limit: number;
-    total: number;
-    totalPages: number;
-  };
-}
-
+/**
+ * Section 6: Domain Specific Helpers & Enums
+ */
 export type DosenJabatanStruktural = "DEKAN" | "WAKIL_DEKAN" | "KAPRODI";
-
 export type DosenJabatanFungsional = "GURU_BESAR" | "LEKTOR_KEPALA" | "LEKTOR" | "ASISTEN_AHLI";
 
+/**
+ * Section 7: Signature & Document Types
+ */
 export interface SsoActiveSignature {
   signatureId: string;
   createdAt: string;
@@ -159,9 +181,4 @@ export interface SsoActiveSignature {
   svg: string;
 }
 
-export interface SsoSignatureResponse {
-  success: boolean;
-  data: {
-    activeSignature: SsoActiveSignature | null;
-  };
-}
+export type SsoSignatureResponse = SsoApiResponse<{ activeSignature: SsoActiveSignature | null }>;
