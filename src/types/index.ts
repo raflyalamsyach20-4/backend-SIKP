@@ -137,7 +137,8 @@ export interface JWTPayload {
   mentorId?: string | null; // id mentor dari identity mentor
   dosenPAId?: string | null; // id dosen dari dosenPA mahasiswa
   nim?: string | null;
-  nip?: string | null;
+  nipDosen?: string | null;
+  nipAdmin?: string | null;  
   nidn?: string | null;
   phone?: string | null;
   jabatan?: string | null;

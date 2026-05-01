@@ -1,4 +1,4 @@
-import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
+import { PDFDocument, StandardFonts, rgb, type PDFPage } from 'pdf-lib';
 import { SuratKesediaanRepository } from '@/repositories/surat-kesediaan.repository';
 import { TeamRepository } from '@/repositories/team.repository';
 import { StorageService } from '@/services/storage.service';
@@ -9,7 +9,7 @@ import { MahasiswaService } from './mahasiswa.service';
 import { DosenService } from './dosen.service';
 import { SsoSignatureProxyService } from './sso-signature-proxy.service';
 
-const ALLOWED_SIGNATURE_MIME_TYPES = ['image/png', 'image/jpeg', 'image/jpg', 'image/svg+xml'];
+const ALLOWED_SIGNATURE_MIME_TYPES = ['image/svg+xml'];
 
 type BulkApproveFailure = {
   requestId: string;
@@ -20,8 +20,13 @@ type DosenSigningContext = {
   dosenNama: string;
   dosenNip: string | null;
   dosenJabatan: string | null;
-  signatureImageBuffer: Buffer;
-  signatureMimeType: string;
+  signatureSvg: string;
+};
+
+type MahasiswaSigningContext = {
+  nama: string;
+  nim: string | null;
+  prodi: string | null;
 };
 
 export class SuratKesediaanService {
@@ -42,6 +47,139 @@ export class SuratKesediaanService {
     this.mahasiswaService = new MahasiswaService(this.env);
     this.dosenService = new DosenService(this.env);
     this.ssoSignatureProxyService = new SsoSignatureProxyService(this.env);
+  }
+
+  private getSignatureSource(activeSignature: Record<string, unknown>): string | null {
+    const candidates = [
+      activeSignature.signatureImage,
+      activeSignature.signatureUrl,
+      activeSignature.url,
+      activeSignature.svg,
+      activeSignature.data,
+      activeSignature.content,
+    ];
+
+    for (const candidate of candidates) {
+      if (typeof candidate === 'string' && candidate.trim().length > 0) {
+        return candidate.trim();
+      }
+    }
+
+    return null;
+  }
+
+  private async resolveSignatureText(source: string): Promise<string> {
+    if (/^https?:\/\//i.test(source)) {
+      const response = await fetch(source);
+      if (!response.ok) {
+        throw new Error(`Gagal mengambil file e-signature dari URL (${response.status}).`);
+      }
+
+      return await response.text();
+    }
+
+    if (source.startsWith('data:')) {
+      const commaIndex = source.indexOf(',');
+      if (commaIndex === -1) {
+        throw new Error('Format data URL e-signature tidak valid.');
+      }
+
+      const metadata = source.slice(5, commaIndex);
+      const payload = source.slice(commaIndex + 1);
+
+      if (/;base64/i.test(metadata)) {
+        return Buffer.from(payload, 'base64').toString('utf8');
+      }
+
+      return decodeURIComponent(payload);
+    }
+
+    const cleaned = source.replace(/^data:image\/\w+;base64,/, '').replace(/\s+/g, '');
+    const looksBase64 = /^[A-Za-z0-9+/=]+$/.test(cleaned);
+    return looksBase64 ? Buffer.from(cleaned, 'base64').toString('utf8') : source;
+  }
+
+  private extractSvgViewBox(svgText: string): { width: number; height: number } {
+    const viewBoxMatch = svgText.match(/viewBox\s*=\s*"([^"]+)"/i);
+    if (viewBoxMatch) {
+      const parts = viewBoxMatch[1].trim().split(/[\s,]+/).map((value) => Number(value));
+      if (parts.length === 4 && parts.every((value) => Number.isFinite(value))) {
+        return { width: parts[2], height: parts[3] };
+      }
+    }
+
+    const widthMatch = svgText.match(/width\s*=\s*"([^"]+)"/i);
+    const heightMatch = svgText.match(/height\s*=\s*"([^"]+)"/i);
+    const width = widthMatch ? Number.parseFloat(widthMatch[1]) : NaN;
+    const height = heightMatch ? Number.parseFloat(heightMatch[1]) : NaN;
+
+    if (Number.isFinite(width) && Number.isFinite(height) && width > 0 && height > 0) {
+      return { width, height };
+    }
+
+    return { width: 200, height: 80 };
+  }
+
+  private extractSvgPathData(svgText: string): Array<{ d: string; strokeWidth: number }> {
+    const paths: Array<{ d: string; strokeWidth: number }> = [];
+    const pathRegex = /<path\b[^>]*\bd=(["'])(.*?)\1[^>]*>/gis;
+    let match: RegExpExecArray | null;
+
+    while ((match = pathRegex.exec(svgText)) !== null) {
+      const element = match[0];
+      const strokeWidthMatch = element.match(/stroke-width\s*=\s*(["'])([^"']+)\1/i);
+      const strokeWidth = strokeWidthMatch ? Number.parseFloat(strokeWidthMatch[2]) : 2.5;
+
+      if (match[2].trim().length > 0) {
+        paths.push({
+          d: match[2],
+          strokeWidth: Number.isFinite(strokeWidth) && strokeWidth > 0 ? strokeWidth : 2.5,
+        });
+      }
+    }
+
+    return paths;
+  }
+
+  private drawSignatureSvg(
+    page: PDFPage,
+    svgText: string,
+    x: number,
+    y: number,
+    width: number,
+    height: number
+  ) {
+    const paths = this.extractSvgPathData(svgText);
+    if (paths.length === 0) {
+      throw new Error('File e-signature SVG tidak memiliki path yang bisa dirender.');
+    }
+
+    const box = this.extractSvgViewBox(svgText);
+    const innerWidth = Math.max(width - 16, 1);
+    const innerHeight = Math.max(height - 12, 1);
+    const scale = Math.min(innerWidth / box.width, innerHeight / box.height);
+    const scaledWidth = box.width * scale;
+    const scaledHeight = box.height * scale;
+    const offsetX = x + 8 + (innerWidth - scaledWidth) / 2;
+    const offsetY = y + 6 + (innerHeight - scaledHeight) / 2;
+
+    for (const pathData of paths) {
+      page.drawSvgPath(pathData.d, {
+        x: offsetX,
+        y: offsetY,
+        scale,
+        borderColor: rgb(0, 0, 0),
+        borderWidth: Math.max(pathData.strokeWidth * scale * 1.8, 0.9),
+      });
+    }
+  }
+
+  private toTitleCase(value: string): string {
+    return value
+      .split(/\s+/)
+      .filter((token) => token.length > 0)
+      .map((token) => token.charAt(0).toUpperCase() + token.slice(1).toLowerCase())
+      .join(' ');
   }
 
   /**
@@ -199,13 +337,12 @@ export class SuratKesediaanService {
           angkatan: mahasiswa?.angkatan || null,
           semester: mahasiswa?.semesterAktif || null,
           email: mahasiswa?.profile?.emails?.[0]?.email || null,
-          noHp: null,
           jenisSurat: req.jenisSurat,
           status: req.status,
           supervisor: supervisorName,
           teamMembers,
           dosenNama: dosenProfile?.profile?.fullName || 'Unknown',
-          dosenNip: dosenProfile?.nidn || null,
+          dosenNip: dosenProfile?.nip || null,
           dosenJabatan: dosenProfile?.jabatanStruktural?.join(', ') || dosenProfile?.jabatanFungsional || 'Unknown',
           dosenEsignatureUrl: req.dosenEsignatureUrl,
           rejectedAt: req.status === 'DITOLAK' ? req.approvedAt : null,
@@ -313,7 +450,7 @@ export class SuratKesediaanService {
   ) {
     console.log(`[approve] start requestId=${requestId} dosenId=${dosenId}`);
     const dosenSigningContext = await this.getDosenSigningContext(dosenId, sessionId);
-    return await this.approveAndSignRequest(requestId,dosenId,dosenSigningContext);
+    return await this.approveAndSignRequest(requestId, dosenId, sessionId, dosenSigningContext);
   }
 
   /**
@@ -341,7 +478,7 @@ export class SuratKesediaanService {
 
     for (const requestId of requestIds) {
       try {
-        await this.approveAndSignRequest(requestId, dosenId, dosenSigningContext);
+        await this.approveAndSignRequest(requestId, dosenId, sessionId, dosenSigningContext);
         approvedCount += 1;
       } catch (error) {
         const err = error as Error;
@@ -391,6 +528,7 @@ export class SuratKesediaanService {
   private async approveAndSignRequest(
     requestId: string,
     dosenId: string,
+    sessionId: string,
     dosenSigningContext: DosenSigningContext
   ) {
     console.log(`[approve] validating request ownership requestId=${requestId}`);
@@ -421,8 +559,15 @@ export class SuratKesediaanService {
       throw error;
     }
 
+    const mahasiswaProfile = await this.mahasiswaService.getMahasiswaById(requestDetails.memberMahasiswaId, sessionId);
+    const mahasiswaSigningContext: MahasiswaSigningContext = {
+      nama: mahasiswaProfile?.profile?.fullName || requestDetails.mahasiswaNama || 'Unknown',
+      nim: mahasiswaProfile?.nim || requestDetails.mahasiswaNim || null,
+      prodi: mahasiswaProfile?.prodi?.nama || requestDetails.mahasiswaProdi || null,
+    };
+
     console.log(`[approve] generating signed PDF requestId=${requestId}`);
-    const signedPdfBuffer = await this.generateSignedPdf(requestDetails, dosenSigningContext);
+    const signedPdfBuffer = await this.generateSignedPdf(requestDetails, mahasiswaSigningContext, dosenSigningContext);
     console.log(`[approve] signed PDF generated requestId=${requestId} size=${signedPdfBuffer.byteLength}`);
     const signedFileName = `surat-kesediaan-signed-${requestId}.pdf`;
 
@@ -513,43 +658,33 @@ export class SuratKesediaanService {
       throw error;
     }
 
-    // Handle SVG or other image types
-    let imageBuffer: Buffer;
-    if (activeSignature.mimeType === 'image/svg+xml') {
-      // NOTE: pdf-lib doesn't support SVG directly. 
-      // If SSO returns SVG, we might need a converter.
-      // However, for now we treat it as a buffer if it's passed as such, 
-      // or we might need to ask the user if they want to support SVG.
-      // Assuming the 'svg' field contains the actual content.
-      imageBuffer = Buffer.from(activeSignature.svg);
-    } else {
-      // If it's PNG/JPG, 'svg' might be base64 encoded or raw content?
-      // Based on the user's structure, we'll assume it's the data.
-      // If it's base64 (common for JSON responses), we should decode it.
-      const isBase64 = activeSignature.svg.startsWith('data:') || /^[A-Za-z0-9+/=]+$/.test(activeSignature.svg.substring(0, 100));
-      imageBuffer = isBase64 
-        ? Buffer.from(activeSignature.svg.replace(/^data:image\/\w+;base64,/, ''), 'base64')
-        : Buffer.from(activeSignature.svg);
+    const signatureSource = this.getSignatureSource(activeSignature as unknown as Record<string, unknown>);
+    if (!signatureSource) {
+      const error: Error = new Error('File e-signature dosen tidak tersedia.');
+      error.statusCode = 422;
+      throw error;
     }
 
-    if (imageBuffer.length === 0) {
-      const error: Error = new Error('File e-signature dosen kosong atau rusak.');
+    const signatureSvg = await this.resolveSignatureText(signatureSource);
+
+    if (!signatureSvg.trim().startsWith('<svg')) {
+      const error: Error = new Error('File e-signature dosen harus berupa SVG.');
       error.statusCode = 422;
       throw error;
     }
 
     return {
       dosenNama: dosenProfile.profile?.fullName || '-',
-      dosenNip: dosenProfile.nidn || null,
+      dosenNip: dosenProfile.nip || null,
       dosenJabatan: dosenProfile.jabatanStruktural?.join(', ') || dosenProfile.jabatanFungsional || null,
-      signatureImageBuffer: imageBuffer,
-      signatureMimeType: activeSignature.mimeType,
+      signatureSvg,
     };
   }
 
 
   private async generateSignedPdf(
     requestDetails: Awaited<ReturnType<SuratKesediaanRepository['findByIdWithDetails']>>,
+    mahasiswaSigningContext: MahasiswaSigningContext,
     dosenSigningContext: DosenSigningContext
   ): Promise<Buffer> {
     if (!requestDetails) {
@@ -624,16 +759,19 @@ export class SuratKesediaanService {
 
     drawLabelValue('Nama', dosenSigningContext.dosenNama || '-');
     drawLabelValue('NIP', dosenSigningContext.dosenNip || '-');
-    drawLabelValue('Jabatan', dosenSigningContext.dosenJabatan || '-', 36);
+    const dosenJabatan = dosenSigningContext.dosenJabatan
+      ? this.toTitleCase(dosenSigningContext.dosenJabatan)
+      : '-';
+    drawLabelValue('Jabatan', dosenJabatan, 36);
 
     drawLine('dengan ini menyatakan bersedia untuk membimbing kerja praktik mahasiswa berikut :', {
       x: marginX + 3,
       lineGap: 34,
     });
 
-    drawLabelValue('Nama', requestDetails.mahasiswaNama || '-');
-    drawLabelValue('NIM', requestDetails.mahasiswaNim || '-');
-    drawLabelValue('Program Studi', requestDetails.mahasiswaProdi || '-', 48);
+    drawLabelValue('Nama', mahasiswaSigningContext.nama || requestDetails.mahasiswaNama || '-');
+    drawLabelValue('NIM', mahasiswaSigningContext.nim || requestDetails.mahasiswaNim || '-');
+    drawLabelValue('Program Studi', mahasiswaSigningContext.prodi || requestDetails.mahasiswaProdi || '-', 48);
 
     drawLine('Demikianlah pernyataan ini dibuat agar maklum.', { x: marginX + 3, lineGap: 92 });
 
@@ -642,36 +780,23 @@ export class SuratKesediaanService {
     drawLine(`Palembang, ${signedDate}`, { x: rightX });
     drawLine('Calon Dosen Pembimbing,', { x: rightX, lineGap: 40 });
 
-    const signatureWidth = 180;
-    const signatureHeight = 70;
-    const signatureY = y - signatureHeight + 18;
+    const signatureWidth = 220;
+    const signatureHeight = 90;
+    const signatureBaseY = y - signatureHeight + 58;
+    const signatureOffsetX = -30; //atur kiri-kanan e-sign
+    const signatureOffsetY = 20; //atur atas-bawah e-sign
+    const signatureX = rightX + signatureOffsetX;
+    const signatureY = signatureBaseY + signatureOffsetY;
 
     try {
-      const imageBytes = new Uint8Array(dosenSigningContext.signatureImageBuffer);
-      if (dosenSigningContext.signatureMimeType === 'image/png') {
-        const pngImage = await pdfDoc.embedPng(imageBytes);
-        page.drawImage(pngImage, {
-          x: rightX,
-          y: signatureY,
-          width: signatureWidth,
-          height: signatureHeight,
-        });
-      } else {
-        const jpgImage = await pdfDoc.embedJpg(imageBytes);
-        page.drawImage(jpgImage, {
-          x: rightX,
-          y: signatureY,
-          width: signatureWidth,
-          height: signatureHeight,
-        });
-      }
+      this.drawSignatureSvg(page, dosenSigningContext.signatureSvg, signatureX, signatureY, signatureWidth, signatureHeight);
     } catch {
       const error: Error = new Error('Gagal menyisipkan image e-signature ke PDF.');
       error.statusCode = 422;
       throw error;
     }
 
-    y = signatureY - 16;
+    y = signatureBaseY - 16;
     drawLine(dosenSigningContext.dosenNama || '-', { x: rightX });
     if (dosenSigningContext.dosenNip) {
       drawLine(`NIP ${dosenSigningContext.dosenNip}`, { x: rightX });

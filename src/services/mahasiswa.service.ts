@@ -72,16 +72,32 @@ export class MahasiswaService {
    */
   async getMahasiswaById(mahasiswaId: string, sessionId: string): Promise<SsoMahasiswaDetail | null> {
     try {
-      const token = await this.authService.getSessionAccessToken(sessionId);
+      let token = await this.authService.getSessionAccessToken(sessionId);
+      if (!token) {
+        // fallback to service token
+        token = await this.authService.getServiceAccessToken();
+        console.warn('[MahasiswaService.getMahasiswaById] Using service token fallback for mahasiswa lookup', { mahasiswaId });
+      }
       const baseUrl = this.env.SSO_BASE_URL;
       const url = `${baseUrl}/api/mahasiswa/${mahasiswaId}`;
 
-      const response = await fetch(url, {
+      let response = await fetch(url, {
         headers: {
           Authorization: `Bearer ${token}`,
           Accept: 'application/json',
         },
       });
+
+      if (!response.ok && (response.status === 401 || response.status === 403)) {
+        console.warn(`[MahasiswaService.getMahasiswaById] Session token rejected (${response.status}), falling back to service token`);
+        const serviceToken = await this.authService.getServiceAccessToken();
+        response = await fetch(url, {
+          headers: {
+            Authorization: `Bearer ${serviceToken}`,
+            Accept: 'application/json',
+          },
+        });
+      }
 
       if (!response.ok) {
         if (response.status === 404) {
@@ -108,12 +124,23 @@ export class MahasiswaService {
       const baseUrl = this.env.SSO_BASE_URL;
       const url = `${baseUrl}/api/mahasiswa/nim/${nim}`;
 
-      const response = await fetch(url, {
+      let response = await fetch(url, {
         headers: {
           Authorization: `Bearer ${token}`,
           Accept: 'application/json',
         },
       });
+
+      if (!response.ok && (response.status === 401 || response.status === 403)) {
+        console.warn(`[MahasiswaService.getMahasiswaByNim] Session token rejected (${response.status}), falling back to service token`);
+        const serviceToken = await this.authService.getServiceAccessToken();
+        response = await fetch(url, {
+          headers: {
+            Authorization: `Bearer ${serviceToken}`,
+            Accept: 'application/json',
+          },
+        });
+      }
 
       if (!response.ok) {
         if (response.status === 404) {
@@ -400,7 +427,7 @@ export class MahasiswaService {
       mentorName: null,
       mentorEmail: null,
       dosenName: dosenSsoData?.profile.fullName || null,
-      dosenNip: dosenSsoData?.nidn || null,
+      dosenNip: dosenSsoData?.nip || null,
     };
   }
 
@@ -443,6 +470,7 @@ export class MahasiswaService {
       if (params.fakultasId) url.searchParams.set('fakultasId', params.fakultasId);
       if (params.page) url.searchParams.set('page', params.page);
       if (params.limit) url.searchParams.set('limit', params.limit);
+      url.searchParams.set('isLinked', 'true');
 
       const response = await fetch(url.toString(), {
         headers: {
