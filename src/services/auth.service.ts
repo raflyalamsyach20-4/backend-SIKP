@@ -61,6 +61,60 @@ export class AuthService {
     this.authSessionRepo = new AuthSessionRepository(dbClient);
   }
 
+  // Cached service token
+  private _serviceToken: { token: string; expiresAt: number } | null = null;
+
+  /**
+   * Return access token for given sessionId, or null if not available
+   */
+  async getSessionAccessToken(sessionId?: string | null): Promise<string | null> {
+    if (!sessionId) return null;
+    try {
+      const ctx = await this.loadSessionContext(sessionId);
+      return ctx?.accessToken ?? null;
+    } catch (err) {
+      console.warn('[AuthService.getSessionAccessToken] failed to load session context', { sessionId, err });
+      return null;
+    }
+  }
+
+  /**
+   * Get a service-level access token using client credentials grant.
+   * Caches token until expiry.
+   */
+  async getServiceAccessToken(): Promise<string> {
+    // return cached if still valid
+    const now = Date.now();
+    if (this._serviceToken && this._serviceToken.expiresAt > now + 5000) {
+      return this._serviceToken.token;
+    }
+
+    // exchange client credentials
+    const tokenUrl = this.env.SSO_TOKEN_URL || `${this.env.SSO_BASE_URL}/oauth/token`;
+    const form = new URLSearchParams({
+      grant_type: 'client_credentials',
+      client_id: this.env.SSO_CLIENT_ID || '',
+      client_secret: this.env.SSO_CLIENT_SECRET || '',
+    });
+
+    const resp = await fetch(tokenUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: form.toString(),
+    });
+
+    if (!resp.ok) {
+      const body = await resp.text().catch(() => '');
+      throw new Error(`Failed to obtain service token from SSO (${resp.status}): ${body}`);
+    }
+
+    const payload = (await resp.json()) as any;
+    const token = payload?.access_token;
+    const expiresIn = payload?.expires_in || 60 * 60; // default 1 hour
+    this._serviceToken = { token, expiresAt: Date.now() + expiresIn * 1000 };
+    return token;
+  }
+
   private getJwks() {
     if (!this.jwks) {
       this.assertSsoConfiguration();
@@ -592,7 +646,7 @@ export class AuthService {
     return sessionContext.user;
   }
 
-  async getSessionAccessToken(sessionId: string): Promise<string> {
+  async getSessionAccessTokenOrThrow(sessionId: string): Promise<string> {
     const sessionContext = await this.loadSessionContext(sessionId);
     if (!sessionContext) {
       const error = new Error("Session not found or expired") as Error & {
