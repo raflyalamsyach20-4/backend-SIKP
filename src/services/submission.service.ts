@@ -649,6 +649,7 @@ export class SubmissionService {
       submittedAt: null,
       statusHistory: newHistory,
       updatedAt: now,
+      documentReviews: {},
     });
   }
 }

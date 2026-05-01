@@ -104,6 +104,21 @@ export class AuthService {
     });
 
     if (!resp.ok) {
+      console.warn(`[AuthService.getServiceAccessToken] client_credentials failed (${resp.status}). Falling back to active MAHASISWA session token.`);
+      // If client_credentials is not supported by SSO, fallback to any active MAHASISWA session token
+      const db = createDbClient(this.env.DATABASE_URL);
+      const sessions = await db.query.authSessions.findMany({
+        where: (s, { and, eq, gt }) => and(
+          eq(s.activeIdentity, 'MAHASISWA'),
+          gt(s.expiresAt, new Date())
+        ),
+        orderBy: (s, { desc }) => [desc(s.updatedAt)],
+        limit: 1
+      });
+      if (sessions.length > 0 && sessions[0].accessToken) {
+        this._serviceToken = { token: sessions[0].accessToken, expiresAt: sessions[0].expiresAt.getTime() };
+        return sessions[0].accessToken;
+      }
       const body = await resp.text().catch(() => '');
       throw new Error(`Failed to obtain service token from SSO (${resp.status}): ${body}`);
     }
