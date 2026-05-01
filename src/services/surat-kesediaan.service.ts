@@ -342,7 +342,7 @@ export class SuratKesediaanService {
           supervisor: supervisorName,
           teamMembers,
           dosenNama: dosenProfile?.profile?.fullName || 'Unknown',
-          dosenNip: dosenProfile?.nidn || null,
+          dosenNip: dosenProfile?.nip || null,
           dosenJabatan: dosenProfile?.jabatanStruktural?.join(', ') || dosenProfile?.jabatanFungsional || 'Unknown',
           dosenEsignatureUrl: req.dosenEsignatureUrl,
           rejectedAt: req.status === 'DITOLAK' ? req.approvedAt : null,
@@ -675,7 +675,7 @@ export class SuratKesediaanService {
 
     return {
       dosenNama: dosenProfile.profile?.fullName || '-',
-      dosenNip: dosenProfile.nidn || null,
+      dosenNip: dosenProfile.nip || null,
       dosenJabatan: dosenProfile.jabatanStruktural?.join(', ') || dosenProfile.jabatanFungsional || null,
       signatureSvg,
     };

@@ -47,6 +47,7 @@ export interface SsoMahasiswaIdentity {
 
 export interface SsoDosenIdentity {
   id: string;
+  nip: string;
   nidn: string;
   bidangKeahlian: string | null;
   jabatanFungsional: DosenJabatanFungsional | null;
@@ -117,6 +118,7 @@ export interface SsoDosenDetail {
   fakultas: SsoFakultas | null;
   prodi: SsoProdi | null;
   nidn: string;
+  nip: string;
   bidangKeahlian: string | null;
 }
 

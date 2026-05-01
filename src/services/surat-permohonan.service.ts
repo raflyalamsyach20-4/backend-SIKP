@@ -341,7 +341,7 @@ export class SuratPermohonanService {
           mahasiswa_esignature_url: proxiedMahasiswaEsignatureUrl,
           mahasiswaEsignatureSnapshotAt: req.mahasiswaEsignatureSnapshotAt,
           dosenNama: dosen?.profile?.fullName || '-',
-          dosenNip: dosen?.nidn || null,
+          dosenNip: dosen?.nip || null,
           dosenJabatan: dosen?.jabatanStruktural?.join(', ') || dosen?.jabatanFungsional || '-',
           dosenEsignatureUrl: req.dosenEsignatureUrl,
           signedFileUrl: req.signedFileUrl,
@@ -773,7 +773,7 @@ export class SuratPermohonanService {
 
     return {
       dosenNama: dosenProfile.profile?.fullName || '-',
-      dosenNip: dosenProfile.nidn || null,
+      dosenNip: dosenProfile.nip || null,
       dosenJabatan: dosenProfile.jabatanStruktural?.join(', ') || dosenProfile.jabatanFungsional || null,
       signatureImageBuffer: imageBuffer,
       signatureMimeType: activeSignature.mimeType,

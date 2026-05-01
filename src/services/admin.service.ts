@@ -3,6 +3,7 @@ import { ResponseLetterRepository } from '@/repositories/response-letter.reposit
 import { TeamRepository } from '@/repositories/team.repository';
 import { TemplateRepository } from '@/repositories/template.repository';
 import { LetterService } from './letter.service';
+import { AuthService } from './auth.service';
 import { submissions } from '@/db/schema';
 import { createDbClient } from '@/db';
 
@@ -55,6 +56,7 @@ export class AdminService {
   private responseLetterRepo: ResponseLetterRepository;
   private teamRepo: TeamRepository;
   private templateRepo: TemplateRepository;
+  private authService: AuthService;
 
   constructor(
     private env: CloudflareBindings
@@ -65,6 +67,7 @@ export class AdminService {
     this.responseLetterRepo = new ResponseLetterRepository(db);
     this.teamRepo = new TeamRepository(db);
     this.templateRepo = new TemplateRepository(db);
+    this.authService = new AuthService(this.env);
   }
 
   private getLastFourMonths(): Array<{ monthDate: Date; monthKey: string; monthLabel: string }> {
@@ -125,7 +128,7 @@ export class AdminService {
     });
   }
 
-  async getDashboard(): Promise<AdminDashboardPayload> {
+  async getDashboard(sessionId: string): Promise<AdminDashboardPayload> {
     if (!this.responseLetterRepo || !this.teamRepo || !this.templateRepo) {
       throw new Error('Admin dashboard dependencies are not configured');
     }
@@ -138,6 +141,7 @@ export class AdminService {
       totalDosenPembimbingKp,
       totalTemplateDokumen,
       allSubmissions,
+      mahasiswaAktifSemester4
     ] = await Promise.all([
       this.responseLetterRepo.countApproved(),
       this.teamRepo.countFixedTeams(),
@@ -146,12 +150,13 @@ export class AdminService {
       this.teamRepo.countDistinctDosenKpInFixedTeams(),
       this.templateRepo.countAll(),
       this.submissionRepo.findAll(),
+      this.fetchMahasiswaCountBySemester(4, sessionId),
     ]);
 
     return {
       totalMahasiswaKp,
       jumlahTimKp,
-      mahasiswaAktifSemester4: 0, // Legacy field, set to 0 as userRepo removed
+      mahasiswaAktifSemester4,
       totalPengajuanSuratPengantar: submissionsForAdmin.length,
       totalSuratBalasanDisetujuiTerverifikasi,
       totalDosenPembimbingKp,
@@ -159,6 +164,32 @@ export class AdminService {
       statistikPengajuan: this.buildMonthlyStats(allSubmissions),
       activities: [],
     };
+  }
+
+  private async fetchMahasiswaCountBySemester(semester: number, sessionId: string): Promise<number> {
+    try {
+      const token = await this.authService.getSessionAccessToken(sessionId);
+      const baseUrl = this.env.SSO_BASE_URL;
+      const url = `${baseUrl}/api/integrations/profile-service/mahasiswa/count-by-semester/${semester}`;
+
+      const response = await fetch(url, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          Accept: 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        console.warn(`[AdminService.fetchMahasiswaCountBySemester] Failed to fetch count from SSO: ${response.status}`);
+        return 0;
+      }
+
+      const payload = await response.json() as { success: boolean; data: { count: number } };
+      return payload.data.count;
+    } catch (error) {
+      console.error(`[AdminService.fetchMahasiswaCountBySemester] Error:`, error);
+      return 0;
+    }
   }
 
   private getCurrentStage(submission: SubmissionLike) {
