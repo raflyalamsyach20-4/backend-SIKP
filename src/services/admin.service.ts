@@ -3,8 +3,10 @@ import { ResponseLetterRepository } from '@/repositories/response-letter.reposit
 import { TeamRepository } from '@/repositories/team.repository';
 import { TemplateRepository } from '@/repositories/template.repository';
 import { LetterService } from './letter.service';
+import { MahasiswaService } from './mahasiswa.service';
 import { submissions } from '@/db/schema';
 import { createDbClient } from '@/db';
+import type { SsoMahasiswaDetail } from '@/types';
 
 type AdminActivity = {
   action: string;
@@ -40,6 +42,10 @@ type SubmissionLike = {
   adminVerificationStatus?: string | null;
 };
 
+type SubmissionRecord = typeof submissions.$inferSelect;
+type TeamRecord = NonNullable<Awaited<ReturnType<TeamRepository['findById']>>>;
+type TeamMemberRecord = Awaited<ReturnType<TeamRepository['findMembersByTeamId']>>[number];
+
 type StatusHistoryEntry = {
   status: 'APPROVED' | 'REJECTED';
   workflowStage: 'PENDING_DOSEN_VERIFICATION' | 'REJECTED_ADMIN';
@@ -55,6 +61,7 @@ export class AdminService {
   private responseLetterRepo: ResponseLetterRepository;
   private teamRepo: TeamRepository;
   private templateRepo: TemplateRepository;
+  private mahasiswaService: MahasiswaService;
 
   constructor(
     private env: CloudflareBindings
@@ -65,6 +72,7 @@ export class AdminService {
     this.responseLetterRepo = new ResponseLetterRepository(db);
     this.teamRepo = new TeamRepository(db);
     this.templateRepo = new TemplateRepository(db);
+    this.mahasiswaService = new MahasiswaService(this.env);
   }
 
   private getLastFourMonths(): Array<{ monthDate: Date; monthKey: string; monthLabel: string }> {
@@ -173,21 +181,128 @@ export class AdminService {
     return currentStage === 'REJECTED_ADMIN' || currentStage === 'REJECTED_DOSEN';
   }
 
-  async getAllSubmissions() {
-    return await this.submissionRepo.findAllForAdmin();
+  private async getMahasiswaCached(
+    mahasiswaId: string,
+    sessionId: string,
+    cache: Map<string, SsoMahasiswaDetail | null>
+  ) {
+    if (cache.has(mahasiswaId)) {
+      return cache.get(mahasiswaId) ?? null;
+    }
+
+    const student = await this.mahasiswaService.getMahasiswaById(mahasiswaId, sessionId);
+    cache.set(mahasiswaId, student);
+    return student;
   }
 
-  async getSubmissionsByStatus(status: 'DRAFT' | 'PENDING_REVIEW' | 'REJECTED' | 'APPROVED') {
-    const submissions = await this.submissionRepo.findAllForAdmin();
-    return submissions.filter((submission) => this.matchesStatusBucket(submission, status));
+  private resolveMahasiswaEmail(student: SsoMahasiswaDetail | null): string | null {
+    if (!student) return null;
+    return student.profile.emails.find((entry) => entry.isPrimary)?.email ?? null;
   }
 
-  async getSubmissionById(id: string) {
-    const submission = await this.submissionRepo.findByIdWithTeam(id);
-    if (!submission) throw new Error('Submission not found');
-    const letters = await this.submissionRepo.findLettersBySubmissionId(id);
+  private async enrichTeamMembers(
+    members: TeamMemberRecord[],
+    sessionId: string,
+    cache: Map<string, SsoMahasiswaDetail | null>
+  ) {
+    return await Promise.all(
+      members.map(async (member) => {
+        const student = await this.getMahasiswaCached(member.mahasiswaId, sessionId, cache);
+
+        return {
+          id: member.id,
+          user: {
+            id: student?.id ?? member.mahasiswaId,
+            name: student?.profile.fullName ?? null,
+            email: this.resolveMahasiswaEmail(student),
+            nim: student?.nim ?? null,
+            prodi: student?.prodi?.nama ?? null,
+          },
+          role: member.role,
+          status: member.invitationStatus,
+        };
+      })
+    );
+  }
+
+  private async buildAdminSubmissionEntry(
+    submission: SubmissionRecord,
+    sessionId: string,
+    wakilDekanSignature: Awaited<ReturnType<SubmissionRepository['findWakilDekanSignature']>>,
+    mahasiswaCache: Map<string, SsoMahasiswaDetail | null>
+  ) {
+    const team = submission.teamId ? await this.teamRepo.findById(submission.teamId) : null;
+    let members: Awaited<ReturnType<AdminService['enrichTeamMembers']>> = [];
+    let academicSupervisor: string | null = null;
+    let dosenKpName: string | null = null;
+
+    if (team) {
+      academicSupervisor = await this.submissionRepo.resolveAcademicSupervisorByLeaderMahasiswaId(team.leaderMahasiswaId);
+      dosenKpName = await this.submissionRepo.resolveTeamKpSupervisorByTeamId(team.id);
+
+      const memberRows = await this.teamRepo.findMembersByTeamId(team.id);
+      members = await this.enrichTeamMembers(memberRows, sessionId, mahasiswaCache);
+    }
+
+    const docs = await this.submissionRepo.findDocumentsBySubmissionId(submission.id);
+    const validDocs = docs.filter((doc) => Boolean(doc.documentType));
+
     return {
       ...submission,
+      wakilDekanSignature,
+      team: team
+        ? ({
+            ...team,
+            dosenKpName,
+            academicSupervisor,
+            members,
+          } as TeamRecord & { members: typeof members })
+        : null,
+      documents: validDocs,
+    };
+  }
+
+  private async buildAdminSubmissions(submissions: SubmissionRecord[], sessionId: string) {
+    const wakilDekanSignature = await this.submissionRepo.findWakilDekanSignature();
+    const mahasiswaCache = new Map<string, SsoMahasiswaDetail | null>();
+
+    return await Promise.all(
+      submissions.map((submission) =>
+        this.buildAdminSubmissionEntry(submission, sessionId, wakilDekanSignature, mahasiswaCache)
+      )
+    );
+  }
+
+  async getAllSubmissions(sessionId: string) {
+    const submissions = await this.submissionRepo.findAllForAdmin();
+    return await this.buildAdminSubmissions(submissions, sessionId);
+  }
+
+  async getSubmissionsByStatus(
+    status: 'DRAFT' | 'PENDING_REVIEW' | 'REJECTED' | 'APPROVED',
+    sessionId: string
+  ) {
+    const submissions = await this.submissionRepo.findAllForAdmin();
+    const filtered = submissions.filter((submission) => this.matchesStatusBucket(submission, status));
+    return await this.buildAdminSubmissions(filtered, sessionId);
+  }
+
+  async getSubmissionById(id: string, sessionId: string) {
+    const submission = await this.submissionRepo.findById(id);
+    if (!submission) throw new Error('Submission not found');
+
+    const wakilDekanSignature = await this.submissionRepo.findWakilDekanSignature();
+    const mahasiswaCache = new Map<string, SsoMahasiswaDetail | null>();
+    const enrichedSubmission = await this.buildAdminSubmissionEntry(
+      submission as SubmissionRecord,
+      sessionId,
+      wakilDekanSignature,
+      mahasiswaCache
+    );
+
+    const letters = await this.submissionRepo.findLettersBySubmissionId(id);
+    return {
+      ...enrichedSubmission,
       letters,
       submissionStatus: submission.workflowStage ?? submission.status,
       submission_status: submission.workflowStage ?? submission.status,

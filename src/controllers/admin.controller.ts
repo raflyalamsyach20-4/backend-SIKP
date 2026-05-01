@@ -28,7 +28,8 @@ export class AdminController {
 
   getAllSubmissions = async () => {
     try {
-      const submissions = await this.adminService.getAllSubmissions();
+      const sessionId = this.c.get('sessionId') as string;
+      const submissions = await this.adminService.getAllSubmissions(sessionId);
       
       console.log('[AdminController.getAllSubmissions] Response:', {
         count: submissions.length,
@@ -53,7 +54,8 @@ export class AdminController {
   getSubmissionsByStatus = async () => {
     try {
       const status = this.c.req.param('status') as 'DRAFT' | 'PENDING_REVIEW' | 'REJECTED' | 'APPROVED';
-      const submissions = await this.adminService.getSubmissionsByStatus(status);
+      const sessionId = this.c.get('sessionId') as string;
+      const submissions = await this.adminService.getSubmissionsByStatus(status, sessionId);
       return this.c.json(createResponse(true, 'Submissions retrieved', submissions));
     } catch (error) {
       return handleError(this.c, error, 'Failed to get submissions');
@@ -63,7 +65,8 @@ export class AdminController {
   getSubmissionById = async () => {
     try {
       const submissionId = this.c.req.param('submissionId');
-      const submission = await this.adminService.getSubmissionById(submissionId);
+      const sessionId = this.c.get('sessionId') as string;
+      const submission = await this.adminService.getSubmissionById(submissionId, sessionId);
       return this.c.json(createResponse(true, 'Submission retrieved', submission));
     } catch (error) {
       return handleError(this.c, error, 'Failed to get submission');
