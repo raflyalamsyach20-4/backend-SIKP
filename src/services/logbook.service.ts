@@ -135,13 +135,39 @@ export class LogbookService {
   async uploadPhoto(userId: string, logbookId: string, file: File) {
     const entry = await this.getLogbookById(userId, logbookId);
 
+    // Only allow photo upload if logbook is in PENDING status
+    if (entry.status !== 'PENDING') {
+      throw this.createError(`Cannot upload photo to a logbook entry with status '${entry.status}'. Only PENDING entries can be modified.`, 400);
+    }
+
+    // Validate file type
+    const allowedTypes = ['jpg', 'jpeg', 'png', 'webp'];
+    if (!this.storageService.validateFileType(file.name, allowedTypes)) {
+      throw this.createError('Invalid file type. Only JPG, PNG, and WEBP images are allowed.', 400);
+    }
+
+    // Validate file size (2MB)
+    const maxSizeMB = 2;
+    if (!this.storageService.validateFileSize(file.size, maxSizeMB)) {
+      throw this.createError(`File size exceeds ${maxSizeMB}MB limit.`, 400);
+    }
+
+    // Delete existing attachment from storage if it exists
+    if (entry.attachmentKey) {
+      try {
+        await this.storageService.deleteFile(entry.attachmentKey);
+      } catch (err) {
+        console.warn('⚠️ [LogbookService] Failed to delete old attachment from storage:', err);
+      }
+    }
+
     // Upload to storage
-    const fileName = this.storageService.generateUniqueFileName(file.name);
+    const uniqueFileName = this.storageService.generateUniqueFileName(file.name);
     const folder = `logbooks/${logbookId}`;
     
     const { url, key } = await this.storageService.uploadFile(
       file,
-      fileName,
+      uniqueFileName,
       folder,
       file.type
     );

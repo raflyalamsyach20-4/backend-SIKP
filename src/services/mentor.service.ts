@@ -28,24 +28,42 @@ export class MentorService {
   }
 
   async updateSignature(mentorId: string, file: File) {
-    // 1. Validate file type
-    const allowedTypes = ['image/png', 'image/jpeg', 'image/jpg'];
-    if (!allowedTypes.includes(file.type)) {
+    const mentor = await this.mentorRepo.findProfileById(mentorId);
+    if (!mentor) throw new Error('Mentor profile not found');
+
+    // 1. Validate file type (Images only)
+    const allowedTypes = ['png', 'jpg', 'jpeg'];
+    if (!this.storageService.validateFileType(file.name, allowedTypes)) {
       throw new Error('Invalid file type. Only PNG and JPEG are allowed for signatures.');
     }
 
-    // 2. Upload to R2
-    const fileName = this.storageService.generateUniqueFileName(file.name);
+    // 2. Validate file size (1MB max for signature)
+    const maxSizeMB = 1;
+    if (!this.storageService.validateFileSize(file.size, maxSizeMB)) {
+      throw new Error(`File size exceeds ${maxSizeMB}MB limit.`);
+    }
+
+    // 3. Delete old signature from storage if exists
+    if (mentor.signatureKey) {
+      try {
+        await this.storageService.deleteFile(mentor.signatureKey);
+      } catch (err) {
+        console.warn('⚠️ [MentorService] Failed to delete old signature from storage:', err);
+      }
+    }
+
+    // 4. Upload to R2
+    const uniqueFileName = this.storageService.generateUniqueFileName(file.name);
     const folder = `signatures/mentors/${mentorId}`;
     
     const { url, key } = await this.storageService.uploadFile(
       file,
-      fileName,
+      uniqueFileName,
       folder,
       file.type
     );
 
-    // 3. Update DB
+    // 5. Update DB
     const updated = await this.mentorRepo.updateProfile(mentorId, {
       signatureUrl: url,
       signatureKey: key
@@ -78,7 +96,13 @@ export class MentorService {
     const internshipId = await this.mentorRepo.getInternshipIdForMentee(mentorId, studentUserId);
     if (!internshipId) throw new Error('Student not found or not supervised by this mentor');
     const entries = await this.logbookRepo.findByInternshipId(internshipId);
-    return { internshipId, entries };
+    
+    const enrichedEntries = entries.map(entry => ({
+      ...entry,
+      attachmentUrl: this.storageService.getAssetProxyUrl(entry.attachmentUrl)
+    }));
+
+    return { internshipId, entries: enrichedEntries };
   }
 
   async approveLogbook(mentorId: string, logbookId: string) {

@@ -98,11 +98,11 @@ export class LogbookController {
       if (!userId) return this.c.json(createResponse(false, 'Unauthorized'), 401);
 
       const id = this.c.req.param('id');
-      const body = await this.c.req.parseBody();
-      const file = body['file'] as File;
+      const formData = await this.c.req.formData();
+      const file = formData.get('file') as File;
 
-      if (!file) {
-        return this.c.json(createResponse(false, 'No file uploaded'), 400);
+      if (!file || typeof file === 'string') {
+        return this.c.json(createResponse(false, 'No file uploaded or invalid file'), 400);
       }
 
       const updated = await this.logbookService.uploadPhoto(userId, id, file);

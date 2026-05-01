@@ -49,17 +49,17 @@ export class MentorController {
       const mentorId = this.getMentorId();
       if (!mentorId) return this.c.json(createResponse(false, 'Unauthorized'), 401);
 
-      const body = await this.c.req.parseBody();
-      const file = body['file'] as File;
+      const formData = await this.c.req.formData();
+      const file = formData.get('file') as File;
 
-      if (!file) {
-        return this.c.json(createResponse(false, 'No file uploaded'), 400);
+      if (!file || typeof file === 'string') {
+        return this.c.json(createResponse(false, 'No file uploaded or invalid file'), 400);
       }
 
       const updated = await this.mentorService.updateSignature(mentorId, file);
       return this.c.json(createResponse(true, 'Signature uploaded successfully', updated), 200);
     } catch (error) {
-      if (error instanceof Error && error.message.includes('Invalid file type')) {
+      if (error instanceof Error && (error.message.includes('Invalid file type') || error.message.includes('exceeds'))) {
         return this.c.json(createResponse(false, error.message), 400);
       }
       return handleError(this.c, error);
