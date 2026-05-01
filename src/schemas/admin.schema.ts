@@ -21,3 +21,15 @@ export const updateSubmissionStatusSchema = z.object({
   letterNumber: z.string().optional().describe('Nomor surat (required if status is APPROVED)'),
   documentReviews: z.record(z.string(), z.enum(['approved', 'rejected'])).describe('Document review statuses per document ID'),
 });
+
+export const updatePenilaianKriteriaSchema = z.object({
+  kriteria: z.array(
+    z
+      .object({
+        category: z.string().min(1),
+        weight: z.number(),
+        maxScore: z.number(),
+      })
+      .passthrough()
+  ).min(1),
+});

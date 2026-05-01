@@ -10,8 +10,10 @@ import {
   approveSubmissionSchema,
   rejectSubmissionSchema,
   generateLetterSchema,
+  updatePenilaianKriteriaSchema,
 } from '@/schemas/admin.schema';
 import { AdminController } from '@/controllers';
+import { PenilaianController } from '@/controllers/penilaian.controller';
 
 /**
  * Admin Routes
@@ -97,6 +99,14 @@ export const createAdminRoutes = () => {
       zValidator('query', emptyQuerySchema),
       async (c) => {
         return new AdminController(c).getStatistics();
+      }
+    )
+    // Update penilaian criteria (admin)
+    .put(
+      '/penilaian/kriteria',
+      zValidator('json', updatePenilaianKriteriaSchema),
+      async (c) => {
+        return new PenilaianController().updateKriteria(c);
       }
     );
 
