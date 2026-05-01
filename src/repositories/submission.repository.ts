@@ -25,15 +25,15 @@ type TeamMemberWithUser = TeamMemberRow & {
 export class SubmissionRepository {
   constructor(private db: DbClient) {}
 
-  private async findWakilDekanSignature() {
+  async findWakilDekanSignature() {
     return null;
   }
 
-  private async resolveAcademicSupervisorByLeaderMahasiswaId(leaderMahasiswaId?: string | null) {
+  async resolveAcademicSupervisorByLeaderMahasiswaId(leaderMahasiswaId?: string | null) {
     return null;
   }
 
-  private async resolveTeamKpSupervisorByTeamId(teamId?: string | null) {
+  async resolveTeamKpSupervisorByTeamId(teamId?: string | null) {
     if (!teamId) {
       return null;
     }
@@ -360,114 +360,16 @@ export class SubmissionRepository {
   }
 
   /**
-   * Find all submissions with team, members, and documents relations for admin view
+   * Find submissions for admin list (DB-only query)
    * Filter by status: PENDING_REVIEW, APPROVED, REJECTED
    * Sort by submittedAt DESC
    */
   async findAllForAdmin() {
-    const wakilDekanSignature = await this.findWakilDekanSignature();
-
-    // Get all submissions with specified statuses
-    const submissionList = await this.db
+    return await this.db
       .select()
       .from(submissions)
-      .where(
-        inArray(submissions.status, ['PENDING_REVIEW', 'APPROVED', 'REJECTED'])
-      )
+      .where(inArray(submissions.status, ['PENDING_REVIEW', 'APPROVED', 'REJECTED']))
       .orderBy(desc(submissions.submittedAt));
-
-    // For each submission, fetch team with members and documents
-    const result = await Promise.all(
-      submissionList.map(async (submission) => {
-        // Get team with leader
-        const teamData = await this.db
-          .select()
-          .from(teams)
-          .where(eq(teams.id, submission.teamId))
-          .limit(1);
-
-        const team = teamData[0];
-        let teamMembers_list: TeamMemberWithUser[] = [];
-
-        let academicSupervisor: string | null = null;
-        let dosenKpName: string | null = null;
-
-        if (team) {
-          academicSupervisor = await this.resolveAcademicSupervisorByLeaderMahasiswaId(team.leaderMahasiswaId);
-          dosenKpName = await this.resolveTeamKpSupervisorByTeamId(team.id);
-
-          // Get team members with user info
-          const membersData = await this.db
-            .select({
-              id: teamMembers.id,
-              teamId: teamMembers.teamId,
-              mahasiswaId: teamMembers.mahasiswaId,
-              role: teamMembers.role,
-              status: teamMembers.invitationStatus,
-              invitedAt: teamMembers.invitedAt,
-              respondedAt: teamMembers.respondedAt,
-            })
-            .from(teamMembers)
-            .where(eq(teamMembers.teamId, submission.teamId));
-
-          teamMembers_list = (membersData as TeamMemberRow[]).map((member) => ({
-            ...member,
-            user: {
-              id: member.mahasiswaId,
-              name: null,
-              email: null,
-              nim: null,
-              prodi: null,
-            },
-          }));
-        }
-
-        // Get documents
-        const docs = await this.findDocumentsBySubmissionId(submission.id);
-        
-        // Filter out invalid documents (documentType undefined/null)
-        const validDocs = docs.filter(doc => {
-          if (!doc.documentType) {
-            console.warn(`[findAllForAdmin] Filtering invalid document ${doc.id} - documentType is ${doc.documentType}`);
-            return false;
-          }
-          return true;
-        });
-        
-        console.log(`[findAllForAdmin] Submission ${submission.id} documents:`, {
-          totalCount: docs.length,
-          validCount: validDocs.length,
-          filteredCount: docs.length - validDocs.length,
-          firstDoc: validDocs[0] ? {
-            id: validDocs[0].id,
-            type: validDocs[0].documentType,
-            hasUploadedByUser: !!validDocs[0].uploadedByUser,
-            uploadedByUser: validDocs[0].uploadedByUser
-          } : null
-        });
-
-        return {
-          ...submission,
-          wakilDekanSignature,
-          team: team
-            ? {
-                ...team,
-                dosenKpName,
-                academicSupervisor,
-                members: teamMembers_list.map((m) => ({
-                  id: m.id,
-                  user: m.user,
-                  role: m.role,
-                  status: m.status,
-                })),
-              }
-            : null,
-          documents: validDocs,
-        };
-      })
-    );
-
-    return result;
   }
 
   /**

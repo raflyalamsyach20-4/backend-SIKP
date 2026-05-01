@@ -489,4 +489,30 @@ export class MahasiswaService {
       throw error;
     }
   }
+
+  async fetchMahasiswaCountBySemester(semester: number, sessionId: string): Promise<number> {
+    try {
+      const token = await this.authService.getSessionAccessToken(sessionId);
+      const baseUrl = this.env.SSO_BASE_URL;
+      const url = `${baseUrl}/api/integrations/profile-service/mahasiswa/count-by-semester/${semester}`;
+
+      const response = await fetch(url, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          Accept: 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        console.warn(`[MahasiswaService.fetchMahasiswaCountBySemester] Failed to fetch count from SSO: ${response.status}`);
+        return 0;
+      }
+
+      const payload = await response.json() as { success: boolean; data: { count: number } };
+      return payload.data.count;
+    } catch (error) {
+      console.error(`[AdminService.fetchMahasiswaCountBySemester] Error:`, error);
+      return 0;
+    }
+  }
 }
