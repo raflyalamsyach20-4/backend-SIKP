@@ -162,7 +162,15 @@ export class SuratPengantarDosenService {
         signedFileUrl,
         letterNumber: submission.letterNumber,
         academic_supervisor,
-        team_members
+        team_members,
+        createdAt: submission.createdAt instanceof Date
+          ? submission.createdAt.toISOString()
+          : submission.createdAt ?? null,
+        tanggal: submission.submittedAt instanceof Date
+          ? submission.submittedAt.toISOString()
+          : submission.submittedAt ?? (submission.createdAt instanceof Date
+              ? submission.createdAt.toISOString()
+              : submission.createdAt ?? null),
       });
     }
 
@@ -216,12 +224,26 @@ export class SuratPengantarDosenService {
     if (!submission) throw new Error('Submission not found');
 
     const rejectedAt = new Date();
+    const currentHistory = Array.isArray(submission.statusHistory) ? submission.statusHistory : [];
+    const newHistory = [
+      ...currentHistory,
+      {
+        status: 'REJECTED',
+        workflowStage: 'REJECTED_DOSEN',
+        actor: 'DOSEN',
+        date: rejectedAt.toISOString(),
+        reason: rejectionReason,
+      },
+    ];
+
     return await this.submissionRepo.update(requestId, {
       workflowStage: 'REJECTED_DOSEN',
       dosenVerificationStatus: 'REJECTED',
       dosenVerifiedAt: rejectedAt,
       dosenVerifiedByDosenId: dosenId,
       dosenRejectionReason: rejectionReason,
+      rejectionReason,
+      statusHistory: newHistory,
       updatedAt: rejectedAt,
     });
   }
