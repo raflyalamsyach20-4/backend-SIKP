@@ -65,18 +65,23 @@ export class AuthService {
   private _serviceToken: { token: string; expiresAt: number } | null = null;
 
   /**
-   * Return access token for given sessionId, or null if not available
+   * Return access token for given sessionId, or null if not available.
+   * Optimized to query database directly and avoid full session context load (SSO fetch).
    */
   async getSessionAccessToken(sessionId?: string | null): Promise<string | null> {
     if (!sessionId) return null;
     try {
-      const ctx = await this.loadSessionContext(sessionId);
-      return ctx?.accessToken ?? null;
+      const session = await this.authSessionRepo.findSessionById(sessionId);
+      if (!session || session.expiresAt.getTime() <= Date.now()) {
+        return null;
+      }
+      return session.accessToken;
     } catch (err) {
-      console.warn('[AuthService.getSessionAccessToken] failed to load session context', { sessionId, err });
+      console.warn('[AuthService.getSessionAccessToken] failed to fetch session from DB', { sessionId, err });
       return null;
     }
   }
+
 
   /**
    * Get a service-level access token using client credentials grant.
@@ -664,8 +669,9 @@ export class AuthService {
   }
 
   async getSessionAccessTokenOrThrow(sessionId: string): Promise<string> {
-    const sessionContext = await this.loadSessionContext(sessionId);
-    if (!sessionContext) {
+    const session = await this.authSessionRepo.findSessionById(sessionId);
+    
+    if (!session || session.expiresAt.getTime() <= Date.now()) {
       const error = new Error("Session not found or expired") as Error & {
         statusCode?: number;
       };
@@ -673,7 +679,7 @@ export class AuthService {
       throw error;
     }
 
-    if (!sessionContext.accessToken) {
+    if (!session.accessToken) {
       const error = new Error(
         "Session access token is not available",
       ) as Error & { statusCode?: number };
@@ -681,8 +687,9 @@ export class AuthService {
       throw error;
     }
 
-    return sessionContext.accessToken;
+    return session.accessToken;
   }
+
 
   async logout(sessionId: string) {
     const session = await this.authSessionRepo.findSessionById(sessionId);

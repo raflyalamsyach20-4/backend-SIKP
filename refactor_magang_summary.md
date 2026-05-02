@@ -111,13 +111,80 @@ Menghapus file monolitik `magang.route.ts` dan memecahnya menjadi file rute spes
 
 ---
 
+## 🛠️ Sudah Dikerjakan (Ready for Manual Testing)
+Section ini berisi fitur yang sudah diimplementasikan di backend dan siap untuk diuji coba secara manual atau integrasi frontend.
+
+### 1. Refactor Alur Generate & Tanda Tangan Mentor
+- **Status**: Selesai (Backend Logic).
+- **Tindakan**:
+    - **Alur Logbook**:
+        - Jika logbook belum terisi penuh: Munculkan pop-up konfirmasi peringatan, hasil generate (Docx/PDF) hanya berisi data mahasiswa dan aktivitas tanpa tanda tangan/paraf mentor.
+        - Jika logbook sudah penuh: Munculkan pop-up konfirmasi pilihan format (Document atau PDF).
+        - Opsi **Document**: Generate file berisi data mahasiswa, data mentor, dan tabel logbook tanpa tanda tangan mentor.
+        - Opsi **PDF**: Generate file lengkap dengan tanda tangan digital mentor.
+    - **Alur Penilaian**:
+        - Jika mentor belum mengisi nilai: Generate dokumen tanpa nilai dan tanpa tanda tangan mentor (hanya data profil).
+        - Jika mentor sudah mengisi nilai: Munculkan pop-up konfirmasi pilihan format (Document atau PDF).
+        - Opsi **Document**: Generate file berisi data mahasiswa, data mentor, serta tabel kriteria/persentase tanpa tanda tangan mentor.
+        - Opsi **PDF**: Generate file lengkap dengan tanda tangan digital mentor.
+
+### 2. Refactor Simplified Alur Pelaporan & Judul (Fast Track)
+- **Status**: Selesai (Backend Logic).
+- **Tindakan**:
+    - Implementasi Alur Cepat: Mahasiswa mengajukan judul sekaligus unggah dokumen laporan melalui `POST /api/reporting/submit-fast`.
+    - Implementasi Penilaian Langsung: Dosen PA memberi nilai melalui `POST /api/reporting/score-fast`.
+    - Automasi: Sistem otomatis menghitung nilai gabungan (30% Mentor + 70% Dosen) dan mengubah status magang menjadi `SELESAI`.
+    - Fleksibilitas: Alur lama (step-by-step) tetap tersedia dan tidak dihapus.
+
+---
+
+
 ## ⏳ Belum Di-Refactor / Akan Dilakukan (To-Do)
 
-### 1. Unit Testing Modular
+### 1. Implementasi Halaman Arsip
+- **Status**: Belum Dimulai.
+- **Tindakan**: Membuat modul dan halaman Arsip untuk menyimpan data pengajuan dan pelaksanaan yang sudah selesai atau diarsipkan.
+
+### 2. Update Dashboard Multi-Role (Pelaksanaan Section)
+- **Status**: Belum Dimulai.
+- **Tindakan**: Memperbarui Dashboard Mahasiswa, Dosen PA, dan Admin untuk menyertakan widget/statistik/shortcut khusus Tahap Pelaksanaan Magang (Logbook, Mentor, Penilaian).
+
+### 3. Tahap Pelaporan & Manajemen Judul (Terputus Total)
+- **Status**: Belum Dimulai.
+- **Tindakan**:
+    - Implementasi `TitleSubmissionService` & `TitleSubmissionController` untuk pengajuan judul KP oleh mahasiswa dan persetujuan oleh Dosen Pembimbing.
+    - Implementasi `ReportService` & `ReportController` untuk fitur unggah Laporan Akhir KP (`reports` table) dengan validasi format PDF.
+    - Sinkronisasi status: Mengubah status magang menjadi `SELESAI` setelah laporan akhir disetujui.
+
+### 4. Alur Penilaian Akhir (Assessment Workflow)
+- **Status**: Placeholder.
+- **Tindakan**:
+    - Implementasi `AssessmentService` untuk menangani input nilai dari dua sisi:
+        - **Mentor Lapangan (30%)**: Berdasarkan kriteria kehadiran, kerjasama, sikap, dll (`assessments` table).
+        - **Dosen Pembimbing (70%)**: Berdasarkan format kesesuaian, penguasaan materi, dll (`lecturer_assessments` table).
+    - Implementasi Logika Kalkulasi: Menghitung nilai gabungan ke dalam tabel `combined_grades` dan menghasilkan `letter_grade` (A/B/C/D).
+    - Fitur Cetak Nilai: Integrasi dengan PDF service untuk mengunduh rekap nilai akhir.
+
+### 5. Monitoring & Integrasi Dosen Pembimbing
+- **Status**: Minim (Bugs Found).
+- **Tindakan**:
+    - Pengembangan Dashboard Monitoring Dosen: Memungkinkan dosen melihat daftar seluruh mahasiswa bimbingan beserta progress logbook-nya secara kolektif (rekap jam kerja dan status verifikasi).
+    - Notifikasi: Sistem pengingat otomatis jika mahasiswa belum mengisi logbook dalam jangka waktu tertentu.
+
+### 6. Refactor Transisi Fase (Pengajuan -> Pelaksanaan)
+- **Status**: Prematur.
+- **Tindakan**:
+    - Memindahkan pemicu pembuat record `internships` dari Admin Approval (Surat Pengantar) ke **Response Letter Verification** (Surat Balasan).
+    - Memastikan mahasiswa hanya masuk ke dashboard pelaksanaan setelah benar-benar diterima oleh perusahaan.
+
+### 7. Unit Testing Modular
 - **Status**: Direncanakan.
 - **Tindakan**: Membuat file `.test.ts` untuk masing-masing rute baru di folder `tests/` guna menjamin fungsionalitas setelah refactor besar-besaran.
+
+
 
 ---
 
 **Sistem Status**: 🟢 Stable (Typecheck Passed)  
 **Referensi Utama**: Branch `main` (Standard SSO Architecture)
+

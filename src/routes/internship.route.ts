@@ -17,7 +17,22 @@ export const createInternshipRoutes = () => {
       async (c) => {
         return new InternshipController(c).getInternship();
       }
+    )
+    .get(
+      '/check-status',
+      mahasiswaOnly,
+      async (c) => {
+        return new InternshipController(c).checkInternshipStatus();
+      }
+    )
+    .get(
+      '/generate/:type',
+      mahasiswaOnly,
+      async (c) => {
+        return new InternshipController(c).generateDocument();
+      }
     );
+
 
   return internship;
 };

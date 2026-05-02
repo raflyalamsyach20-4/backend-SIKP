@@ -26,6 +26,7 @@ import { createLogbookRoutes } from '@/routes/logbook.route'
 import { createMentorshipRoutes } from '@/routes/mentorship.route'
 import { createInternshipMonitoringRoutes } from '@/routes/internship-monitoring.route'
 import { createPenilaianRoutes } from '@/routes/penilaian.route'
+import { createReportingRoutes } from '@/routes/reporting.route'
 
 /**
  * Main Application
@@ -85,6 +86,7 @@ const app = new Hono<{ Bindings: CloudflareBindings }>()
 .route('/api/mentorship', createMentorshipRoutes())
 .route('/api/internship-monitoring', createInternshipMonitoringRoutes())
 .route('/api/penilaian', createPenilaianRoutes())
+.route('/api/reporting', createReportingRoutes())
 
 /**
  * 404 Not Found Handler
