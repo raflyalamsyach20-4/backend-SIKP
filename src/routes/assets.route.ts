@@ -58,8 +58,13 @@ export const createAssetRoutes = () => {
       const rawPathPart = markerIndex >= 0 ? pathname.slice(markerIndex + marker.length) : '';
       const objectKey = normalizeR2Key(rawPathPart);
 
-      // Allow asset prefixes for tahap pengajuan (signatures) and tahap pelaksanaan (logbooks)
-      const allowedPrefixes = ['esignatures/', 'logbooks/', 'surat-kesediaan/', 'signatures/'];
+      const allowedPrefixes = [
+        'esignatures/', 
+        'signatures/', 
+        'submissions/', 
+        'logbooks/', 
+        'surat-kesediaan/'
+      ];
       const isAllowed = allowedPrefixes.some(prefix => objectKey.startsWith(prefix));
 
       if (!isAllowed) {

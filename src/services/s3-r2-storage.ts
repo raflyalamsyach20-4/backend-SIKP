@@ -1,5 +1,5 @@
 // @ts-nocheck
-import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
+import { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3';
 import { nanoid } from 'nanoid';
 
 /**
@@ -23,6 +23,30 @@ export class S3R2Storage {
         },
         endpoint: s3Config.endpoint,
       });
+    }
+  }
+
+  async getFile(fileKey: string): Promise<{ body: any, httpMetadata?: any, httpEtag?: string } | null> {
+    if (!this.s3Client) return null;
+
+    try {
+      console.log(`[S3R2Storage] 📥 Fetching from S3-compatible R2: ${fileKey}`);
+      const command = new GetObjectCommand({
+        Bucket: this.bucketName,
+        Key: fileKey,
+      });
+
+      const response = await this.s3Client.send(command);
+      return {
+        body: response.Body,
+        httpMetadata: {
+          contentType: response.ContentType,
+        },
+        httpEtag: response.ETag,
+      };
+    } catch (error) {
+      console.error(`[S3R2Storage] ❌ Get failed:`, error);
+      return null;
     }
   }
 
@@ -50,6 +74,23 @@ export class S3R2Storage {
     } catch (error) {
       console.error(`[S3R2Storage] ❌ Upload failed:`, error);
       throw error;
+    }
+  }
+
+  async deleteFile(fileKey: string): Promise<void> {
+    if (!this.s3Client) return;
+
+    try {
+      console.log(`[S3R2Storage] 🗑️ Deleting from S3-compatible R2: ${fileKey}`);
+      const command = new DeleteObjectCommand({
+        Bucket: this.bucketName,
+        Key: fileKey,
+      });
+
+      await this.s3Client.send(command);
+      console.log(`[S3R2Storage] ✅ File deleted successfully`);
+    } catch (error) {
+      console.error(`[S3R2Storage] ❌ Delete failed:`, error);
     }
   }
 }

@@ -30,6 +30,9 @@ declare namespace Cloudflare {
 		AUTH_SESSION_COOKIE_NAME: string;
 		R2_DOMAIN: string;
 		R2_BUCKET_NAME: string;
+		R2_ACCESS_KEY_ID?: string;
+		R2_SECRET_ACCESS_KEY?: string;
+		R2_S3_ENDPOINT?: string;
 	}
 }
 interface CloudflareBindings extends Cloudflare.Env {}
