@@ -3,6 +3,35 @@ import type { JWTPayload } from '@/types';
 import { createResponse, handleError } from '@/utils/helpers';
 import { MentorWorkflowService } from '@/services/mentor-workflow.service';
 
+type ErrorLike = {
+  code?: string;
+  message?: string;
+  statusCode?: number;
+};
+
+type ErrorResponseStatusCode = 400 | 401 | 403 | 404 | 409 | 422 | 500;
+
+const toErrorLike = (value: unknown): ErrorLike => {
+  if (typeof value === 'object' && value !== null) {
+    return value as ErrorLike;
+  }
+  return {};
+};
+
+const toSafeErrorStatus = (statusCode?: number): ErrorResponseStatusCode => {
+  if (
+    statusCode === 400 ||
+    statusCode === 401 ||
+    statusCode === 403 ||
+    statusCode === 404 ||
+    statusCode === 409 ||
+    statusCode === 422
+  ) {
+    return statusCode;
+  }
+  return 500;
+};
+
 export class MentorWorkflowController {
   private workflowService: MentorWorkflowService;
 
@@ -24,8 +53,19 @@ export class MentorWorkflowController {
 
       return this.c.json(createResponse(true, 'Mentor approval request submitted', data), 201);
     } catch (error) {
-      if (error instanceof Error && error.message.includes('not found')) {
-        return this.c.json(createResponse(false, error.message), 404);
+      const err = toErrorLike(error);
+      if (err.code) {
+        return this.c.json(
+          {
+            success: false,
+            message: err.message || 'Failed to submit request',
+            error: {
+              code: err.code,
+            },
+            data: null,
+          },
+          toSafeErrorStatus(err.statusCode)
+        );
       }
       return handleError(this.c, error);
     }
@@ -54,9 +94,19 @@ export class MentorWorkflowController {
       );
       return this.c.json(createResponse(true, 'Mentor approval request approved', data), 200);
     } catch (error) {
-      if (error instanceof Error) {
-        if (error.message.includes('not found')) return this.c.json(createResponse(false, error.message), 404);
-        if (error.message.includes('Only pending')) return this.c.json(createResponse(false, error.message), 409);
+      const err = toErrorLike(error);
+      if (err.code) {
+        return this.c.json(
+          {
+            success: false,
+            message: err.message || 'Failed to approve request',
+            error: {
+              code: err.code,
+            },
+            data: null,
+          },
+          toSafeErrorStatus(err.statusCode)
+        );
       }
       return handleError(this.c, error);
     }
@@ -71,11 +121,21 @@ export class MentorWorkflowController {
       const data = await this.workflowService.rejectMentorApprovalRequest(requestId, user.profileId, validated.reason);
       return this.c.json(createResponse(true, 'Mentor approval request rejected', data), 200);
     } catch (error) {
-      if (error instanceof Error) {
-        if (error.message.includes('not found')) return this.c.json(createResponse(false, error.message), 404);
-        if (error.message.includes('Only pending')) return this.c.json(createResponse(false, error.message), 409);
+      const err = toErrorLike(error);
+      if (err.code) {
+        return this.c.json(
+          {
+            success: false,
+            message: err.message || 'Failed to reject request',
+            error: {
+              code: err.code,
+            },
+            data: null,
+          },
+          toSafeErrorStatus(err.statusCode)
+        );
       }
-      return handleError(this.c, error);
+      return handleError(this.c, error, 'Failed to reject request');
     }
   };
 
@@ -88,11 +148,21 @@ export class MentorWorkflowController {
       const data = await this.workflowService.createMentorEmailChangeRequest(user.profileId, validated.requestedEmail, validated.reason);
       return this.c.json(createResponse(true, 'Email change request submitted', data), 201);
     } catch (error) {
-      if (error instanceof Error) {
-        if (error.message.includes('not found')) return this.c.json(createResponse(false, error.message), 404);
-        if (error.message.includes('different')) return this.c.json(createResponse(false, error.message), 400);
+      const err = toErrorLike(error);
+      if (err.code) {
+        return this.c.json(
+          {
+            success: false,
+            message: err.message || 'Failed to submit email change request',
+            error: {
+              code: err.code,
+            },
+            data: null,
+          },
+          toSafeErrorStatus(err.statusCode)
+        );
       }
-      return handleError(this.c, error);
+      return handleError(this.c, error, 'Failed to submit email change request');
     }
   };
 
@@ -121,8 +191,19 @@ export class MentorWorkflowController {
       const data = await this.workflowService.getDosenLogbookMonitorByStudent(studentId);
       return this.c.json(createResponse(true, 'Student logbook monitor data retrieved', data), 200);
     } catch (error) {
-      if (error instanceof Error && error.message.includes('not found')) {
-        return this.c.json(createResponse(false, error.message), 404);
+      const err = toErrorLike(error);
+      if (err.code) {
+        return this.c.json(
+          {
+            success: false,
+            message: err.message || 'Failed to submit request',
+            error: {
+              code: err.code,
+            },
+            data: null,
+          },
+          toSafeErrorStatus(err.statusCode)
+        );
       }
       return handleError(this.c, error);
     }

@@ -90,8 +90,6 @@ Menghapus file monolitik `magang.route.ts` dan memecahnya menjadi file rute spes
 - Memperbarui skema database (`drizzle/0040_internship_phase.sql`) untuk menghapus referensi foreign key ke tabel identitas yang sudah di-drop di `main`.
 - Sinkronisasi metadata journal agar sejalan dengan urutan migrasi di branch utama.
 
----
-
 ### 20. Finalisasi Arsitektur & Sinkronisasi Total
 - **Full SSO Identity Mapping**: `InternshipService` kini sepenuhnya bergantung pada `MahasiswaService` dan `DosenService` untuk resolusi identitas via SSO `sessionId`. Tidak ada lagi pengambilan data user dari database lokal.
 - **Hardening Typecheck**: Seluruh modul magang telah diverifikasi dengan `bun run typecheck` dan memberikan hasil bersih (0 errors).

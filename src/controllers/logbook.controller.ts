@@ -1,6 +1,35 @@
 import { Context } from 'hono';
 import { LogbookService } from '@/services/logbook.service';
 import { createResponse, handleError } from '@/utils/helpers';
+
+type ErrorLike = {
+  code?: string;
+  message?: string;
+  statusCode?: number;
+};
+
+type ErrorResponseStatusCode = 400 | 401 | 403 | 404 | 409 | 422 | 500;
+
+const toErrorLike = (value: unknown): ErrorLike => {
+  if (typeof value === 'object' && value !== null) {
+    return value as ErrorLike;
+  }
+  return {};
+};
+
+const toSafeErrorStatus = (statusCode?: number): ErrorResponseStatusCode => {
+  if (
+    statusCode === 400 ||
+    statusCode === 401 ||
+    statusCode === 403 ||
+    statusCode === 404 ||
+    statusCode === 409 ||
+    statusCode === 422
+  ) {
+    return statusCode;
+  }
+  return 500;
+};
 import type { JWTPayload } from '@/types';
 
 export class LogbookController {
@@ -27,10 +56,21 @@ export class LogbookController {
 
       return this.c.json(createResponse(true, 'Logbook entry created successfully', entry), 201);
     } catch (error) {
-      if (error instanceof Error && error.message.includes('active internship')) {
-        return this.c.json(createResponse(false, error.message), 422);
+      const err = toErrorLike(error);
+      if (err.code) {
+        return this.c.json(
+          {
+            success: false,
+            message: err.message || 'Failed to create logbook',
+            error: {
+              code: err.code,
+            },
+            data: null,
+          },
+          toSafeErrorStatus(err.statusCode)
+        );
       }
-      return handleError(this.c, error);
+      return handleError(this.c, error, 'Failed to create logbook');
     }
   };
 
@@ -82,10 +122,21 @@ export class LogbookController {
       const entry = await this.logbookService.getLogbookById(userId, id);
       return this.c.json(createResponse(true, 'Logbook entry retrieved successfully', entry), 200);
     } catch (error) {
-      if (error instanceof Error && error.message.includes('not found')) {
-        return this.c.json(createResponse(false, error.message), 404);
+      const err = toErrorLike(error);
+      if (err.code) {
+        return this.c.json(
+          {
+            success: false,
+            message: err.message || 'Failed to get logbook',
+            error: {
+              code: err.code,
+            },
+            data: null,
+          },
+          toSafeErrorStatus(err.statusCode)
+        );
       }
-      return handleError(this.c, error);
+      return handleError(this.c, error, 'Failed to get logbook');
     }
   };
 
@@ -108,10 +159,21 @@ export class LogbookController {
       const updated = await this.logbookService.uploadPhoto(userId, id, file);
       return this.c.json(createResponse(true, 'Photo uploaded successfully', updated), 200);
     } catch (error) {
-      if (error instanceof Error && error.message.includes('not found')) {
-        return this.c.json(createResponse(false, error.message), 404);
+      const err = toErrorLike(error);
+      if (err.code) {
+        return this.c.json(
+          {
+            success: false,
+            message: err.message || 'Failed to upload photo',
+            error: {
+              code: err.code,
+            },
+            data: null,
+          },
+          toSafeErrorStatus(err.statusCode)
+        );
       }
-      return handleError(this.c, error);
+      return handleError(this.c, error, 'Failed to upload photo');
     }
   };
 

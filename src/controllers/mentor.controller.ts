@@ -1,6 +1,35 @@
 import { Context } from 'hono';
 import { MentorService } from '@/services/mentor.service';
 import { createResponse, handleError } from '@/utils/helpers';
+
+type ErrorLike = {
+  code?: string;
+  message?: string;
+  statusCode?: number;
+};
+
+type ErrorResponseStatusCode = 400 | 401 | 403 | 404 | 409 | 422 | 500;
+
+const toErrorLike = (value: unknown): ErrorLike => {
+  if (typeof value === 'object' && value !== null) {
+    return value as ErrorLike;
+  }
+  return {};
+};
+
+const toSafeErrorStatus = (statusCode?: number): ErrorResponseStatusCode => {
+  if (
+    statusCode === 400 ||
+    statusCode === 401 ||
+    statusCode === 403 ||
+    statusCode === 404 ||
+    statusCode === 409 ||
+    statusCode === 422
+  ) {
+    return statusCode;
+  }
+  return 500;
+};
 import type { JWTPayload } from '@/types';
 
 export class MentorController {
@@ -36,8 +65,21 @@ export class MentorController {
       const profile = await this.mentorService.getProfile(mentorId);
       return this.c.json(createResponse(true, 'Mentor profile retrieved successfully', profile), 200);
     } catch (error) {
-      if (error instanceof Error && error.message.includes('not found')) return this.notFound(error.message);
-      return handleError(this.c, error);
+      const err = toErrorLike(error);
+      if (err.code) {
+        return this.c.json(
+          {
+            success: false,
+            message: err.message || 'Failed to get profile',
+            error: {
+              code: err.code,
+            },
+            data: null,
+          },
+          toSafeErrorStatus(err.statusCode)
+        );
+      }
+      return handleError(this.c, error, 'Failed to get profile');
     }
   };
 
@@ -59,10 +101,21 @@ export class MentorController {
       const updated = await this.mentorService.updateSignature(mentorId, file);
       return this.c.json(createResponse(true, 'Signature uploaded successfully', updated), 200);
     } catch (error) {
-      if (error instanceof Error && (error.message.includes('Invalid file type') || error.message.includes('exceeds'))) {
-        return this.c.json(createResponse(false, error.message), 400);
+      const err = toErrorLike(error);
+      if (err.code) {
+        return this.c.json(
+          {
+            success: false,
+            message: err.message || 'Failed to update signature',
+            error: {
+              code: err.code,
+            },
+            data: null,
+          },
+          toSafeErrorStatus(err.statusCode)
+        );
       }
-      return handleError(this.c, error);
+      return handleError(this.c, error, 'Failed to update signature');
     }
   };
 
@@ -96,8 +149,21 @@ export class MentorController {
       const mentee = await this.mentorService.getMenteeById(mentorId, studentId);
       return this.c.json(createResponse(true, 'Mentee details retrieved successfully', mentee), 200);
     } catch (error) {
-      if (error instanceof Error && error.message.includes('not found')) return this.notFound(error.message);
-      return handleError(this.c, error);
+      const err = toErrorLike(error);
+      if (err.code) {
+        return this.c.json(
+          {
+            success: false,
+            message: err.message || 'Failed to get profile',
+            error: {
+              code: err.code,
+            },
+            data: null,
+          },
+          toSafeErrorStatus(err.statusCode)
+        );
+      }
+      return handleError(this.c, error, 'Failed to get profile');
     }
   };
 
@@ -115,8 +181,21 @@ export class MentorController {
       const data = await this.mentorService.getStudentLogbooks(mentorId, studentId);
       return this.c.json(createResponse(true, 'Student logbooks retrieved successfully', data), 200);
     } catch (error) {
-      if (error instanceof Error && error.message.includes('not found')) return this.notFound(error.message);
-      return handleError(this.c, error);
+      const err = toErrorLike(error);
+      if (err.code) {
+        return this.c.json(
+          {
+            success: false,
+            message: err.message || 'Failed to get profile',
+            error: {
+              code: err.code,
+            },
+            data: null,
+          },
+          toSafeErrorStatus(err.statusCode)
+        );
+      }
+      return handleError(this.c, error, 'Failed to get profile');
     }
   };
 
@@ -132,9 +211,21 @@ export class MentorController {
       const entry = await this.mentorService.approveLogbook(mentorId, logbookId);
       return this.c.json(createResponse(true, 'Logbook entry approved', entry), 200);
     } catch (error) {
-      if (error instanceof Error && error.message.includes('not found')) return this.notFound(error.message);
-      if (error instanceof Error && error.message.includes('Access denied')) return this.forbidden(error.message);
-      return handleError(this.c, error);
+      const err = toErrorLike(error);
+      if (err.code) {
+        return this.c.json(
+          {
+            success: false,
+            message: err.message || 'Failed to approve logbook',
+            error: {
+              code: err.code,
+            },
+            data: null,
+          },
+          toSafeErrorStatus(err.statusCode)
+        );
+      }
+      return handleError(this.c, error, 'Failed to approve logbook');
     }
   };
 
@@ -150,9 +241,21 @@ export class MentorController {
       const entry = await this.mentorService.rejectLogbook(mentorId, logbookId, validated.rejectionReason);
       return this.c.json(createResponse(true, 'Logbook entry rejected', entry), 200);
     } catch (error) {
-      if (error instanceof Error && error.message.includes('not found')) return this.notFound(error.message);
-      if (error instanceof Error && error.message.includes('Access denied')) return this.forbidden(error.message);
-      return handleError(this.c, error);
+      const err = toErrorLike(error);
+      if (err.code) {
+        return this.c.json(
+          {
+            success: false,
+            message: err.message || 'Failed to reject logbook',
+            error: {
+              code: err.code,
+            },
+            data: null,
+          },
+          toSafeErrorStatus(err.statusCode)
+        );
+      }
+      return handleError(this.c, error, 'Failed to reject logbook');
     }
   };
 
@@ -168,8 +271,21 @@ export class MentorController {
       const result = await this.mentorService.approveAllLogbooks(mentorId, studentId);
       return this.c.json(createResponse(true, result.message, result), 200);
     } catch (error) {
-      if (error instanceof Error && error.message.includes('not found')) return this.notFound(error.message);
-      return handleError(this.c, error);
+      const err = toErrorLike(error);
+      if (err.code) {
+        return this.c.json(
+          {
+            success: false,
+            message: err.message || 'Failed to approve logbooks',
+            error: {
+              code: err.code,
+            },
+            data: null,
+          },
+          toSafeErrorStatus(err.statusCode)
+        );
+      }
+      return handleError(this.c, error, 'Failed to approve logbooks');
     }
   };
 
@@ -187,14 +303,21 @@ export class MentorController {
 
       return this.c.json(createResponse(true, 'Assessment created successfully', assessment), 201);
     } catch (error) {
-      if (error instanceof Error && error.message.includes('not found')) return this.notFound(error.message);
-      if (error instanceof Error && error.message.includes('already exists')) {
-        return this.c.json(createResponse(false, error.message), 409);
+      const err = toErrorLike(error);
+      if (err.code) {
+        return this.c.json(
+          {
+            success: false,
+            message: err.message || 'Failed to create assessment',
+            error: {
+              code: err.code,
+            },
+            data: null,
+          },
+          toSafeErrorStatus(err.statusCode)
+        );
       }
-      if (error instanceof Error && error.message.includes('between 0 and 100')) {
-        return this.c.json(createResponse(false, error.message), 400);
-      }
-      return handleError(this.c, error);
+      return handleError(this.c, error, 'Failed to create assessment');
     }
   };
 
@@ -215,8 +338,21 @@ export class MentorController {
 
       return this.c.json(createResponse(true, 'Assessment retrieved successfully', assessment), 200);
     } catch (error) {
-      if (error instanceof Error && error.message.includes('not found')) return this.notFound(error.message);
-      return handleError(this.c, error);
+      const err = toErrorLike(error);
+      if (err.code) {
+        return this.c.json(
+          {
+            success: false,
+            message: err.message || 'Failed to get assessment',
+            error: {
+              code: err.code,
+            },
+            data: null,
+          },
+          toSafeErrorStatus(err.statusCode)
+        );
+      }
+      return handleError(this.c, error, 'Failed to get assessment');
     }
   };
 

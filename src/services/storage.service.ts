@@ -57,9 +57,9 @@ export class StorageService {
       }
       console.log(`[StorageService] R2_BUCKET available: ${this.r2Bucket ? 'YES' : 'NO'}`);
       
-      // ✅ Use S3 fallback if available (Common in local dev to bypass local mock R2)
-      if (this.s3Fallback && !this.isRemoteR2()) {
-        console.log('[StorageService] 🔄 Using S3 fallback (Local Dev Mode)...');
+      // ✅ Use S3 if configured (Fallback or Primary)
+      if (this.s3Fallback) {
+        console.log('[StorageService] 🔄 Using S3 storage...');
         const resolvedContentType = resolveContentType(file, contentType);
         
         // Convert UploadableFile to Buffer/File for S3 fallback
@@ -119,16 +119,19 @@ export class StorageService {
   }
 
   private isRemoteR2(): boolean {
-    // If we have a bucket binding and we're NOT in development, it's definitely remote.
-    // In development (local wrangler dev), we prioritize S3 fallback to avoid local mock.
-    if (process.env.NODE_ENV === 'production') return true;
+    // If we have an R2 bucket binding, we're in "Remote R2" mode.
+    // However, if we're in development, we might still prefer S3 fallback if available.
+    if (process.env.NODE_ENV === 'production') {
+      return !!this.r2Bucket;
+    }
     return false;
   }
 
   async getFile(key: string): Promise<R2ObjectBody | null> {
-    if (this.s3Fallback && !this.isRemoteR2()) {
-      // Cast to any then to R2ObjectBody to satisfy the return type in dev mode
-      return (await this.s3Fallback.getFile(key)) as any;
+    // Priority: S3 fallback if available, then R2 bucket
+    if (this.s3Fallback) {
+      const s3File = await this.s3Fallback.getFile(key);
+      if (s3File) return s3File as any;
     }
 
     if (!this.r2Bucket) return null;
@@ -173,7 +176,7 @@ export class StorageService {
   }
 
   async deleteFile(fileKey: string): Promise<void> {
-    if (this.s3Fallback && !this.isRemoteR2()) {
+    if (this.s3Fallback) {
       await this.s3Fallback.deleteFile(fileKey);
       return;
     }

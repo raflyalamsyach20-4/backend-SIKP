@@ -15,11 +15,18 @@ export class MentorService {
     this.storageService = new StorageService(this.env);
   }
 
+  private createServiceError(message: string, code: string, statusCode: number) {
+    const error = new Error(message) as Error & { code: string; statusCode: number };
+    error.code = code;
+    error.statusCode = statusCode;
+    return error;
+  }
+
   // ─── Profile & Signature ───────────────────────────────────────────────────
 
   async getProfile(mentorId: string) {
     const profile = await this.mentorRepo.findProfileById(mentorId);
-    if (!profile) throw new Error('Mentor profile not found');
+    if (!profile) throw this.createServiceError('Mentor profile not found', 'PROFILE_NOT_FOUND', 404);
     
     return {
       ...profile,
@@ -29,18 +36,18 @@ export class MentorService {
 
   async updateSignature(mentorId: string, file: File) {
     const mentor = await this.mentorRepo.findProfileById(mentorId);
-    if (!mentor) throw new Error('Mentor profile not found');
+    if (!mentor) throw this.createServiceError('Mentor profile not found', 'PROFILE_NOT_FOUND', 404);
 
     // 1. Validate file type (Images only)
     const allowedTypes = ['png', 'jpg', 'jpeg'];
     if (!this.storageService.validateFileType(file.name, allowedTypes)) {
-      throw new Error('Invalid file type. Only PNG and JPEG are allowed for signatures.');
+      throw this.createServiceError('Invalid file type. Only PNG and JPEG are allowed for signatures.', 'INVALID_FILE_TYPE', 400);
     }
 
     // 2. Validate file size (1MB max for signature)
     const maxSizeMB = 1;
     if (!this.storageService.validateFileSize(file.size, maxSizeMB)) {
-      throw new Error(`File size exceeds ${maxSizeMB}MB limit.`);
+      throw this.createServiceError(`File size exceeds ${maxSizeMB}MB limit.`, 'FILE_SIZE_EXCEEDED', 400);
     }
 
     // 3. Delete old signature from storage if exists
@@ -86,7 +93,7 @@ export class MentorService {
 
   async getMenteeById(mentorId: string, studentUserId: string) {
     const mentee = await this.mentorRepo.getMenteeByStudentId(mentorId, studentUserId);
-    if (!mentee) throw new Error('Student not found or not supervised by this mentor');
+    if (!mentee) throw this.createServiceError('Student not found or not supervised by this mentor', 'MENTEE_NOT_FOUND', 404);
     return mentee;
   }
 
@@ -94,7 +101,7 @@ export class MentorService {
 
   async getStudentLogbooks(mentorId: string, studentUserId: string) {
     const internshipId = await this.mentorRepo.getInternshipIdForMentee(mentorId, studentUserId);
-    if (!internshipId) throw new Error('Student not found or not supervised by this mentor');
+    if (!internshipId) throw this.createServiceError('Student not found or not supervised by this mentor', 'INTERNSHIP_NOT_FOUND', 404);
     const entries = await this.logbookRepo.findByInternshipId(internshipId);
     
     const enrichedEntries = entries.map(entry => ({
@@ -107,7 +114,7 @@ export class MentorService {
 
   async approveLogbook(mentorId: string, logbookId: string) {
     const entry = await this.logbookRepo.findById(logbookId);
-    if (!entry) throw new Error('Logbook entry not found');
+    if (!entry) throw this.createServiceError('Logbook entry not found', 'LOGBOOK_NOT_FOUND', 404);
     // verify this logbook belongs to a mentee of this mentor (via internship)
     await this.assertLogbookBelongsToMentor(mentorId, entry.internshipId);
     return this.logbookRepo.approve(logbookId, mentorId);
@@ -116,14 +123,14 @@ export class MentorService {
   async rejectLogbook(mentorId: string, logbookId: string, rejectionReason: string) {
     if (!rejectionReason?.trim()) throw new Error('Rejection reason is required');
     const entry = await this.logbookRepo.findById(logbookId);
-    if (!entry) throw new Error('Logbook entry not found');
+    if (!entry) throw this.createServiceError('Logbook entry not found', 'LOGBOOK_NOT_FOUND', 404);
     await this.assertLogbookBelongsToMentor(mentorId, entry.internshipId);
     return this.logbookRepo.reject(logbookId, mentorId, rejectionReason);
   }
 
   async approveAllLogbooks(mentorId: string, studentUserId: string) {
     const internshipId = await this.mentorRepo.getInternshipIdForMentee(mentorId, studentUserId);
-    if (!internshipId) throw new Error('Student not found or not supervised by this mentor');
+    if (!internshipId) throw this.createServiceError('Student not found or not supervised by this mentor', 'INTERNSHIP_NOT_FOUND', 404);
     await this.logbookRepo.approveAll(internshipId, mentorId);
     return { message: 'All pending logbook entries approved', internshipId };
   }
@@ -132,7 +139,7 @@ export class MentorService {
 
   async createAssessment(mentorId: string, data: Omit<CreateAssessmentData, 'internshipId'> & { studentUserId: string }) {
     const internshipId = await this.mentorRepo.getInternshipIdForMentee(mentorId, data.studentUserId);
-    if (!internshipId) throw new Error('Student not found or not supervised by this mentor');
+    if (!internshipId) throw this.createServiceError('Student not found or not supervised by this mentor', 'INTERNSHIP_NOT_FOUND', 404);
 
     // Check for existing assessment
     const existing = await this.mentorRepo.getAssessmentByInternshipId(internshipId);
@@ -154,7 +161,7 @@ export class MentorService {
 
   async getAssessmentByStudent(mentorId: string, studentUserId: string) {
     const internshipId = await this.mentorRepo.getInternshipIdForMentee(mentorId, studentUserId);
-    if (!internshipId) throw new Error('Student not found or not supervised by this mentor');
+    if (!internshipId) throw this.createServiceError('Student not found or not supervised by this mentor', 'INTERNSHIP_NOT_FOUND', 404);
 
     const assessment = await this.mentorRepo.getAssessmentByInternshipId(internshipId);
     return assessment;

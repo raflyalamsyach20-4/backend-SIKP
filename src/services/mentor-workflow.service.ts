@@ -10,6 +10,13 @@ export class MentorWorkflowService {
     this.workflowRepo = new MentorWorkflowRepository(db);
   }
 
+  private createServiceError(message: string, code: string, statusCode: number) {
+    const error = new Error(message) as Error & { code: string; statusCode: number };
+    error.code = code;
+    error.statusCode = statusCode;
+    return error;
+  }
+
   async submitMentorApprovalRequest(studentUserId: string, data: {
     mentorName: string;
     mentorEmail: string;
@@ -52,11 +59,11 @@ export class MentorWorkflowService {
 
   async approveMentorApprovalRequest(requestId: string, reviewerUserId: string, mentorProfileId: string) {
     const request = await this.workflowRepo.getMentorApprovalRequestById(requestId);
-    if (!request) throw new Error('Mentor approval request not found');
-    if (request.status !== 'PENDING') throw new Error('Only pending requests can be approved');
+    if (!request) throw this.createServiceError('Mentor approval request not found', 'REQUEST_NOT_FOUND', 404);
+    if (request.status !== 'PENDING') throw this.createServiceError('Only pending requests can be approved', 'INVALID_STATUS', 409);
 
     const internship = await this.workflowRepo.getActiveInternshipByMahasiswaId(request.studentUserId);
-    if (!internship) throw new Error('No active internship found for this student');
+    if (!internship) throw this.createServiceError('No active internship found for this student', 'INTERNSHIP_NOT_FOUND', 404);
 
     // Assign the mentor (using their SSO profileId) to the internship
     await this.workflowRepo.assignMentorToInternship(internship.id, mentorProfileId);
@@ -97,8 +104,8 @@ export class MentorWorkflowService {
 
   async rejectMentorApprovalRequest(requestId: string, reviewerUserId: string, reason: string) {
     const request = await this.workflowRepo.getMentorApprovalRequestById(requestId);
-    if (!request) throw new Error('Mentor approval request not found');
-    if (request.status !== 'PENDING') throw new Error('Only pending requests can be rejected');
+    if (!request) throw this.createServiceError('Mentor approval request not found', 'REQUEST_NOT_FOUND', 404);
+    if (request.status !== 'PENDING') throw this.createServiceError('Only pending requests can be rejected', 'INVALID_STATUS', 409);
 
     const updatedRequest = await this.workflowRepo.updateMentorApprovalRequest(requestId, {
       status: 'REJECTED',
