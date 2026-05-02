@@ -48,6 +48,7 @@ export class DosenController {
         createResponse(true, 'Dosen profile retrieved', {
           id: profile.profile.id,
           nama: profile.profile.fullName,
+          nip: profile.nip,
           nidn: profile.nidn,
           jabatanFungsional: profile.jabatanFungsional,
           jabatanStruktural: profile.jabatanStruktural,

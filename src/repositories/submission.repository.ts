@@ -23,10 +23,22 @@ type TeamMemberWithUser = TeamMemberRow & {
 };
 
 export class SubmissionRepository {
-  constructor(private db: DbClient) {}
+  constructor(private db: DbClient) { }
 
-  async findWakilDekanSignature() {
-    return null;
+  async findWakilDekanSignature(): Promise<{
+    id: string;
+    name: string;
+    nip: string;
+    position: string;
+  } | null> {
+    // Default placeholder preview surat pengantar wakdek
+    return {
+      id: 'official-wakdek-1',
+      name: 'Wakil Dekan 1',
+      nip: '197802012005011002',
+      position: 'Wakil Dekan Bidang Akademik',
+      esignatureUrl: 'https://api.dicebear.com/7.x/initials/png?seed=WD' // Placeholder signature (PNG for jsPDF compatibility)
+    };
   }
 
   async resolveAcademicSupervisorByLeaderMahasiswaId(leaderMahasiswaId?: string | null) {
@@ -112,7 +124,7 @@ export class SubmissionRepository {
 
     // Get documents with user info
     const docs = await this.findDocumentsBySubmissionId(submission.id);
-    
+
     // Filter out invalid documents
     const validDocs = docs.filter(doc => doc.documentType);
 
@@ -121,16 +133,16 @@ export class SubmissionRepository {
       wakilDekanSignature,
       team: team
         ? {
-            ...team,
-            dosenKpName,
-            academicSupervisor,
-            members: teamMembers_list.map((m) => ({
-              id: m.id,
-              user: m.user,
-              role: m.role,
-              status: m.status,
-            })),
-          }
+          ...team,
+          dosenKpName,
+          academicSupervisor,
+          members: teamMembers_list.map((m) => ({
+            id: m.id,
+            user: m.user,
+            role: m.role,
+            status: m.status,
+          })),
+        }
         : null,
       documents: validDocs,
     };
@@ -388,11 +400,11 @@ export class SubmissionRepository {
       .from(teams)
       .where(eq(teams.id, teamId))
       .limit(1);
-    
+
     const team = teamData[0];
     const teamCode = team?.code || 'UNKNOWN';
     const timestamp = Date.now();
-    
+
     // Generate dummy document data
     const documentData = {
       id: `doc-${timestamp}`,
@@ -407,14 +419,14 @@ export class SubmissionRepository {
       fileUrl: `/uploads/submissions/${submissionId}/Surat_Pengantar_Kerja_Praktik_${teamCode}_${timestamp}.pdf`,
       createdAt: new Date(),
     };
-    
+
     console.log('[createCoverLetterDocument] Creating dummy SURAT_PENGANTAR:', {
       submissionId,
       adminId,
       teamCode,
       fileName: documentData.fileName
     });
-    
+
     return await this.addDocument(documentData);
   }
 

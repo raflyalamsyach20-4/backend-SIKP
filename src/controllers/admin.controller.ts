@@ -95,10 +95,13 @@ export class AdminController {
       
       const validated = updateSubmissionStatusSchema.parse(body);
 
+      const sessionId = this.c.get('sessionId');
+
       const result = await this.adminService.updateSubmissionStatus(
         submissionId,
         user.adminId!, // ✅ Pass admin ID for audit trail
         validated.status,
+        sessionId,
         validated.rejectionReason,
         validated.documentReviews,
         validated.letterNumber,
@@ -127,9 +130,12 @@ export class AdminController {
       const body = await this.c.req.json().catch(() => ({}));
       const validated = approveSubmissionSchema.parse(body);
 
+      const sessionId = this.c.get('sessionId');
+
       const submission = await this.adminService.approveSubmission(
         submissionId,
         user.adminId!,
+        sessionId,
         validated.documentReviews,
         validated.letterNumber,
       );
@@ -147,9 +153,12 @@ export class AdminController {
       const body = await this.c.req.json();
       const validated = rejectSubmissionSchema.parse(body);
 
+      const sessionId = this.c.get('sessionId');
+
       const submission = await this.adminService.rejectSubmission(
         submissionId,
         user.adminId!,
+        sessionId,
         validated.reason,
         validated.documentReviews
       );

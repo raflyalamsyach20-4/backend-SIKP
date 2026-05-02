@@ -159,6 +159,11 @@ export class SuratPengantarDosenService {
         namaMahasiswa: student?.profile.fullName ?? 'Unknown',
         status: submission.workflowStage === 'COMPLETED' ? 'DISETUJUI' : submission.workflowStage === 'REJECTED_DOSEN' ? 'DITOLAK' : 'MENUNGGU',
         companyName: submission.companyName,
+        letterPurpose: submission.letterPurpose,
+        companyAddress: submission.companyAddress,
+        division: submission.division,
+        startDate: submission.startDate,
+        endDate: submission.endDate,
         signedFileUrl,
         letterNumber: submission.letterNumber,
         academic_supervisor,
@@ -200,9 +205,18 @@ export class SuratPengantarDosenService {
   }
 
   private async resolveFinalSignedFileUrl(submission: VerifierSubmission): Promise<string | null> {
+    // 1. Priority: Final signed file URL from submission record
     if (submission.finalSignedFileUrl) return submission.finalSignedFileUrl;
+
+    // 2. Secondary: Any generated letters from generated_letters table
     const letters = await this.submissionRepo.findLettersBySubmissionId(submission.id);
-    return letters[0]?.fileUrl || null;
+    if (letters && letters.length > 0) return letters[0].fileUrl;
+
+    // 3. Fallback: The placeholder document created during admin approval
+    const docs = await this.submissionRepo.findDocumentsBySubmissionId(submission.id);
+    const coverLetterDoc = docs.find(d => d.documentType === 'SURAT_PENGANTAR');
+    
+    return coverLetterDoc?.fileUrl || null;
   }
 
   async approveRequest(requestId: string, dosenId: string, role: RbacRole, sessionId: string) {
@@ -210,11 +224,25 @@ export class SuratPengantarDosenService {
     if (!submission) throw new Error('Submission not found');
 
     const approvedAt = new Date();
+
+    // Resolve what the final signed file should be.
+    // In a full implementation, this would involve generating a new PDF with the embedded e-signature.
+    // For now, we use the placeholder letter or any existing generated letter.
+    let finalSignedFileUrl = submission.finalSignedFileUrl;
+    
+    if (!finalSignedFileUrl) {
+      const resolvedUrl = await this.resolveFinalSignedFileUrl(submission);
+      finalSignedFileUrl = resolvedUrl;
+    }
+
+    // Update submission status AND populate the final signed file URL field
+    // This ensures that AdminService and other views see the file immediately.
     return await this.submissionRepo.update(requestId, {
       workflowStage: 'COMPLETED',
       dosenVerificationStatus: 'APPROVED',
       dosenVerifiedAt: approvedAt,
       dosenVerifiedByDosenId: dosenId,
+      finalSignedFileUrl: finalSignedFileUrl, // ✅ Crucial fix: populate the DB field
       updatedAt: approvedAt,
     });
   }
