@@ -544,7 +544,27 @@ export class AdminService {
       updateData.dosenVerifiedByDosenId = null;
       updateData.dosenRejectionReason = null;
       updateData.workflowStage = 'REJECTED_ADMIN';
+      updateData.letterNumber = null;
       updateData.finalSignedFileUrl = null;
+    }
+
+    // If rejected, clean up any generated letters and cover letter documents
+    // so re-approvals can recreate them without causing unique/index conflicts.
+    if (status === 'REJECTED') {
+      try {
+        // Delete all generated letters associated with this submission
+        await this.submissionRepo.deleteLettersBySubmissionId(submissionId);
+        
+        // Delete system-generated cover letter documents
+        const existingDocs = await this.submissionRepo.findDocumentsBySubmissionId(submissionId);
+        for (const doc of existingDocs) {
+          if (doc.documentType === 'SURAT_PENGANTAR') {
+            await this.submissionRepo.deleteDocument(doc.id);
+          }
+        }
+      } catch (err) {
+        console.warn('[AdminService.updateSubmissionStatus] Failed to cleanup generated letters or cover letter documents on reject', err);
+      }
     }
 
     const updated = await this.submissionRepo.update(submissionId, updateData);
