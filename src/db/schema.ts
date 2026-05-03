@@ -145,7 +145,7 @@ export const generatedLetters = pgTable('generated_letters', {
 export const internships = pgTable('internships', {
   id: text('id').primaryKey(),
   submissionId: text('submission_id').notNull().references(() => submissions.id, { onDelete: 'cascade' }),
-  mahasiswaId: varchar('mahasiswa_id', { length: 20 }).notNull(),
+  mahasiswaId: varchar('mahasiswa_id', { length: 255 }).notNull(),
   teamId: text('team_id').references(() => teams.id, { onDelete: 'set null' }),
   pembimbingLapanganId: text('pembimbing_lapangan_id'),
   dosenPembimbingId: text('dosen_pembimbing_id'),

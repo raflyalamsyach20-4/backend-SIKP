@@ -23,15 +23,9 @@ export class ArchiveController {
         return this.c.json(createResponse(false, 'Unauthorized'), 401);
       }
 
-      const [internships, submissions] = await Promise.all([
-        this.archiveService.getStudentArchive(userId),
-        this.archiveService.getStudentSubmissionsArchive(userId)
-      ]);
+      const internships = await this.archiveService.getStudentArchive(userId);
 
-      return this.c.json(createResponse(true, 'Student archive retrieved successfully', {
-        internships,
-        submissions
-      }), 200);
+      return this.c.json(createResponse(true, 'Student archive retrieved successfully', internships), 200);
     } catch (error) {
       return handleError(this.c, error);
     }

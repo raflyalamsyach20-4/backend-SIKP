@@ -21,7 +21,7 @@ export class ArchiveService {
         endDate: internships.endDate,
         status: internships.status,
         finalScore: combinedGrades.finalScore,
-        letterGrade: combinedGrades.letterGrade,
+        finalGrade: combinedGrades.letterGrade,
         reportTitle: reports.title,
         archivedAt: internships.archivedAt,
       })
