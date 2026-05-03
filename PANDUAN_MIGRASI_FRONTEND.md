@@ -13,6 +13,17 @@ Backend telah beralih dari **Identity-Based Routes** ke **Domain-Based Routes**.
 
 ---
 
+## 1.1 Fitur Siap Integrasi (Ready for Manual Testing)
+Fitur-fitur berikut sudah diimplementasikan di backend dan siap dihubungkan ke frontend:
+- **Logbook & Foto**: CRUD logbook + upload foto kegiatan.
+- **Mentorship**: Approval logbook, tanda tangan mentor, dan penilaian mentor.
+- **Standard Flow Pelaporan**: Pengajuan judul, approval judul, dan upload laporan.
+- **Fast Track Reporting**: Submit judul + laporan sekaligus dalam satu step.
+- **Penilaian Akhir**: Kalkulasi grade gabungan dan download PDF Rekap Nilai Akhir.
+- **Arsip**: Riwayat magang mahasiswa dan dashboard arsip admin.
+
+---
+
 ## 2. HTTP Client yang Direkomendasikan
 
 Gunakan `internshipClient` (bukan `iget`/`iput`/`ipost`) untuk semua endpoint modul magang dan mentorship. Pola ini sudah seragam dengan `main`.

@@ -154,6 +154,20 @@ Section ini berisi fitur yang sudah diimplementasikan di backend dan siap untuk 
     - Automasi: Sistem otomatis menghitung nilai gabungan (30% Mentor + 70% Dosen) dan mengubah status magang menjadi `SELESAI`.
     - Fleksibilitas: Alur lama (step-by-step) tetap tersedia dan tidak dihapus.
 
+### 3. Modul Arsip & Riwayat
+- **Status**: Selesai (Backend Logic).
+- **Tindakan**:
+    - Riwayat Mahasiswa: Mengumpulkan data pengajuan dan pelaksanaan yang sudah tidak aktif (Selesai/Batal).
+    - Arsip Admin: Dashboard khusus untuk melihat seluruh history sistem.
+    - Archive Action: Tombol arsipkan manual untuk membersihkan data magang yang sudah lampau.
+
+### 4. Alur Penilaian Akhir & Cetak Rekap (Standard)
+- **Status**: Selesai (Backend Logic).
+- **Tindakan**:
+    - Perhitungan Gabungan: Logic otomatis penggabungan nilai Mentor (30%) dan Dosen (70%).
+    - Final Grade: Penentuan Grade A-E secara sistematis.
+    - PDF Recap: Fitur cetak rekap nilai resmi untuk kebutuhan administrasi mahasiswa.
+
 ---
 
 
