@@ -1,15 +1,8 @@
 import { Context } from 'hono';
-import { createResponse } from '@/utils/helpers';
+import { createResponse, handleError } from '@/utils/helpers';
+import { AssessmentService } from '@/services/assessment.service';
+import type { JWTPayload } from '@/types';
 
-/**
- * Hardcoded assessment criteria for the SIKP system.
- * These map directly to the columns in the `assessments` table.
- * Total weight = 100%.
- *
- * NOTE: Criteria weights are fixed in this implementation and not stored in the DB.
- * The PUT /api/admin/penilaian/kriteria endpoint validates and acknowledges updates
- * but changes are not persisted across restarts (stateless edge deployment).
- */
 const DEFAULT_KRITERIA = [
   {
     id: 'kehadiran',
@@ -54,12 +47,17 @@ const DEFAULT_KRITERIA = [
 ];
 
 export class PenilaianController {
+  private assessmentService: AssessmentService;
+
+  constructor(private c: Context<{ Bindings: CloudflareBindings }>) {
+    this.assessmentService = new AssessmentService(this.c.env);
+  }
+
   /**
    * GET /api/penilaian/kriteria
-   * Returns the assessment criteria with weights.
    */
-  getKriteria = async (c: Context) => {
-    return c.json(
+  getKriteria = async () => {
+    return this.c.json(
       createResponse(true, 'Penilaian kriteria retrieved successfully', {
         kriteria: DEFAULT_KRITERIA,
         totalWeight: DEFAULT_KRITERIA.reduce((sum, k) => sum + k.weight, 0),
@@ -70,48 +68,57 @@ export class PenilaianController {
   };
 
   /**
-   * PUT /api/admin/penilaian/kriteria
-   * Validates and acknowledges criteria update.
-   * NOTE: Changes are not persisted (no DB table for criteria in this deployment).
+   * GET /api/penilaian/recap/:internshipId
    */
-  updateKriteria = async (c: Context) => {
+  getRecap = async () => {
     try {
-      const body = await c.req.json();
+      const internshipId = this.c.req.param('internshipId');
+      const data = await this.assessmentService.getAssessmentRecap(internshipId);
+      return this.c.json(createResponse(true, 'Assessment recap retrieved', data), 200);
+    } catch (error) {
+      return handleError(this.c, error);
+    }
+  };
+
+  /**
+   * GET /api/penilaian/print/:internshipId
+   */
+  printRecap = async () => {
+    try {
+      const user = this.c.get('user') as JWTPayload;
+      const sessionId = user.sessionId!;
+      const internshipId = this.c.req.param('internshipId');
+      const buffer = await this.assessmentService.generateGradeRecapPDF(internshipId, sessionId);
+
+      this.c.header('Content-Type', 'application/pdf');
+      this.c.header('Content-Disposition', `attachment; filename="Rekap-Nilai-${internshipId}.pdf"`);
+      
+      return this.c.body(buffer as any);
+    } catch (error) {
+      return handleError(this.c, error);
+    }
+  };
+
+  /**
+   * PUT /api/admin/penilaian/kriteria (Acknowledge only)
+   */
+  updateKriteria = async () => {
+    try {
+      const body = await this.c.req.json();
       const { kriteria } = body;
 
       if (!Array.isArray(kriteria) || kriteria.length === 0) {
-        return c.json(createResponse(false, "'kriteria' must be a non-empty array"), 400);
+        return this.c.json(createResponse(false, "'kriteria' must be a non-empty array"), 400);
       }
 
       const totalWeight = kriteria.reduce((sum: number, k: any) => sum + (Number(k.weight) || 0), 0);
       if (totalWeight !== 100) {
-        return c.json(
-          createResponse(false, `Total weight must equal 100. Current total: ${totalWeight}`),
-          400
-        );
+        return this.c.json(createResponse(false, `Total weight must equal 100. Current total: ${totalWeight}`), 400);
       }
 
-      // Validate each entry has required fields
-      for (const k of kriteria) {
-        if (!k.category || k.weight === undefined || k.maxScore === undefined) {
-          return c.json(
-            createResponse(false, 'Each criterion must have: category, weight, maxScore'),
-            400
-          );
-        }
-      }
-
-      // Since there's no DB table for criteria storage, acknowledge the update
-      // and return the submitted criteria with a note.
-      return c.json(
-        createResponse(true, 'Criteria acknowledged (note: changes are not persisted in this version)', {
-          kriteria,
-          totalWeight,
-        }),
-        200
-      );
+      return this.c.json(createResponse(true, 'Criteria acknowledged', { kriteria, totalWeight }), 200);
     } catch (error) {
-      return c.json(createResponse(false, 'Invalid request body'), 400);
+      return this.c.json(createResponse(false, 'Invalid request body'), 400);
     }
   };
 }

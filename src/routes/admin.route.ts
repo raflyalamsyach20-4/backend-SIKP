@@ -109,7 +109,7 @@ export const createAdminRoutes = () => {
       '/penilaian/kriteria',
       zValidator('json', updatePenilaianKriteriaSchema),
       async (c) => {
-        return new PenilaianController().updateKriteria(c);
+        return new PenilaianController(c).updateKriteria();
       }
     )
     // Mentorship Requests Approval Flow

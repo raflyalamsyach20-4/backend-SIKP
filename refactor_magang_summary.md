@@ -105,12 +105,6 @@ Menghapus file monolitik `magang.route.ts` dan memecahnya menjadi file rute spes
 - **E-Signature Storage**: Mengimplementasikan fitur unggah tanda tangan mentor ke R2 (`signatures/mentors/{mentorId}/`), memberikan fungsionalitas tanda tangan digital bagi pihak eksternal.
 - **Workflow Sync**: `MentorWorkflowService` secara otomatis mendaftarkan profil mentor ke database lokal saat pengajuan pembimbing lapangan oleh mahasiswa disetujui.
 
-### 25. Tahap Pelaporan & Manajemen Judul (Standard Flow)
-- **ReportingService**: Implementasi alur step-by-step untuk pengajuan judul (`submitTitle`) dan unggah laporan akhir (`submitReport`).
-- **Approval Logic**: Menambahkan fitur persetujuan dan penolakan judul oleh Dosen Pembimbing.
-- **Automasi Status**: Sinkronisasi otomatis status magang menjadi `SELESAI` setelah nilai laporan akhir diberikan dan dihitung (Combined Grade).
-- **Status**: Selesai (Backend).
-
 ### 23. Asset Proxy & Security Hardening
 - **Allowed Prefixes**: Memperbarui `assets.route.ts` untuk mengizinkan proxying folder `logbooks/`, `signatures/`, dan `surat-kesediaan/`.
 - **Global Helper**: Menambahkan metode `getAssetProxyUrl` pada `StorageService` untuk standarisasi konversi URL R2 di seluruh modul (Logbook, Mentor, dan Surat Kesediaan).
@@ -119,6 +113,18 @@ Menghapus file monolitik `magang.route.ts` dan memecahnya menjadi file rute spes
 - **Database Schema**: Menambahkan kolom `archived_at` pada tabel `internships` untuk standarisasi pengarsipan.
 - **ArchiveService**: Implementasi logic pengambilan data pengajuan dan pelaksanaan yang sudah selesai/dibatalkan/diarsipkan baik untuk sisi Mahasiswa maupun Admin.
 - **API Endpoints**: Membuat rute `/api/archive` (Student Archive, Admin Archive, dan Action Archive).
+- **Status**: Selesai (Backend).
+
+### 25. Tahap Pelaporan & Manajemen Judul (Standard Flow)
+- **ReportingService**: Implementasi alur step-by-step untuk pengajuan judul (`submitTitle`) dan unggah laporan akhir (`submitReport`).
+- **Approval Logic**: Menambahkan fitur persetujuan dan penolakan judul oleh Dosen Pembimbing.
+- **Automasi Status**: Sinkronisasi otomatis status magang menjadi `SELESAI` setelah nilai laporan akhir diberikan dan dihitung (Combined Grade).
+- **Status**: Selesai (Backend).
+
+### 26. Alur Penilaian Akhir (Assessment Workflow)
+- **AssessmentService**: Konsolidasi logika perhitungan nilai gabungan (30% Mentor + 70% Dosen) dan penentuan grade (A/B/C/D).
+- **Recap & Printing**: Implementasi fitur pengambilan rekap nilai dan pembuatan dokumen PDF rekap nilai akhir menggunakan `pdfkit`.
+- **Integrasi SSO**: Pengambilan profil mahasiswa dan dosen secara dinamis dari layanan SSO untuk kebutuhan dokumen PDF.
 - **Status**: Selesai (Backend).
 
 ---
@@ -159,14 +165,6 @@ Section ini berisi fitur yang sudah diimplementasikan di backend dan siap untuk 
 - **Tindakan**: Memperbarui Dashboard Mahasiswa, Dosen PA, dan Admin untuk menyertakan widget/statistik/shortcut khusus Tahap Pelaksanaan Magang (Logbook, Mentor, Penilaian).
 
 
-### 2. Alur Penilaian Akhir (Assessment Workflow)
-- **Status**: Placeholder.
-- **Tindakan**:
-    - Implementasi `AssessmentService` untuk menangani input nilai dari dua sisi:
-        - **Mentor Lapangan (30%)**: Berdasarkan kriteria kehadiran, kerjasama, sikap, dll (`assessments` table).
-        - **Dosen Pembimbing (70%)**: Berdasarkan format kesesuaian, penguasaan materi, dll (`lecturer_assessments` table).
-    - Implementasi Logika Kalkulasi: Menghitung nilai gabungan ke dalam tabel `combined_grades` dan menghasilkan `letter_grade` (A/B/C/D).
-    - Fitur Cetak Nilai: Integrasi dengan PDF service untuk mengunduh rekap nilai akhir.
 
 ### 3. Monitoring & Integrasi Dosen Pembimbing
 - **Status**: Minim (Bugs Found).
