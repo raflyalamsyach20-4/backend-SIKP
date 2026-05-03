@@ -1,4 +1,4 @@
-# 🚨 Panduan Migrasi API: Internship Module (Refactor v1.3)
+# 🚨 Panduan Migrasi API: Internship Module (Refactor v1.4)
 
 Dokumen ini ditujukan untuk **Tim Frontend** guna menyelaraskan integrasi setelah dilakukannya refactor besar-besaran pada backend (Big-Bang SSO Cutover).
 
@@ -75,7 +75,14 @@ Silakan perbarui seluruh URL fetch di frontend mengikuti tabel di bawah ini:
 > [!WARNING]
 > Perhatikan URL `/approve-all` — rute lama (`/api/mentor/logbook/:id/approve-all`) **salah** dan sudah tidak ada. Rute yang benar adalah `/api/mentorship/mentees/:studentId/approve-all`.
 
-### C. Fitur Pelaksanaan Magang (Mahasiswa)
+### C. Fitur Monitoring (Dosen Pembimbing)
+| Fitur | Method | Rute LAMA | Rute BARU |
+| :--- | :--- | :--- | :--- |
+| Daftar Mentees (Progres) | GET | `/api/dosen/internship/list` | `/api/internship-monitoring/mentees` |
+| Detail Logbook Mentee | GET | `/api/dosen/internship/logbook/:id` | `/api/internship-monitoring/mentees/:studentId/logbooks` |
+| Cek Mentees Inaktif | GET | *(Baru)* | `/api/internship-monitoring/inactive` |
+
+### D. Fitur Pelaksanaan Magang (Mahasiswa)
 | Fitur | Method | Rute LAMA | Rute BARU |
 | :--- | :--- | :--- | :--- |
 | Info Magang Aktif | GET | `/api/mahasiswa/internship` | `/api/internships` |
@@ -83,7 +90,7 @@ Silakan perbarui seluruh URL fetch di frontend mengikuti tabel di bawah ini:
 > [!IMPORTANT]
 > Rute info magang adalah **`GET /api/internships`** (tanpa suffix `/active`). Endpoint ini sudah mengembalikan data magang aktif milik mahasiswa yang sedang login.
 
-### D. Fitur Pelaporan & Penilaian (Mahasiswa & Dosen)
+### E. Fitur Pelaporan & Penilaian (Mahasiswa & Dosen)
 | Fitur | Method | Rute LAMA | Rute BARU |
 | :--- | :--- | :--- | :--- |
 | **PENGELOLAAN JUDUL** | | | |
@@ -101,7 +108,7 @@ Silakan perbarui seluruh URL fetch di frontend mengikuti tabel di bawah ini:
 | Cetak/Download PDF Nilai | GET | *(Baru)* | `/api/penilaian/print/:internshipId` |
 | Ambil Kriteria Nilai | GET | `/api/penilaian/kriteria` | `/api/penilaian/kriteria` |
 
-### E. Fitur Arsip & Riwayat (Mahasiswa & Admin)
+### F. Fitur Arsip & Riwayat (Mahasiswa & Admin)
 | Fitur | Method | Rute LAMA | Rute BARU |
 | :--- | :--- | :--- | :--- |
 | Riwayat Magang (Student) | GET | `/api/mahasiswa/history` | `/api/archive/student` |
@@ -109,7 +116,7 @@ Silakan perbarui seluruh URL fetch di frontend mengikuti tabel di bawah ini:
 | Daftar Pengajuan Selesai (Admin) | GET | `/api/admin/submission/history` | `/api/archive/admin/submissions` |
 | Arsipkan Manual (Admin) | POST | *(Baru)* | `/api/archive/internship/:id` |
 
-### F. Endpoint Pengajuan Mentor Lapangan (Mahasiswa)
+### G. Endpoint Pengajuan Mentor Lapangan (Mahasiswa)
 | Fitur | Method | Rute |
 | :--- | :--- | :--- |
 | Ajukan Pembimbing Lapangan | POST | `/api/mentorship/requests` |
@@ -177,4 +184,4 @@ Backend sekarang menggunakan pola **Clean Response**. Pastikan pengecekan status
 ---
 
 **Kontak Backend**: Tim Lead Backend.
-**Status Dokumentasi**: v1.3 — Added Reporting, Assessment recap, and Archive modules.
+**Status Dokumentasi**: v1.4 — Added Monitoring Dashboard & Inactivity Tracking.

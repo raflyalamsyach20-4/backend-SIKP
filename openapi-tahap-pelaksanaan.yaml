@@ -289,16 +289,40 @@ paths:
       summary: Melihat data penilaian yang sudah diberikan
 
   # ─── MONITORING (Dosen Pembimbing) ─────────────────────────────────────────
-  /api/internship-monitoring/lecturer/mentees:
+  /api/internship-monitoring/mentees:
     get:
       tags: [Monitoring]
-      summary: Daftar mahasiswa bimbingan bagi Dosen PA
+      summary: Daftar mahasiswa bimbingan aktif beserta progresnya
       security: [{ bearerAuth: [] }]
+      responses:
+        200:
+          description: OK
 
-  /api/internship-monitoring/lecturer/mentees/{studentId}/logbooks:
+  /api/internship-monitoring/mentees/{studentId}/logbooks:
     get:
       tags: [Monitoring]
-      summary: Rekap logbook mahasiswa bimbingan (ReadOnly)
+      summary: Rekap logbook mahasiswa bimbingan tertentu (ReadOnly)
+      parameters:
+        - name: studentId
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        200:
+          description: OK
+
+  /api/internship-monitoring/inactive:
+    get:
+      tags: [Monitoring]
+      summary: Mendapatkan daftar mahasiswa yang pasif dalam pengisian logbook
+      parameters:
+        - name: threshold
+          in: query
+          schema: { type: integer, default: 3 }
+          description: Ambang batas hari ketidakaktifan
+      responses:
+        200:
+          description: OK
 
   # ─── REPORTING (Judul & Laporan Akhir) ─────────────────────────────────────
   /api/reporting/submit-fast:

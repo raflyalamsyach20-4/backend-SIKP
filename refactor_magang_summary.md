@@ -127,6 +127,12 @@ Menghapus file monolitik `magang.route.ts` dan memecahnya menjadi file rute spes
 - **Integrasi SSO**: Pengambilan profil mahasiswa dan dosen secara dinamis dari layanan SSO untuk kebutuhan dokumen PDF.
 - **Status**: Selesai (Backend).
 
+### 27. Monitoring & Integrasi Dosen Pembimbing
+- **MonitoringService**: Implementasi dashboard pemantauan kolektif untuk Dosen Pembimbing guna melihat progres jam kerja dan status logbook seluruh mahasiswa bimbingan.
+- **Inactivity Tracking**: Logic pendeteksi ketidakaktifan mahasiswa dalam mengisi logbook (berdasarkan threshold hari).
+- **Domain-Based Routing**: Restrukturisasi rute monitoring ke `/api/internship-monitoring/mentees` agar lebih konsisten dengan arsitektur baru.
+- **Status**: Selesai (Backend).
+
 ---
 
 ## 🛠️ Sudah Dikerjakan (Ready for Manual Testing)
@@ -168,6 +174,12 @@ Section ini berisi fitur yang sudah diimplementasikan di backend dan siap untuk 
     - Final Grade: Penentuan Grade A-E secara sistematis.
     - PDF Recap: Fitur cetak rekap nilai resmi untuk kebutuhan administrasi mahasiswa.
 
+### 5. Monitoring Dashboard Dosen
+- **Status**: Selesai (Backend Logic).
+- **Tindakan**:
+    - Collective View: Dashboard untuk dosen melihat seluruh progress mahasiswa bimbingan (total jam, status verifikasi).
+    - Detection: Deteksi otomatis mahasiswa yang tidak mengisi logbook (inactive).
+
 ---
 
 
@@ -180,11 +192,6 @@ Section ini berisi fitur yang sudah diimplementasikan di backend dan siap untuk 
 
 
 
-### 3. Monitoring & Integrasi Dosen Pembimbing
-- **Status**: Minim (Bugs Found).
-- **Tindakan**:
-    - Pengembangan Dashboard Monitoring Dosen: Memungkinkan dosen melihat daftar seluruh mahasiswa bimbingan beserta progress logbook-nya secara kolektif (rekap jam kerja dan status verifikasi).
-    - Notifikasi: Sistem pengingat otomatis jika mahasiswa belum mengisi logbook dalam jangka waktu tertentu.
 
 ### 4. Refactor Transisi Fase (Pengajuan -> Pelaksanaan)
 - **Status**: Prematur.
