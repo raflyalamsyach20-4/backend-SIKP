@@ -1,6 +1,6 @@
 import { createDbClient } from '@/db';
-import { titleSubmissions, reports, lecturerAssessments, combinedGrades, assessments, internships } from '@/db/schema';
-import { eq, and } from 'drizzle-orm';
+import { titleSubmissions, reports, lecturerAssessments, combinedGrades, assessments, internships, titleRevisions } from '@/db/schema';
+import { eq, and, desc } from 'drizzle-orm';
 import { generateId } from '@/utils/helpers';
 import { StorageService } from './storage.service';
 
@@ -14,7 +14,7 @@ export class ReportingService {
   }
 
   /**
-   * Submit Title and Report in one step (Simplified Flow)
+   * Submit Title and Report in one step (Simplified Flow / Fast Track)
    */
   async submitTitleAndReport(internshipId: string, data: { title: string; abstract: string; file: File }) {
     const now = new Date();
@@ -61,6 +61,171 @@ export class ReportingService {
   }
 
   /**
+   * Step-by-Step Flow: Submit Title Only
+   */
+  async submitTitle(internshipId: string, data: { title: string; description?: string }) {
+    const now = new Date();
+    
+    // Check if there is an existing submission
+    const existing = await this.db
+      .select()
+      .from(titleSubmissions)
+      .where(eq(titleSubmissions.internshipId, internshipId))
+      .limit(1);
+
+    if (existing.length > 0) {
+      // If rejected, update and reset to PENDING
+      if (existing[0].status === 'REJECTED') {
+        return await this.db
+          .update(titleSubmissions)
+          .set({
+            proposedTitle: data.title,
+            description: data.description || null,
+            status: 'PENDING',
+            submittedAt: now,
+            updatedAt: now,
+            rejectionReason: null
+          })
+          .where(eq(titleSubmissions.id, existing[0].id))
+          .returning();
+      }
+      throw new Error('Title submission already exists and is not in a rejected state');
+    }
+
+    const id = generateId();
+    return await this.db.insert(titleSubmissions).values({
+      id,
+      internshipId,
+      proposedTitle: data.title,
+      description: data.description || null,
+      status: 'PENDING',
+      submittedAt: now,
+      createdAt: now,
+      updatedAt: now,
+    }).returning();
+  }
+
+  /**
+   * Get Title Submission Status
+   */
+  async getTitleSubmission(internshipId: string) {
+    const result = await this.db
+      .select()
+      .from(titleSubmissions)
+      .where(eq(titleSubmissions.internshipId, internshipId))
+      .limit(1);
+    
+    return result[0] || null;
+  }
+
+  /**
+   * Approve Title (Lecturer)
+   */
+  async approveTitle(titleId: string, dosenId: string) {
+    return await this.db
+      .update(titleSubmissions)
+      .set({
+        status: 'APPROVED',
+        approvedBy: dosenId,
+        approvedAt: new Date(),
+        updatedAt: new Date()
+      })
+      .where(eq(titleSubmissions.id, titleId))
+      .returning();
+  }
+
+  /**
+   * Reject Title (Lecturer)
+   */
+  async rejectTitle(titleId: string, dosenId: string, reason: string) {
+    return await this.db
+      .update(titleSubmissions)
+      .set({
+        status: 'REJECTED',
+        rejectionReason: reason,
+        updatedAt: new Date()
+      })
+      .where(eq(titleSubmissions.id, titleId))
+      .returning();
+  }
+
+  /**
+   * Step-by-Step Flow: Submit Report Only
+   * Required Title to be APPROVED first (usually)
+   */
+  async submitReport(internshipId: string, data: { file: File; title?: string; abstract?: string }) {
+    const now = new Date();
+
+    // Verify Title is Approved
+    const title = await this.getTitleSubmission(internshipId);
+    if (!title || title.status !== 'APPROVED') {
+      throw new Error('Judul harus disetujui terlebih dahulu sebelum mengunggah laporan.');
+    }
+
+    // 1. Upload Report File
+    const uniqueFileName = this.storageService.generateUniqueFileName(data.file.name);
+    const upload = await this.storageService.uploadFile(
+      Buffer.from(await data.file.arrayBuffer()),
+      uniqueFileName,
+      'reports'
+    );
+
+    // Check if report exists
+    const existing = await this.db
+      .select()
+      .from(reports)
+      .where(eq(reports.internshipId, internshipId))
+      .limit(1);
+
+    if (existing.length > 0) {
+      return await this.db
+        .update(reports)
+        .set({
+          title: data.title || title.proposedTitle,
+          abstract: data.abstract || title.description,
+          fileUrl: upload.url,
+          fileName: data.file.name,
+          fileSize: data.file.size,
+          status: 'SUBMITTED',
+          submittedAt: now,
+          approvalStatus: 'PENDING',
+          updatedAt: now,
+        })
+        .where(eq(reports.id, existing[0].id))
+        .returning();
+    }
+
+    const id = generateId();
+    return await this.db.insert(reports).values({
+      id,
+      internshipId,
+      title: data.title || title.proposedTitle,
+      abstract: data.abstract || title.description,
+      fileUrl: upload.url,
+      fileName: data.file.name,
+      fileSize: data.file.size,
+      status: 'SUBMITTED',
+      submittedAt: now,
+      approvalStatus: 'PENDING',
+      createdAt: now,
+      updatedAt: now,
+    }).returning();
+  }
+
+  /**
+   * Get Report Status
+   */
+  async getReport(internshipId: string) {
+    const result = await this.db
+      .select()
+      .from(reports)
+      .where(eq(reports.internshipId, internshipId))
+      .limit(1);
+    
+    return result[0] || null;
+  }
+
+  /**
    * Dosen PA scores the report and triggers combined grade calculation
    */
   async scoreReport(internshipId: string, dosenId: string, scores: {
@@ -99,7 +264,7 @@ export class ReportingService {
       .set({ status: 'APPROVED', approvalStatus: 'APPROVED', reviewedBy: dosenId, reviewedAt: now })
       .where(eq(reports.internshipId, internshipId));
 
-    // 4. Update Title Status to APPROVED
+    // 4. Update Title Status to APPROVED (Safe in case it wasn't)
     await this.db.update(titleSubmissions)
       .set({ status: 'APPROVED', approvedBy: dosenId, approvedAt: now })
       .where(eq(titleSubmissions.internshipId, internshipId));

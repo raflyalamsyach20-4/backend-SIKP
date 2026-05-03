@@ -105,9 +105,21 @@ Menghapus file monolitik `magang.route.ts` dan memecahnya menjadi file rute spes
 - **E-Signature Storage**: Mengimplementasikan fitur unggah tanda tangan mentor ke R2 (`signatures/mentors/{mentorId}/`), memberikan fungsionalitas tanda tangan digital bagi pihak eksternal.
 - **Workflow Sync**: `MentorWorkflowService` secara otomatis mendaftarkan profil mentor ke database lokal saat pengajuan pembimbing lapangan oleh mahasiswa disetujui.
 
+### 25. Tahap Pelaporan & Manajemen Judul (Standard Flow)
+- **ReportingService**: Implementasi alur step-by-step untuk pengajuan judul (`submitTitle`) dan unggah laporan akhir (`submitReport`).
+- **Approval Logic**: Menambahkan fitur persetujuan dan penolakan judul oleh Dosen Pembimbing.
+- **Automasi Status**: Sinkronisasi otomatis status magang menjadi `SELESAI` setelah nilai laporan akhir diberikan dan dihitung (Combined Grade).
+- **Status**: Selesai (Backend).
+
 ### 23. Asset Proxy & Security Hardening
 - **Allowed Prefixes**: Memperbarui `assets.route.ts` untuk mengizinkan proxying folder `logbooks/`, `signatures/`, dan `surat-kesediaan/`.
 - **Global Helper**: Menambahkan metode `getAssetProxyUrl` pada `StorageService` untuk standarisasi konversi URL R2 di seluruh modul (Logbook, Mentor, dan Surat Kesediaan).
+
+### 24. Implementasi Modul Arsip (Backend)
+- **Database Schema**: Menambahkan kolom `archived_at` pada tabel `internships` untuk standarisasi pengarsipan.
+- **ArchiveService**: Implementasi logic pengambilan data pengajuan dan pelaksanaan yang sudah selesai/dibatalkan/diarsipkan baik untuk sisi Mahasiswa maupun Admin.
+- **API Endpoints**: Membuat rute `/api/archive` (Student Archive, Admin Archive, dan Action Archive).
+- **Status**: Selesai (Backend).
 
 ---
 
@@ -141,22 +153,13 @@ Section ini berisi fitur yang sudah diimplementasikan di backend dan siap untuk 
 
 ## ⏳ Belum Di-Refactor / Akan Dilakukan (To-Do)
 
-### 1. Implementasi Halaman Arsip
-- **Status**: Belum Dimulai.
-- **Tindakan**: Membuat modul dan halaman Arsip untuk menyimpan data pengajuan dan pelaksanaan yang sudah selesai atau diarsipkan.
 
-### 2. Update Dashboard Multi-Role (Pelaksanaan Section)
+### 1. Update Dashboard Multi-Role (Pelaksanaan Section)
 - **Status**: Belum Dimulai.
 - **Tindakan**: Memperbarui Dashboard Mahasiswa, Dosen PA, dan Admin untuk menyertakan widget/statistik/shortcut khusus Tahap Pelaksanaan Magang (Logbook, Mentor, Penilaian).
 
-### 3. Tahap Pelaporan & Manajemen Judul (Terputus Total)
-- **Status**: Belum Dimulai.
-- **Tindakan**:
-    - Implementasi `TitleSubmissionService` & `TitleSubmissionController` untuk pengajuan judul KP oleh mahasiswa dan persetujuan oleh Dosen Pembimbing.
-    - Implementasi `ReportService` & `ReportController` untuk fitur unggah Laporan Akhir KP (`reports` table) dengan validasi format PDF.
-    - Sinkronisasi status: Mengubah status magang menjadi `SELESAI` setelah laporan akhir disetujui.
 
-### 4. Alur Penilaian Akhir (Assessment Workflow)
+### 2. Alur Penilaian Akhir (Assessment Workflow)
 - **Status**: Placeholder.
 - **Tindakan**:
     - Implementasi `AssessmentService` untuk menangani input nilai dari dua sisi:
@@ -165,19 +168,19 @@ Section ini berisi fitur yang sudah diimplementasikan di backend dan siap untuk 
     - Implementasi Logika Kalkulasi: Menghitung nilai gabungan ke dalam tabel `combined_grades` dan menghasilkan `letter_grade` (A/B/C/D).
     - Fitur Cetak Nilai: Integrasi dengan PDF service untuk mengunduh rekap nilai akhir.
 
-### 5. Monitoring & Integrasi Dosen Pembimbing
+### 3. Monitoring & Integrasi Dosen Pembimbing
 - **Status**: Minim (Bugs Found).
 - **Tindakan**:
     - Pengembangan Dashboard Monitoring Dosen: Memungkinkan dosen melihat daftar seluruh mahasiswa bimbingan beserta progress logbook-nya secara kolektif (rekap jam kerja dan status verifikasi).
     - Notifikasi: Sistem pengingat otomatis jika mahasiswa belum mengisi logbook dalam jangka waktu tertentu.
 
-### 6. Refactor Transisi Fase (Pengajuan -> Pelaksanaan)
+### 4. Refactor Transisi Fase (Pengajuan -> Pelaksanaan)
 - **Status**: Prematur.
 - **Tindakan**:
     - Memindahkan pemicu pembuat record `internships` dari Admin Approval (Surat Pengantar) ke **Response Letter Verification** (Surat Balasan).
     - Memastikan mahasiswa hanya masuk ke dashboard pelaksanaan setelah benar-benar diterima oleh perusahaan.
 
-### 7. Unit Testing Modular
+### 5. Unit Testing Modular
 - **Status**: Direncanakan.
 - **Tindakan**: Membuat file `.test.ts` untuk masing-masing rute baru di folder `tests/` guna menjamin fungsionalitas setelah refactor besar-besaran.
 

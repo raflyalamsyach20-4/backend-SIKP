@@ -154,6 +154,7 @@ export const internships = pgTable('internships', {
   startDate: date('start_date').notNull(),
   endDate: date('end_date').notNull(),
   status: internshipStatusEnum('status').notNull().default('AKTIF'),
+  archivedAt: timestamp('archived_at'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 });
