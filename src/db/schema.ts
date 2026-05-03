@@ -23,6 +23,11 @@ export const authSessions = pgTable('auth_sessions', {
   refreshToken: text('refresh_token'),
   idToken: text('id_token'),
   expiresAt: timestamp('expires_at').notNull(),
+  /**
+   * Cached SSO profile snapshot (SsoProfileData serialized as JSON).
+   * Populated once at callback to avoid hitting /profile on every request.
+   */
+  profileSnapshot: json('profile_snapshot'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 }, (table) => {
