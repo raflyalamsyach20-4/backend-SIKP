@@ -1,14 +1,14 @@
 import { Context } from 'hono';
-import { AdminService } from '@/services/admin.service';
-import { createResponse, handleError } from '@/utils/helpers';
+import { AdminService } from '../services/admin.service';
+import { createResponse, handleError } from '../utils/helpers';
 import { ZodError } from 'zod';
-import type { JWTPayload } from '@/types';
+import type { JWTPayload } from '../types';
 import {
   rejectSubmissionSchema,
   approveSubmissionSchema,
   generateLetterSchema,
   updateSubmissionStatusSchema,
-} from '@/schemas/admin.schema';
+} from '../schemas/admin.schema';
 
 export class AdminController {
   private adminService: AdminService;

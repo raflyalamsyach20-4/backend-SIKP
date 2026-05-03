@@ -288,14 +288,9 @@ export const notifications = pgTable('notifications', {
   createdAt: timestamp('created_at').defaultNow().notNull(),
 });
 
-// Mentors Table (Profiles for Field Mentors)
-export const mentors = pgTable('mentors', {
-  id: text('id').primaryKey(), // Using the same ID as SSO profileId or unique ID
-  fullName: varchar('full_name', { length: 255 }).notNull(),
-  email: varchar('email', { length: 255 }).notNull().unique(),
-  phone: varchar('phone', { length: 20 }),
-  companyName: varchar('company_name', { length: 255 }),
-  position: varchar('position', { length: 100 }),
+// Mentor Signatures Table (Only for digital signatures, profile data is in SSO)
+export const mentorSignatures = pgTable('mentor_signatures', {
+  id: text('id').primaryKey(), // Link to SSO profileId
   signatureUrl: text('signature_url'),
   signatureKey: text('signature_key'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
@@ -316,6 +311,7 @@ export const mentorApprovalRequests = pgTable('mentor_approval_requests', {
   rejectionReason: text('rejection_reason'),
   reviewedBy: text('reviewed_by'),
   reviewedAt: timestamp('reviewed_at'),
+  ssoMentorId: text('sso_mentor_id'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 });
@@ -523,9 +519,9 @@ export const internshipsRelations = relations(internships, ({ one, many }) => ({
     fields: [internships.teamId],
     references: [teams.id],
   }),
-  mentor: one(mentors, {
+  mentorSignature: one(mentorSignatures, {
     fields: [internships.pembimbingLapanganId],
-    references: [mentors.id],
+    references: [mentorSignatures.id],
   }),
   logbooks: many(logbooks),
   assessment: one(assessments),

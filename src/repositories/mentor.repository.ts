@@ -3,7 +3,7 @@ import type { DbClient } from '@/db';
 import {
   internships,
   assessments,
-  mentors,
+  mentorSignatures,
 } from '@/db/schema';
 import { generateId } from '@/utils/helpers';
 
@@ -208,14 +208,14 @@ export class MentorRepository {
     }
   }
 
-  // ─── Profile ───────────────────────────────────────────────────────────────
+  // ─── Profile & Signature ───────────────────────────────────────────────────
 
   async findProfileById(id: string) {
     try {
       const result = await this.db
         .select()
-        .from(mentors)
-        .where(eq(mentors.id, id))
+        .from(mentorSignatures)
+        .where(eq(mentorSignatures.id, id))
         .limit(1);
       return result[0] ?? null;
     } catch (error) {
@@ -224,12 +224,12 @@ export class MentorRepository {
     }
   }
 
-  async updateProfile(id: string, data: Partial<typeof mentors.$inferInsert>) {
+  async updateProfile(id: string, data: Partial<typeof mentorSignatures.$inferInsert>) {
     try {
       await this.db
-        .update(mentors)
+        .update(mentorSignatures)
         .set({ ...data, updatedAt: new Date() })
-        .where(eq(mentors.id, id));
+        .where(eq(mentorSignatures.id, id));
       return this.findProfileById(id);
     } catch (error) {
       console.error('[MentorRepository.updateProfile] Error:', error);

@@ -1,5 +1,5 @@
 import { createDbClient } from '@/db';
-import { assessments, lecturerAssessments, combinedGrades, internships, mentors } from '@/db/schema';
+import { assessments, lecturerAssessments, combinedGrades, internships, mentorSignatures } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 import { generateId } from '@/utils/helpers';
 import { MahasiswaService } from './mahasiswa.service';
@@ -88,13 +88,13 @@ export class AssessmentService {
     const result = await this.db
       .select({
         internship: internships,
-        mentor: mentors,
+        mentorSignature: mentorSignatures,
         combined: combinedGrades,
         mentorScore: assessments,
         lecturerScore: lecturerAssessments,
       })
       .from(internships)
-      .leftJoin(mentors, eq(internships.pembimbingLapanganId, mentors.id))
+      .leftJoin(mentorSignatures, eq(internships.pembimbingLapanganId, mentorSignatures.id))
       .leftJoin(combinedGrades, eq(internships.id, combinedGrades.internshipId))
       .leftJoin(assessments, eq(internships.id, assessments.internshipId))
       .leftJoin(lecturerAssessments, eq(internships.id, lecturerAssessments.internshipId))
@@ -109,6 +109,24 @@ export class AssessmentService {
     const dosenSso = data.internship.dosenPembimbingId 
       ? await this.dosenService.getDosenById(data.internship.dosenPembimbingId, sessionId) 
       : null;
+    
+    // Fetch Mentor Profile from SSO
+    let mentorSso: any = null;
+    if (data.internship.pembimbingLapanganId) {
+      try {
+        const authService = new (await import('./auth.service')).AuthService(this.env);
+        const token = await authService.getSessionAccessToken(sessionId);
+        const response = await fetch(`${this.env.SSO_BASE_URL}/mentor/${data.internship.pembimbingLapanganId}`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        if (response.ok) {
+          const payload = await response.json() as { success: boolean; data: any };
+          mentorSso = payload.data;
+        }
+      } catch (err) {
+        console.warn('[AssessmentService] Failed to fetch mentor profile from SSO:', err);
+      }
+    }
 
     // 3. Generate PDF
     const PDFDocument = (await import('pdfkit')).default;

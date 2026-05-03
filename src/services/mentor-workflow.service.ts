@@ -1,13 +1,19 @@
-import { createDbClient } from '@/db';
-import { MentorWorkflowRepository } from '@/repositories/mentor-workflow.repository';
-import { generateId } from '@/utils/helpers';
+import { createDbClient } from '../db';
+import { MentorWorkflowRepository } from '../repositories/mentor-workflow.repository';
+import { generateId } from '../utils/helpers';
+import { AuthService } from './auth.service';
+import { MahasiswaService } from './mahasiswa.service';
 
 export class MentorWorkflowService {
   private workflowRepo: MentorWorkflowRepository;
+  private authService: AuthService;
+  private mahasiswaService: MahasiswaService;
 
   constructor(private env: CloudflareBindings) {
     const db = createDbClient(this.env.DATABASE_URL);
     this.workflowRepo = new MentorWorkflowRepository(db);
+    this.authService = new AuthService(this.env);
+    this.mahasiswaService = new MahasiswaService(this.env);
   }
 
   private createServiceError(message: string, code: string, statusCode: number) {
@@ -57,25 +63,81 @@ export class MentorWorkflowService {
     return this.workflowRepo.listMentorApprovalRequests();
   }
 
-  async approveMentorApprovalRequest(requestId: string, reviewerUserId: string, mentorProfileId: string) {
+  private async createSsoMentor(data: {
+    fullName: string;
+    instansi: string;
+    email: string;
+    noTelepon?: string;
+    jabatan?: string;
+    bidang?: string;
+  }) {
+    try {
+      const token = await this.authService.getServiceAccessToken();
+      const baseUrl = this.env.SSO_BASE_URL;
+      const url = `${baseUrl}/mentor`;
+
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        body: JSON.stringify(data),
+      });
+
+      if (!response.ok) {
+        const body = await response.text();
+        console.error('[MentorWorkflowService.createSsoMentor] SSO Error:', body);
+        throw new Error(`Failed to create mentor in SSO (${response.status})`);
+      }
+
+      const payload = await response.json() as { success: boolean; data: any };
+      return payload.data;
+    } catch (error) {
+      console.error('[MentorWorkflowService.createSsoMentor] Error:', error);
+      throw error;
+    }
+  }
+
+  async approveMentorApprovalRequest(requestId: string, reviewerUserId: string, sessionId: string) {
     const request = await this.workflowRepo.getMentorApprovalRequestById(requestId);
     if (!request) throw this.createServiceError('Mentor approval request not found', 'REQUEST_NOT_FOUND', 404);
     if (request.status !== 'PENDING') throw this.createServiceError('Only pending requests can be approved', 'INVALID_STATUS', 409);
 
+    // 1. Verify Dosen PA (Reviewer must be the Dosen PA of the student)
+    const studentSso = await this.mahasiswaService.getMahasiswaById(request.studentUserId, sessionId);
+    if (!studentSso) throw this.createServiceError('Student not found in SSO', 'STUDENT_NOT_FOUND', 404);
+
+    const isDosenPa = studentSso.dosenPA?.profileId === reviewerUserId;
+    if (!isDosenPa) {
+      const internship = await this.workflowRepo.getActiveInternshipByMahasiswaId(request.studentUserId);
+      if (!internship || internship.dosenPembimbingId !== reviewerUserId) {
+         throw this.createServiceError('Only the assigned Dosen PA/Pembimbing can approve this request', 'FORBIDDEN_REVIEWER', 403);
+      }
+    }
+
     const internship = await this.workflowRepo.getActiveInternshipByMahasiswaId(request.studentUserId);
     if (!internship) throw this.createServiceError('No active internship found for this student', 'INTERNSHIP_NOT_FOUND', 404);
 
-    // Assign the mentor (using their SSO profileId) to the internship
+    // 2. Call SSO to create mentor
+    const ssoMentor = await this.createSsoMentor({
+      fullName: request.mentorName,
+      instansi: request.companyName || 'Instansi Terkait',
+      email: request.mentorEmail,
+      noTelepon: request.mentorPhone || undefined,
+      jabatan: request.position || undefined,
+    });
+
+    const mentorProfileId = ssoMentor.profileId || ssoMentor.profile.id;
+    const mentorIdFromSso = ssoMentor.id;
+
+    // 3. Assign the mentor (using their SSO profileId) to the internship
     await this.workflowRepo.assignMentorToInternship(internship.id, mentorProfileId);
 
-    // Create or update local mentor profile
-    await this.workflowRepo.createMentorProfile({
+    // 4. Ensure a signature record exists for this mentor
+    await this.workflowRepo.ensureMentorSignatureRecord({
       id: mentorProfileId,
-      fullName: request.mentorName,
-      email: request.mentorEmail,
-      phone: request.mentorPhone,
-      companyName: request.companyName,
-      position: request.position,
       createdAt: new Date(),
       updatedAt: new Date(),
     });
@@ -84,6 +146,7 @@ export class MentorWorkflowService {
       status: 'APPROVED',
       reviewedBy: reviewerUserId,
       reviewedAt: new Date(),
+      ssoMentorId: mentorIdFromSso,
       rejectionReason: null,
     });
 
@@ -93,12 +156,13 @@ export class MentorWorkflowService {
       action: 'APPROVE_MENTOR_APPROVAL_REQUEST',
       entityType: 'mentor_approval_requests',
       entityId: requestId,
-      details: { mentorProfileId, internshipId: internship.id },
+      details: { mentorProfileId, ssoMentorId: mentorIdFromSso, internshipId: internship.id },
       createdAt: new Date(),
     });
 
     return {
       request: updatedRequest,
+      ssoMentorId: mentorIdFromSso,
     };
   }
 
@@ -131,7 +195,7 @@ export class MentorWorkflowService {
     const req = await this.workflowRepo.createMentorEmailChangeRequest({
       id: generateId(),
       mentorId,
-      currentEmail: '', // This should be fetched from SSO
+      currentEmail: '', 
       requestedEmail: requestedEmail.toLowerCase(),
       reason: reason ?? null,
       status: 'PENDING',
@@ -154,4 +218,3 @@ export class MentorWorkflowService {
     return this.workflowRepo.listDosenLogbookMonitorByStudent(studentUserId);
   }
 }
-

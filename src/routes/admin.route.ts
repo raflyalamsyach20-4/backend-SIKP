@@ -1,141 +1,33 @@
 import { Hono } from 'hono';
-import { authMiddleware, adminOnly } from '@/middlewares/auth.middleware';
 import { zValidator } from '@hono/zod-validator';
-import {
-  emptyQuerySchema,
-  nonEmptyStringParamsSchema,
-} from '@/schemas/common.schema';
-import {
-  updateSubmissionStatusSchema,
-  approveSubmissionSchema,
-  rejectSubmissionSchema,
-  generateLetterSchema,
-  updatePenilaianKriteriaSchema,
-  approveMentorRequestSchema,
-  rejectMentorRequestSchema,
-} from '@/schemas/admin.schema';
-import { AdminController } from '@/controllers';
-import { PenilaianController } from '@/controllers/penilaian.controller';
-import { MentorWorkflowController } from '@/controllers/mentor-workflow.controller';
+import { AdminController } from '../controllers/admin.controller';
+import { staffOnly } from '../middlewares/auth.middleware';
+import { 
+  rejectSubmissionSchema, 
+  approveSubmissionSchema, 
+  generateLetterSchema, 
+  updateSubmissionStatusSchema 
+} from '../schemas/admin.schema';
 
-/**
- * Admin Routes
- * Handles admin-specific endpoints for submission management
- */
 export const createAdminRoutes = () => {
-  const admin = new Hono<{ Bindings: CloudflareBindings }>()
-    // Apply auth middleware to all admin routes
-    .use('*', authMiddleware)
-    .use('*', adminOnly)
-    .get(
-      '/dashboard',
-      zValidator('query', emptyQuerySchema),
-      async (c) => {
-        return new AdminController(c).getDashboard();
-      }
-    )
-    // Get submissions by status (more specific route first)
-    .get(
-      '/submissions/status/:status',
-      zValidator('param', nonEmptyStringParamsSchema),
-      zValidator('query', emptyQuerySchema),
-      async (c) => {
-        return new AdminController(c).getSubmissionsByStatus();
-      }
-    )
-    // Get all submissions
-    .get(
-      '/submissions',
-      zValidator('query', emptyQuerySchema),
-      async (c) => {
-        return new AdminController(c).getAllSubmissions();
-      }
-    )
-    // Get submission by ID
-    .get(
-      '/submissions/:submissionId',
-      zValidator('param', nonEmptyStringParamsSchema),
-      zValidator('query', emptyQuerySchema),
-      async (c) => {
-        return new AdminController(c).getSubmissionById();
-      }
-    )
-    // Update submission status
-    .put(
-      '/submissions/:submissionId/status',
-      zValidator('param', nonEmptyStringParamsSchema),
-      zValidator('json', updateSubmissionStatusSchema),
-      async (c) => {
-        return new AdminController(c).updateSubmissionStatus();
-      }
-    )
-    // Approve submission
-    .post(
-      '/submissions/:submissionId/approve',
-      zValidator('param', nonEmptyStringParamsSchema),
-      zValidator('json', approveSubmissionSchema),
-      async (c) => {
-        return new AdminController(c).approveSubmission();
-      }
-    )
-    // Reject submission
-    .post(
-      '/submissions/:submissionId/reject',
-      zValidator('param', nonEmptyStringParamsSchema),
-      zValidator('json', rejectSubmissionSchema),
-      async (c) => {
-        return new AdminController(c).rejectSubmission();
-      }
-    )
-    // Generate letter
-    .post(
-      '/submissions/:submissionId/generate-letter',
-      zValidator('param', nonEmptyStringParamsSchema),
-      zValidator('json', generateLetterSchema),
-      async (c) => {
-        return new AdminController(c).generateLetter();
-      }
-    )
-    // Get statistics
-    .get(
-      '/statistics',
-      zValidator('query', emptyQuerySchema),
-      async (c) => {
-        return new AdminController(c).getStatistics();
-      }
-    )
-    // Update penilaian criteria (admin)
-    .put(
-      '/penilaian/kriteria',
-      zValidator('json', updatePenilaianKriteriaSchema),
-      async (c) => {
-        return new PenilaianController(c).updateKriteria();
-      }
-    )
-    // Mentorship Requests Approval Flow
-    .get(
-      '/mentorship/requests',
-      zValidator('query', emptyQuerySchema),
-      async (c) => {
-        return new MentorWorkflowController(c).getMentorApprovalRequests();
-      }
-    )
-    .post(
-      '/mentorship/requests/:id/approve',
-      zValidator('param', nonEmptyStringParamsSchema),
-      zValidator('json', approveMentorRequestSchema),
-      async (c) => {
-        return new MentorWorkflowController(c).approveMentorApprovalRequest(c.req.valid('json'));
-      }
-    )
-    .post(
-      '/mentorship/requests/:id/reject',
-      zValidator('param', nonEmptyStringParamsSchema),
-      zValidator('json', rejectMentorRequestSchema),
-      async (c) => {
-        return new MentorWorkflowController(c).rejectMentorApprovalRequest(c.req.valid('json'));
-      }
-    );
+  const admin = new Hono<{ Bindings: CloudflareBindings }>();
+
+  // Middleware for all admin routes
+  admin.use('*', staffOnly);
+
+  // Submissions Management
+  admin.get('/submissions', (c) => new AdminController(c).getAllSubmissions());
+  admin.get('/submissions/:submissionId', (c) => new AdminController(c).getSubmissionById());
+  admin.post('/submissions/:submissionId/approve', (c) => new AdminController(c).approveSubmission());
+  admin.post('/submissions/:submissionId/reject', (c) => new AdminController(c).rejectSubmission());
+  admin.put('/submissions/:submissionId/status', (c) => new AdminController(c).updateSubmissionStatus());
+
+  // Letter Generation
+  admin.post('/submissions/:submissionId/generate-letter', (c) => new AdminController(c).generateLetter());
+
+  // Dashboard & Statistics
+  admin.get('/dashboard', (c) => new AdminController(c).getDashboard());
+  admin.get('/statistics', (c) => new AdminController(c).getStatistics());
 
   return admin;
 };

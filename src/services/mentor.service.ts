@@ -2,6 +2,7 @@ import { createDbClient } from '@/db';
 import { MentorRepository, CreateAssessmentData, UpdateAssessmentData } from '@/repositories/mentor.repository';
 import { LogbookRepository } from '@/repositories/logbook.repository';
 import { StorageService } from './storage.service';
+import { AuthService } from './auth.service';
 
 export class MentorService {
   private mentorRepo: MentorRepository;
@@ -24,13 +25,34 @@ export class MentorService {
 
   // ─── Profile & Signature ───────────────────────────────────────────────────
 
-  async getProfile(mentorId: string) {
+  async getProfile(mentorId: string, sessionId: string) {
+    // 1. Fetch data from SSO (Master)
+    const baseUrl = this.env.SSO_BASE_URL;
+    const token = await new AuthService(this.env).getSessionAccessToken(sessionId);
+    
+    let mentorSso: any = null;
+    try {
+      const response = await fetch(`${baseUrl}/mentor/${mentorId}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (response.ok) {
+        const payload = await response.json() as { success: boolean; data: any };
+        mentorSso = payload.data;
+      }
+    } catch (err) {
+      console.warn('[MentorService.getProfile] Failed to fetch mentor from SSO:', err);
+    }
+
+    // 2. Fetch signature from local DB
     const profile = await this.mentorRepo.findProfileById(mentorId);
-    if (!profile) throw this.createServiceError('Mentor profile not found', 'PROFILE_NOT_FOUND', 404);
     
     return {
-      ...profile,
-      signatureUrl: this.storageService.getAssetProxyUrl(profile.signatureUrl)
+      id: mentorId,
+      fullName: mentorSso?.fullName || mentorSso?.profile?.fullName || 'Mentor',
+      email: mentorSso?.email || mentorSso?.profile?.email || '',
+      instansi: mentorSso?.instansi || '',
+      jabatan: mentorSso?.jabatan || '',
+      signatureUrl: profile?.signatureUrl ? this.storageService.getAssetProxyUrl(profile.signatureUrl) : null,
     };
   }
 

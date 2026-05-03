@@ -1,43 +1,40 @@
 import { z } from 'zod';
 
 export const rejectSubmissionSchema = z.object({
-  documentReviews: z.record(z.string(), z.enum(['approved', 'rejected'])).optional(),
-  reason: z.string().min(1),
+  reason: z.string().min(1, 'Alasan penolakan harus diisi'),
+  documentReviews: z.array(z.object({
+    documentId: z.string(),
+    status: z.enum(['APPROVED', 'REJECTED']),
+    rejectionReason: z.string().optional(),
+  })).optional(),
 });
 
 export const approveSubmissionSchema = z.object({
-  documentReviews: z.record(z.string(), z.enum(['approved', 'rejected'])).optional(),
-  autoGenerateLetter: z.boolean().optional().default(false),
+  documentReviews: z.array(z.object({
+    documentId: z.string(),
+    status: z.enum(['APPROVED', 'REJECTED']),
+    rejectionReason: z.string().optional(),
+  })).optional(),
   letterNumber: z.string().optional(),
 });
 
 export const generateLetterSchema = z.object({
-  format: z.enum(['pdf', 'docx']).optional().default('pdf'),
+  format: z.enum(['PDF', 'DOCX']).default('PDF'),
 });
 
 export const updateSubmissionStatusSchema = z.object({
-  status: z.enum(['APPROVED', 'REJECTED']).describe('Status to update to'),
-  rejectionReason: z.string().optional().describe('Reason for rejection (required if status is REJECTED)'),
-  letterNumber: z.string().optional().describe('Nomor surat (required if status is APPROVED)'),
-  documentReviews: z.record(z.string(), z.enum(['approved', 'rejected'])).describe('Document review statuses per document ID'),
+  status: z.enum(['DRAFT', 'PENDING_REVIEW', 'REJECTED', 'APPROVED']),
+  rejectionReason: z.string().optional(),
+  documentReviews: z.array(z.object({
+    documentId: z.string(),
+    status: z.enum(['APPROVED', 'REJECTED']),
+    rejectionReason: z.string().optional(),
+  })).optional(),
+  letterNumber: z.string().optional(),
 });
 
-export const updatePenilaianKriteriaSchema = z.object({
-  kriteria: z.array(
-    z
-      .object({
-        category: z.string().min(1),
-        weight: z.number(),
-        maxScore: z.number(),
-      })
-      .passthrough()
-  ).min(1),
-});
-
-export const approveMentorRequestSchema = z.object({
-  mentorProfileId: z.string().min(1, 'Mentor Profile ID is required'),
-});
+export const approveMentorRequestSchema = z.object({});
 
 export const rejectMentorRequestSchema = z.object({
-  reason: z.string().min(1, 'Rejection reason is required'),
+  reason: z.string().min(1, 'Alasan penolakan harus diisi'),
 });

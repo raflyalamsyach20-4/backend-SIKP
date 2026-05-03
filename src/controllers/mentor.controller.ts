@@ -60,9 +60,10 @@ export class MentorController {
   getProfile = async () => {
     try {
       const mentorId = this.getMentorId();
+      const sessionId = (this.c.get('sessionId') as string) || '';
       if (!mentorId) return this.c.json(createResponse(false, 'Unauthorized'), 401);
 
-      const profile = await this.mentorService.getProfile(mentorId);
+      const profile = await this.mentorService.getProfile(mentorId, sessionId);
       return this.c.json(createResponse(true, 'Mentor profile retrieved successfully', profile), 200);
     } catch (error) {
       const err = toErrorLike(error);

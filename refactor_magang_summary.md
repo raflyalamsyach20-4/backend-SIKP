@@ -101,9 +101,9 @@ Menghapus file monolitik `magang.route.ts` dan memecahnya menjadi file rute spes
 - **Enrichment Logic**: `LogbookService` secara otomatis mengubah public R2 URL menjadi internal proxy URL agar aman dan mendukung CORS.
 
 ### 22. Manajemen Profil & E-Signature Mentor Lapangan
-- **Tabel `mentors`**: Membuat tabel baru untuk menyimpan profil pembimbing lapangan (nama, email, instansi) serta referensi tanda tangan digital.
+- **Tabel `mentor_signatures`**: Me-rename tabel `mentors` menjadi `mentor_signatures` dan menghapus kolom profil redundan (nama, email, dll). Tabel ini kini hanya menyimpan referensi tanda tangan digital (E-Signature) yang disimpan di R2.
 - **E-Signature Storage**: Mengimplementasikan fitur unggah tanda tangan mentor ke R2 (`signatures/mentors/{mentorId}/`), memberikan fungsionalitas tanda tangan digital bagi pihak eksternal.
-- **Workflow Sync**: `MentorWorkflowService` secara otomatis mendaftarkan profil mentor ke database lokal saat pengajuan pembimbing lapangan oleh mahasiswa disetujui.
+- **SSO Identity Sync**: Data profil mentor (nama, instansi, jabatan) kini diambil secara dinamis dari API SSO pusat setiap kali dibutuhkan.
 
 ### 23. Asset Proxy & Security Hardening
 - **Allowed Prefixes**: Memperbarui `assets.route.ts` untuk mengizinkan proxying folder `logbooks/`, `signatures/`, dan `surat-kesediaan/`.
@@ -131,7 +131,10 @@ Menghapus file monolitik `magang.route.ts` dan memecahnya menjadi file rute spes
 - **MonitoringService**: Implementasi dashboard pemantauan kolektif untuk Dosen Pembimbing guna melihat progres jam kerja dan status logbook seluruh mahasiswa bimbingan.
 - **Inactivity Tracking**: Logic pendeteksi ketidakaktifan mahasiswa dalam mengisi logbook (berdasarkan threshold hari).
 - **Domain-Based Routing**: Restrukturisasi rute monitoring ke `/api/internship-monitoring/mentees` agar lebih konsisten dengan arsitektur baru.
-- **Status**: Selesai (Backend).
+### 28. Integrasi SSO Mentor & Verifikasi Dosen PA
+- **Migrasi Aktor**: Hak akses verifikasi pengajuan mentor lapangan kini dipindahkan sepenuhnya dari Admin ke **Dosen PA**.
+- **Automated SSO Registration**: Backend SIKP secara otomatis memanggil API `POST /mentor` ke sistem SSO saat Dosen PA melakukan approval.
+- **Identity Decoupling**: SIKP tidak lagi menyimpan data kredensial atau profil mentor secara lokal, beralih sepenuhnya menjadi sistem berbasis SSO.
 
 ---
 

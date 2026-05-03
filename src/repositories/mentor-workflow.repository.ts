@@ -1,5 +1,5 @@
 import { and, desc, eq, isNull } from 'drizzle-orm';
-import type { DbClient } from '@/db';
+import type { DbClient } from '../db';
 import {
   auditLogs,
   internships,
@@ -7,8 +7,8 @@ import {
   mentorActivationTokens,
   mentorApprovalRequests,
   mentorEmailChangeRequests,
-  mentors,
-} from '@/db/schema';
+  mentorSignatures,
+} from '../db/schema';
 
 export class MentorWorkflowRepository {
   constructor(private db: DbClient) {}
@@ -263,16 +263,16 @@ export class MentorWorkflowRepository {
     }
   }
 
-  async createMentorProfile(data: typeof mentors.$inferInsert) {
+  async ensureMentorSignatureRecord(data: typeof mentorSignatures.$inferInsert) {
     try {
-      await this.db.insert(mentors).values(data).onConflictDoUpdate({
-        target: mentors.id,
-        set: { ...data, updatedAt: new Date() }
+      await this.db.insert(mentorSignatures).values(data).onConflictDoUpdate({
+        target: mentorSignatures.id,
+        set: { updatedAt: new Date() }
       });
-      const rows = await this.db.select().from(mentors).where(eq(mentors.id, data.id)).limit(1);
+      const rows = await this.db.select().from(mentorSignatures).where(eq(mentorSignatures.id, data.id)).limit(1);
       return rows[0] ?? null;
     } catch (error) {
-      console.error('[MentorWorkflowRepository.createMentorProfile] Error:', error);
+      console.error('[MentorWorkflowRepository.ensureMentorSignatureRecord] Error:', error);
       throw error;
     }
   }
