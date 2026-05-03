@@ -4,6 +4,7 @@ import { ResponseLetterRepository } from '@/repositories/response-letter.reposit
 import { SubmissionRepository } from '@/repositories/submission.repository';
 import { StorageService } from './storage.service';
 import { TeamResetService } from './team-reset.service';
+import { LetterService } from './letter.service';
 import type { ResponseLetter, ResponseLetterWithDetails } from '@/types';
 import { generateId } from '@/utils/helpers';
 import { createDbClient } from '@/db';
@@ -17,6 +18,7 @@ export class ResponseLetterService {
   private submissionRepo: SubmissionRepository;
   private storageService: StorageService;
   private teamResetService: TeamResetService;
+  private letterService: LetterService;
 
   constructor(private env: CloudflareBindings) {
     const db = createDbClient(this.env.DATABASE_URL);
@@ -24,6 +26,7 @@ export class ResponseLetterService {
     this.submissionRepo = new SubmissionRepository(db);
     this.storageService = new StorageService(env);
     this.teamResetService = new TeamResetService(env);
+    this.letterService = new LetterService(env);
   }
 
   /**
@@ -144,7 +147,7 @@ export class ResponseLetterService {
     id: string,
     userId: string,
     userRole: string
-  ): Promise<ResponseLetterWithDetails> {
+  ): Promise<ResponseLetterWithDetails & { finalSignedFileUrl?: string | null }> {
     const responseLetter = await this.responseLetterRepo.findByIdWithDetails(id);
 
     if (!responseLetter) {
@@ -168,6 +171,27 @@ export class ResponseLetterService {
       if (!isMember) {
         throw new ForbiddenError(ErrorMessages.FORBIDDEN);
       }
+
+      // Add final signed URL if available
+      if (responseLetter.verified && responseLetter.letterStatus === 'approved' && submission.finalSignedFileUrl) {
+        return {
+          ...responseLetter,
+          finalSignedFileUrl: submission.finalSignedFileUrl,
+        };
+      }
+
+      return responseLetter;
+    }
+
+    // For admin/other roles, also add final signed URL if available
+    if (responseLetter.submissionId) {
+      const submission = await this.submissionRepo.findById(responseLetter.submissionId);
+      if (submission?.finalSignedFileUrl) {
+        return {
+          ...responseLetter,
+          finalSignedFileUrl: submission.finalSignedFileUrl,
+        };
+      }
     }
 
     return responseLetter;
@@ -178,8 +202,22 @@ export class ResponseLetterService {
    * Retrieves response letter for the user's team
    * Returns null if user has no team or team has no submission/response letter
    */
-  async getMyResponseLetter(userId: string): Promise<(ResponseLetterWithDetails & { isLeader: boolean }) | null> {
+  async getMyResponseLetter(userId: string): Promise<(ResponseLetterWithDetails & { isLeader: boolean; finalSignedFileUrl?: string | null }) | null> {
     const responseLetter = await this.responseLetterRepo.findByUserTeamWithDetails(userId);
+    
+    if (!responseLetter || !responseLetter.submissionId) {
+      return responseLetter;
+    }
+
+    // Add final signed URL if available
+    const submission = await this.submissionRepo.findById(responseLetter.submissionId);
+    if (submission?.finalSignedFileUrl && responseLetter.verified && responseLetter.letterStatus === 'approved') {
+      return {
+        ...responseLetter,
+        finalSignedFileUrl: submission.finalSignedFileUrl,
+      };
+    }
+
     return responseLetter;
   }
 
@@ -234,6 +272,15 @@ export class ResponseLetterService {
           responseLetter.submissionId,
           'verified'
         );
+
+        // Automatically generate the final signed letter with wakil dekan e-signature
+        try {
+          await this.letterService.generateFinalSignedLetter(responseLetter.submissionId, adminId);
+          console.log('[ResponseLetterService] Final signed letter generated automatically for submission', responseLetter.submissionId);
+        } catch (error) {
+          console.error('[ResponseLetterService] Failed to generate final signed letter:', error);
+          // Continue even if letter generation fails - the approval should still succeed
+        }
       }
     } else {
       console.log('[ResponseLetterService] Response letter rejected. Waiting for student manual reset action.');
@@ -330,6 +377,9 @@ export class ResponseLetterService {
       supervisor: responseLetter.supervisorName || supervisorName,
       members: resolvedMembers,
       responseFileUrl: responseLetter.fileUrl || null,
+      ...(responseLetter.verified && responseLetter.letterStatus === 'approved' && submission?.finalSignedFileUrl
+        ? { finalSignedFileUrl: submission.finalSignedFileUrl }
+        : {}),
     };
   }
 

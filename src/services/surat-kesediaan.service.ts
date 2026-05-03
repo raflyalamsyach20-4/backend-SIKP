@@ -169,7 +169,7 @@ export class SuratKesediaanService {
         y: offsetY,
         scale,
         borderColor: rgb(0, 0, 0),
-        borderWidth: Math.max(pathData.strokeWidth * scale * 1.8, 0.9),
+        borderWidth: Math.max(pathData.strokeWidth * scale * 4.2, 1.0),
       });
     }
   }
@@ -773,18 +773,21 @@ export class SuratKesediaanService {
     drawLabelValue('NIM', mahasiswaSigningContext.nim || requestDetails.mahasiswaNim || '-');
     drawLabelValue('Program Studi', mahasiswaSigningContext.prodi || requestDetails.mahasiswaProdi || '-', 48);
 
-    drawLine('Demikianlah pernyataan ini dibuat agar maklum.', { x: marginX + 3, lineGap: 92 });
+    drawLine('Demikianlah pernyataan ini dibuat agar maklum.', { x: marginX + 3, lineGap: 52 });
 
     const rightX = 368;
     const signedDate = this.formatTanggalIndonesia(new Date());
     drawLine(`Palembang, ${signedDate}`, { x: rightX });
     drawLine('Calon Dosen Pembimbing,', { x: rightX, lineGap: 40 });
 
-    const signatureWidth = 220;
-    const signatureHeight = 90;
+    // Increase these to make the e-sign image larger (only affects surat kesediaan)
+    const signatureWidth = 290;
+    const signatureHeight = 130;
+    // Fixed text baseline for signer (do NOT move with signature box)
+    const signerTextY = y - 45;
     const signatureBaseY = y - signatureHeight + 58;
-    const signatureOffsetX = -30; //atur kiri-kanan e-sign
-    const signatureOffsetY = 20; //atur atas-bawah e-sign
+    const signatureOffsetX = -75; //atur kiri-kanan e-sign
+    const signatureOffsetY = 65; //atur atas-bawah e-sign
     const signatureX = rightX + signatureOffsetX;
     const signatureY = signatureBaseY + signatureOffsetY;
 
@@ -796,13 +799,33 @@ export class SuratKesediaanService {
       throw error;
     }
 
-    y = signatureBaseY - 16;
-    drawLine(dosenSigningContext.dosenNama || '-', { x: rightX });
+    // Draw signer name and NIP at fixed position (do not change with signature)
+    page.drawText(dosenSigningContext.dosenNama || '-', {
+      x: rightX,
+      y: signerTextY,
+      size: bodySize,
+      font: fontBold,
+      color: rgb(0, 0, 0),
+    });
     if (dosenSigningContext.dosenNip) {
-      drawLine(`NIP ${dosenSigningContext.dosenNip}`, { x: rightX });
+      page.drawText(`NIP ${dosenSigningContext.dosenNip}`, {
+        x: rightX,
+        y: signerTextY - 16,
+        size: bodySize,
+        font,
+        color: rgb(0, 0, 0),
+      });
     } else {
-      drawLine('NIP -', { x: rightX });
+      page.drawText('NIP -', {
+        x: rightX,
+        y: signerTextY - 16,
+        size: bodySize,
+        font,
+        color: rgb(0, 0, 0),
+      });
     }
+
+    y = signatureBaseY - 16;
 
     const pdfBytes = await pdfDoc.save();
     return Buffer.from(pdfBytes);
