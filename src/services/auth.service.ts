@@ -337,6 +337,12 @@ export class AuthService {
     return url.toString();
   }
 
+  /**
+   * Load session context using cached profile snapshot from DB.
+   * Profile data is fetched from SSO ONCE at callback and stored as a
+   * JSON snapshot. Subsequent calls read from DB — NO SSO /profile hit.
+   * Token verification (JWT signature) is still performed to validate roles/permissions.
+   */
   private async loadSessionContext(
     sessionId: string,
   ): Promise<AuthSessionContext | null> {
@@ -356,10 +362,38 @@ export class AuthService {
       return null;
     }
 
-    const { profile, identities } = await this.fetchProfileAndIdentities(
-      session.accessToken,
-    );
+    // ✅ CACHE-FIRST: Use profileSnapshot stored at callback time.
+    // Only fallback to SSO /profile if snapshot is missing (e.g., old sessions).
+    let profile: SsoEnvelope['data'];
+    let identities: AuthIdentity[];
 
+    const snapshot = session.profileSnapshot as SsoEnvelope['data'] | null;
+    if (snapshot) {
+      // Fast path: read from DB cache — zero SSO network calls
+      profile = snapshot;
+      identities = [];
+      const rawIds = profile.identities;
+      if (rawIds.mahasiswa) identities.push({ ...rawIds.mahasiswa, identityType: 'MAHASISWA' });
+      if (rawIds.dosen) identities.push({ ...rawIds.dosen, identityType: 'DOSEN' });
+      if (rawIds.admin) identities.push({ ...rawIds.admin, identityType: 'ADMIN' });
+      if (rawIds.mentor) identities.push({ ...rawIds.mentor, identityType: 'MENTOR' });
+    } else {
+      // Slow path: old session without snapshot — hit SSO /profile once, then cache
+      console.warn(
+        '[AuthService.loadSessionContext] profileSnapshot missing, fetching from SSO and caching.',
+        { sessionId },
+      );
+      const fetched = await this.fetchProfileAndIdentities(session.accessToken);
+      profile = fetched.profile;
+      identities = fetched.identities;
+
+      // Persist snapshot so future requests skip this path
+      await this.authSessionRepo.updateSession(sessionId, {
+        profileSnapshot: profile as unknown as Record<string, unknown>,
+      });
+    }
+
+    // JWT token verification (local public-key check — no SSO network call)
     const tokenPayload = (await this.verifyToken(
       session.accessToken,
     )) as SsoAccessTokenPayload;
@@ -521,6 +555,8 @@ export class AuthService {
       refreshToken: tokens.refresh_token || null,
       idToken: tokens.id_token || null,
       expiresAt,
+      // ✅ Cache profile at login time — prevents /profile hits on every subsequent request
+      profileSnapshot: profile as unknown as Record<string, unknown>,
       createdAt: new Date(),
       updatedAt: new Date(),
     });
