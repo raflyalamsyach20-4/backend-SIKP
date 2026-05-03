@@ -181,7 +181,30 @@ Backend sekarang menggunakan pola **Clean Response**. Pastikan pengecekan status
 **Q: Apa URL Production-nya?**
 **A**: URL Production resmi adalah `https://backend-sikp.backend-sikp.workers.dev`.
 
+## 7. Checklist Audit Integrasi (PENTING)
+
+Berdasarkan audit terakhir, beberapa fitur frontend masih bersifat **Mock/Disconnected**. Tim Frontend **WAJIB** melakukan update pada bagian berikut:
+
+### 1. Pelaporan Mahasiswa (`KPReportPage`)
+- [ ] **Ganti Mock Handler**: `handleTitleSubmit` dan `handleReportUpload` harus memanggil API asli, bukan sekadar menampilkan toast sukses.
+- [ ] **Update Endpoint**: Pastikan `reporting-api.ts` menggunakan prefix `/api/reporting/...` (bukan `/api/report/...`).
+- [ ] **Status Mapping**: Mapping status dari backend (`APPROVED`, `SUBMITTED`) ke UI harus konsisten (lowercase vs uppercase).
+
+### 2. Verifikasi Judul Dosen (`LecturerTitleVerificationPage`)
+- [ ] **Hapus Fallback Legacy**: Hapus rute lama seperti `/api/dosen/kp/verifikasi-judul` di `title-verification-api.ts`.
+- [ ] **Gunakan Endpoint Baru**: Gunakan `POST /api/reporting/title/:id/approve` untuk persetujuan judul.
+
+### 3. Penilaian Dosen (`GiveGradePage`)
+- [ ] **Hapus LocalStorage**: Fitur penilaian **TIDAK BOLEH** menyimpan hasil nilai ke `localStorage`. 
+- [ ] **Integrasi API**: Gunakan `POST /api/reporting/score-fast` untuk mengirimkan nilai akhir (70%) ke backend.
+- [ ] **Hapus Mock Data**: Hapus penggunaan `MOCK_STUDENTS_FOR_GRADING` dan gunakan data asli dari `GET /api/internship-monitoring/mentees`.
+- [ ] **UI Penilaian & Laporan**: Implementasikan tampilan **Split-Screen** atau **Side-by-Side**. Dosen harus bisa membaca file laporan (PDF Viewer) sambil mengisi form nilai di layar yang sama agar alur Fast Track efisien.
+
+### 4. Modul Arsip
+- [ ] **Data Mapping**: Gunakan field `finalGrade` untuk menampilkan huruf nilai (A/B/C/D).
+- [ ] **Response Format**: Endpoint `/api/archive/student` sekarang mengembalikan **Array langsung** (bukan object `{ internships: [] }`). Pastikan `.filter()` dipanggil langsung pada `res.data`.
+
 ---
 
 **Kontak Backend**: Tim Lead Backend.
-**Status Dokumentasi**: v1.4 — Added Monitoring Dashboard & Inactivity Tracking.
+**Status Dokumentasi**: v1.4.1 — Added Integration Audit Checklist.
