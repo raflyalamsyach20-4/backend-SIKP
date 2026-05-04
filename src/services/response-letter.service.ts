@@ -2,9 +2,12 @@ import { NotFoundError, ForbiddenError, BadRequestError, ConflictError } from '@
 import { ErrorMessages, SuccessMessages } from '@/constants';
 import { ResponseLetterRepository } from '@/repositories/response-letter.repository';
 import { SubmissionRepository } from '@/repositories/submission.repository';
+import { TeamRepository } from '@/repositories/team.repository';
 import { StorageService } from './storage.service';
 import { TeamResetService } from './team-reset.service';
 import { LetterService } from './letter.service';
+import { MahasiswaService } from './mahasiswa.service';
+import { DosenService } from './dosen.service';
 import type { ResponseLetter, ResponseLetterWithDetails } from '@/types';
 import { generateId } from '@/utils/helpers';
 import { createDbClient } from '@/db';
@@ -16,17 +19,23 @@ import { createDbClient } from '@/db';
 export class ResponseLetterService {
   private responseLetterRepo: ResponseLetterRepository;
   private submissionRepo: SubmissionRepository;
+  private teamRepo: TeamRepository;
   private storageService: StorageService;
   private teamResetService: TeamResetService;
   private letterService: LetterService;
+  private mahasiswaService: MahasiswaService;
+  private dosenService: DosenService;
 
   constructor(private env: CloudflareBindings) {
     const db = createDbClient(this.env.DATABASE_URL);
     this.responseLetterRepo = new ResponseLetterRepository(db);
     this.submissionRepo = new SubmissionRepository(db);
+    this.teamRepo = new TeamRepository(db);
     this.storageService = new StorageService(env);
     this.teamResetService = new TeamResetService(env);
     this.letterService = new LetterService(env);
+    this.mahasiswaService = new MahasiswaService(env);
+    this.dosenService = new DosenService(env);
   }
 
   /**
@@ -36,7 +45,8 @@ export class ResponseLetterService {
     submissionId: string,
     userId: string,
     file: File | { name: string; type: string; size: number; arrayBuffer: () => Promise<ArrayBuffer> },
-    letterStatus: 'approved' | 'rejected' = 'approved'
+    letterStatus: 'approved' | 'rejected' = 'approved',
+    sessionId: string = ''
   ): Promise<ResponseLetter> {
     // Validate submission exists
     const submission = await this.submissionRepo.findById(submissionId);
@@ -92,7 +102,7 @@ export class ResponseLetterService {
     // Build snapshot for history preservation
     let snapshot = null;
     try {
-      snapshot = await this.buildSnapshot(submissionId);
+      snapshot = await this.buildSnapshot(submissionId, sessionId);
       if (!snapshot) {
         console.warn(`[ResponseLetterService] Snapshot is null for submission ${submissionId}`);
       } else {
@@ -135,9 +145,9 @@ export class ResponseLetterService {
     sort?: 'date' | 'name';
     limit?: number;
     offset?: number;
-  }): Promise<unknown[]> {
+  }, sessionId: string = ''): Promise<unknown[]> {
     const responseLetters = await this.responseLetterRepo.findAll(filters);
-    return responseLetters.map((letter) => this.mapToStudentObject(letter));
+    return await Promise.all(responseLetters.map((letter) => this.mapToStudentObject(letter, sessionId)));
   }
 
   /**
@@ -146,7 +156,8 @@ export class ResponseLetterService {
   async getResponseLetterById(
     id: string,
     userId: string,
-    userRole: string
+    userRole: string,
+    sessionId: string = ''
   ): Promise<ResponseLetterWithDetails & { finalSignedFileUrl?: string | null }> {
     const responseLetter = await this.responseLetterRepo.findByIdWithDetails(id);
 
@@ -175,12 +186,12 @@ export class ResponseLetterService {
       // Add final signed URL if available
       if (responseLetter.verified && responseLetter.letterStatus === 'approved' && submission.finalSignedFileUrl) {
         return {
-          ...responseLetter,
+          ...(await this.enrichResponseLetterDetails(responseLetter, sessionId)),
           finalSignedFileUrl: submission.finalSignedFileUrl,
         };
       }
 
-      return responseLetter;
+      return await this.enrichResponseLetterDetails(responseLetter, sessionId);
     }
 
     // For admin/other roles, also add final signed URL if available
@@ -188,13 +199,13 @@ export class ResponseLetterService {
       const submission = await this.submissionRepo.findById(responseLetter.submissionId);
       if (submission?.finalSignedFileUrl) {
         return {
-          ...responseLetter,
+          ...(await this.enrichResponseLetterDetails(responseLetter, sessionId)),
           finalSignedFileUrl: submission.finalSignedFileUrl,
         };
       }
     }
 
-    return responseLetter;
+    return await this.enrichResponseLetterDetails(responseLetter, sessionId);
   }
 
   /**
@@ -202,7 +213,7 @@ export class ResponseLetterService {
    * Retrieves response letter for the user's team
    * Returns null if user has no team or team has no submission/response letter
    */
-  async getMyResponseLetter(userId: string): Promise<(ResponseLetterWithDetails & { isLeader: boolean; finalSignedFileUrl?: string | null }) | null> {
+  async getMyResponseLetter(userId: string, sessionId: string = ''): Promise<(ResponseLetterWithDetails & { isLeader: boolean; finalSignedFileUrl?: string | null }) | null> {
     const responseLetter = await this.responseLetterRepo.findByUserTeamWithDetails(userId);
     
     if (!responseLetter || !responseLetter.submissionId) {
@@ -213,12 +224,12 @@ export class ResponseLetterService {
     const submission = await this.submissionRepo.findById(responseLetter.submissionId);
     if (submission?.finalSignedFileUrl && responseLetter.verified && responseLetter.letterStatus === 'approved') {
       return {
-        ...responseLetter,
+        ...(await this.enrichResponseLetterDetails(responseLetter, sessionId)),
         finalSignedFileUrl: submission.finalSignedFileUrl,
       };
     }
 
-    return responseLetter;
+    return await this.enrichResponseLetterDetails(responseLetter, sessionId);
   }
 
   /**
@@ -243,7 +254,7 @@ export class ResponseLetterService {
     }
 
     if (this.needsSnapshotRefresh(responseLetter) && responseLetter.submissionId) {
-      const snapshot = await this.buildSnapshot(responseLetter.submissionId);
+      const snapshot = await this.buildSnapshot(responseLetter.submissionId, sessionId);
       if (snapshot) {
         await this.responseLetterRepo.update(id, {
           studentName: snapshot.studentName,
@@ -335,27 +346,47 @@ export class ResponseLetterService {
   /**
    * Map response letter to frontend Student object
    */
-  mapToStudentObject(responseLetter: ResponseLetterWithDetails): unknown {
+  async mapToStudentObject(responseLetter: ResponseLetterWithDetails, sessionId: string = ''): Promise<unknown> {
     const leader = responseLetter.leader;
     const leaderMahasiswa = leader?.mahasiswaProfile;
     const submission = responseLetter.submission;
-    const supervisorName = responseLetter.team?.dosenKpName || null;
+    const team = responseLetter.team;
+    const resolved = await this.resolveMembersForResponseLetter(responseLetter, sessionId);
+    const supervisorName = await this.resolveSupervisorName(
+      responseLetter.supervisorName || team?.dosenKpName || null,
+      team?.dosenKpId || null,
+      sessionId
+    );
     const snapshotMembers = responseLetter.membersSnapshot || [];
-    const resolvedMembers = snapshotMembers.length > 0
-      ? snapshotMembers.map((member, index) => ({
+    const resolvedMembers = resolved.length > 0
+      ? resolved
+      : snapshotMembers.map((member, index) => ({
           id: Number.isFinite(Number(member.id)) ? Number(member.id) : index + 1,
           name: member.name || 'Unknown',
           nim: member.nim || 'Unknown',
           prodi: member.prodi || leaderMahasiswa?.prodi || 'Unknown',
           role: member.role || 'Anggota',
-        }))
-      : responseLetter.members?.map((member, index) => ({
-          id: parseInt(member.id) || index + 1,
-          name: member.nama || 'Unknown',
-          nim: member.mahasiswaProfile?.nim || 'Unknown',
-          prodi: member.mahasiswaProfile?.prodi || 'Unknown',
-          role: String(member.role || '').toUpperCase() === 'KETUA' ? 'Ketua' : 'Anggota',
-        })) || [];
+        }));
+
+    const leaderMember = resolvedMembers.find((member) => String(member.role).toUpperCase() === 'KETUA' || String(member.role).toUpperCase() === 'KETUA TIM') || resolvedMembers[0];
+    const effectiveStudentName = this.pickNonEmpty(
+      responseLetter.studentName,
+      leaderMember?.name,
+      leader?.nama,
+      'Unknown'
+    );
+    const effectiveStudentNim = this.pickNonEmpty(
+      responseLetter.studentNim,
+      leaderMember?.nim,
+      leaderMahasiswa?.nim,
+      'Unknown'
+    );
+    const effectiveProdi = this.pickNonEmpty(
+      leaderMember?.prodi,
+      leaderMahasiswa?.prodi,
+      resolvedMembers[0]?.prodi,
+      'Unknown'
+    );
 
     const memberCount = responseLetter.memberCount ?? resolvedMembers.length;
     const roleLabel = responseLetter.roleLabel
@@ -366,16 +397,16 @@ export class ResponseLetterService {
 
     return {
       id: responseLetter.id,
-      name: responseLetter.studentName || leader?.nama || 'Unknown',
-      nim: responseLetter.studentNim || leaderMahasiswa?.nim || 'Unknown',
-      prodi: leaderMahasiswa?.prodi || resolvedMembers[0]?.prodi || 'Unknown',
+      name: effectiveStudentName,
+      nim: effectiveStudentNim,
+      prodi: effectiveProdi,
       tanggal: responseLetter.submittedAt.toISOString().split('T')[0],
       company: responseLetter.companyName || submission?.companyName || 'Unknown',
       role: roleLabel,
       memberCount: memberCount,
       status: responseLetter.letterStatus === 'approved' ? 'Disetujui' : 'Ditolak',
       adminApproved: responseLetter.verified,
-      supervisor: responseLetter.supervisorName || supervisorName,
+      supervisor: supervisorName,
       members: resolvedMembers,
       responseFileUrl: responseLetter.fileUrl || null,
       ...(responseLetter.verified && responseLetter.letterStatus === 'approved' && submission?.finalSignedFileUrl
@@ -385,13 +416,19 @@ export class ResponseLetterService {
   }
 
   private needsSnapshotRefresh(responseLetter: ResponseLetter): boolean {
-    return !responseLetter.studentName &&
-      !responseLetter.studentNim &&
-      !responseLetter.companyName &&
+    const isUnknown = (value: string | null | undefined) => {
+      if (!value) return true;
+      const normalized = value.trim().toLowerCase();
+      return normalized.length === 0 || normalized === 'unknown' || normalized === 'belum ditentukan';
+    };
+
+    return isUnknown(responseLetter.studentName) ||
+      isUnknown(responseLetter.studentNim) ||
+      !responseLetter.companyName ||
       (!responseLetter.membersSnapshot || responseLetter.membersSnapshot.length === 0);
   }
 
-  private async buildSnapshot(submissionId: string): Promise<{
+  private async buildSnapshot(submissionId: string, sessionId: string = ''): Promise<{
     studentName: string | null;
     studentNim: string | null;
     studentProdi: string | null;
@@ -410,53 +447,67 @@ export class ResponseLetterService {
         console.warn(`[buildSnapshot] Submission ${submissionId} not found`);
         return null;
       }
-      
-      if (!submission.team) {
-        console.warn(`[buildSnapshot] Submission ${submissionId} has no team`);
-        return null;
-      }
+      const teamId = submission.teamId || submission.team?.id;
+      if (!teamId) return null;
 
-      const members = submission.team.members || [];
-      console.log(`[buildSnapshot] Found ${members.length} team members`);
-      
-      if (members.length === 0) {
-        console.warn(`[buildSnapshot] No members found for team ${submission.team.id}`);
-        // Return minimal snapshot with company info
+      const team = submission.team || await this.teamRepo.findById(teamId);
+      const teamMembers = await this.teamRepo.findMembersByTeamId(teamId);
+      console.log(`[buildSnapshot] Found ${teamMembers.length} team members`);
+
+      if (teamMembers.length === 0) {
+        const supervisorName = await this.resolveSupervisorName(
+          (team as { dosenKpName?: string | null } | null)?.dosenKpName || null,
+          team?.dosenKpId || null,
+          sessionId
+        );
         return {
           studentName: 'Unknown',
           studentNim: 'Unknown',
           studentProdi: null,
           companyName: submission.companyName || 'Unknown',
-          supervisorName: submission.team.dosenKpName || null,
+          supervisorName,
           memberCount: 0,
           roleLabel: 'Individu',
           membersSnapshot: [],
         };
       }
-      
-      const acceptedMembers = members.filter((member) => member.status === 'ACCEPTED');
-      const effectiveMembers = acceptedMembers.length > 0 ? acceptedMembers : members;
-      const leaderMember = effectiveMembers.find((member) => member.role === 'KETUA') || effectiveMembers[0];
 
-      console.log(`[buildSnapshot] Leader: ${leaderMember?.user?.name || 'Unknown'}`);
-      console.log(`[buildSnapshot] Effective members: ${effectiveMembers.length}`);
+      const acceptedMembers = teamMembers.filter((member) => member.invitationStatus === 'ACCEPTED');
+      const effectiveMembers = acceptedMembers.length > 0 ? acceptedMembers : teamMembers;
 
-      const membersSnapshot = effectiveMembers.map((member, index) => ({
-        id: index + 1,
-        name: member.user?.name || 'Unknown',
-        nim: member.user?.nim || 'Unknown',
-        prodi: member.user?.prodi || 'Unknown',
-        role: member.role === 'KETUA' ? 'Ketua' : 'Anggota',
-      }));
+      const memberProfiles = await Promise.all(
+        effectiveMembers.map(async (member, index) => {
+          const mahasiswa = await this.mahasiswaService.getMahasiswaById(member.mahasiswaId, sessionId);
+          return {
+            id: index + 1,
+            name: mahasiswa?.profile?.fullName || member.mahasiswaId,
+            nim: mahasiswa?.nim || 'Unknown',
+            prodi: mahasiswa?.prodi?.nama || 'Unknown',
+            role: member.role === 'KETUA' ? 'Ketua' : 'Anggota',
+          };
+        })
+      );
+
+      const leaderMember = memberProfiles.find((member) => member.role === 'Ketua') || memberProfiles[0];
+
+      console.log(`[buildSnapshot] Leader: ${leaderMember?.name || 'Unknown'}`);
+      console.log(`[buildSnapshot] Effective members: ${memberProfiles.length}`);
+
+      const membersSnapshot = memberProfiles;
 
       const memberCount = membersSnapshot.length;
+      const supervisorName = await this.resolveSupervisorName(
+        (team as { dosenKpName?: string | null } | null)?.dosenKpName || null,
+        team?.dosenKpId || null,
+        sessionId
+      );
 
       const snapshot = {
-        studentName: leaderMember?.user?.name || 'Unknown',
-        studentNim: leaderMember?.user?.nim || 'Unknown',
-        studentProdi: leaderMember?.user?.prodi || null,
+        studentName: leaderMember?.name || 'Unknown',
+        studentNim: leaderMember?.nim || 'Unknown',
+        studentProdi: leaderMember?.prodi || null,
         companyName: submission.companyName || 'Unknown',
-        supervisorName: submission.team.dosenKpName || null,
+        supervisorName,
         memberCount,
         roleLabel: memberCount > 1 ? 'Tim' : 'Individu',
         membersSnapshot,
@@ -469,6 +520,146 @@ export class ResponseLetterService {
       console.error(`[buildSnapshot] Error building snapshot:`, error);
       return null;
     }
+  }
+
+  private pickNonEmpty(...values: Array<string | null | undefined>): string {
+    for (const value of values) {
+      if (!value) continue;
+      const normalized = value.trim();
+      if (!normalized) continue;
+      if (normalized.toLowerCase() === 'unknown') continue;
+      return normalized;
+    }
+    return values[values.length - 1] || '-';
+  }
+
+  private isUuidLike(value: string): boolean {
+    return /^[a-f0-9]{8}-[a-f0-9]{4}-[1-5][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i.test(value.trim());
+  }
+
+  private async resolveSupervisorName(
+    supervisorName: string | null | undefined,
+    dosenKpId: string | null | undefined,
+    sessionId: string
+  ): Promise<string | null> {
+    const normalized = supervisorName?.trim() || '';
+    const lookupId = dosenKpId || (normalized && this.isUuidLike(normalized) ? normalized : null);
+
+    if (lookupId) {
+      const dosen = await this.dosenService.getDosenById(lookupId, sessionId);
+      if (dosen?.profile?.fullName) return dosen.profile.fullName;
+    }
+
+    if (!normalized || normalized.toLowerCase() === 'unknown') return null;
+    return normalized;
+  }
+
+  private async resolveMembersForResponseLetter(
+    responseLetter: ResponseLetterWithDetails,
+    sessionId: string
+  ): Promise<Array<{ id: number; name: string; nim: string; prodi: string; role: string }>> {
+    const teamId = responseLetter.team?.id || null;
+    const snapshotById = new Map((responseLetter.membersSnapshot || []).map((m) => [String(m.id), m]));
+
+    let rows = teamId ? await this.teamRepo.findMembersByTeamId(teamId) : [];
+    if (rows.length === 0 && Array.isArray(responseLetter.members) && responseLetter.members.length > 0) {
+      rows = responseLetter.members.map((member) => ({
+        id: String(member.id || member.mahasiswaId || ''),
+        teamId: teamId || '',
+        mahasiswaId: String(member.mahasiswaId || member.id || ''),
+        role: String(member.role || 'ANGGOTA'),
+        invitationStatus: String(member.invitationStatus || 'ACCEPTED') as 'PENDING' | 'ACCEPTED' | 'REJECTED',
+        invitedAt: new Date(),
+        respondedAt: null,
+        invitedByMahasiswaId: null,
+      }));
+    }
+
+    if (rows.length === 0) {
+      return (responseLetter.membersSnapshot || []).map((member, index) => ({
+        id: Number(index + 1),
+        name: member.name || 'Unknown',
+        nim: member.nim || 'Unknown',
+        prodi: member.prodi || 'Unknown',
+        role: member.role || 'Anggota',
+      }));
+    }
+
+    const acceptedRows = rows.filter((member) => member.invitationStatus === 'ACCEPTED');
+    const effectiveRows = acceptedRows.length > 0 ? acceptedRows : rows;
+
+    const members = await Promise.all(
+      effectiveRows.map(async (member, index) => {
+        const mahasiswa = await this.mahasiswaService.getMahasiswaById(member.mahasiswaId, sessionId);
+        const snapshot = snapshotById.get(member.mahasiswaId) || snapshotById.get(String(index + 1));
+        return {
+          id: index + 1,
+          name: this.pickNonEmpty(mahasiswa?.profile?.fullName, snapshot?.name, member.mahasiswaId),
+          nim: this.pickNonEmpty(mahasiswa?.nim, snapshot?.nim, 'Unknown'),
+          prodi: this.pickNonEmpty(mahasiswa?.prodi?.nama, snapshot?.prodi, 'Unknown'),
+          role: String(member.role || '').toUpperCase() === 'KETUA' ? 'Ketua' : 'Anggota',
+        };
+      })
+    );
+
+    return members.sort((a, b) => {
+      if (a.role === 'Ketua') return -1;
+      if (b.role === 'Ketua') return 1;
+      return 0;
+    });
+  }
+
+  private async enrichResponseLetterDetails<T extends ResponseLetterWithDetails>(
+    responseLetter: T,
+    sessionId: string
+  ): Promise<T> {
+    const resolvedMembers = await this.resolveMembersForResponseLetter(responseLetter, sessionId);
+    const leaderMember = resolvedMembers.find((member) => member.role === 'Ketua') || resolvedMembers[0];
+    const supervisorName = await this.resolveSupervisorName(
+      responseLetter.supervisorName || responseLetter.team?.dosenKpName || null,
+      responseLetter.team?.dosenKpId || null,
+      sessionId
+    );
+
+    const enrichedMembers = resolvedMembers.map((member, index) => ({
+      id: String(index + 1),
+      mahasiswaId: member.id,
+      nama: member.name,
+      email: '',
+      password: '',
+      phone: null,
+      role: member.role === 'Ketua' ? 'KETUA' : 'ANGGOTA',
+      invitationStatus: 'ACCEPTED',
+      isActive: true,
+      mahasiswaProfile: {
+        nim: member.nim,
+        prodi: member.prodi,
+      },
+    }));
+
+    const updatedSnapshot = resolvedMembers.map((member, index) => ({
+      id: index + 1,
+      name: member.name,
+      nim: member.nim,
+      prodi: member.prodi,
+      role: member.role,
+    }));
+
+    return {
+      ...responseLetter,
+      studentName: this.pickNonEmpty(responseLetter.studentName, leaderMember?.name, 'Unknown'),
+      studentNim: this.pickNonEmpty(responseLetter.studentNim, leaderMember?.nim, 'Unknown'),
+      supervisorName: supervisorName || responseLetter.supervisorName,
+      memberCount: responseLetter.memberCount ?? resolvedMembers.length,
+      membersSnapshot: updatedSnapshot,
+      team: responseLetter.team
+        ? {
+            ...responseLetter.team,
+            dosenKpName: supervisorName || responseLetter.team.dosenKpName || null,
+          }
+        : responseLetter.team,
+      members: enrichedMembers,
+    };
   }
 
   /**

@@ -65,6 +65,7 @@ export class S3R2Storage {
         Key: fileKey,
         Body: buffer,
         ContentType: contentType,
+        ContentDisposition: 'inline',
       });
 
       await this.s3Client.send(command);

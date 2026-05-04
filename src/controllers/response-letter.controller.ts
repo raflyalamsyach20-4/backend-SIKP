@@ -22,6 +22,7 @@ export class ResponseLetterController {
   submitResponseLetter = async () => {
     try {
       const user = this.c.get('user') as JWTPayload;
+      const sessionId = this.c.get('sessionId');
       const formData = await this.c.req.formData();
       
       const file = formData.get('file') as File | null;
@@ -49,7 +50,8 @@ export class ResponseLetterController {
         data.submissionId,
         user.mahasiswaId!,
         data.file as File,
-        data.letterStatus
+        data.letterStatus,
+        sessionId
       );
 
       return this.c.json(
@@ -97,7 +99,8 @@ export class ResponseLetterController {
         offset: query.offset ? parseInt(query.offset) : 0,
       };
 
-      const result = await this.responseLetterService.getAllResponseLetters(filters);
+      const sessionId = this.c.get('sessionId');
+      const result = await this.responseLetterService.getAllResponseLetters(filters, sessionId);
 
       return this.c.json(createResponse(true, 'Response letters retrieved successfully', result));
     } catch (error) {
@@ -120,7 +123,8 @@ export class ResponseLetterController {
         );
       }
 
-      const responseLetter = await this.responseLetterService.getMyResponseLetter(user.mahasiswaId);
+      const sessionId = this.c.get('sessionId');
+      const responseLetter = await this.responseLetterService.getMyResponseLetter(user.mahasiswaId, sessionId);
 
       if (!responseLetter) {
         return this.c.json(
@@ -160,7 +164,8 @@ export class ResponseLetterController {
       const responseLetter = await this.responseLetterService.getResponseLetterById(
         id,
         user.mahasiswaId || user.userId,
-        user.role as string
+        user.role as string,
+        this.c.get('sessionId')
       );
 
       return this.c.json(

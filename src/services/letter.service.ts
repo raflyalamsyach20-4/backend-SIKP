@@ -108,7 +108,14 @@ export class LetterService {
       fileName = `surat-pengantar-${submission.id}.docx`;
     }
 
-    const { url } = await this.storageService.uploadFile(fileBuffer, fileName, 'letters');
+    const { url } = await this.storageService.uploadFile(
+      fileBuffer,
+      fileName,
+      'letters',
+      format === 'pdf'
+        ? 'application/pdf'
+        : 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+    );
 
     return await this.submissionRepo.addGeneratedLetter({
       id: generateId(),
@@ -127,7 +134,12 @@ export class LetterService {
       throw new Error('Submission not found');
     }
 
-    const adminApproved = submission.adminVerificationStatus === 'APPROVED' || submission.status === 'APPROVED';
+    // This method is invoked from admin approval flow before the submission row is fully updated.
+    // Accept the pending-admin-review stage as a valid transitional state for cover-letter generation.
+    const adminApproved =
+      submission.adminVerificationStatus === 'APPROVED' ||
+      submission.status === 'APPROVED' ||
+      submission.workflowStage === 'PENDING_ADMIN_REVIEW';
     if (!adminApproved) {
       throw new Error('Can only generate cover letter for admin-approved submissions');
     }
@@ -147,7 +159,7 @@ export class LetterService {
     const timestamp = Date.now();
     const fileName = `Surat_Pengantar_Kerja_Praktik_${submission.teamId}_${timestamp}.pdf`;
 
-    const { url } = await this.storageService.uploadFile(fileBuffer, fileName, 'submissions');
+    const { url } = await this.storageService.uploadFile(fileBuffer, fileName, 'submissions', 'application/pdf');
 
     return await this.submissionRepo.addDocument({
       id: generateId(),
@@ -186,7 +198,7 @@ export class LetterService {
     const timestamp = Date.now();
     const fileName = `surat-pengantar-${submission.id}-signed-${timestamp}.pdf`;
 
-    const { url } = await this.storageService.uploadFile(fileBuffer, fileName, 'letters');
+    const { url } = await this.storageService.uploadFile(fileBuffer, fileName, 'letters', 'application/pdf');
 
     const letter = await this.submissionRepo.addGeneratedLetter({
       id: generateId(),
