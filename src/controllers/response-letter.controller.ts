@@ -213,10 +213,12 @@ export class ResponseLetterController {
       }
 
       const data = bodyValidation.data;
+      const sessionId = this.c.get('sessionId');
       const result = await this.responseLetterService.verifyResponseLetter(
         id,
         user.adminId || user.userId!,
-        data.letterStatus
+        data.letterStatus,
+        sessionId
       );
 
       return this.c.json(

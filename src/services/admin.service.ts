@@ -533,8 +533,8 @@ export class AdminService {
       updateData.workflowStage = 'PENDING_DOSEN_VERIFICATION';
       updateData.finalSignedFileUrl = null;
 
-      // Automatically create the dummy SURAT_PENGANTAR document
-      await this.submissionRepo.createCoverLetterDocument(submissionId, adminId, submission.teamId);
+      // Automatically create the cover letter template used by the frontend preview.
+      await this.letterService.generateCoverLetterDocument(submissionId, adminId, normalizedLetterNumber || submission.letterNumber || null, sessionId);
     } else {
       updateData.rejectionReason = rejectionReason;
       updateData.adminVerificationStatus = 'REJECTED';

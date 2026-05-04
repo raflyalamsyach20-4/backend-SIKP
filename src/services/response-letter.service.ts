@@ -229,7 +229,8 @@ export class ResponseLetterService {
   async verifyResponseLetter(
     id: string,
     adminId: string,
-    letterStatus: 'approved' | 'rejected'
+    letterStatus: 'approved' | 'rejected',
+    sessionId: string
   ): Promise<{ responseLetter: ResponseLetter; resetTeam: boolean }> {
     const responseLetter = await this.responseLetterRepo.findById(id);
 
@@ -275,7 +276,7 @@ export class ResponseLetterService {
 
         // Automatically generate the final signed letter with wakil dekan e-signature
         try {
-          await this.letterService.generateFinalSignedLetter(responseLetter.submissionId, adminId);
+          await this.letterService.generateFinalSignedLetter(responseLetter.submissionId, adminId, sessionId);
           console.log('[ResponseLetterService] Final signed letter generated automatically for submission', responseLetter.submissionId);
         } catch (error) {
           console.error('[ResponseLetterService] Failed to generate final signed letter:', error);
