@@ -440,6 +440,31 @@ export const mentorApprovalRequests = pgTable('mentor_approval_requests', {
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 });
 
+// Mentor Email Change Requests
+export const mentorEmailChangeRequests = pgTable('mentor_email_change_requests', {
+  id: text('id').primaryKey(),
+  mentorId: text('mentor_id').notNull(),
+  currentEmail: varchar('current_email', { length: 255 }).notNull(),
+  requestedEmail: varchar('requested_email', { length: 255 }).notNull(),
+  reason: text('reason'),
+  status: approvalStatusEnum('status').notNull().default('PENDING'),
+  rejectionReason: text('rejection_reason'),
+  reviewedBy: text('reviewed_by'),
+  reviewedAt: timestamp('reviewed_at'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+});
+
+// Mentor Activation Tokens (one-time token for activation/password setup)
+export const mentorActivationTokens = pgTable('mentor_activation_tokens', {
+  id: text('id').primaryKey(),
+  mentorId: text('mentor_id').notNull(),
+  token: varchar('token', { length: 255 }).notNull().unique(),
+  expiresAt: timestamp('expires_at').notNull(),
+  usedAt: timestamp('used_at'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+});
+
 // Audit Logs for approval/rejection critical actions
 export const auditLogs = pgTable('audit_logs', {
   id: text('id').primaryKey(),
@@ -584,4 +609,8 @@ export const titleRevisionsRelations = relations(titleRevisions, ({ one }) => ({
     fields: [titleRevisions.titleSubmissionId],
     references: [titleSubmissions.id],
   }),
+}));
+
+export const mentorSignaturesRelations = relations(mentorSignatures, ({ many }) => ({
+  internships: many(internships),
 }));
