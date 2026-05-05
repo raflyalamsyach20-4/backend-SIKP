@@ -160,7 +160,20 @@ export class MahasiswaService {
 
   private normalizeDate(value: string | Date | null | undefined): Date | null {
     if (!value) return null;
-    const parsed = value instanceof Date ? value : new Date(value);
+    let parsed: Date;
+    if (value instanceof Date) {
+      parsed = value;
+    } else if (typeof value === 'string') {
+      // For DATE-only strings (YYYY-MM-DD), parse without timezone
+      if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+        const [year, month, day] = value.split('-').map(Number);
+        parsed = new Date(year, month - 1, day);
+      } else {
+        parsed = new Date(value);
+      }
+    } else {
+      return null;
+    }
     return Number.isNaN(parsed.getTime()) ? null : parsed;
   }
 
@@ -169,7 +182,11 @@ export class MahasiswaService {
   }
 
   private formatDate(value: Date): string {
-    return value.toISOString().split('T')[0];
+    // Format as YYYY-MM-DD using local date values, not UTC
+    const year = value.getFullYear();
+    const month = String(value.getMonth() + 1).padStart(2, '0');
+    const day = String(value.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
   }
 
   private async resolvePrimaryTeam(mahasiswaId: string): Promise<TeamRecord | null> {
@@ -234,6 +251,8 @@ export class MahasiswaService {
     const today = this.toDateOnly(new Date());
     const start = this.toDateOnly(startDate);
     const end = this.toDateOnly(endDate);
+
+    
 
     if (today > end) {
       return {

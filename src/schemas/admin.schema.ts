@@ -8,7 +8,7 @@ export const rejectSubmissionSchema = z.object({
 export const approveSubmissionSchema = z.object({
   documentReviews: z.record(z.string(), z.enum(['approved', 'rejected'])).optional(),
   autoGenerateLetter: z.boolean().optional().default(false),
-  letterNumber: z.string().optional(),
+  letterNumber: z.string().min(1, 'Nomor surat wajib diisi'),
 });
 
 export const generateLetterSchema = z.object({

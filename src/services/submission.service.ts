@@ -36,7 +36,11 @@ export class SubmissionService {
 
   private buildDefaultDraftPayload(teamCode: string) {
     const now = new Date();
-    const today = now.toISOString().split('T')[0];
+    // Format as YYYY-MM-DD using local date values, not UTC
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    const today = `${year}-${month}-${day}`;
 
     return {
       letterPurpose: `Belum diisi`,
@@ -210,10 +214,20 @@ export class SubmissionService {
         companyBusinessType: data.companyBusinessType ?? defaults.companyBusinessType,
         division: data.division || defaults.division,
         startDate: data.startDate
-          ? data.startDate.toISOString().split('T')[0]
+          ? (() => {
+              const year = data.startDate.getFullYear();
+              const month = String(data.startDate.getMonth() + 1).padStart(2, '0');
+              const day = String(data.startDate.getDate()).padStart(2, '0');
+              return `${year}-${month}-${day}`;
+            })()
           : defaults.startDate,
         endDate: data.endDate
-          ? data.endDate.toISOString().split('T')[0]
+          ? (() => {
+              const year = data.endDate.getFullYear();
+              const month = String(data.endDate.getMonth() + 1).padStart(2, '0');
+              const day = String(data.endDate.getDate()).padStart(2, '0');
+              return `${year}-${month}-${day}`;
+            })()
           : defaults.endDate,
       });
     } catch {
