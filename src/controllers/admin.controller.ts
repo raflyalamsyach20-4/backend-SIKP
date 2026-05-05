@@ -97,13 +97,21 @@ export class AdminController {
 
       const sessionId = this.c.get('sessionId');
 
+      let documentReviewsRecord: Record<string, string> | undefined = undefined;
+      if (validated.documentReviews) {
+        documentReviewsRecord = {};
+        for (const review of validated.documentReviews) {
+          documentReviewsRecord[review.documentId] = review.status.toLowerCase();
+        }
+      }
+
       const result = await this.adminService.updateSubmissionStatus(
         submissionId,
         user.adminId!, // ✅ Pass admin ID for audit trail
-        validated.status,
+        validated.status as 'APPROVED' | 'REJECTED',
         sessionId,
         validated.rejectionReason,
-        validated.documentReviews,
+        documentReviewsRecord,
         validated.letterNumber,
       );
 
@@ -132,11 +140,19 @@ export class AdminController {
 
       const sessionId = this.c.get('sessionId');
 
+      let documentReviewsRecord: Record<string, string> | undefined = undefined;
+      if (validated.documentReviews) {
+        documentReviewsRecord = {};
+        for (const review of validated.documentReviews) {
+          documentReviewsRecord[review.documentId] = review.status.toLowerCase();
+        }
+      }
+
       const submission = await this.adminService.approveSubmission(
         submissionId,
         user.adminId!,
         sessionId,
-        validated.documentReviews,
+        documentReviewsRecord,
         validated.letterNumber,
       );
 
@@ -155,12 +171,20 @@ export class AdminController {
 
       const sessionId = this.c.get('sessionId');
 
+      let documentReviewsRecord: Record<string, string> | undefined = undefined;
+      if (validated.documentReviews) {
+        documentReviewsRecord = {};
+        for (const review of validated.documentReviews) {
+          documentReviewsRecord[review.documentId] = review.status.toLowerCase();
+        }
+      }
+
       const submission = await this.adminService.rejectSubmission(
         submissionId,
         user.adminId!,
         sessionId,
         validated.reason,
-        validated.documentReviews
+        documentReviewsRecord
       );
 
       return this.c.json(createResponse(true, 'Submission rejected', submission));
@@ -180,7 +204,7 @@ export class AdminController {
       const letter = await this.adminService.generateLetterForSubmission(
         submissionId,
         user.adminId!,
-        validated.format
+        (validated.format?.toLowerCase() || 'pdf') as 'pdf' | 'docx'
       );
 
       return this.c.json(createResponse(true, 'Letter generated successfully', letter), 201);

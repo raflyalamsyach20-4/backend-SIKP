@@ -128,7 +128,7 @@ export class MentorService {
     
     const enrichedEntries = entries.map(entry => ({
       ...entry,
-      attachmentUrl: this.storageService.getAssetProxyUrl(entry.attachmentUrl)
+      fileUrl: entry.fileUrl ? this.storageService.getAssetProxyUrl(entry.fileUrl) : null
     }));
 
     return { internshipId, entries: enrichedEntries };

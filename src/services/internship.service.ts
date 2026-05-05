@@ -46,12 +46,12 @@ export class InternshipService {
       if (mentorProfile) {
         mentor = {
           id: mentorProfile.id,
-          name: mentorProfile.fullName,
-          email: mentorProfile.email,
-          company: mentorProfile.companyName || data.company || '',
-          position: mentorProfile.position || '',
-          phone: mentorProfile.phone || '',
-          signature: this.storageService.getAssetProxyUrl(mentorProfile.signatureUrl),
+          name: 'Mentor (Identity Reserved)',
+          email: '',
+          company: data.company || '',
+          position: '',
+          phone: '',
+          signature: mentorProfile.signatureUrl ? this.storageService.getAssetProxyUrl(mentorProfile.signatureUrl) : null,
         };
       } else {
         mentor = {
