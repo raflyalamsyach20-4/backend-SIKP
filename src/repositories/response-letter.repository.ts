@@ -222,11 +222,13 @@ export class ResponseLetterRepository {
           leader: undefined,
           members: membersData.map((m) => ({
             id: m.member.mahasiswaId,
+            mahasiswaId: m.member.mahasiswaId,
             nama: null,
             email: '',
             password: '',
             phone: null,
-            role: 'MAHASISWA',
+            role: m.member.role,
+            invitationStatus: m.member.invitationStatus,
             isActive: true,
             mahasiswaProfile: undefined,
           })),
@@ -365,7 +367,6 @@ export class ResponseLetterRepository {
     const submissionsResult = await this.db
       .select()
       .from(submissions)
-      .where(eq(submissions.teamId, teamId))
       .orderBy(desc(submissions.createdAt))
       .limit(1);
 
@@ -409,11 +410,13 @@ export class ResponseLetterRepository {
       leader: undefined,
       members: membersResult.map((m) => ({
         id: m.member.mahasiswaId,
+        mahasiswaId: m.member.mahasiswaId,
         nama: null,
         email: '',
         password: '',
         phone: null,
-        role: 'MAHASISWA',
+        role: m.member.role,
+        invitationStatus: m.member.invitationStatus,
         isActive: true,
         mahasiswaProfile: undefined,
       })),

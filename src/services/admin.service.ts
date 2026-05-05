@@ -65,18 +65,19 @@ export class AdminService {
   private templateRepo: TemplateRepository;
   private dosenService: DosenService;
   private mahasiswaService: MahasiswaService;
+  private db: ReturnType<typeof createDbClient>;
 
   constructor(
     private env: CloudflareBindings
   ) {
-    const db = createDbClient(this.env.DATABASE_URL);
+    this.db = createDbClient(this.env.DATABASE_URL);
     this.letterService = new LetterService(this.env);
     this.dosenService = new DosenService(this.env);
     this.mahasiswaService = new MahasiswaService(this.env);
-    this.submissionRepo = new SubmissionRepository(db);
-    this.responseLetterRepo = new ResponseLetterRepository(db);
-    this.teamRepo = new TeamRepository(db);
-    this.templateRepo = new TemplateRepository(db);
+    this.submissionRepo = new SubmissionRepository(this.db);
+    this.responseLetterRepo = new ResponseLetterRepository(this.db);
+    this.teamRepo = new TeamRepository(this.db);
+    this.templateRepo = new TemplateRepository(this.db);
     this.mahasiswaService = new MahasiswaService(this.env);
   }
 
@@ -432,11 +433,12 @@ export class AdminService {
     }
 
     const docs = await this.submissionRepo.findDocumentsBySubmissionId(submission.id);
-    const validDocs = docs.filter((doc) => Boolean(doc.documentType));
+    const coverLetterDoc = docs.find((d) => d.documentType === 'SURAT_PENGANTAR');
 
     return {
       ...submission,
       wakilDekanSignature,
+      signedFileUrl: submission.finalSignedFileUrl || coverLetterDoc?.fileUrl || undefined,
       team: team
         ? ({
             ...team,
@@ -445,12 +447,12 @@ export class AdminService {
             members,
           } as TeamRecord & { members: typeof members })
         : null,
-      documents: validDocs,
+      documents: docs.filter((doc) => Boolean(doc.documentType)),
     };
   }
 
   private async buildAdminSubmissions(submissions: SubmissionRecord[], sessionId: string) {
-    const wakilDekanSignature = await this.submissionRepo.findWakilDekanSignature();
+    const wakilDekanSignature = await this.getWakdekOfficialSignature();
     const mahasiswaCache = new Map<string, SsoMahasiswaDetail | null>();
 
     return await Promise.all(
@@ -458,6 +460,11 @@ export class AdminService {
         this.buildAdminSubmissionEntry(submission, sessionId, wakilDekanSignature, mahasiswaCache)
       )
     );
+  }
+
+  private async getWakdekOfficialSignature() {
+    // Rely on the repository to provide the official signature (either from DB or system default)
+    return await this.submissionRepo.findWakilDekanSignature();
   }
 
   async getAllSubmissions(sessionId: string) {
@@ -478,7 +485,7 @@ export class AdminService {
     const submission = await this.submissionRepo.findById(id);
     if (!submission) throw new Error('Submission not found');
 
-    const wakilDekanSignature = await this.submissionRepo.findWakilDekanSignature();
+    const wakilDekanSignature = await this.getWakdekOfficialSignature();
     const mahasiswaCache = new Map<string, SsoMahasiswaDetail | null>();
     const enrichedSubmission = await this.buildAdminSubmissionEntry(
       submission as SubmissionRecord,
@@ -503,6 +510,7 @@ export class AdminService {
     submissionId: string,
     adminId: string,
     status: 'APPROVED' | 'REJECTED',
+    sessionId: string,
     rejectionReason?: string,
     documentReviews?: Record<string, string>,
     letterNumber?: string,
@@ -566,6 +574,9 @@ export class AdminService {
       updateData.dosenRejectionReason = null;
       updateData.workflowStage = 'PENDING_DOSEN_VERIFICATION';
       updateData.finalSignedFileUrl = null;
+
+      // Automatically create the cover letter template used by the frontend preview.
+      await this.letterService.generateCoverLetterDocument(submissionId, adminId, normalizedLetterNumber || submission.letterNumber || null, sessionId);
     } else {
       updateData.rejectionReason = rejectionReason;
       updateData.adminVerificationStatus = 'REJECTED';
@@ -575,7 +586,27 @@ export class AdminService {
       updateData.dosenVerifiedByDosenId = null;
       updateData.dosenRejectionReason = null;
       updateData.workflowStage = 'REJECTED_ADMIN';
+      updateData.letterNumber = null;
       updateData.finalSignedFileUrl = null;
+    }
+
+    // If rejected, clean up any generated letters and cover letter documents
+    // so re-approvals can recreate them without causing unique/index conflicts.
+    if (status === 'REJECTED') {
+      try {
+        // Delete all generated letters associated with this submission
+        await this.submissionRepo.deleteLettersBySubmissionId(submissionId);
+        
+        // Delete system-generated cover letter documents
+        const existingDocs = await this.submissionRepo.findDocumentsBySubmissionId(submissionId);
+        for (const doc of existingDocs) {
+          if (doc.documentType === 'SURAT_PENGANTAR') {
+            await this.submissionRepo.deleteDocument(doc.id);
+          }
+        }
+      } catch (err) {
+        console.warn('[AdminService.updateSubmissionStatus] Failed to cleanup generated letters or cover letter documents on reject', err);
+      }
     }
 
     const updated = await this.submissionRepo.update(submissionId, updateData);
@@ -583,10 +614,12 @@ export class AdminService {
     if (status === 'APPROVED') {
       await this.ensureInternshipsForSubmission(updated);
     }
-    return updated;
+
+    // Return the enriched submission instead of raw DB record
+    return await this.getSubmissionById(submissionId, sessionId);
   }
 
-  async approveSubmission(submissionId: string, adminId: string, documentReviews?: Record<string, string>, letterNumber?: string) {
+  async approveSubmission(submissionId: string, adminId: string, sessionId: string, documentReviews?: Record<string, string>, letterNumber?: string) {
     const submission = await this.submissionRepo.findById(submissionId);
     if (!submission) throw new Error('Submission not found');
     if (this.getCurrentStage(submission) !== 'PENDING_ADMIN_REVIEW') throw new Error('Can only approve pending submissions');
@@ -594,10 +627,10 @@ export class AdminService {
     const docs = await this.submissionRepo.findDocumentsBySubmissionId(submissionId);
     const normalizedDocumentReviews = documentReviews && Object.keys(documentReviews).length > 0 ? documentReviews : docs.reduce<Record<string, string>>((acc, doc) => { acc[doc.id] = 'approved'; return acc; }, {});
 
-    return await this.updateSubmissionStatus(submissionId, adminId, 'APPROVED', undefined, normalizedDocumentReviews, letterNumber);
+    return await this.updateSubmissionStatus(submissionId, adminId, 'APPROVED', sessionId, undefined, normalizedDocumentReviews, letterNumber);
   }
 
-  async rejectSubmission(submissionId: string, adminId: string, reason: string, documentReviews?: Record<string, string>) {
+  async rejectSubmission(submissionId: string, adminId: string, sessionId: string, reason: string, documentReviews?: Record<string, string>) {
     const submission = await this.submissionRepo.findById(submissionId);
     if (!submission) throw new Error('Submission not found');
     if (this.getCurrentStage(submission) !== 'PENDING_ADMIN_REVIEW') throw new Error('Can only reject pending submissions');
@@ -605,7 +638,7 @@ export class AdminService {
     const docs = await this.submissionRepo.findDocumentsBySubmissionId(submissionId);
     const normalizedDocumentReviews = documentReviews && Object.keys(documentReviews).length > 0 ? documentReviews : docs.reduce<Record<string, string>>((acc, doc, i) => { acc[doc.id] = i === 0 ? 'rejected' : 'approved'; return acc; }, {});
 
-    return await this.updateSubmissionStatus(submissionId, adminId, 'REJECTED', reason, normalizedDocumentReviews);
+    return await this.updateSubmissionStatus(submissionId, adminId, 'REJECTED', sessionId, reason, normalizedDocumentReviews);
   }
 
   async generateLetterForSubmission(submissionId: string, adminId: string, format: 'pdf' | 'docx' = 'pdf') {

@@ -3,6 +3,8 @@ import { TeamRepository } from '@/repositories/team.repository';
 import { StorageService } from '@/services/storage.service';
 import { MahasiswaService } from '@/services/mahasiswa.service';
 import { DosenService } from '@/services/dosen.service';
+import { LetterService } from '@/services/letter.service';
+import { SsoSignatureProxyService } from '@/services/sso-signature-proxy.service';
 import type { RbacRole } from '@/types';
 import { createDbClient } from '@/db';
 
@@ -53,9 +55,11 @@ export class SuratPengantarDosenService {
   private submissionRepo: SubmissionRepository;
   private teamRepo: TeamRepository;
   private storageService: StorageService;
+  private letterService: LetterService;
   
   private _mahasiswaService?: MahasiswaService;
   private _dosenService?: DosenService;
+  private _ssoSignatureProxyService?: SsoSignatureProxyService;
 
   constructor(
     private env: CloudflareBindings
@@ -64,6 +68,7 @@ export class SuratPengantarDosenService {
     this.submissionRepo = new SubmissionRepository(db);
     this.teamRepo = new TeamRepository(db);
     this.storageService = new StorageService(this.env);
+    this.letterService = new LetterService(this.env);
   }
 
   private get mahasiswaService(): MahasiswaService {
@@ -78,6 +83,13 @@ export class SuratPengantarDosenService {
       this._dosenService = new DosenService(this.env);
     }
     return this._dosenService;
+  }
+
+  private get ssoSignatureProxyService(): SsoSignatureProxyService {
+    if (!this._ssoSignatureProxyService) {
+      this._ssoSignatureProxyService = new SsoSignatureProxyService(this.env);
+    }
+    return this._ssoSignatureProxyService;
   }
 
   async getRequestsForVerifier(dosenId: string, role: RbacRole, sessionId: string) {
@@ -159,6 +171,11 @@ export class SuratPengantarDosenService {
         namaMahasiswa: student?.profile.fullName ?? 'Unknown',
         status: submission.workflowStage === 'COMPLETED' ? 'DISETUJUI' : submission.workflowStage === 'REJECTED_DOSEN' ? 'DITOLAK' : 'MENUNGGU',
         companyName: submission.companyName,
+        letterPurpose: submission.letterPurpose,
+        companyAddress: submission.companyAddress,
+        division: submission.division,
+        startDate: submission.startDate,
+        endDate: submission.endDate,
         signedFileUrl,
         letterNumber: submission.letterNumber,
         academic_supervisor,
@@ -200,21 +217,76 @@ export class SuratPengantarDosenService {
   }
 
   private async resolveFinalSignedFileUrl(submission: VerifierSubmission): Promise<string | null> {
+    // 1. Priority: Final signed file URL from submission record
     if (submission.finalSignedFileUrl) return submission.finalSignedFileUrl;
+
+    // 2. Secondary: Any generated letters from generated_letters table
     const letters = await this.submissionRepo.findLettersBySubmissionId(submission.id);
-    return letters[0]?.fileUrl || null;
+    if (letters && letters.length > 0) return letters[0].fileUrl;
+
+    // 3. Fallback: The placeholder document created during admin approval
+    const docs = await this.submissionRepo.findDocumentsBySubmissionId(submission.id);
+    const coverLetterDoc = docs.find(d => d.documentType === 'SURAT_PENGANTAR');
+    
+    return coverLetterDoc?.fileUrl || null;
   }
 
   async approveRequest(requestId: string, dosenId: string, role: RbacRole, sessionId: string) {
     const submission = await this.submissionRepo.findById(requestId);
     if (!submission) throw new Error('Submission not found');
 
+    const isPendingApproval = submission.workflowStage === 'PENDING_DOSEN_VERIFICATION';
+    const isApprovedHistory = submission.workflowStage === 'COMPLETED' && submission.dosenVerificationStatus === 'APPROVED';
+
+    if (!isPendingApproval && !isApprovedHistory) {
+      throw new Error('Pengajuan sudah diproses atau tidak berada pada antrian verifikasi dosen.');
+    }
+
+    if (submission.adminVerificationStatus !== 'APPROVED') {
+      throw new Error('Pengajuan belum disetujui admin.');
+    }
+
+    const verifier = await this.resolveVerifierContext(dosenId, role, sessionId);
+    const team = await this.teamRepo.findById(submission.teamId);
+    const allowed = await this.canVerifierAccessSubmission(verifier, team?.leaderMahasiswaId, sessionId);
+    if (!allowed) {
+      throw new Error('Anda tidak berhak memverifikasi pengajuan ini.');
+    }
+
+    // Validate that Wakil Dekan has created e-signature before approval
+    const activeSignature = await this.ssoSignatureProxyService.getActiveSignature(sessionId);
+    if (!activeSignature) {
+      throw new Error('Harap buat tanda tangan dulu di halaman profile');
+    }
+
     const approvedAt = new Date();
+    const generatedLetter = await this.letterService.generateFinalSignedLetter(requestId, dosenId, sessionId);
+    const finalSignedFileUrl = generatedLetter.fileUrl;
+    if (!finalSignedFileUrl) {
+      throw new Error('Gagal menghasilkan surat pengantar final bertanda tangan.');
+    }
+
+    const currentHistory = Array.isArray(submission.statusHistory) ? submission.statusHistory : [];
+    const newHistory = isPendingApproval
+      ? [
+          ...currentHistory,
+          {
+            status: 'APPROVED',
+            workflowStage: 'COMPLETED',
+            actor: 'DOSEN',
+            date: approvedAt.toISOString(),
+          },
+        ]
+      : currentHistory;
+
     return await this.submissionRepo.update(requestId, {
       workflowStage: 'COMPLETED',
       dosenVerificationStatus: 'APPROVED',
       dosenVerifiedAt: approvedAt,
       dosenVerifiedByDosenId: dosenId,
+      dosenRejectionReason: null,
+      finalSignedFileUrl,
+      statusHistory: newHistory,
       updatedAt: approvedAt,
     });
   }

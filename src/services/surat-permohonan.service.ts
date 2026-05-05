@@ -28,9 +28,22 @@ type DosenSigningContext = {
 type MahasiswaSigningContext = {
   mahasiswaNama: string;
   mahasiswaNim: string | null;
+  mahasiswaProdi: string | null;
+  mahasiswaSemester: number | null;
+  mahasiswaAngkatan: number | null;
+  mahasiswaJumlahSksSelesai?: number | null;
   signatureImageBuffer: Buffer;
   signatureMimeType: string;
   signatureSourceUrl: string;
+};
+
+type MahasiswaRequestProfile = {
+  nama: string;
+  nim: string | null;
+  prodi: string | null;
+  semester: number | null;
+  angkatan: number | null;
+  jumlahSks: number | null;
 };
 
 export class SuratPermohonanService {
@@ -161,14 +174,22 @@ export class SuratPermohonanService {
       throw new Error('File e-signature SVG tidak memiliki path yang bisa dirender.');
     }
 
+    //atur posisi e-sign
     const box = this.extractSvgViewBox(svgText);
-    const innerWidth = Math.max(width - 16, 1);
-    const innerHeight = Math.max(height - 12, 1);
-    const scale = Math.min(innerWidth / box.width, innerHeight / box.height);
+    const paddingX = Math.max(width * 0.05, 6);
+    const paddingY = Math.max(height * 0.06, 6);
+    const innerWidth = Math.max(width - paddingX * 2, 1);
+    const innerHeight = Math.max(height - paddingY * 2, 1);
+
+    // Slightly enlarge to make signature more prominent but keep aspect ratio
+    const baseScale = Math.min(innerWidth / box.width, innerHeight / box.height);
+    const scale = baseScale * 5.08;
     const scaledWidth = box.width * scale;
     const scaledHeight = box.height * scale;
-    const offsetX = x + 8 + (innerWidth - scaledWidth) / 2;
-    const offsetY = y + 6 + (innerHeight - scaledHeight) / 2;
+
+    // Center the signature inside the allotted box
+    const offsetX = x + (width - scaledWidth) / 2;
+    const offsetY = y + (height - scaledHeight) / 2;
 
     for (const pathData of paths) {
       page.drawSvgPath(pathData.d, {
@@ -176,7 +197,8 @@ export class SuratPermohonanService {
         y: offsetY,
         scale,
         borderColor: rgb(0, 0, 0),
-        borderWidth: Math.max(pathData.strokeWidth * scale * 1.8, 0.9),
+        // Increase stroke width multiplier for bolder appearance
+        borderWidth: Math.max(pathData.strokeWidth * scale * 4.2, 1.0),
       });
     }
   }
@@ -534,10 +556,12 @@ export class SuratPermohonanService {
       throw error;
     }
 
+    const mahasiswaRequestProfile = await this.resolveMahasiswaRequestProfile(requestDetails, sessionId);
     const mahasiswaSigningContext = await this.getMahasiswaSigningContext(requestDetails, sessionId);
 
     const signedPdfBuffer = await this.generateSignedPdf(
       requestDetails,
+      mahasiswaRequestProfile,
       dosenSigningContext,
       mahasiswaSigningContext
     );
@@ -715,6 +739,7 @@ export class SuratPermohonanService {
     }
 
     const mahasiswaEsignatureUrl = await this.resolveMahasiswaEsignatureUrlForApproval(requestDetails, sessionId);
+    const mahasiswaProfile = await this.mahasiswaService.getMahasiswaById(requestDetails.memberMahasiswaId, sessionId);
     
     // Download snapshot from R2
     const { imageBuffer, mimeType } = await this.downloadAndValidateSignatureImage(
@@ -723,11 +748,31 @@ export class SuratPermohonanService {
     );
 
     return {
-      mahasiswaNama: requestDetails.mahasiswaNama || '-',
-      mahasiswaNim: requestDetails.mahasiswaNim || null,
+      mahasiswaNama: mahasiswaProfile?.profile?.fullName || requestDetails.mahasiswaNama || '-',
+      mahasiswaNim: mahasiswaProfile?.nim || requestDetails.mahasiswaNim || null,
+      mahasiswaProdi: mahasiswaProfile?.prodi?.nama || requestDetails.mahasiswaProdi || null,
+      mahasiswaSemester: mahasiswaProfile?.semesterAktif ?? requestDetails.mahasiswaSemester ?? null,
+      mahasiswaAngkatan: mahasiswaProfile?.angkatan ?? requestDetails.mahasiswaAngkatan ?? null,
+      mahasiswaJumlahSksSelesai: mahasiswaProfile?.jumlahSksLulus ?? requestDetails.mahasiswaJumlahSksSelesai ?? null,
       signatureImageBuffer: imageBuffer,
       signatureMimeType: mimeType,
       signatureSourceUrl: mahasiswaEsignatureUrl,
+    };
+  }
+
+  private async resolveMahasiswaRequestProfile(
+    requestDetails: Awaited<ReturnType<SuratPermohonanRepository['findByIdWithDetails']>>,
+    sessionId: string
+  ): Promise<MahasiswaRequestProfile> {
+    const mahasiswaProfile = await this.mahasiswaService.getMahasiswaById(requestDetails.memberMahasiswaId, sessionId);
+
+    return {
+      nama: mahasiswaProfile?.profile?.fullName || requestDetails.mahasiswaNama || '-',
+      nim: mahasiswaProfile?.nim || requestDetails.mahasiswaNim || null,
+      prodi: mahasiswaProfile?.prodi?.nama || requestDetails.mahasiswaProdi || null,
+      semester: mahasiswaProfile?.semesterAktif ?? requestDetails.mahasiswaSemester ?? null,
+      angkatan: mahasiswaProfile?.angkatan ?? requestDetails.mahasiswaAngkatan ?? null,
+      jumlahSks: mahasiswaProfile?.jumlahSksLulus ?? requestDetails.mahasiswaJumlahSksSelesai ?? null,
     };
   }
 
@@ -793,7 +838,20 @@ export class SuratPermohonanService {
       const file = await this.storageService.getFile(key);
       if (file) {
         mimeType = file.httpMetadata?.contentType || 'application/octet-stream';
-        imageArrayBuffer = await file.arrayBuffer();
+        if (typeof (file as { arrayBuffer?: unknown }).arrayBuffer === 'function') {
+          imageArrayBuffer = await (file as { arrayBuffer: () => Promise<ArrayBuffer> }).arrayBuffer();
+        } else if (file.body) {
+          if (file.body instanceof ArrayBuffer) {
+            imageArrayBuffer = file.body;
+          } else if (ArrayBuffer.isView(file.body)) {
+            const view = file.body as ArrayBufferView;
+            imageArrayBuffer = Uint8Array.from(new Uint8Array(view.buffer, view.byteOffset, view.byteLength)).buffer;
+          } else if (file.body instanceof Blob) {
+            imageArrayBuffer = await file.body.arrayBuffer();
+          } else {
+            imageArrayBuffer = await new Response(file.body as BodyInit).arrayBuffer();
+          }
+        }
       }
     }
 
@@ -837,6 +895,7 @@ export class SuratPermohonanService {
 
   private async generateSignedPdf(
     requestDetails: Awaited<ReturnType<SuratPermohonanRepository['findByIdWithDetails']>>,
+    mahasiswaRequestProfile: MahasiswaRequestProfile,
     dosenSigningContext: DosenSigningContext,
     mahasiswaSigningContext: MahasiswaSigningContext
   ): Promise<Buffer> {
@@ -1004,14 +1063,14 @@ export class SuratPermohonanService {
     drawSectionHeading('Saya yang bertanda tangan di bawah ini');
     y -= 12;
 
-    drawLabelValue('Nama Mahasiswa', requestDetails.mahasiswaNama || '-');
-    drawLabelValue('NIM', requestDetails.mahasiswaNim || '-');
-    drawLabelValue('Program Studi', requestDetails.mahasiswaProdi || '-');
-    drawLabelValue('Semester', requestDetails.mahasiswaSemester != null ? String(requestDetails.mahasiswaSemester) : '-');
+    drawLabelValue('Nama Mahasiswa', mahasiswaRequestProfile.nama || '-');
+    drawLabelValue('NIM', mahasiswaRequestProfile.nim || '-');
+    drawLabelValue('Program Studi', mahasiswaRequestProfile.prodi || '-');
+    drawLabelValue('Semester', mahasiswaRequestProfile.semester != null ? String(mahasiswaRequestProfile.semester) : '-');
     drawLabelValue('Tahun Ajaran', this.getAcademicYear(requestDetails.requestedAt));
     drawLabelValue(
       'Jumlah SKS yang sudah diselesaikan',
-      `${requestDetails.mahasiswaJumlahSksSelesai ?? 0} sks`,
+      `${mahasiswaRequestProfile.jumlahSks ?? 0} sks`,
       15,
       { colonX: colonX + 28, valueX: colonX + 28 + 15 }
     );
@@ -1057,6 +1116,11 @@ export class SuratPermohonanService {
     const signedDate = this.formatTanggalIndonesia(new Date());
     const leftSignX = 78;
     const rightSignX = 392;
+    // tweak these to shift signature images horizontally (positive => right, negative => left)
+    const signatureShiftLeft = -50; // adjust to move dosen signature
+    const signatureShiftRight = -35; // adjust to move mahasiswa signature
+    // tweak this to shift signatures vertically (positive => up, negative => down)
+    const signatureShiftY = 50; // adjust to move both signatures vertically
 
     const dateLine = `Palembang, ${signedDate}`;
     drawLine(dateLine, { x: rightSignX, lineGap: 16 });
@@ -1077,53 +1141,39 @@ export class SuratPermohonanService {
     });
     y -= 20;
 
-    const signatureWidth = 122;
-    const signatureHeight = 56;
+    const signatureWidth = 200;
+    const signatureHeight = 25;
     const signatureY = y - signatureHeight;
+    const signerTextY = y - 68;
 
     try {
       const dosenImageBytes = new Uint8Array(dosenSigningContext.signatureImageBuffer);
       if (dosenSigningContext.signatureMimeType === 'image/svg+xml') {
         const svgText = Buffer.from(dosenImageBytes).toString('utf8');
-        this.drawSignatureSvg(page, svgText, leftSignX, signatureY, signatureWidth, signatureHeight);
-      } else if (dosenSigningContext.signatureMimeType === 'image/png') {
-        const pngImage = await pdfDoc.embedPng(dosenImageBytes);
-        page.drawImage(pngImage, {
-          x: leftSignX,
-          y: signatureY,
-          width: signatureWidth,
-          height: signatureHeight,
-        });
+        this.drawSignatureSvg(page, svgText, leftSignX + signatureShiftLeft, signatureY + signatureShiftY, signatureWidth, signatureHeight);
       } else {
-        const jpgImage = await pdfDoc.embedJpg(dosenImageBytes);
-        page.drawImage(jpgImage, {
-          x: leftSignX,
-          y: signatureY,
-          width: signatureWidth,
-          height: signatureHeight,
-        });
+        // For raster images, embed and draw centered and slightly larger for clarity
+        const isPng = dosenSigningContext.signatureMimeType === 'image/png';
+        const embedded = isPng ? await pdfDoc.embedPng(dosenImageBytes) : await pdfDoc.embedJpg(dosenImageBytes);
+        const enlargeW = signatureWidth * 1.12;
+        const enlargeH = signatureHeight * 1.18;
+        const drawX = leftSignX + signatureShiftLeft - (enlargeW - signatureWidth) / 2;
+        const drawY = signatureY + signatureShiftY - (enlargeH - signatureHeight) / 2;
+        page.drawImage(embedded, { x: drawX, y: drawY, width: enlargeW, height: enlargeH });
       }
 
       const mahasiswaImageBytes = new Uint8Array(mahasiswaSigningContext.signatureImageBuffer);
       if (mahasiswaSigningContext.signatureMimeType === 'image/svg+xml') {
         const svgText = Buffer.from(mahasiswaImageBytes).toString('utf8');
-        this.drawSignatureSvg(page, svgText, rightSignX, signatureY, signatureWidth, signatureHeight);
-      } else if (mahasiswaSigningContext.signatureMimeType === 'image/png') {
-        const pngImage = await pdfDoc.embedPng(mahasiswaImageBytes);
-        page.drawImage(pngImage, {
-          x: rightSignX,
-          y: signatureY,
-          width: signatureWidth,
-          height: signatureHeight,
-        });
+        this.drawSignatureSvg(page, svgText, rightSignX + signatureShiftRight, signatureY + signatureShiftY, signatureWidth, signatureHeight);
       } else {
-        const jpgImage = await pdfDoc.embedJpg(mahasiswaImageBytes);
-        page.drawImage(jpgImage, {
-          x: rightSignX,
-          y: signatureY,
-          width: signatureWidth,
-          height: signatureHeight,
-        });
+        const isPng = mahasiswaSigningContext.signatureMimeType === 'image/png';
+        const embedded = isPng ? await pdfDoc.embedPng(mahasiswaImageBytes) : await pdfDoc.embedJpg(mahasiswaImageBytes);
+        const enlargeW = signatureWidth * 1.12;
+        const enlargeH = signatureHeight * 1.18;
+        const drawX = rightSignX + signatureShiftRight - (enlargeW - signatureWidth) / 2;
+        const drawY = signatureY + signatureShiftY - (enlargeH - signatureHeight) / 2;
+        page.drawImage(embedded, { x: drawX, y: drawY, width: enlargeW, height: enlargeH });
       }
     } catch {
       const error: Error = new Error('Gagal menyisipkan image e-signature ke PDF.');
@@ -1131,7 +1181,7 @@ export class SuratPermohonanService {
       throw error;
     }
 
-    const nameY = signatureY - 10;
+    const nameY = signerTextY;
     page.drawText(dosenSigningContext.dosenNama || '-', {
       x: leftSignX,
       y: nameY,
@@ -1139,7 +1189,7 @@ export class SuratPermohonanService {
       font: fontBold,
       color: rgb(0, 0, 0),
     });
-    const mahasiswaNamaText = mahasiswaSigningContext.mahasiswaNama || requestDetails.mahasiswaNama || '-';
+    const mahasiswaNamaText = mahasiswaSigningContext.mahasiswaNama || mahasiswaRequestProfile.nama || '-';
     page.drawText(mahasiswaNamaText, {
       x: rightSignX,
       y: nameY,
@@ -1150,15 +1200,15 @@ export class SuratPermohonanService {
 
     page.drawText(`NIP ${dosenSigningContext.dosenNip || '-'}`, {
       x: leftSignX,
-      y: nameY - 16,
+      y: signerTextY - 16,
       size: bodySize,
       font,
       color: rgb(0, 0, 0),
     });
-    const mahasiswaNimText = `NIM ${mahasiswaSigningContext.mahasiswaNim || requestDetails.mahasiswaNim || '-'}`;
+    const mahasiswaNimText = `NIM ${mahasiswaSigningContext.mahasiswaNim || mahasiswaRequestProfile.nim || '-'}`;
     page.drawText(mahasiswaNimText, {
       x: rightSignX,
-      y: nameY - 16,
+      y: signerTextY - 16,
       size: bodySize,
       font,
       color: rgb(0, 0, 0),
