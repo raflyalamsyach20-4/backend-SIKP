@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
 import { AdminController } from '../controllers/admin.controller';
-import { staffOnly } from '../middlewares/auth.middleware';
+import { authMiddleware, staffOnly } from '../middlewares/auth.middleware';
 import { 
   rejectSubmissionSchema, 
   approveSubmissionSchema, 
@@ -13,6 +13,7 @@ export const createAdminRoutes = () => {
   const admin = new Hono<{ Bindings: CloudflareBindings }>();
 
   // Middleware for all admin routes
+  admin.use('*', authMiddleware);
   admin.use('*', staffOnly);
 
   // Submissions Management

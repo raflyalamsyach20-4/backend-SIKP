@@ -36,7 +36,7 @@ export class AuthController {
 
       setCookie(this.c, 'sikp_oauth_state', state, {
         httpOnly: true,
-        secure: String(this.c.env.AUTH_COOKIE_SECURE) === 'true',
+        secure: Boolean(this.c.env.AUTH_COOKIE_SECURE),
         sameSite: this.c.env.AUTH_COOKIE_SAMESITE as "strict" | "lax" | "none",
         path: '/',
         maxAge: 600,
@@ -62,7 +62,7 @@ export class AuthController {
 
       setCookie(this.c, this.c.env.AUTH_SESSION_COOKIE_NAME, result.sessionId, {
         httpOnly: true,
-        secure: String(this.c.env.AUTH_COOKIE_SECURE) === 'true',
+        secure: Boolean(this.c.env.AUTH_COOKIE_SECURE),
         sameSite: this.c.env.AUTH_COOKIE_SAMESITE as "strict" | "lax" | "none",
         path: '/',
         maxAge: Number(this.c.env.AUTH_SESSION_TTL_SECONDS),
