@@ -52,6 +52,11 @@ export class AssessmentService {
       finalScore,
       letterGrade,
       status: 'APPROVED',
+      fileName: null,
+      fileUrl: null,
+      fileType: 'application/pdf',
+      fileSize: null,
+      originalName: null,
       calculatedAt: new Date(),
     });
 
