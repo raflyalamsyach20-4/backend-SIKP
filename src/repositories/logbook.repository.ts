@@ -9,6 +9,11 @@ export interface CreateLogbookData {
   activity: string;
   description: string;
   hours?: number;
+  fileName?: string;
+  fileUrl?: string;
+  fileType?: string;
+  fileSize?: number;
+  originalName?: string;
 }
 
 export interface UpdateLogbookData {
@@ -16,8 +21,11 @@ export interface UpdateLogbookData {
   activity?: string;
   description?: string;
   hours?: number;
-  attachmentUrl?: string;
-  attachmentKey?: string;
+  fileName?: string;
+  fileUrl?: string;
+  fileType?: string;
+  fileSize?: number;
+  originalName?: string;
 }
 
 export class LogbookRepository {
@@ -60,6 +68,11 @@ export class LogbookRepository {
         description: data.description,
         hours: data.hours ?? 0,
         status: 'PENDING',
+        fileName: data.fileName ?? null,
+        fileUrl: data.fileUrl ?? null,
+        fileType: data.fileType ?? null,
+        fileSize: data.fileSize ?? null,
+        originalName: data.originalName ?? null,
         createdAt: now,
         updatedAt: now,
       });
@@ -113,8 +126,11 @@ export class LogbookRepository {
       if (data.activity !== undefined) fields.activity = data.activity;
       if (data.description !== undefined) fields.description = data.description;
       if (data.hours !== undefined) fields.hours = data.hours;
-      if (data.attachmentUrl !== undefined) fields.attachmentUrl = data.attachmentUrl;
-      if (data.attachmentKey !== undefined) fields.attachmentKey = data.attachmentKey;
+      if (data.fileName !== undefined) fields.fileName = data.fileName;
+      if (data.fileUrl !== undefined) fields.fileUrl = data.fileUrl;
+      if (data.fileType !== undefined) fields.fileType = data.fileType;
+      if (data.fileSize !== undefined) fields.fileSize = data.fileSize;
+      if (data.originalName !== undefined) fields.originalName = data.originalName;
 
       await this.db.update(logbooks).set(fields).where(eq(logbooks.id, id));
       return this.findById(id);

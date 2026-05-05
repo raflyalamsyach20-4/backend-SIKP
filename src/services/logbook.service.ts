@@ -52,7 +52,7 @@ export class LogbookService {
     
     const enrichedEntries = entries.map(entry => ({
       ...entry,
-      attachmentUrl: this.storageService.getAssetProxyUrl(entry.attachmentUrl)
+      fileUrl: entry.fileUrl ? this.storageService.getAssetProxyUrl(entry.fileUrl) : null
     }));
 
     return { internshipId, entries: enrichedEntries };
@@ -87,7 +87,7 @@ export class LogbookService {
 
     return {
       ...entry,
-      attachmentUrl: this.storageService.getAssetProxyUrl(entry.attachmentUrl)
+      fileUrl: entry.fileUrl ? this.storageService.getAssetProxyUrl(entry.fileUrl) : null
     };
   }
 
@@ -154,9 +154,9 @@ export class LogbookService {
     }
 
     // Delete existing attachment from storage if it exists
-    if (entry.attachmentKey) {
+    if (entry.fileName) {
       try {
-        await this.storageService.deleteFile(entry.attachmentKey);
+        await this.storageService.deleteFile(entry.fileName);
       } catch (err) {
         console.warn('⚠️ [LogbookService] Failed to delete old attachment from storage:', err);
       }
@@ -175,15 +175,18 @@ export class LogbookService {
 
     // Update database
     const updated = await this.logbookRepo.update(logbookId, { 
-      attachmentUrl: url,
-      attachmentKey: key
+      fileName: key, // In storage service, key is the full path (folder/uniqueName)
+      fileUrl: url,
+      fileType: file.type,
+      fileSize: file.size,
+      originalName: file.name
     });
 
     if (!updated) return null;
 
     return {
       ...updated,
-      attachmentUrl: this.storageService.getAssetProxyUrl(updated.attachmentUrl)
+      fileUrl: updated.fileUrl ? this.storageService.getAssetProxyUrl(updated.fileUrl) : null
     };
   }
 }
