@@ -513,7 +513,7 @@ export class MahasiswaService {
     try {
       const token = await this.authService.getSessionAccessToken(sessionId);
       const baseUrl = this.env.SSO_BASE_URL;
-      const url = `${baseUrl}/api/integrations/profile-service/mahasiswa/count-by-semester/${semester}`;
+      const url = `${baseUrl}/api/mahasiswa/stats/count-by-semester/${semester}`;
 
       const response = await fetch(url, {
         headers: {
