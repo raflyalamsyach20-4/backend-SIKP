@@ -3,6 +3,7 @@ import { TeamRepository } from '@/repositories/team.repository';
 import { SuratKesediaanRepository } from '@/repositories/surat-kesediaan.repository';
 import { SuratPermohonanRepository } from '@/repositories/surat-permohonan.repository';
 import { StorageService } from './storage.service';
+import { DosenService } from './dosen.service';
 import { generateId } from '@/utils/helpers';
 import { createDbClient } from '@/db';
 
@@ -15,6 +16,7 @@ export class SubmissionService {
   private suratKesediaanRepo: SuratKesediaanRepository;
   private suratPermohonanRepo: SuratPermohonanRepository;
   private storageService?: StorageService;
+  private dosenService: DosenService;
 
   constructor(
     private env: CloudflareBindings
@@ -25,6 +27,7 @@ export class SubmissionService {
     this.suratKesediaanRepo = new SuratKesediaanRepository(db);
     this.suratPermohonanRepo = new SuratPermohonanRepository(db);
     this.storageService = new StorageService(env);
+    this.dosenService = new DosenService(env);
   }
 
   private createServiceError(message: string, code: string, statusCode: number) {
@@ -460,7 +463,7 @@ export class SubmissionService {
     return await this.submissionRepo.findDocumentsBySubmissionId(submissionId);
   }
 
-  async getLetterRequestStatus(submissionId: string, mahasiswaId: string) {
+  async getLetterRequestStatus(submissionId: string, mahasiswaId: string, sessionId?: string) {
     const submission = await this.submissionRepo.findById(submissionId);
     if (!submission) {
       const error: Error = new Error('Submission tidak ditemukan.');
@@ -505,6 +508,7 @@ export class SubmissionService {
 
     const documentTypes: LetterDocumentType[] = ['SURAT_KESEDIAAN', 'FORM_PERMOHONAN'];
     const response: any[] = [];
+    const dosenNameCache = new Map<string, string | null>();
 
     for (const memberMahasiswaId of acceptedMahasiswaIds) {
       for (const documentType of documentTypes) {
@@ -512,13 +516,24 @@ export class SubmissionService {
           ? latestKesediaanByMember.get(memberMahasiswaId)
           : latestPermohonanByMember.get(memberMahasiswaId);
 
+        let dosenName = null;
+        if (latestRequest && latestRequest.dosenId) {
+          if (dosenNameCache.has(latestRequest.dosenId)) {
+            dosenName = dosenNameCache.get(latestRequest.dosenId);
+          } else {
+            const dosenDetail = await this.dosenService.getDosenById(latestRequest.dosenId, sessionId || '');
+            dosenName = dosenDetail?.profile.fullName || null;
+            dosenNameCache.set(latestRequest.dosenId, dosenName);
+          }
+        }
+
         response.push({
           memberMahasiswaId,
           documentType,
           isAlreadySubmitted: Boolean(latestRequest),
           latestStatus: latestRequest ? this.normalizeLetterStatus(latestRequest.status) : null,
           latestRequestId: latestRequest?.id || null,
-          dosenName: latestRequest?.dosenName || null,
+          dosenName,
           signedFileUrl: latestRequest?.signedFileUrl || null,
           rejectionReason: latestRequest?.rejectionReason || null,
           submittedAt: latestRequest?.submittedAt?.toISOString() || null,
