@@ -21,9 +21,18 @@ export const createMentorshipRoutes = () => {
     companyAddress: z.string().optional(),
   })), (c) => new MentorWorkflowController(c).submitMentorApprovalRequest(c.req.valid('json')));
 
+  mentorship.get('/requests/me', (c) => new MentorWorkflowController(c).getMyMentorRequest());
   mentorship.get('/requests', staffOnly, (c) => new MentorWorkflowController(c).listMentorApprovalRequests());
   mentorship.post('/requests/:id/approve', staffOnly, (c) => new MentorWorkflowController(c).approveMentorApprovalRequest());
   mentorship.post('/requests/:id/reject', staffOnly, zValidator('json', rejectMentorRequestSchema), (c) => new MentorWorkflowController(c).rejectMentorApprovalRequest(c.req.valid('json')));
+  mentorship.post('/requests/:id/resubmit', zValidator('json', z.object({
+    mentorName: z.string(),
+    mentorEmail: z.string().email(),
+    mentorPhone: z.string().optional(),
+    companyName: z.string().optional(),
+    position: z.string().optional(),
+    companyAddress: z.string().optional(),
+  })), (c) => new MentorWorkflowController(c).resubmitMentorApprovalRequest(c.req.valid('json')));
 
   // --- Profile & Signature (Mentor) ---
   mentorship.get('/profile', (c) => new MentorController(c).getProfile());

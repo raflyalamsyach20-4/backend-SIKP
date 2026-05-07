@@ -17,7 +17,7 @@ export class InternshipController {
   getInternship = async () => {
     try {
       const user = this.c.get('user') as JWTPayload;
-      const userId = user?.userId;
+      const userId = user?.mahasiswaId || user?.userId;
       const sessionId = user?.sessionId;
       
       if (!userId || !sessionId) {

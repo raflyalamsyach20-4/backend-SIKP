@@ -23,7 +23,7 @@ export class MahasiswaRepository {
    * Get complete internship data (student + submission + internship + mentor + lecturer)
    * Note: Student details (name, nim) are not joined here and should be resolved by the service.
    */
-  async getInternshipData(userId: string) {
+  async getInternshipData(mahasiswaId: string) {
     const result = await this.db
       .select({
         // Student ID (from input or joined tables)
@@ -68,7 +68,7 @@ export class MahasiswaRepository {
           eq(submissions.id, internships.submissionId)
         )
       )
-      .where(eq(teamMembers.mahasiswaId, userId))
+      .where(eq(teamMembers.mahasiswaId, mahasiswaId))
       .limit(1);
 
     return result[0] || null;

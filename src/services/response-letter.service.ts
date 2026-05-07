@@ -138,6 +138,46 @@ export class ResponseLetterService {
   }
 
   /**
+   * Get response letter by submission ID (for team dashboard)
+   */
+  async getResponseLetterBySubmissionId(submissionId: string, mahasiswaId: string, role: string, sessionId?: string) {
+    // 1. Get the response letter record
+    const responseLetter = await this.responseLetterRepo.findBySubmissionId(submissionId);
+    if (!responseLetter) return null;
+
+    // 2. Authorization check (only team members or admin)
+    if (role !== 'admin') {
+      const team = await this.submissionRepo.getTeamBySubmissionId(submissionId);
+      if (!team) throw new ForbiddenError('Team not found for this submission');
+      
+      const members = await this.submissionRepo.getTeamMembers(team.id);
+      const isMember = members.some(m => m.mahasiswaId === mahasiswaId) || team.leaderMahasiswaId === mahasiswaId;
+      
+      if (!isMember) {
+        throw new ForbiddenError('You are not authorized to view this response letter');
+      }
+    }
+
+    // 3. Enrich with file URLs
+    const fileUrl = this.storageService.getAssetProxyUrl(responseLetter.fileUrl);
+    let finalSignedFileUrl = null;
+
+    // If verified and approved, provide the final signed letter URL if it exists
+    if (responseLetter.verified && responseLetter.letterStatus === 'approved') {
+      const submission = await this.submissionRepo.findById(submissionId);
+      if (submission?.finalSignedFileKey) {
+        finalSignedFileUrl = this.storageService.getAssetProxyUrl(submission.finalSignedFileKey);
+      }
+    }
+
+    return {
+      ...responseLetter,
+      fileUrl,
+      finalSignedFileUrl,
+    };
+  }
+
+  /**
    * Get all response letters for admin
    */
   async getAllResponseLetters(filters?: {
@@ -278,20 +318,34 @@ export class ResponseLetterService {
     const resetTeam = false;
 
     if (letterStatus === 'approved') {
-      // Update submission status to verified only if approved
+      // 1. Update the response letter status in the submission
       if (responseLetter.submissionId) {
         await this.submissionRepo.updateResponseLetterStatus(
           responseLetter.submissionId,
           'verified'
         );
 
-        // Automatically generate the final signed letter with wakil dekan e-signature
+        // 2. AUTOMATION: Approve the whole submission and move to COMPLETED
+        await this.submissionRepo.update(responseLetter.submissionId, {
+          status: 'APPROVED',
+          workflowStage: 'COMPLETED',
+          approvedAt: new Date(),
+        });
+
+        // 3. AUTOMATION: Create Internship Records for the whole team
+        try {
+          await this.createInternshipRecords(responseLetter.submissionId);
+          console.log('[ResponseLetterService] Internship records created automatically for submission', responseLetter.submissionId);
+        } catch (error) {
+          console.error('[ResponseLetterService] Failed to create internship records:', error);
+        }
+
+        // 4. Automatically generate the final signed letter with wakil dekan e-signature
         try {
           await this.letterService.generateFinalSignedLetter(responseLetter.submissionId, adminId, sessionId);
-          console.log('[ResponseLetterService] Final signed letter generated automatically for submission', responseLetter.submissionId);
+          console.log('[ResponseLetterService] Final signed letter generated automatically');
         } catch (error) {
           console.error('[ResponseLetterService] Failed to generate final signed letter:', error);
-          // Continue even if letter generation fails - the approval should still succeed
         }
       }
     } else {
@@ -728,5 +782,43 @@ export class ResponseLetterService {
       teamWasReset: teamWasReset && responseLetter.verified && responseLetter.letterStatus === 'rejected',
       verifiedAt: responseLetter.verifiedAt,
     };
+  }
+
+  /**
+   * Automatically create internship records for all team members
+   */
+  private async createInternshipRecords(submissionId: string) {
+    const submission = await this.submissionRepo.findById(submissionId);
+    if (!submission) return;
+
+    const team = await this.submissionRepo.getTeamBySubmissionId(submissionId);
+    if (!team) return;
+
+    const members = await this.submissionRepo.getTeamMembers(team.id);
+    
+    // If no members (unexpected), at least create for the leader
+    const targetMahasiswaIds = members.length > 0 
+      ? members.map(m => m.mahasiswaId)
+      : [team.leaderMahasiswaId];
+
+    for (const mahasiswaId of targetMahasiswaIds) {
+      // Check if internship already exists to avoid duplicates
+      const existing = await this.submissionRepo.getInternshipBySubmissionAndMahasiswa(submissionId, mahasiswaId);
+      if (existing) continue;
+
+      await this.submissionRepo.createInternship({
+        id: generateId(),
+        submissionId,
+        mahasiswaId,
+        teamId: team.id,
+        companyName: submission.companyName,
+        division: submission.division,
+        startDate: submission.startDate,
+        endDate: submission.endDate,
+        status: 'AKTIF',
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
+    }
   }
 }

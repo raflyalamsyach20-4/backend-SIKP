@@ -59,8 +59,110 @@ export class MentorWorkflowService {
     return request;
   }
 
-  async listMentorApprovalRequests() {
-    return this.workflowRepo.listMentorApprovalRequests();
+  /**
+   * Normalize status to lowercase for frontend consistency.
+   * Frontend depends on 'pending' | 'approved' | 'rejected' (lowercase).
+   */
+  private normalizeStatus(status: string): 'pending' | 'approved' | 'rejected' {
+    return status.toLowerCase() as 'pending' | 'approved' | 'rejected';
+  }
+
+  async listMentorApprovalRequests(sessionId: string) {
+    const requests = await this.workflowRepo.listMentorApprovalRequests();
+
+    return Promise.all(requests.map(async (req) => {
+      try {
+        const studentProfile = await this.mahasiswaService.getMahasiswaById(req.studentUserId, sessionId);
+        return {
+          ...req,
+          status: this.normalizeStatus(req.status),
+          studentName: studentProfile?.profile?.fullName || `Mahasiswa (${req.studentUserId})`,
+          studentNim: studentProfile?.nim || '-',
+          studentEmail: studentProfile?.email || '-',
+        };
+      } catch {
+        return {
+          ...req,
+          status: this.normalizeStatus(req.status),
+          studentName: `Mahasiswa (${req.studentUserId})`,
+          studentNim: '-',
+          studentEmail: '-',
+        };
+      }
+    }));
+  }
+
+  async getMyMentorRequest(studentUserId: string, sessionId: string) {
+    const requests = await this.workflowRepo.listMentorApprovalRequestsByStudent(studentUserId);
+
+    return Promise.all(requests.map(async (req) => {
+      try {
+        const studentProfile = await this.mahasiswaService.getMahasiswaById(req.studentUserId, sessionId);
+        return {
+          ...req,
+          status: this.normalizeStatus(req.status),
+          studentName: studentProfile?.profile?.fullName || `Mahasiswa (${req.studentUserId})`,
+          studentNim: studentProfile?.nim || '-',
+          studentEmail: studentProfile?.email || '-',
+        };
+      } catch {
+        return {
+          ...req,
+          status: this.normalizeStatus(req.status),
+          studentName: `Mahasiswa (${req.studentUserId})`,
+          studentNim: '-',
+          studentEmail: '-',
+        };
+      }
+    }));
+  }
+
+  /**
+   * Resubmit a rejected mentor approval request.
+   * Resets rejectionReason to null so stale rejection messages don't show in the UI.
+   */
+  async resubmitMentorApprovalRequest(requestId: string, studentUserId: string, data: {
+    mentorName: string;
+    mentorEmail: string;
+    mentorPhone?: string;
+    companyName?: string;
+    position?: string;
+    companyAddress?: string;
+  }) {
+    const existing = await this.workflowRepo.getMentorApprovalRequestById(requestId);
+    if (!existing) throw this.createServiceError('Request not found', 'REQUEST_NOT_FOUND', 404);
+    if (existing.studentUserId !== studentUserId) throw this.createServiceError('Forbidden', 'FORBIDDEN', 403);
+    if (existing.status !== 'REJECTED') throw this.createServiceError('Only rejected requests can be resubmitted', 'INVALID_STATUS', 409);
+
+    // Reset rejectionReason to null — this is the key fix from the catatan tim backend
+    const updated = await this.workflowRepo.updateMentorApprovalRequest(requestId, {
+      mentorName: data.mentorName,
+      mentorEmail: data.mentorEmail.toLowerCase(),
+      mentorPhone: data.mentorPhone ?? null,
+      companyName: data.companyName ?? null,
+      position: data.position ?? null,
+      companyAddress: data.companyAddress ?? null,
+      status: 'PENDING',
+      rejectionReason: null, // <-- Reset alasan penolakan lama
+      reviewedBy: null,
+      reviewedAt: null,
+      updatedAt: new Date(),
+    });
+
+    await this.workflowRepo.createAuditLog({
+      id: generateId(),
+      actorUserId: studentUserId,
+      action: 'RESUBMIT_MENTOR_APPROVAL_REQUEST',
+      entityType: 'mentor_approval_requests',
+      entityId: requestId,
+      details: { mentorEmail: data.mentorEmail },
+      createdAt: new Date(),
+    });
+
+    return {
+      ...updated,
+      status: this.normalizeStatus(updated!.status),
+    };
   }
 
   private async createSsoMentor(data: {

@@ -141,6 +141,35 @@ export class ResponseLetterController {
   };
 
   /**
+   * Get response letter by submission ID
+   * GET /api/response-letters/submission/:submissionId
+   */
+  getResponseLetterBySubmissionId = async () => {
+    try {
+      const user = this.c.get('user') as JWTPayload;
+      const submissionId = this.c.req.param('submissionId');
+      const sessionId = this.c.get('sessionId');
+
+      if (!user) {
+        return this.c.json(createResponse(false, 'Unauthorized'), 401);
+      }
+
+      const responseLetter = await this.responseLetterService.getResponseLetterBySubmissionId(
+        submissionId,
+        user.mahasiswaId || user.userId,
+        user.role as string,
+        sessionId
+      );
+
+      return this.c.json(
+        createResponse(true, 'Response letter retrieved successfully', responseLetter)
+      );
+    } catch (error) {
+      return handleError(this.c, error, 'Failed to retrieve response letter');
+    }
+  };
+
+  /**
    * Mahasiswa: Get response letter by ID (own team only)
    * Admin: Get unknown response letter by ID
    * GET /api/response-letters/:id

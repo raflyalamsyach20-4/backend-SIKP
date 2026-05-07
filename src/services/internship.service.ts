@@ -25,43 +25,71 @@ export class InternshipService {
    * Get complete internship data including student, submission, internship, mentor, and lecturer info
    */
   async getInternshipData(userId: string, sessionId: string) {
-    const data = await this.mahasiswaRepo.getInternshipData(userId);
-    
-    if (!data || !data.submissionId) {
-      throw new Error('No active internship found for this student. Please complete your submission first.');
-    }
-
-    // Resolve Student Details from SSO
+    // 1. Resolve Student Details from SSO first to get the correct internal Profile ID
+    // All local DB queries must use profile.id (Mahasiswa ID), not the auth userId (SSO ID)
     const studentProfile = await this.mahasiswaService.getMahasiswaById(userId, sessionId);
     if (!studentProfile) {
-      throw new Error('Mahasiswa profile not found in SSO');
+      console.error(`[InternshipService.getInternshipData] Mahasiswa profile not found in SSO for userId: ${userId}`);
+      return null; // Return null instead of throw to avoid frontend crash
     }
 
-    // Resolve Mentor Details (Mentors also come from SSO in the new architecture)
-    // For now, we use a simplified approach as there isn't a dedicated MentorService.getById yet.
-    // We can potentially use a generic profile lookup if available.
+    const mahasiswaId = studentProfile.profile.id;
+
+    // 2. Fetch data from local repository using the resolved mahasiswaId
+    const data = await this.mahasiswaRepo.getInternshipData(mahasiswaId);
+    
+    if (!data) {
+      console.warn(`[InternshipService.getInternshipData] No local internship data found for mahasiswaId: ${mahasiswaId}`);
+      return null;
+    }
+
+    // 3. Resolve Mentor Details
     let mentor = null;
     if (data.pembimbingLapanganId) {
+      // 1. Try to get mentor profile (might be reserved/incomplete in SSO)
       const mentorProfile = await this.mentorRepo.findProfileById(data.pembimbingLapanganId);
+      
+      // 2. Fallback to mentor_approval_requests to get real contact info (Email, Phone, etc)
+      // because SSO data might be 'Reserved' or empty during the sync phase.
+      const approvalRequest = await this.mentorRepo.findRequestBySsoMentorId(data.pembimbingLapanganId);
+
       if (mentorProfile) {
         mentor = {
           id: mentorProfile.id,
-          name: 'Mentor (Identity Reserved)',
-          email: '',
-          company: data.company || '',
-          position: '',
-          phone: '',
+          name: approvalRequest?.mentorName || 'Mentor (Identity Reserved)',
+          email: approvalRequest?.mentorEmail || '',
+          company: approvalRequest?.companyName || data.company || '',
+          position: approvalRequest?.position || '',
+          phone: approvalRequest?.mentorPhone || '',
+          status: 'approved',
           signature: mentorProfile.signatureUrl ? this.storageService.getAssetProxyUrl(mentorProfile.signatureUrl) : null,
         };
       } else {
         mentor = {
           id: data.pembimbingLapanganId,
-          name: 'Mentor (Identity Reserved)',
-          email: '',
-          company: data.company || '',
-          position: '',
-          phone: '',
+          name: approvalRequest?.mentorName || 'Mentor (Identity Reserved)',
+          email: approvalRequest?.mentorEmail || '',
+          company: approvalRequest?.companyName || data.company || '',
+          position: approvalRequest?.position || '',
+          phone: approvalRequest?.mentorPhone || '',
+          status: 'registered',
           signature: null,
+        };
+      }
+    } else {
+      // 3. If NO pembimbingLapanganId, check for PENDING or REJECTED requests in mentor_approval_requests
+      const activeRequest = await this.mentorRepo.findLatestRequestByMahasiswaId(mahasiswaId);
+      if (activeRequest) {
+        mentor = {
+          id: activeRequest.id,
+          name: activeRequest.mentorName,
+          email: activeRequest.mentorEmail,
+          company: activeRequest.companyName,
+          position: activeRequest.position,
+          phone: activeRequest.mentorPhone,
+          status: activeRequest.status.toLowerCase(), // 'pending' or 'rejected'
+          rejectionReason: activeRequest.rejectionReason,
+          createdAt: activeRequest.createdAt,
         };
       }
     }

@@ -27,9 +27,23 @@ export class MentorWorkflowController {
     }
   };
 
+  getMyMentorRequest = async () => {
+    try {
+      const studentUserId = this.getUserId();
+      const sessionId = (this.c.get('sessionId') as string) || '';
+      if (!studentUserId) return this.c.json(createResponse(false, 'Unauthorized'), 401);
+
+      const requests = await this.service.getMyMentorRequest(studentUserId, sessionId);
+      return this.c.json(createResponse(true, 'Your mentor approval requests retrieved', requests), 200);
+    } catch (error) {
+      return handleError(this.c, error);
+    }
+  };
+
   listMentorApprovalRequests = async () => {
     try {
-      const requests = await this.service.listMentorApprovalRequests();
+      const sessionId = (this.c.get('sessionId') as string) || '';
+      const requests = await this.service.listMentorApprovalRequests(sessionId);
       return this.c.json(createResponse(true, 'Mentor approval requests retrieved', requests), 200);
     } catch (error) {
       return handleError(this.c, error);
@@ -59,6 +73,20 @@ export class MentorWorkflowController {
 
       const request = await this.service.rejectMentorApprovalRequest(requestId, reviewerUserId, validated.reason);
       return this.c.json(createResponse(true, 'Mentor approval request rejected', request), 200);
+    } catch (error) {
+      return handleError(this.c, error);
+    }
+  };
+
+  resubmitMentorApprovalRequest = async (validated: any) => {
+    try {
+      const requestId = this.c.req.param('id');
+      const studentUserId = this.getUserId();
+      if (!studentUserId) return this.c.json(createResponse(false, 'Unauthorized'), 401);
+
+      // Service akan reset rejectionReason ke null secara otomatis
+      const request = await this.service.resubmitMentorApprovalRequest(requestId, studentUserId, validated);
+      return this.c.json(createResponse(true, 'Mentor approval request resubmitted', request), 200);
     } catch (error) {
       return handleError(this.c, error);
     }

@@ -4,6 +4,7 @@ import {
   internships,
   assessments,
   mentorSignatures,
+  mentorApprovalRequests,
 } from '@/db/schema';
 import { generateId } from '@/utils/helpers';
 
@@ -233,6 +234,37 @@ export class MentorRepository {
       return this.findProfileById(id);
     } catch (error) {
       console.error('[MentorRepository.updateProfile] Error:', error);
+      throw error;
+    }
+  }
+
+  // ─── Approval Requests ─────────────────────────────────────────────────────
+
+  async findRequestBySsoMentorId(ssoMentorId: string) {
+    try {
+      const result = await this.db
+        .select()
+        .from(mentorApprovalRequests)
+        .where(eq(mentorApprovalRequests.ssoMentorId, ssoMentorId))
+        .limit(1);
+      return result[0] ?? null;
+    } catch (error) {
+      console.error('[MentorRepository.findRequestBySsoMentorId] Error:', error);
+      throw error;
+    }
+  }
+
+  async findLatestRequestByMahasiswaId(mahasiswaId: string) {
+    try {
+      const result = await this.db
+        .select()
+        .from(mentorApprovalRequests)
+        .where(eq(mentorApprovalRequests.studentUserId, mahasiswaId))
+        .orderBy(desc(mentorApprovalRequests.createdAt))
+        .limit(1);
+      return result[0] ?? null;
+    } catch (error) {
+      console.error('[MentorRepository.findLatestRequestByMahasiswaId] Error:', error);
       throw error;
     }
   }
