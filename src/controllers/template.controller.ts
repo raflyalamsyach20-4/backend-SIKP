@@ -205,7 +205,7 @@ export class TemplateController {
       const contentDisposition = isPreview ? 'inline' : `attachment; filename="${template.originalName}"`;
 
       if (buffer) {
-        return this.c.body(buffer, 200, {
+        return this.c.body(buffer as any, 200, {
           'Content-Type': contentType,
           'Content-Disposition': contentDisposition,
           'Content-Length': buffer.length.toString(),

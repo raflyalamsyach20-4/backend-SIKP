@@ -181,7 +181,7 @@ export class TemplateService {
     }
   }
 
-  async downloadTemplate(id: string, userRole?: string): Promise<{ buffer: Buffer | null; template: Template | null; error?: string }> {
+  async downloadTemplate(id: string, userRole?: string): Promise<{ buffer: Uint8Array | null; template: Template | null; error?: string }> {
     const template = await this.getTemplateById(id);
     if (!template) {
       return { buffer: null, template: null, error: 'Template tidak ditemukan' };
@@ -217,7 +217,7 @@ export class TemplateService {
         throw new Error('Format data file tidak didukung');
       }
 
-      const buffer = Buffer.from(arrayBuffer);
+      const buffer = new Uint8Array(arrayBuffer);
       
       return { buffer, template };
     } catch (error) {
