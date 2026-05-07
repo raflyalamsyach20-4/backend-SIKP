@@ -11,15 +11,11 @@ export class TemplateRepository {
     return (result[0] as Template) || null;
   }
 
-  async findAll(filters?: { type?: string; isActive?: boolean; search?: string }): Promise<Template[]> {
+  async findAll(filters?: { type?: string; search?: string }): Promise<Template[]> {
     const conditions = [];
 
     if (filters?.type) {
       conditions.push(eq(templates.type, filters.type));
-    }
-
-    if (filters?.isActive !== undefined) {
-      conditions.push(eq(templates.isActive, filters.isActive));
     }
 
     if (filters?.search) {
@@ -41,15 +37,6 @@ export class TemplateRepository {
     return results as Template[];
   }
 
-  async findActive(): Promise<Template[]> {
-    const results = await this.db
-      .select()
-      .from(templates)
-      .where(eq(templates.isActive, true))
-      .orderBy(desc(templates.createdAt));
-    return results as Template[];
-  }
-
   async create(data: typeof templates.$inferInsert): Promise<Template> {
     const result = await this.db.insert(templates).values(data).returning();
     return result[0] as Template;
@@ -67,13 +54,6 @@ export class TemplateRepository {
   async delete(id: string): Promise<boolean> {
     const result = await this.db.delete(templates).where(eq(templates.id, id)).returning();
     return result.length > 0;
-  }
-
-  async toggleActive(id: string): Promise<Template | null> {
-    const template = await this.findById(id);
-    if (!template) return null;
-
-    return await this.update(id, { isActive: !template.isActive });
   }
 
   async findByFileName(fileName: string): Promise<Template | null> {

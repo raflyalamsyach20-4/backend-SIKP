@@ -179,16 +179,13 @@ export interface TemplateField {
 export interface Template {
   id: string;
   name: string;
-  type: "Template Only" | "Generate & Template";
+  type: string;
   description?: string | null;
   fileName: string;
   fileUrl: string;
   fileSize: number;
   fileType: string;
   originalName: string;
-  fields?: TemplateField[] | null;
-  version: number;
-  isActive: boolean;
   createdByAdminId: string;
   updatedByAdminId?: string | null;
   createdAt: Date;

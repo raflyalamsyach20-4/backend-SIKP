@@ -2,25 +2,19 @@ import { nanoid } from 'nanoid';
 import { createDbClient } from '@/db';
 import { TemplateRepository } from '@/repositories/template.repository';
 import { StorageService } from './storage.service';
-import type { Template, TemplateField } from '@/types';
-
-type TemplateType = 'Template Only' | 'Generate & Template';
+import type { Template } from '@/types';
 
 type CreateTemplateInput = {
   name: string;
-  type: TemplateType;
+  type: string;
   description?: string;
-  fields?: TemplateField[];
-  isActive?: boolean;
 };
 
 type UpdateTemplateInput = {
   file?: File;
   name?: string;
-  type?: TemplateType;
+  type?: string;
   description?: string;
-  fields?: TemplateField[];
-  isActive?: boolean;
 };
 
 export class TemplateService {
@@ -34,32 +28,13 @@ export class TemplateService {
   }
 
   async getAllTemplates(
-    filters?: { type?: string; isActive?: boolean; search?: string },
-    userRole?: string
+    filters?: { type?: string; search?: string }
   ): Promise<Template[]> {
-    // Mahasiswa hanya bisa lihat template yang aktif
-    if (userRole === 'MAHASISWA' && filters?.isActive === undefined) {
-      filters = { ...filters, isActive: true };
-    }
-
     return await this.repository.findAll(filters);
   }
 
-  async getActiveTemplates(): Promise<Template[]> {
-    return await this.repository.findActive();
-  }
-
-  async getTemplateById(id: string, userRole?: string): Promise<Template | null> {
-    const template = await this.repository.findById(id);
-
-    if (!template) return null;
-
-    // Mahasiswa hanya bisa akses template yang aktif
-    if (userRole === 'MAHASISWA' && !template.isActive) {
-      return null;
-    }
-
-    return template;
+  async getTemplateById(id: string): Promise<Template | null> {
+    return await this.repository.findById(id);
   }
 
   async createTemplate(
@@ -89,16 +64,13 @@ export class TemplateService {
       const template = await this.repository.create({
         id: nanoid(),
         name: data.name,
-        type: data.type,
+        type: data.type || 'standard',
         description: data.description || null,
         fileName: fileName,
         fileUrl: fileUrl,
         fileSize: file.size,
         fileType: file.type || 'application/octet-stream',
         originalName: file.name,
-        fields: data.type === 'Generate & Template' ? data.fields || null : null,
-        version: 1,
-        isActive: data.isActive ?? true,
         createdByAdminId: userId,
         updatedByAdminId: null,
         createdAt: new Date(),
@@ -157,20 +129,6 @@ export class TemplateService {
         originalName = updates.file.name;
       }
 
-      // Validate input if name/type changed
-      if (updates.name || updates.type) {
-        const resolvedType: TemplateType = updates.type || template.type;
-        const validation = this.validateTemplateInput({
-          name: updates.name || template.name,
-          type: resolvedType,
-          description: updates.description !== undefined ? updates.description : template.description || undefined,
-          fields: updates.fields ?? (template.fields as TemplateField[]),
-        });
-        if (validation.error) {
-          return { template: null, error: validation.error };
-        }
-      }
-
       // Prepare update data
       const updateData: any = {
         updatedByAdminId: userId,
@@ -179,7 +137,6 @@ export class TemplateService {
       if (updates.name !== undefined) updateData.name = updates.name;
       if (updates.type !== undefined) updateData.type = updates.type;
       if (updates.description !== undefined) updateData.description = updates.description || null;
-      if (updates.isActive !== undefined) updateData.isActive = updates.isActive;
 
       if (updates.file) {
         updateData.fileName = fileName;
@@ -187,15 +144,6 @@ export class TemplateService {
         updateData.fileSize = fileSize;
         updateData.fileType = fileType;
         updateData.originalName = originalName;
-      }
-
-      // Handle fields - if type changes to Template Only, clear fields
-      if (updates.type === 'Template Only') {
-        updateData.fields = null;
-      } else if (updates.type === 'Generate & Template' && updates.fields !== undefined) {
-        updateData.fields = updates.fields;
-      } else if (updates.fields !== undefined && template.type === 'Generate & Template') {
-        updateData.fields = updates.fields;
       }
 
       const updatedTemplate = await this.repository.update(id, updateData);
@@ -233,35 +181,47 @@ export class TemplateService {
     }
   }
 
-  async toggleActive(id: string): Promise<{ template: Template | null; error?: string }> {
-    try {
-      const template = await this.repository.toggleActive(id);
-      if (!template) {
-        return { template: null, error: 'Template tidak ditemukan' };
-      }
-      return { template };
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to toggle template status';
-      return { template: null, error: message };
-    }
-  }
-
   async downloadTemplate(id: string, userRole?: string): Promise<{ buffer: Buffer | null; template: Template | null; error?: string }> {
-    const template = await this.getTemplateById(id, userRole);
+    const template = await this.getTemplateById(id);
     if (!template) {
-      return { buffer: null, template: null, error: 'Template tidak ditemukan atau Anda tidak memiliki akses' };
+      return { buffer: null, template: null, error: 'Template tidak ditemukan' };
     }
 
     try {
-      // Download from file URL using fetch
-      const response = await fetch(template.fileUrl);
-      if (!response.ok) {
-        throw new Error(`Failed to download file: ${response.statusText}`);
+      // ✅ Use StorageService instead of fetch() to be more robust
+      const fileData = await this.storageService.getFile(template.fileName) as any;
+      
+      if (!fileData) {
+        return { buffer: null, template, error: 'File template tidak ditemukan di storage' };
       }
-      const arrayBuffer = await response.arrayBuffer();
+
+      // Handle both R2ObjectBody (native R2) and custom object (S3 fallback)
+      let arrayBuffer: ArrayBuffer;
+      
+      if (typeof fileData.arrayBuffer === 'function') {
+        // Native R2ObjectBody
+        arrayBuffer = await fileData.arrayBuffer();
+      } else if (fileData.body) {
+        // S3 Fallback object { body: ... }
+        const body = fileData.body;
+        if (typeof body.arrayBuffer === 'function') {
+          arrayBuffer = await body.arrayBuffer();
+        } else if (typeof body.transformToByteArray === 'function') {
+          // AWS SDK v3 stream helper
+          arrayBuffer = (await body.transformToByteArray()).buffer;
+        } else {
+          // Fallback to Response wrapper
+          arrayBuffer = await new Response(body).arrayBuffer();
+        }
+      } else {
+        throw new Error('Format data file tidak didukung');
+      }
+
       const buffer = Buffer.from(arrayBuffer);
+      
       return { buffer, template };
     } catch (error) {
+      console.error('[TemplateService] Download error:', error);
       const message = error instanceof Error ? error.message : 'Failed to download template file';
       return { buffer: null, template: null, error: message };
     }
@@ -270,9 +230,8 @@ export class TemplateService {
   // Helper methods
   private validateTemplateInput(data: {
     name: string;
-    type: 'Template Only' | 'Generate & Template';
+    type?: string;
     description?: string;
-    fields?: TemplateField[];
   }): { error?: string } {
     // Validate name
     if (!data.name || data.name.trim().length < 3) {
@@ -280,39 +239,6 @@ export class TemplateService {
     }
     if (data.name.length > 255) {
       return { error: 'Nama template maksimal 255 karakter' };
-    }
-
-    // Validate type
-    if (!['Template Only', 'Generate & Template'].includes(data.type)) {
-      return { error: 'Tipe template tidak valid' };
-    }
-
-    // Validate fields for Generate & Template
-    if (data.type === 'Generate & Template') {
-      if (!data.fields || !Array.isArray(data.fields) || data.fields.length === 0) {
-        return { error: 'Fields wajib untuk tipe "Generate & Template" dan tidak boleh kosong' };
-      }
-
-      // Validate each field
-      for (const field of data.fields) {
-        if (!field.variable || !field.label || !field.type) {
-          return { error: 'Setiap field harus memiliki variable, label, dan type' };
-        }
-
-        if (!['text', 'textarea', 'number', 'date', 'time', 'email', 'select'].includes(field.type)) {
-          return { error: `Tipe field tidak valid: ${field.type}` };
-        }
-
-        if (field.type === 'select' && (!field.options || field.options.length === 0)) {
-          return { error: 'Field dengan tipe select harus memiliki options' };
-        }
-      }
-
-      // Validate order uniqueness
-      const orders = data.fields.map(f => f.order);
-      if (new Set(orders).size !== orders.length) {
-        return { error: 'Setiap field harus memiliki order yang unik' };
-      }
     }
 
     return {};

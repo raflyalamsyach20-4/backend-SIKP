@@ -348,8 +348,8 @@ export class MahasiswaService {
     if (!team || team.status === 'PENDING' || !submission) {
       return {
         title: 'Finalisasi Tim',
-        description: 'Tim Anda belum final. Selesaikan pembentukan tim terlebih dahulu.',
-        actionLabel: 'Ke Buat Tim',
+        description: 'Tim Anda belum ditetapkan. Segera lakukan finalisasi.',
+        actionLabel: 'Ke Pembentukan Tim',
         actionUrl: '/mahasiswa/kp/buat-tim',
       };
     }
@@ -358,7 +358,7 @@ export class MahasiswaService {
       return {
         title: 'Lengkapi Pengajuan',
         description: 'Lengkapi data pengajuan agar proses KP dapat dilanjutkan.',
-        actionLabel: 'Ke Pengajuan',
+        actionLabel: 'Ke Pengajuan KP',
         actionUrl: '/mahasiswa/kp/pengajuan',
       };
     }
@@ -378,9 +378,9 @@ export class MahasiswaService {
 
     if (responseLetter?.verified && responseLetter.letterStatus === 'rejected') {
       return {
-        title: 'Mulai ulang dari bentuk tim',
+        title: 'Lakukan pengajuan ulang',
         description: 'Surat balasan ditolak. Silakan mulai ulang proses dari pembentukan tim.',
-        actionLabel: 'Ke Buat Tim',
+        actionLabel: 'Ke Pembentukan Tim',
         actionUrl: '/mahasiswa/kp/buat-tim',
       };
     }
@@ -388,7 +388,7 @@ export class MahasiswaService {
     if (responseLetter?.verified && responseLetter.letterStatus === 'approved') {
       return {
         title: 'Pelaksanaan kerja praktik',
-        description: 'Surat balasan telah disetujui. Lanjutkan pelaksanaan kerja praktik.',
+        description: 'Surat balasan telah diverifikasi. Lanjutkan pelaksanaan kerja praktik.',
         actionLabel: 'Ke Saat Magang',
         actionUrl: '/mahasiswa/kp/saat-magang',
       };
@@ -396,18 +396,18 @@ export class MahasiswaService {
 
     if ((submission.workflowStage === 'COMPLETED' || submission.status === 'APPROVED') && !responseLetter) {
       return {
-        title: 'Upload surat balasan',
+        title: 'Unggah surat balasan',
         description: 'Unggah surat balasan dari perusahaan untuk melanjutkan proses.',
-        actionLabel: 'Ke Surat Balasan',
+        actionLabel: 'Unggah Surat Balasan',
         actionUrl: '/mahasiswa/kp/surat-balasan',
       };
     }
 
     if ((responseLetter && !responseLetter.verified) || submission.responseLetterStatus === 'submitted') {
       return {
-        title: 'Menunggu pemverifikasian surat balasan',
-        description: 'Surat balasan sudah dikirim and sedang menunggu verifikasi.',
-        actionLabel: 'Lihat Surat Balasan',
+        title: 'Menunggu verifikasi surat balasan',
+        description: 'Surat balasan sudah dikirim dan sedang menunggu verifikasi.',
+        actionLabel: 'Ke Surat Balasan',
         actionUrl: '/mahasiswa/kp/surat-balasan',
       };
     }

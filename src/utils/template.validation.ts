@@ -1,32 +1,12 @@
 import { z } from 'zod';
 
-// Template Field Schema
-export const templateFieldSchema = z.object({
-  variable: z.string().min(1, 'Variable harus diisi'),
-  label: z.string().min(1, 'Label harus diisi'),
-  type: z.enum(['text', 'textarea', 'number', 'date', 'time', 'email', 'select']),
-  required: z.boolean().default(true),
-  placeholder: z.string().optional(),
-  order: z.number().int().nonnegative('Order harus berupa angka positif'),
-  options: z.array(
-    z.object({
-      value: z.string(),
-      label: z.string(),
-    })
-  ).optional(),
-});
-
-export type TemplateFieldInput = z.infer<typeof templateFieldSchema>;
-
 // Create Template Schema
 export const createTemplateSchema = z.object({
   name: z.string()
     .min(3, 'Nama template minimal 3 karakter')
     .max(255, 'Nama template maksimal 255 karakter'),
-  type: z.enum(['Template Only', 'Generate & Template']),
+  type: z.string().default('standard'),
   description: z.string().optional(),
-  fields: z.array(templateFieldSchema).optional(),
-  isActive: z.boolean().default(true),
 });
 
 export type CreateTemplateInput = z.infer<typeof createTemplateSchema>;
@@ -40,8 +20,7 @@ export type UpdateTemplateInput = z.infer<typeof updateTemplateSchema>;
 
 // Query Filter Schema
 export const templateFilterSchema = z.object({
-  type: z.enum(['Template Only', 'Generate & Template']).optional(),
-  isActive: z.boolean().optional(),
+  type: z.string().optional(),
   search: z.string().optional(),
 });
 
