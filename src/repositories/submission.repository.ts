@@ -478,4 +478,30 @@ export class SubmissionRepository {
       responseLetterStatus: status,
     });
   }
+
+  /**
+   * Get team by submission ID
+   */
+  async getTeamBySubmissionId(submissionId: string) {
+    const submission = await this.findById(submissionId);
+    if (!submission || !submission.teamId) return null;
+
+    const result = await this.db
+      .select()
+      .from(teams)
+      .where(eq(teams.id, submission.teamId))
+      .limit(1);
+
+    return result[0] || null;
+  }
+
+  /**
+   * Get team members by team ID
+   */
+  async getTeamMembers(teamId: string) {
+    return await this.db
+      .select()
+      .from(teamMembers)
+      .where(eq(teamMembers.teamId, teamId));
+  }
 }

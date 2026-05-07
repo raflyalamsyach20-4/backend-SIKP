@@ -70,7 +70,7 @@ export class MentorWorkflowService {
   async listMentorApprovalRequests(sessionId: string) {
     const requests = await this.workflowRepo.listMentorApprovalRequests();
 
-    return Promise.all(requests.map(async (req) => {
+    return Promise.all(requests.map(async (req: any) => {
       try {
         const studentProfile = await this.mahasiswaService.getMahasiswaById(req.studentUserId, sessionId);
         return {
@@ -78,7 +78,7 @@ export class MentorWorkflowService {
           status: this.normalizeStatus(req.status),
           studentName: studentProfile?.profile?.fullName || `Mahasiswa (${req.studentUserId})`,
           studentNim: studentProfile?.nim || '-',
-          studentEmail: studentProfile?.email || '-',
+          studentEmail: studentProfile?.profile?.emails?.find(e => e.isPrimary)?.email || '-',
         };
       } catch {
         return {
@@ -95,7 +95,7 @@ export class MentorWorkflowService {
   async getMyMentorRequest(studentUserId: string, sessionId: string) {
     const requests = await this.workflowRepo.listMentorApprovalRequestsByStudent(studentUserId);
 
-    return Promise.all(requests.map(async (req) => {
+    return Promise.all(requests.map(async (req: any) => {
       try {
         const studentProfile = await this.mahasiswaService.getMahasiswaById(req.studentUserId, sessionId);
         return {
@@ -103,7 +103,7 @@ export class MentorWorkflowService {
           status: this.normalizeStatus(req.status),
           studentName: studentProfile?.profile?.fullName || `Mahasiswa (${req.studentUserId})`,
           studentNim: studentProfile?.nim || '-',
-          studentEmail: studentProfile?.email || '-',
+          studentEmail: studentProfile?.profile?.emails?.find(e => e.isPrimary)?.email || '-',
         };
       } catch {
         return {

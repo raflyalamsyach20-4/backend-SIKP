@@ -61,6 +61,31 @@ export class MentorWorkflowRepository {
     }
   }
 
+  async listMentorApprovalRequestsByStudent(studentUserId: string) {
+    try {
+      return await this.db
+        .select({
+          id: mentorApprovalRequests.id,
+          mentorName: mentorApprovalRequests.mentorName,
+          mentorEmail: mentorApprovalRequests.mentorEmail,
+          mentorPhone: mentorApprovalRequests.mentorPhone,
+          companyName: mentorApprovalRequests.companyName,
+          position: mentorApprovalRequests.position,
+          status: mentorApprovalRequests.status,
+          rejectionReason: mentorApprovalRequests.rejectionReason,
+          createdAt: mentorApprovalRequests.createdAt,
+          reviewedAt: mentorApprovalRequests.reviewedAt,
+          studentUserId: mentorApprovalRequests.studentUserId,
+        })
+        .from(mentorApprovalRequests)
+        .where(eq(mentorApprovalRequests.studentUserId, studentUserId))
+        .orderBy(desc(mentorApprovalRequests.createdAt));
+    } catch (error) {
+      console.error('[MentorWorkflowRepository.listMentorApprovalRequestsByStudent] Error:', error);
+      throw error;
+    }
+  }
+
   async updateMentorApprovalRequest(id: string, data: Partial<typeof mentorApprovalRequests.$inferInsert>) {
     try {
       await this.db

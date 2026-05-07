@@ -165,8 +165,8 @@ export class ResponseLetterService {
     // If verified and approved, provide the final signed letter URL if it exists
     if (responseLetter.verified && responseLetter.letterStatus === 'approved') {
       const submission = await this.submissionRepo.findById(submissionId);
-      if (submission?.finalSignedFileKey) {
-        finalSignedFileUrl = this.storageService.getAssetProxyUrl(submission.finalSignedFileKey);
+      if (submission?.finalSignedFileUrl) {
+        finalSignedFileUrl = this.storageService.getAssetProxyUrl(submission.finalSignedFileUrl);
       }
     }
 
@@ -798,12 +798,12 @@ export class ResponseLetterService {
     
     // If no members (unexpected), at least create for the leader
     const targetMahasiswaIds = members.length > 0 
-      ? members.map(m => m.mahasiswaId)
+      ? members.map((m: { mahasiswaId: string }) => m.mahasiswaId)
       : [team.leaderMahasiswaId];
 
     for (const mahasiswaId of targetMahasiswaIds) {
       // Check if internship already exists to avoid duplicates
-      const existing = await this.submissionRepo.getInternshipBySubmissionAndMahasiswa(submissionId, mahasiswaId);
+      const existing = await this.submissionRepo.findInternshipBySubmissionAndMahasiswa(submissionId, mahasiswaId);
       if (existing) continue;
 
       await this.submissionRepo.createInternship({
