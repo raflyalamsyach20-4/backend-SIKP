@@ -27,7 +27,7 @@ type AdminDashboardPayload = {
   jumlahTimKp: number;
   mahasiswaAktifSemester4: number;
   totalPengajuanSuratPengantar: number;
-  totalSuratBalasanDisetujuiTerverifikasi: number;
+  totalSuratBalasan: number;
   totalDosenPembimbingKp: number;
   totalTemplateDokumen: number;
   statistikPengajuan: MonthlySubmissionStat[];
@@ -274,16 +274,16 @@ export class AdminService {
       totalMahasiswaKp,
       jumlahTimKp,
       submissionsForAdmin,
-      totalSuratBalasanDisetujuiTerverifikasi,
+      totalSuratBalasan,
       totalDosenPembimbingKp,
       totalTemplateDokumen,
       allSubmissions,
       mahasiswaAktifSemester4
     ] = await Promise.all([
-      this.responseLetterRepo.countApproved(),
-      this.teamRepo.countFixedTeams(),
+      this.responseLetterRepo.countVerifiedStudents(),
+      this.responseLetterRepo.countVerifiedTeams(),
       this.submissionRepo.findAllForAdmin(),
-      this.responseLetterRepo.countApprovedAndVerified(),
+      this.responseLetterRepo.countAll(),
       this.teamRepo.countDistinctDosenKpInFixedTeams(),
       this.templateRepo.countAll(),
       this.submissionRepo.findAll(),
@@ -295,7 +295,7 @@ export class AdminService {
       jumlahTimKp,
       mahasiswaAktifSemester4,
       totalPengajuanSuratPengantar: submissionsForAdmin.length,
-      totalSuratBalasanDisetujuiTerverifikasi,
+      totalSuratBalasan,
       totalDosenPembimbingKp,
       totalTemplateDokumen,
       statistikPengajuan: this.buildMonthlyStats(allSubmissions),

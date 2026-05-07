@@ -314,17 +314,6 @@ export class MahasiswaService {
       };
     }
 
-    if (submission.status === 'PENDING_REVIEW' || workflowStage === 'PENDING_ADMIN_REVIEW' || workflowStage === 'PENDING_DOSEN_VERIFICATION') {
-      return {
-        code: 'pending_review' as const,
-        submitted: true,
-        label: 'Pengajuan telah dilakukan',
-        description: submission.submittedAt
-          ? `Waktu submit: ${this.formatDate(this.normalizeDate(submission.submittedAt) || new Date())}`
-          : undefined,
-      };
-    }
-
     if (submission.status === 'APPROVED' || workflowStage === 'COMPLETED') {
       return {
         code: 'approved' as const,
@@ -333,10 +322,21 @@ export class MahasiswaService {
       };
     }
 
+    if (submission.status === 'PENDING_REVIEW' || workflowStage === 'PENDING_ADMIN_REVIEW' || workflowStage === 'PENDING_DOSEN_VERIFICATION') {
+      return {
+        code: 'pending_review' as const,
+        submitted: true,
+        label: 'Pengajuan telah dikirimkan',
+        description: submission.submittedAt
+          ? `Waktu submit: ${this.formatDate(this.normalizeDate(submission.submittedAt) || new Date())}`
+          : undefined,
+      };
+    }
+
     return {
       code: 'pending_review' as const,
       submitted: true,
-      label: 'Pengajuan telah dilakukan',
+      label: 'Pengajuan telah dikirimkan',
     };
   }
 
