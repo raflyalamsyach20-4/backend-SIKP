@@ -10,7 +10,9 @@ export class MonitoringRepository {
    */
   async getLecturerMenteesProgress(lecturerId: string) {
     try {
+      console.log(`[MonitoringRepository.getLecturerMenteesProgress] Fetching for lecturerId: ${lecturerId}`);
       // 1. Get basic internship & student info
+      // Include student if lecturer is assigned as Pembimbing KP OR as Dosen PA
       const mentees = await this.db
         .select({
           internshipId: internships.id,
@@ -19,13 +21,17 @@ export class MonitoringRepository {
           startDate: internships.startDate,
           endDate: internships.endDate,
           status: internships.status,
+          dosenPaId: internships.dosenPaId,
+          dosenPembimbingId: internships.dosenPembimbingId,
         })
         .from(internships)
-        .where(eq(internships.dosenPembimbingId, lecturerId));
+        .where(
+          sql`${internships.dosenPembimbingId} = ${lecturerId} OR ${internships.dosenPaId} = ${lecturerId}`
+        );
+      
+      console.log(`[MonitoringRepository.getLecturerMenteesProgress] Found ${mentees.length} matches in DB`);
 
       // 2. For each mentee, get logbook stats
-      // Note: In a real high-scale app, we'd do a complex group-by join.
-      // For now, let's do it efficiently with subqueries or separate calls if needed.
       const enrichedMentees = await Promise.all(
         mentees.map(async (m) => {
           const stats = await this.db
@@ -53,7 +59,7 @@ export class MonitoringRepository {
   }
 
   /**
-   * Get logbooks for a specific student, verified to be under this lecturer
+   * Get logbooks for a specific student, verified to be under this lecturer (as Pembimbing OR PA)
    */
   async getStudentLogbooksForLecturer(lecturerId: string, studentUserId: string) {
     return await this.db
@@ -65,10 +71,25 @@ export class MonitoringRepository {
       .innerJoin(internships, eq(logbooks.internshipId, internships.id))
       .where(
         and(
-          eq(internships.dosenPembimbingId, lecturerId),
+          sql`${internships.dosenPembimbingId} = ${lecturerId} OR ${internships.dosenPaId} = ${lecturerId}`,
           eq(internships.mahasiswaId, studentUserId)
         )
       )
       .orderBy(desc(logbooks.date), desc(logbooks.createdAt));
+  }
+
+  async updateDosenPaId(internshipId: string, dosenPaId: string) {
+    return await this.db
+      .update(internships)
+      .set({ dosenPaId, updatedAt: new Date() })
+      .where(eq(internships.id, internshipId))
+      .returning();
+  }
+
+  async getAllActiveInternships() {
+    return await this.db
+      .select()
+      .from(internships)
+      .where(eq(internships.status, 'AKTIF'));
   }
 }

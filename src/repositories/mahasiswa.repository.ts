@@ -1,4 +1,4 @@
-import { eq, and, desc } from 'drizzle-orm';
+import { eq, and, or, desc } from 'drizzle-orm';
 import type { DbClient } from '@/db';
 import { 
   internships, 
@@ -54,12 +54,9 @@ export class MahasiswaRepository {
       })
       .from(teamMembers)
       .innerJoin(teams, eq(teamMembers.teamId, teams.id))
-      .innerJoin(
+      .leftJoin(
         submissions, 
-        and(
-          eq(teams.id, submissions.teamId),
-          eq(submissions.status, 'APPROVED')
-        )
+        eq(teams.id, submissions.teamId)
       )
       .leftJoin(
         internships, 

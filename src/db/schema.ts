@@ -256,6 +256,7 @@ export const internships = pgTable('internships', {
   teamId: text('team_id').references(() => teams.id, { onDelete: 'set null' }),
   pembimbingLapanganId: text('pembimbing_lapangan_id'),
   dosenPembimbingId: text('dosen_pembimbing_id'),
+  dosenPaId: text('dosen_pa_id'), // New: to allow Academic Advisors to monitor
   companyName: varchar('company_name', { length: 255 }).notNull(),
   division: varchar('division', { length: 255 }),
   startDate: date('start_date').notNull(),

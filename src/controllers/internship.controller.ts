@@ -50,8 +50,12 @@ export class InternshipController {
   checkInternshipStatus = async () => {
     try {
       const user = this.c.get('user') as JWTPayload;
-      const userId = user.userId!;
-      const sessionId = user.sessionId!;
+      const userId = user?.mahasiswaId || user?.userId;
+      const sessionId = user?.sessionId;
+
+      if (!userId || !sessionId) {
+        return this.c.json(createResponse(false, 'Unauthorized'), 401);
+      }
 
       const data = await this.internshipService.getInternshipData(userId, sessionId);
       if (!data || !data.internship) {
@@ -77,8 +81,13 @@ export class InternshipController {
   generateDocument = async () => {
     try {
       const user = this.c.get('user') as JWTPayload;
-      const userId = user.userId!;
-      const sessionId = user.sessionId!;
+      const userId = user?.mahasiswaId || user?.userId;
+      const sessionId = user?.sessionId;
+
+      if (!userId || !sessionId) {
+        return this.c.json(createResponse(false, 'Unauthorized'), 401);
+      }
+
       const type = this.c.req.param('type') as 'logbook' | 'assessment';
       const format = (this.c.req.query('format') || 'pdf') as 'pdf' | 'docx';
 

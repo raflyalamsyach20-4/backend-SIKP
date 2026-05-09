@@ -52,7 +52,7 @@ export class LogbookService {
     
     const enrichedEntries = entries.map(entry => ({
       ...entry,
-      fileUrl: entry.fileUrl ? this.storageService.getAssetProxyUrl(entry.fileUrl) : null
+      photoUrl: entry.fileUrl ? this.storageService.getAssetProxyUrl(entry.fileUrl) : null
     }));
 
     return { internshipId, entries: enrichedEntries };
@@ -87,7 +87,7 @@ export class LogbookService {
 
     return {
       ...entry,
-      fileUrl: entry.fileUrl ? this.storageService.getAssetProxyUrl(entry.fileUrl) : null
+      photoUrl: entry.fileUrl ? this.storageService.getAssetProxyUrl(entry.fileUrl) : null
     };
   }
 
@@ -97,11 +97,19 @@ export class LogbookService {
   async updateLogbook(userId: string, logbookId: string, data: UpdateLogbookData) {
     const entry = await this.getLogbookById(userId, logbookId);
 
-    if (entry.status !== 'PENDING') {
-      throw this.createServiceError(`Cannot edit a logbook entry with status '${entry.status}'. Only PENDING entries can be modified.`, 'LOGBOOK_NOT_PENDING', 400);
+    // Allow editing if status is PENDING or REJECTED
+    if (entry.status !== 'PENDING' && entry.status !== 'REJECTED') {
+      throw this.createServiceError(`Cannot edit a logbook entry with status '${entry.status}'. Only PENDING or REJECTED entries can be modified.`, 'LOGBOOK_NOT_MODIFIABLE', 400);
     }
 
-    return this.logbookRepo.update(logbookId, data);
+    // If it was rejected, reset it to PENDING when updated so it can be re-submitted
+    const updateData = { ...data };
+    if (entry.status === 'REJECTED') {
+      (updateData as any).status = 'PENDING';
+      (updateData as any).rejectionReason = null; // Clear rejection reason
+    }
+
+    return this.logbookRepo.update(logbookId, updateData);
   }
 
   /**
@@ -110,8 +118,9 @@ export class LogbookService {
   async deleteLogbook(userId: string, logbookId: string) {
     const entry = await this.getLogbookById(userId, logbookId);
 
-    if (entry.status !== 'PENDING') {
-      throw this.createServiceError(`Cannot delete a logbook entry with status '${entry.status}'. Only PENDING entries can be deleted.`, 'LOGBOOK_NOT_PENDING', 400);
+    // Allow deleting if status is PENDING or REJECTED
+    if (entry.status !== 'PENDING' && entry.status !== 'REJECTED') {
+      throw this.createServiceError(`Cannot delete a logbook entry with status '${entry.status}'. Only PENDING or REJECTED entries can be deleted.`, 'LOGBOOK_NOT_MODIFIABLE', 400);
     }
 
     await this.logbookRepo.delete(logbookId);
@@ -136,9 +145,9 @@ export class LogbookService {
   async uploadPhoto(userId: string, logbookId: string, file: File) {
     const entry = await this.getLogbookById(userId, logbookId);
 
-    // Only allow photo upload if logbook is in PENDING status
-    if (entry.status !== 'PENDING') {
-      throw this.createServiceError(`Cannot upload photo to a logbook entry with status '${entry.status}'. Only PENDING entries can be modified.`, 'LOGBOOK_NOT_PENDING', 400);
+    // Only allow photo upload if logbook is in PENDING or REJECTED status
+    if (entry.status !== 'PENDING' && entry.status !== 'REJECTED') {
+      throw this.createServiceError(`Cannot upload photo to a logbook entry with status '${entry.status}'. Only PENDING or REJECTED entries can be modified.`, 'LOGBOOK_NOT_MODIFIABLE', 400);
     }
 
     // Validate file type
@@ -186,7 +195,7 @@ export class LogbookService {
 
     return {
       ...updated,
-      fileUrl: updated.fileUrl ? this.storageService.getAssetProxyUrl(updated.fileUrl) : null
+      photoUrl: updated.fileUrl ? this.storageService.getAssetProxyUrl(updated.fileUrl) : null
     };
   }
 }

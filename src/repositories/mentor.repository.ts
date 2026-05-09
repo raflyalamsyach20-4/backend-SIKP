@@ -36,9 +36,11 @@ export class MentorRepository {
    * Get all mentees supervised by this mentor
    * Note: Mentee details (name, nim) should be resolved by the service/controller.
    */
-  async getMentees(mentorId: string) {
+  async getMentees(mentorProfileId: string, identityId: string) {
+    console.log(`[MentorRepository.getMentees] Searching for ProfileID: ${mentorProfileId}, IdentityID: ${identityId}`);
     try {
-      const result = await this.db
+      // 1. Try direct lookup by Profile ID (standard)
+      const directResult = await this.db
         .select({
           internshipId: internships.id,
           internshipStatus: internships.status,
@@ -50,18 +52,52 @@ export class MentorRepository {
           createdAt: internships.createdAt,
         })
         .from(internships)
-        .where(eq(internships.pembimbingLapanganId, mentorId))
+        .where(eq(internships.pembimbingLapanganId, mentorProfileId))
         .orderBy(desc(internships.createdAt));
-      return result;
+
+      if (directResult.length > 0) {
+        console.log(`[MentorRepository.getMentees] Found ${directResult.length} mentees via direct ProfileID lookup.`);
+        return directResult;
+      }
+
+      console.log(`[MentorRepository.getMentees] Direct lookup empty. Trying IdentityID fallback...`);
+      // 2. Fallback: Search via mentor_approval_requests using the identityId
+      const fallbackResult = await this.db
+        .select({
+          internshipId: internships.id,
+          internshipStatus: internships.status,
+          internshipStartDate: internships.startDate,
+          internshipEndDate: internships.endDate,
+          companyName: internships.companyName,
+          division: internships.division,
+          studentId: internships.mahasiswaId,
+          createdAt: internships.createdAt,
+        })
+        .from(internships)
+        .innerJoin(
+          mentorApprovalRequests,
+          eq(internships.mahasiswaId, mentorApprovalRequests.studentUserId)
+        )
+        .where(
+          and(
+            eq(mentorApprovalRequests.ssoMentorId, identityId),
+            eq(mentorApprovalRequests.status, 'APPROVED')
+          )
+        )
+        .orderBy(desc(internships.createdAt));
+
+      console.log(`[MentorRepository.getMentees] Fallback found ${fallbackResult.length} mentees.`);
+      return fallbackResult;
     } catch (error) {
       console.error('[MentorRepository.getMentees] Error:', error);
       throw error;
     }
   }
 
-  async getMenteeByStudentId(mentorId: string, studentUserId: string) {
+  async getMenteeByStudentId(mentorProfileId: string, identityId: string, studentUserId: string) {
     try {
-      const result = await this.db
+      // 1. Direct
+      const direct = await this.db
         .select({
           internshipId: internships.id,
           internshipStatus: internships.status,
@@ -74,12 +110,40 @@ export class MentorRepository {
         .from(internships)
         .where(
           and(
-            eq(internships.pembimbingLapanganId, mentorId),
+            eq(internships.pembimbingLapanganId, mentorProfileId),
             eq(internships.mahasiswaId, studentUserId)
           )
         )
         .limit(1);
-      return result[0] ?? null;
+
+      if (direct.length > 0) return direct[0];
+
+      // 2. Fallback
+      const fallback = await this.db
+        .select({
+          internshipId: internships.id,
+          internshipStatus: internships.status,
+          internshipStartDate: internships.startDate,
+          internshipEndDate: internships.endDate,
+          companyName: internships.companyName,
+          division: internships.division,
+          studentId: internships.mahasiswaId,
+        })
+        .from(internships)
+        .innerJoin(
+          mentorApprovalRequests,
+          eq(internships.mahasiswaId, mentorApprovalRequests.studentUserId)
+        )
+        .where(
+          and(
+            eq(mentorApprovalRequests.ssoMentorId, identityId),
+            eq(mentorApprovalRequests.studentUserId, studentUserId),
+            eq(mentorApprovalRequests.status, 'APPROVED')
+          )
+        )
+        .limit(1);
+
+      return fallback[0] ?? null;
     } catch (error) {
       console.error('[MentorRepository.getMenteeByStudentId] Error:', error);
       throw error;
@@ -89,19 +153,40 @@ export class MentorRepository {
   /**
    * Get internship ID for a mentee supervised by this mentor
    */
-  async getInternshipIdForMentee(mentorId: string, studentUserId: string): Promise<string | null> {
+  async getInternshipIdForMentee(mentorProfileId: string, identityId: string, studentUserId: string): Promise<string | null> {
     try {
-      const result = await this.db
+      // 1. Direct
+      const direct = await this.db
         .select({ internshipId: internships.id })
         .from(internships)
         .where(
           and(
-            eq(internships.pembimbingLapanganId, mentorId),
+            eq(internships.pembimbingLapanganId, mentorProfileId),
             eq(internships.mahasiswaId, studentUserId)
           )
         )
         .limit(1);
-      return result[0]?.internshipId ?? null;
+
+      if (direct.length > 0) return direct[0].internshipId;
+
+      // 2. Fallback
+      const fallback = await this.db
+        .select({ internshipId: internships.id })
+        .from(internships)
+        .innerJoin(
+          mentorApprovalRequests,
+          eq(internships.mahasiswaId, mentorApprovalRequests.studentUserId)
+        )
+        .where(
+          and(
+            eq(mentorApprovalRequests.ssoMentorId, identityId),
+            eq(mentorApprovalRequests.studentUserId, studentUserId),
+            eq(mentorApprovalRequests.status, 'APPROVED')
+          )
+        )
+        .limit(1);
+
+      return fallback[0]?.internshipId ?? null;
     } catch (error) {
       console.error('[MentorRepository.getInternshipIdForMentee] Error:', error);
       throw error;

@@ -26,7 +26,10 @@
 		"AUTH_COOKIE_SAMESITE": "Lax",
 		"AUTH_SESSION_COOKIE_NAME": "sikp_session",
 		"SSO_SIGNATURE_PATH": "/signature",
-		"SSO_PROXY_TIMEOUT_MS": "10000"
+		"SSO_PROXY_TIMEOUT_MS": "10000",
+		"SSO_TOKEN_URL": "",
+		"SSO_USERINFO_URL": "",
+		"SSO_REVOKE_URL": ""
 	},
 	"r2_buckets": [
 		{

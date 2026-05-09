@@ -60,7 +60,7 @@ export class LogbookRepository {
     try {
       const id = generateId();
       const now = new Date();
-      await this.db.insert(logbooks).values({
+      const values: any = {
         id,
         internshipId: data.internshipId,
         date: data.date,
@@ -68,14 +68,18 @@ export class LogbookRepository {
         description: data.description,
         hours: data.hours ?? 0,
         status: 'PENDING',
-        fileName: data.fileName ?? null,
-        fileUrl: data.fileUrl ?? null,
-        fileType: data.fileType ?? null,
-        fileSize: data.fileSize ?? null,
-        originalName: data.originalName ?? null,
         createdAt: now,
         updatedAt: now,
-      });
+      };
+
+      // Only add file columns if they are provided, to be safer
+      if (data.fileName) values.fileName = data.fileName;
+      if (data.fileUrl) values.fileUrl = data.fileUrl;
+      if (data.fileType) values.fileType = data.fileType;
+      if (data.fileSize) values.fileSize = data.fileSize;
+      if (data.originalName) values.originalName = data.originalName;
+
+      await this.db.insert(logbooks).values(values);
       return this.findById(id);
     } catch (error) {
       console.error('[LogbookRepository.create] Error:', error);
@@ -89,7 +93,25 @@ export class LogbookRepository {
   async findByInternshipId(internshipId: string) {
     try {
       return await this.db
-        .select()
+        .select({
+          id: logbooks.id,
+          internshipId: logbooks.internshipId,
+          date: logbooks.date,
+          activity: logbooks.activity,
+          description: logbooks.description,
+          hours: logbooks.hours,
+          status: logbooks.status,
+          rejectionReason: logbooks.rejectionReason,
+          verifiedBy: logbooks.verifiedBy,
+          verifiedAt: logbooks.verifiedAt,
+          createdAt: logbooks.createdAt,
+          updatedAt: logbooks.updatedAt,
+          fileName: logbooks.fileName,
+          fileUrl: logbooks.fileUrl,
+          fileType: logbooks.fileType,
+          fileSize: logbooks.fileSize,
+          originalName: logbooks.originalName,
+        })
         .from(logbooks)
         .where(eq(logbooks.internshipId, internshipId))
         .orderBy(desc(logbooks.date));
@@ -105,7 +127,25 @@ export class LogbookRepository {
   async findById(id: string) {
     try {
       const result = await this.db
-        .select()
+        .select({
+          id: logbooks.id,
+          internshipId: logbooks.internshipId,
+          date: logbooks.date,
+          activity: logbooks.activity,
+          description: logbooks.description,
+          hours: logbooks.hours,
+          status: logbooks.status,
+          rejectionReason: logbooks.rejectionReason,
+          verifiedBy: logbooks.verifiedBy,
+          verifiedAt: logbooks.verifiedAt,
+          createdAt: logbooks.createdAt,
+          updatedAt: logbooks.updatedAt,
+          fileName: logbooks.fileName,
+          fileUrl: logbooks.fileUrl,
+          fileType: logbooks.fileType,
+          fileSize: logbooks.fileSize,
+          originalName: logbooks.originalName,
+        })
         .from(logbooks)
         .where(eq(logbooks.id, id))
         .limit(1);
@@ -131,6 +171,8 @@ export class LogbookRepository {
       if (data.fileType !== undefined) fields.fileType = data.fileType;
       if (data.fileSize !== undefined) fields.fileSize = data.fileSize;
       if (data.originalName !== undefined) fields.originalName = data.originalName;
+      if ((data as any).status !== undefined) fields.status = (data as any).status;
+      if ((data as any).rejectionReason !== undefined) fields.rejectionReason = (data as any).rejectionReason;
 
       await this.db.update(logbooks).set(fields).where(eq(logbooks.id, id));
       return this.findById(id);

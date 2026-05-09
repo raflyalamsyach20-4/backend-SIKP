@@ -239,7 +239,7 @@ export class AdminService {
     return `${year}-${month}`;
   }
 
-  private async ensureInternshipsForSubmission(submission: SubmissionRecord) {
+  private async ensureInternshipsForSubmission(submission: SubmissionRecord, sessionId: string) {
     if (!submission.teamId) {
       return;
     }
@@ -261,6 +261,10 @@ export class AdminService {
           return;
         }
 
+        // Fetch student detail to get their Dosen PA
+        const studentDetail = await this.mahasiswaService.getMahasiswaById(member.mahasiswaId, sessionId);
+        const dosenPaId = studentDetail?.dosenPA?.profile?.id || studentDetail?.dosenPA?.id || null;
+
         await this.submissionRepo.createInternship({
           id: generateId(),
           submissionId: submission.id,
@@ -268,6 +272,7 @@ export class AdminService {
           teamId: submission.teamId,
           pembimbingLapanganId: null,
           dosenPembimbingId: team?.dosenKpId ?? null,
+          dosenPaId: dosenPaId,
           companyName: submission.companyName,
           division: submission.division ?? null,
           startDate: submission.startDate,
@@ -612,7 +617,7 @@ export class AdminService {
     const updated = await this.submissionRepo.update(submissionId, updateData);
     if (!updated) throw new Error('Failed to update submission status');
     if (status === 'APPROVED') {
-      await this.ensureInternshipsForSubmission(updated);
+      await this.ensureInternshipsForSubmission(updated, sessionId);
     }
 
     // Return the enriched submission instead of raw DB record

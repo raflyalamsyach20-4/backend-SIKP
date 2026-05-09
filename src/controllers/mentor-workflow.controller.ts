@@ -12,7 +12,12 @@ export class MentorWorkflowController {
 
   private getUserId(): string | null {
     const user = this.c.get('user') as JWTPayload;
-    return user?.userId ?? null;
+    // If we need profileId for Dosen PA comparisons, we should return profileId if they are DOSEN.
+    if (user?.role === 'dosen' || user?.role === 'admin' || user?.role === 'wakil_dekan') {
+      return user?.profileId || user?.userId || null;
+    }
+    // Default for MAHASISWA
+    return user?.mahasiswaId || user?.userId || null;
   }
 
   submitMentorApprovalRequest = async (validated: any) => {
@@ -42,8 +47,13 @@ export class MentorWorkflowController {
 
   listMentorApprovalRequests = async () => {
     try {
+      const user = this.c.get('user') as JWTPayload;
+      const reviewerUserId = this.getUserId();
       const sessionId = (this.c.get('sessionId') as string) || '';
-      const requests = await this.service.listMentorApprovalRequests(sessionId);
+      
+      if (!reviewerUserId) return this.c.json(createResponse(false, 'Unauthorized'), 401);
+
+      const requests = await this.service.listMentorApprovalRequests(reviewerUserId, sessionId, user?.role);
       return this.c.json(createResponse(true, 'Mentor approval requests retrieved', requests), 200);
     } catch (error) {
       return handleError(this.c, error);
@@ -108,6 +118,32 @@ export class MentorWorkflowController {
     try {
       const reqs = await this.service.listMentorEmailChangeRequests();
       return this.c.json(createResponse(true, 'Email change requests retrieved', reqs), 200);
+    } catch (error) {
+      return handleError(this.c, error);
+    }
+  };
+
+  approveMentorEmailChangeRequest = async () => {
+    try {
+      const requestId = this.c.req.param('id');
+      const reviewerUserId = this.getUserId();
+      if (!reviewerUserId) return this.c.json(createResponse(false, 'Unauthorized'), 401);
+
+      const result = await this.service.approveMentorEmailChangeRequest(requestId, reviewerUserId);
+      return this.c.json(createResponse(true, 'Email change request approved', result), 200);
+    } catch (error) {
+      return handleError(this.c, error);
+    }
+  };
+
+  rejectMentorEmailChangeRequest = async (validated: any) => {
+    try {
+      const requestId = this.c.req.param('id');
+      const reviewerUserId = this.getUserId();
+      if (!reviewerUserId) return this.c.json(createResponse(false, 'Unauthorized'), 401);
+
+      const result = await this.service.rejectMentorEmailChangeRequest(requestId, reviewerUserId, validated.reason);
+      return this.c.json(createResponse(true, 'Email change request rejected', result), 200);
     } catch (error) {
       return handleError(this.c, error);
     }

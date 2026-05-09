@@ -21,6 +21,16 @@ export class MonitoringService {
     const enriched = await Promise.all(
       mentees.map(async (m) => {
         const profile = await this.mahasiswaService.getMahasiswaById(m.mahasiswaId, sessionId);
+        
+        // Self-healing: If dosenPaId is missing in DB but available in SSO, backfill it
+        if (!m.dosenPaId && profile?.dosenPA?.profile?.id) {
+          try {
+            await this.monitoringRepo.updateDosenPaId(m.internshipId, profile.dosenPA.profile.id);
+          } catch (err) {
+            console.error(`[MonitoringService.getMenteesProgress] Failed to backfill dosenPaId for ${m.internshipId}:`, err);
+          }
+        }
+
         return {
           ...m,
           studentName: profile?.profile.fullName || 'N/A',
@@ -35,8 +45,44 @@ export class MonitoringService {
   /**
    * Get logbooks for a specific student supervisee
    */
-  async getStudentLogbooks(lecturerId: string, studentUserId: string) {
-    return await this.monitoringRepo.getStudentLogbooksForLecturer(lecturerId, studentUserId);
+  async getStudentLogbooks(lecturerId: string, studentUserId: string, sessionId: string) {
+    const rawData = await this.monitoringRepo.getStudentLogbooksForLecturer(lecturerId, studentUserId);
+    
+    if (!rawData || rawData.length === 0) {
+      // Try to get profile anyway to return empty state gracefully
+      const profile = await this.mahasiswaService.getMahasiswaById(studentUserId, sessionId);
+      return {
+        studentId: studentUserId,
+        studentName: profile?.profile.fullName || 'Unknown',
+        nim: profile?.nim || 'Unknown',
+        company: 'Unknown',
+        logbooks: [],
+      };
+    }
+
+    const firstRow = rawData[0];
+    const profile = await this.mahasiswaService.getMahasiswaById(studentUserId, sessionId);
+
+    // Format logbooks
+    const formattedLogbooks = rawData.map(row => ({
+      id: row.logbook.id,
+      date: row.logbook.date,
+      activity: row.logbook.activity,
+      status: row.logbook.status,
+      hours: row.logbook.hours,
+      rejectionReason: row.logbook.rejectionReason,
+      photoUrl: row.logbook.fileUrl,
+      createdAt: row.logbook.createdAt,
+    }));
+
+    return {
+      studentId: studentUserId,
+      studentName: profile?.profile.fullName || 'Unknown',
+      nim: profile?.nim || 'Unknown',
+      email: profile?.profile.emails?.find(e => e.isPrimary)?.email || null,
+      company: firstRow.internship.companyName,
+      logbooks: formattedLogbooks,
+    };
   }
 
   /**
@@ -53,5 +99,45 @@ export class MonitoringService {
       const diffDays = Math.floor((now.getTime() - lastDate.getTime()) / (1000 * 3600 * 24));
       return diffDays >= daysThreshold;
     });
+  }
+
+  /**
+   * Proactively sync all active internships where the lecturer is the Dosen PA
+   * This helps backfill dosenPaId for existing records.
+   */
+  async syncMenteesProgress(lecturerId: string, sessionId: string) {
+    console.log(`[MonitoringService.syncMenteesProgress] Starting sync for lecturerId: ${lecturerId}`);
+    // 1. Get all active internships that don't have this lecturer as Pembimbing KP
+    // (We want to find where they are just the Dosen PA)
+    const allActive = await this.monitoringRepo.getAllActiveInternships();
+    
+    console.log(`[MonitoringService.syncMenteesProgress] Found ${allActive.length} total active internships to check`);
+    let syncCount = 0;
+    
+    await Promise.all(
+      allActive.map(async (internship) => {
+        // Skip if already linked to this lecturer
+        if (internship.dosenPembimbingId === lecturerId || internship.dosenPaId === lecturerId) {
+          return;
+        }
+
+        const profile = await this.mahasiswaService.getMahasiswaById(internship.mahasiswaId, sessionId);
+        const dosenPaSso = profile?.dosenPA;
+        
+        if (dosenPaSso) {
+          const ssoPaId = dosenPaSso.profile?.id || dosenPaSso.id;
+          console.log(`[MonitoringService.syncMenteesProgress] Student: ${profile?.nim}, SSO DosenPA ID: ${ssoPaId}, Target LecturerID: ${lecturerId}`);
+          
+          if (ssoPaId === lecturerId) {
+            console.log(`[MonitoringService.syncMenteesProgress] MATCH FOUND for student ${profile?.nim}. Updating DB...`);
+            await this.monitoringRepo.updateDosenPaId(internship.id, lecturerId);
+            syncCount++;
+          }
+        }
+      })
+    );
+
+    console.log(`[MonitoringService.syncMenteesProgress] Sync finished. Total synced: ${syncCount}`);
+    return { synced: syncCount };
   }
 }

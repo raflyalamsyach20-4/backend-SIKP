@@ -43,9 +43,10 @@ export class MonitoringController {
     try {
       const user = this.getUser();
       const lecturerId = user.profileId!;
+      const sessionId = user.sessionId!;
       const studentId = this.c.req.param('studentId');
 
-      const data = await this.monitoringService.getStudentLogbooks(lecturerId, studentId);
+      const data = await this.monitoringService.getStudentLogbooks(lecturerId, studentId, sessionId);
       return this.c.json(createResponse(true, 'Student logbooks retrieved', data), 200);
     } catch (error) {
       return handleError(this.c, error);
@@ -64,6 +65,23 @@ export class MonitoringController {
 
       const data = await this.monitoringService.getInactiveStudents(lecturerId, threshold);
       return this.c.json(createResponse(true, 'Inactive students identified', data), 200);
+    } catch (error) {
+      return handleError(this.c, error);
+    }
+  };
+
+  /**
+   * POST /api/internship-monitoring/sync
+   * Proactively sync Academic Advisor (Dosen PA) links for internships
+   */
+  syncMentees = async () => {
+    try {
+      const user = this.getUser();
+      const sessionId = user.sessionId!;
+      const lecturerId = user.profileId!;
+
+      const data = await this.monitoringService.syncMenteesProgress(lecturerId, sessionId);
+      return this.c.json(createResponse(true, 'Synchronization completed', data), 200);
     } catch (error) {
       return handleError(this.c, error);
     }

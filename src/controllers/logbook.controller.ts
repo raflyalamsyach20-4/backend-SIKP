@@ -41,7 +41,7 @@ export class LogbookController {
 
   private getUserId(): string | null {
     const user = this.c.get('user') as JWTPayload;
-    return user?.userId ?? null;
+    return user?.mahasiswaId ?? user?.userId ?? null;
   }
 
   /**

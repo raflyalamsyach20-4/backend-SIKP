@@ -5,6 +5,7 @@ import { ResponseLetterRepository } from '@/repositories/response-letter.reposit
 import { StorageService } from '@/services/storage.service';
 import { AuthService } from './auth.service';
 import { DosenService } from './dosen.service';
+import { AuthSessionRepository } from '@/repositories/auth-session.repository';
 import type { SsoMahasiswaDetail, SsoMahasiswaResponse, SsoMahasiswaSearchResponse } from '@/types';
 
 type TeamRecord = NonNullable<Awaited<ReturnType<TeamRepository['findById']>>>;
@@ -102,9 +103,42 @@ export class MahasiswaService {
       if (!response.ok) {
         if (response.status === 404) {
           console.warn(`[MahasiswaService.getMahasiswaById] Mahasiswa ID ${mahasiswaId} not found in SSO`);
-          return null;
+        } else if (response.status === 400) {
+          console.warn(`[MahasiswaService.getMahasiswaById] SSO Gateway rejected ID ${mahasiswaId} (likely non-UUID). Falling back to local cache.`);
+        } else {
+          throw new Error(`Failed to fetch mahasiswa from SSO (${response.status})`);
         }
-        throw new Error(`Failed to fetch mahasiswa from SSO (${response.status})`);
+        
+        // Fallback to local auth_sessions table
+        const authSessionRepo = new AuthSessionRepository(createDbClient(this.env.DATABASE_URL));
+        const snapshot = await authSessionRepo.findProfileSnapshotByMahasiswaId(mahasiswaId);
+        
+        if (snapshot) {
+          console.info(`[MahasiswaService.getMahasiswaById] Found snapshot fallback for ${mahasiswaId}`);
+          
+          // Map snapshot to SsoMahasiswaDetail format
+          // The snapshot is the 'profile' object from SSO
+          const mhsIdentity = Array.isArray(snapshot.identities) 
+            ? snapshot.identities.find((i: any) => i.role === 'MAHASISWA' || i.identityType === 'MAHASISWA')
+            : snapshot.identities?.mahasiswa;
+
+          return {
+            id: mhsIdentity?.id || snapshot.id, // Use the actual Mahasiswa Identity ID if found
+            nim: mhsIdentity?.nim || '-',
+            angkatan: mhsIdentity?.angkatan || 0,
+            status: mhsIdentity?.status || 'aktif',
+            prodi: mhsIdentity?.prodi || null,
+            fakultas: mhsIdentity?.fakultas || null,
+            dosenPA: mhsIdentity?.dosenPA || null,
+            profile: {
+              id: snapshot.authUserId, // The SSO UUID
+              fullName: snapshot.fullName,
+              emails: snapshot.emails || [],
+            }
+          } as any;
+        }
+        
+        return null;
       }
 
       const payload = (await response.json()) as SsoMahasiswaResponse;

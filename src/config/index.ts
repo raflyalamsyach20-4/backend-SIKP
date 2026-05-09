@@ -82,7 +82,7 @@ export const createAppConfig = (env: CloudflareBindings): AppConfig => {
 			r2Bucket: env.R2_BUCKET,
 			r2Domain: env.R2_DOMAIN,
 			r2BucketName: env.R2_BUCKET_NAME,
-			apiBaseUrl: env.API_BASE_URL || 'https://backend-sikp.backend-sikp.workers.dev',
+			apiBaseUrl: env.API_BASE_URL || 'http://localhost:8789',
 			useMockR2,
 		},
 	};

@@ -3,17 +3,20 @@ import { MentorRepository, CreateAssessmentData, UpdateAssessmentData } from '@/
 import { LogbookRepository } from '@/repositories/logbook.repository';
 import { StorageService } from './storage.service';
 import { AuthService } from './auth.service';
+import { MahasiswaService } from './mahasiswa.service';
 
 export class MentorService {
   private mentorRepo: MentorRepository;
   private logbookRepo: LogbookRepository;
   private storageService: StorageService;
+  private mahasiswaService: MahasiswaService;
 
   constructor(private env: CloudflareBindings) {
     const db = createDbClient(this.env.DATABASE_URL);
     this.mentorRepo = new MentorRepository(db);
     this.logbookRepo = new LogbookRepository(db);
     this.storageService = new StorageService(this.env);
+    this.mahasiswaService = new MahasiswaService(this.env);
   }
 
   private createServiceError(message: string, code: string, statusCode: number) {
@@ -109,49 +112,104 @@ export class MentorService {
 
   // ─── Mentees ────────────────────────────────────────────────────────────────
 
-  async getMentees(mentorId: string) {
-    return this.mentorRepo.getMentees(mentorId);
+  async getMentees(mentorId: string, identityId: string, sessionId: string) {
+    const mentees = await this.mentorRepo.getMentees(mentorId, identityId);
+    
+    // Resolve student details (name, nim, etc) for each mentee
+    const enrichedMentees = await Promise.all(mentees.map(async (mentee) => {
+      try {
+        const studentDetail = await this.mahasiswaService.getMahasiswaById(mentee.studentId, sessionId) as any;
+        const profile = studentDetail?.profile || studentDetail;
+        
+        return {
+          ...mentee,
+          userId: mentee.studentId,
+          nama: profile?.fullName || profile?.name || '-',
+          nim: studentDetail?.nim || '-',
+          email: profile?.emails?.[0]?.email || '-',
+          prodi: studentDetail?.prodi?.nama || profile?.prodi || '-',
+          photoUrl: profile?.photoUrl || null
+        };
+      } catch (error) {
+        console.warn(`[MentorService.getMentees] Failed to resolve student ${mentee.studentId}:`, error);
+        return {
+          ...mentee,
+          userId: mentee.studentId,
+          nama: 'Mahasiswa',
+          nim: '-',
+          email: '-',
+          prodi: '-'
+        };
+      }
+    }));
+
+    return enrichedMentees;
   }
 
-  async getMenteeById(mentorId: string, studentUserId: string) {
-    const mentee = await this.mentorRepo.getMenteeByStudentId(mentorId, studentUserId);
+  async getMenteeById(mentorId: string, identityId: string, studentUserId: string, sessionId: string) {
+    const mentee = await this.mentorRepo.getMenteeByStudentId(mentorId, identityId, studentUserId);
     if (!mentee) throw this.createServiceError('Student not found or not supervised by this mentor', 'MENTEE_NOT_FOUND', 404);
-    return mentee;
+    
+    try {
+      const studentDetail = await this.mahasiswaService.getMahasiswaById(studentUserId, sessionId) as any;
+      const profile = studentDetail?.profile || studentDetail;
+      
+      return {
+        ...mentee,
+        nama: profile?.fullName || profile?.name || '-',
+        nim: studentDetail?.nim || '-',
+        email: profile?.emails?.[0]?.email || '-',
+        prodi: studentDetail?.prodi?.nama || profile?.prodi || '-',
+        photoUrl: profile?.photoUrl || null
+      };
+    } catch (error) {
+      return {
+        ...mentee,
+        nama: 'Mahasiswa',
+        nim: '-',
+        email: '-',
+        prodi: '-'
+      };
+    }
   }
 
   // ─── Logbooks ───────────────────────────────────────────────────────────────
 
-  async getStudentLogbooks(mentorId: string, studentUserId: string) {
-    const internshipId = await this.mentorRepo.getInternshipIdForMentee(mentorId, studentUserId);
+  async getStudentLogbooks(mentorId: string, identityId: string, studentUserId: string, sessionId: string) {
+    const internshipId = await this.mentorRepo.getInternshipIdForMentee(mentorId, identityId, studentUserId);
     if (!internshipId) throw this.createServiceError('Student not found or not supervised by this mentor', 'INTERNSHIP_NOT_FOUND', 404);
     const entries = await this.logbookRepo.findByInternshipId(internshipId);
     
-    const enrichedEntries = entries.map(entry => ({
-      ...entry,
-      fileUrl: entry.fileUrl ? this.storageService.getAssetProxyUrl(entry.fileUrl) : null
-    }));
+    const enrichedEntries = entries.map(entry => {
+      const proxiedUrl = entry.fileUrl ? this.storageService.getAssetProxyUrl(entry.fileUrl) : null;
+      return {
+        ...entry,
+        fileUrl: proxiedUrl,
+        photoUrl: proxiedUrl // Alias for frontend compatibility
+      };
+    });
 
     return { internshipId, entries: enrichedEntries };
   }
 
-  async approveLogbook(mentorId: string, logbookId: string) {
+  async approveLogbook(mentorId: string, identityId: string, logbookId: string, sessionId: string) {
     const entry = await this.logbookRepo.findById(logbookId);
     if (!entry) throw this.createServiceError('Logbook entry not found', 'LOGBOOK_NOT_FOUND', 404);
     // verify this logbook belongs to a mentee of this mentor (via internship)
-    await this.assertLogbookBelongsToMentor(mentorId, entry.internshipId);
+    await this.assertLogbookBelongsToMentor(mentorId, identityId, entry.internshipId, sessionId);
     return this.logbookRepo.approve(logbookId, mentorId);
   }
 
-  async rejectLogbook(mentorId: string, logbookId: string, rejectionReason: string) {
+  async rejectLogbook(mentorId: string, identityId: string, logbookId: string, rejectionReason: string, sessionId: string) {
     if (!rejectionReason?.trim()) throw new Error('Rejection reason is required');
     const entry = await this.logbookRepo.findById(logbookId);
     if (!entry) throw this.createServiceError('Logbook entry not found', 'LOGBOOK_NOT_FOUND', 404);
-    await this.assertLogbookBelongsToMentor(mentorId, entry.internshipId);
+    await this.assertLogbookBelongsToMentor(mentorId, identityId, entry.internshipId, sessionId);
     return this.logbookRepo.reject(logbookId, mentorId, rejectionReason);
   }
 
-  async approveAllLogbooks(mentorId: string, studentUserId: string) {
-    const internshipId = await this.mentorRepo.getInternshipIdForMentee(mentorId, studentUserId);
+  async approveAllLogbooks(mentorId: string, identityId: string, studentUserId: string, sessionId: string) {
+    const internshipId = await this.mentorRepo.getInternshipIdForMentee(mentorId, identityId, studentUserId);
     if (!internshipId) throw this.createServiceError('Student not found or not supervised by this mentor', 'INTERNSHIP_NOT_FOUND', 404);
     await this.logbookRepo.approveAll(internshipId, mentorId);
     return { message: 'All pending logbook entries approved', internshipId };
@@ -159,8 +217,8 @@ export class MentorService {
 
   // ─── Assessments ────────────────────────────────────────────────────────────
 
-  async createAssessment(mentorId: string, data: Omit<CreateAssessmentData, 'internshipId'> & { studentUserId: string }) {
-    const internshipId = await this.mentorRepo.getInternshipIdForMentee(mentorId, data.studentUserId);
+  async createAssessment(mentorId: string, identityId: string, data: Omit<CreateAssessmentData, 'internshipId'> & { studentUserId: string }, sessionId: string) {
+    const internshipId = await this.mentorRepo.getInternshipIdForMentee(mentorId, identityId, data.studentUserId);
     if (!internshipId) throw this.createServiceError('Student not found or not supervised by this mentor', 'INTERNSHIP_NOT_FOUND', 404);
 
     // Check for existing assessment
@@ -181,8 +239,8 @@ export class MentorService {
     });
   }
 
-  async getAssessmentByStudent(mentorId: string, studentUserId: string) {
-    const internshipId = await this.mentorRepo.getInternshipIdForMentee(mentorId, studentUserId);
+  async getAssessmentByStudent(mentorId: string, identityId: string, studentUserId: string, sessionId: string) {
+    const internshipId = await this.mentorRepo.getInternshipIdForMentee(mentorId, identityId, studentUserId);
     if (!internshipId) throw this.createServiceError('Student not found or not supervised by this mentor', 'INTERNSHIP_NOT_FOUND', 404);
 
     const assessment = await this.mentorRepo.getAssessmentByInternshipId(internshipId);
@@ -211,9 +269,9 @@ export class MentorService {
 
   // ─── Helpers ────────────────────────────────────────────────────────────────
 
-  private async assertLogbookBelongsToMentor(mentorId: string, internshipId: string) {
+  private async assertLogbookBelongsToMentor(mentorId: string, identityId: string, internshipId: string, sessionId: string) {
     // The logbook's internship must have this mentor as pembimbingLapanganId
-    const mentees = await this.mentorRepo.getMentees(mentorId);
+    const mentees = await this.getMentees(mentorId, identityId, sessionId);
     const owns = mentees.some(m => m.internshipId === internshipId);
     if (!owns) throw new Error('Access denied: Logbook does not belong to your mentee');
   }

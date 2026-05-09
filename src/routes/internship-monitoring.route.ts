@@ -15,6 +15,7 @@ export const createInternshipMonitoringRoutes = () => {
   monitoring.get('/mentees', (c) => new MonitoringController(c).getMenteesProgress());
   monitoring.get('/mentees/:studentId/logbooks', (c) => new MonitoringController(c).getStudentLogbooks());
   monitoring.get('/inactive', (c) => new MonitoringController(c).getInactiveStudents());
+  monitoring.post('/sync', (c) => new MonitoringController(c).syncMentees());
 
   // Legacy Compatibility (Aliases)
   monitoring.get('/logbook', (c) => new MonitoringController(c).getMenteesProgress());
