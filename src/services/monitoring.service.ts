@@ -55,7 +55,11 @@ export class MonitoringService {
         studentId: studentUserId,
         studentName: profile?.profile.fullName || 'Unknown',
         nim: profile?.nim || 'Unknown',
+        programStudi: (profile as any)?.prodi || (profile as any)?.programStudi || 'Unknown',
         company: 'Unknown',
+        division: 'Unknown',
+        startDate: null,
+        endDate: null,
         logbooks: [],
       };
     }
@@ -80,7 +84,11 @@ export class MonitoringService {
       studentName: profile?.profile.fullName || 'Unknown',
       nim: profile?.nim || 'Unknown',
       email: profile?.profile.emails?.find(e => e.isPrimary)?.email || null,
+      programStudi: (profile as any)?.prodi || (profile as any)?.programStudi || 'Unknown',
       company: firstRow.internship.companyName,
+      division: firstRow.internship.division || '-',
+      startDate: firstRow.internship.startDate,
+      endDate: firstRow.internship.endDate,
       logbooks: formattedLogbooks,
     };
   }
