@@ -1,6 +1,6 @@
 import { and, desc, eq, sql } from 'drizzle-orm';
 import type { DbClient } from '@/db';
-import { internships, logbooks } from '@/db/schema';
+import { internships, logbooks, mentorApprovalRequests } from '@/db/schema';
 
 export class MonitoringRepository {
   constructor(private db: DbClient) {}
@@ -66,9 +66,17 @@ export class MonitoringRepository {
       .select({
         logbook: logbooks,
         internship: internships,
+        mentorName: mentorApprovalRequests.mentorName,
       })
       .from(logbooks)
       .innerJoin(internships, eq(logbooks.internshipId, internships.id))
+      .leftJoin(
+        mentorApprovalRequests,
+        and(
+          eq(internships.mahasiswaId, mentorApprovalRequests.studentUserId),
+          eq(mentorApprovalRequests.status, 'APPROVED')
+        )
+      )
       .where(
         and(
           sql`${internships.dosenPembimbingId} = ${lecturerId} OR ${internships.dosenPaId} = ${lecturerId}`,

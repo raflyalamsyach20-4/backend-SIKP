@@ -50,12 +50,12 @@ export class MonitoringService {
     
     if (!rawData || rawData.length === 0) {
       // Try to get profile anyway to return empty state gracefully
-      const profile = await this.mahasiswaService.getMahasiswaById(studentUserId, sessionId);
+      const profile = await this.mahasiswaService.getMahasiswaById(studentUserId, sessionId) as any;
       return {
         studentId: studentUserId,
-        studentName: profile?.profile.fullName || 'Unknown',
+        studentName: profile?.profile?.fullName || 'Unknown',
         nim: profile?.nim || 'Unknown',
-        programStudi: (profile as any)?.prodi || (profile as any)?.programStudi || 'Unknown',
+        programStudi: profile?.prodi?.nama || 'Unknown',
         company: 'Unknown',
         division: 'Unknown',
         startDate: null,
@@ -65,7 +65,6 @@ export class MonitoringService {
     }
 
     const firstRow = rawData[0];
-    const profile = await this.mahasiswaService.getMahasiswaById(studentUserId, sessionId);
 
     // Format logbooks
     const formattedLogbooks = rawData.map(row => ({
@@ -76,15 +75,19 @@ export class MonitoringService {
       hours: row.logbook.hours,
       rejectionReason: row.logbook.rejectionReason,
       photoUrl: row.logbook.fileUrl,
+      mentorName: row.mentorName || '-',
       createdAt: row.logbook.createdAt,
+      verifiedAt: row.logbook.verifiedAt,
     }));
+
+    const profile = await this.mahasiswaService.getMahasiswaById(studentUserId, sessionId) as any;
 
     return {
       studentId: studentUserId,
-      studentName: profile?.profile.fullName || 'Unknown',
+      studentName: profile?.profile?.fullName || 'Unknown',
       nim: profile?.nim || 'Unknown',
-      email: profile?.profile.emails?.find(e => e.isPrimary)?.email || null,
-      programStudi: (profile as any)?.prodi || (profile as any)?.programStudi || 'Unknown',
+      email: profile?.profile?.emails?.find((e: any) => e.isPrimary)?.email || null,
+      programStudi: profile?.prodi?.nama || 'Unknown',
       company: firstRow.internship.companyName,
       division: firstRow.internship.division || '-',
       startDate: firstRow.internship.startDate,
