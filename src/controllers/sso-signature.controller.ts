@@ -62,7 +62,7 @@ export class SsoSignatureController {
       const data = await this.ssoSignatureProxyService.getActiveSignature(sessionId, user);
       
       // Sync to local DB if it's a mentor
-      if (data && (data.signatureImage || data.svg) && user.profileId) {
+      if (data && data.svg && user.profileId) {
         try {
           const { MentorService } = await import('@/services/mentor.service');
           const mentorService = new MentorService(this.c.env);
