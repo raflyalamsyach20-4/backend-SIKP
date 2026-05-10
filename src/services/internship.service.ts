@@ -73,7 +73,7 @@ export class InternshipService {
       if (mentorProfile) {
         mentor = {
           id: mentorProfile.id,
-          name: (approvalRequest?.status === 'APPROVED' ? approvalRequest?.mentorName : null) || mentorProfile.id, // Placeholder name if not found
+          name: (approvalRequest?.status === 'APPROVED' ? approvalRequest?.mentorName : null) || mentorProfile.id,
           email: approvalRequest?.mentorEmail || '',
           company: approvalRequest?.companyName || data.company || '',
           position: approvalRequest?.position || '',
@@ -83,22 +83,41 @@ export class InternshipService {
           signature: mentorProfile.signatureUrl ? this.storageService.getAssetProxyUrl(mentorProfile.signatureUrl) : null,
         };
         
-        // If we found the request, use the name from it
         if (approvalRequest) {
           mentor.name = approvalRequest.mentorName;
         }
       } else {
-        mentor = {
-          id: data.pembimbingLapanganId,
-          name: approvalRequest?.mentorName || 'Mentor (Identity Reserved)',
-          email: approvalRequest?.mentorEmail || '',
-          company: approvalRequest?.companyName || data.company || '',
-          position: approvalRequest?.position || '',
-          phone: approvalRequest?.mentorPhone || '',
-          status: 'registered',
-          companyAddress: approvalRequest?.companyAddress || '',
-          signature: null,
-        };
+        // 2a. Fallback: Check if we can find by ssoMentorId (Identity ID) from the request
+        if (approvalRequest?.ssoMentorId) {
+          const fallbackProfile = await this.mentorRepo.findProfileById(approvalRequest.ssoMentorId);
+          if (fallbackProfile) {
+            mentor = {
+              id: fallbackProfile.id,
+              name: approvalRequest.mentorName,
+              email: approvalRequest.mentorEmail || '',
+              company: approvalRequest.companyName || data.company || '',
+              position: approvalRequest.position || '',
+              phone: approvalRequest.mentorPhone || '',
+              status: 'approved',
+              companyAddress: approvalRequest.companyAddress || '',
+              signature: fallbackProfile.signatureUrl ? this.storageService.getAssetProxyUrl(fallbackProfile.signatureUrl) : null,
+            };
+          }
+        }
+
+        if (!mentor) {
+          mentor = {
+            id: data.pembimbingLapanganId,
+            name: approvalRequest?.mentorName || 'Mentor (Identity Reserved)',
+            email: approvalRequest?.mentorEmail || '',
+            company: approvalRequest?.companyName || data.company || '',
+            position: approvalRequest?.position || '',
+            phone: approvalRequest?.mentorPhone || '',
+            status: 'registered',
+            companyAddress: approvalRequest?.companyAddress || '',
+            signature: null,
+          };
+        }
       }
     } else {
       // 3. If NO pembimbingLapanganId, check for PENDING or REJECTED requests in mentor_approval_requests

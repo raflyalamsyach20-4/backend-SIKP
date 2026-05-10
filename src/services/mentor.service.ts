@@ -46,7 +46,14 @@ export class MentorService {
       console.warn('[MentorService.getProfile] Failed to fetch mentor from SSO:', err);
     }
 
-    // 2. Fetch signature from local DB
+    // 2. Sync signature from SSO if available
+    try {
+      await this.syncSignatureFromSso(mentorId, sessionId);
+    } catch (err) {
+      console.warn('[MentorService.getProfile] Failed to sync signature from SSO:', err);
+    }
+
+    // 3. Fetch signature from local DB
     const profile = await this.mentorRepo.findProfileById(mentorId);
     
     return {
@@ -57,6 +64,68 @@ export class MentorService {
       jabatan: mentorSso?.jabatan || '',
       signatureUrl: profile?.signatureUrl ? this.storageService.getAssetProxyUrl(profile.signatureUrl) : null,
     };
+  }
+
+  /**
+   * Sync mentor signature from SSO to local DB
+   */
+  async syncSignatureFromSso(mentorId: string, sessionId: string) {
+    const token = await new AuthService(this.env).getSessionAccessToken(sessionId);
+    if (!token) return;
+
+    const baseUrl = this.env.SSO_BASE_URL;
+    const signaturePath = this.env.SSO_SIGNATURE_PATH || '/profile/signature';
+    
+    try {
+      const response = await fetch(`${baseUrl}${signaturePath}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+
+      if (!response.ok) return;
+
+      const payload = await response.json() as any;
+      const ssoSignature = payload.data?.activeSignature;
+
+      if (!ssoSignature) return;
+      
+      let ssoUrl = ssoSignature.signatureImage || ssoSignature.svg || ssoSignature.signatureUrl;
+      if (!ssoUrl) return;
+
+      // Handle raw SVG by converting to Data URL
+      if (ssoUrl.trim().startsWith('<svg')) {
+        console.log(`[MentorService.syncSignatureFromSso] Converting SVG to base64 for mentor ${mentorId}`);
+        try {
+          const encoded = btoa(unescape(encodeURIComponent(ssoUrl)));
+          ssoUrl = `data:image/svg+xml;base64,${encoded}`;
+        } catch (e) {
+          console.error('[MentorService.syncSignatureFromSso] Failed to encode SVG:', e);
+          // Fallback to simpler btoa if trick fails, though trick is safer
+          try {
+            const encoded = btoa(ssoUrl.replace(/[^\x00-\xFF]/g, " "));
+            ssoUrl = `data:image/svg+xml;base64,${encoded}`;
+          } catch (e2) {
+            console.error('[MentorService.syncSignatureFromSso] Critical failure encoding SVG:', e2);
+          }
+        }
+      }
+      
+      console.log(`[MentorService.syncSignatureFromSso] Checking local profile for mentor ${mentorId}`);
+      const existingProfile = await this.mentorRepo.findProfileById(mentorId);
+      
+      // Simple sync: update if missing or if we want to ensure it's fresh
+      if (!existingProfile || existingProfile.signatureUrl !== ssoUrl) {
+        console.log(`[MentorService.syncSignatureFromSso] Updating signature for mentor ${mentorId}`);
+        await this.mentorRepo.updateProfile(mentorId, {
+          signatureUrl: ssoUrl,
+          updatedAt: new Date()
+        });
+        console.log(`[MentorService.syncSignatureFromSso] Successfully updated signature for mentor ${mentorId}`);
+      } else {
+        console.log(`[MentorService.syncSignatureFromSso] Signature already up to date for mentor ${mentorId}`);
+      }
+    } catch (err) {
+      console.error('[MentorService.syncSignatureFromSso] Error during sync:', err);
+    }
   }
 
   async updateSignature(mentorId: string, file: File) {

@@ -312,10 +312,21 @@ export class MentorRepository {
 
   async updateProfile(id: string, data: Partial<typeof mentorSignatures.$inferInsert>) {
     try {
-      await this.db
-        .update(mentorSignatures)
-        .set({ ...data, updatedAt: new Date() })
-        .where(eq(mentorSignatures.id, id));
+      const existing = await this.findProfileById(id);
+      if (existing) {
+        await this.db
+          .update(mentorSignatures)
+          .set({ ...data, updatedAt: new Date() })
+          .where(eq(mentorSignatures.id, id));
+      } else {
+        await this.db.insert(mentorSignatures).values({
+          id,
+          signatureUrl: data.signatureUrl || null,
+          signatureKey: data.signatureKey || null,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        });
+      }
       return this.findProfileById(id);
     } catch (error) {
       console.error('[MentorRepository.updateProfile] Error:', error);
