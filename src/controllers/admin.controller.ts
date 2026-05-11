@@ -107,7 +107,7 @@ export class AdminController {
           }
         } else {
           for (const [documentId, status] of Object.entries(validated.documentReviews)) {
-            documentReviewsRecord[documentId] = status.toLowerCase();
+            documentReviewsRecord[documentId] = String(status).toLowerCase();
           }
         }
       }
@@ -157,7 +157,7 @@ export class AdminController {
           }
         } else {
           for (const [documentId, status] of Object.entries(validated.documentReviews)) {
-            documentReviewsRecord[documentId] = status.toLowerCase();
+            documentReviewsRecord[documentId] = String(status).toLowerCase();
           }
         }
       }
