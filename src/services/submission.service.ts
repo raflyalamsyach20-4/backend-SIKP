@@ -3,6 +3,7 @@ import { TeamRepository } from '@/repositories/team.repository';
 import { SuratKesediaanRepository } from '@/repositories/surat-kesediaan.repository';
 import { SuratPermohonanRepository } from '@/repositories/surat-permohonan.repository';
 import { StorageService } from './storage.service';
+import { DosenService } from './dosen.service';
 import { generateId } from '@/utils/helpers';
 import { createDbClient } from '@/db';
 
@@ -15,6 +16,7 @@ export class SubmissionService {
   private suratKesediaanRepo: SuratKesediaanRepository;
   private suratPermohonanRepo: SuratPermohonanRepository;
   private storageService?: StorageService;
+  private dosenService: DosenService;
 
   constructor(
     private env: CloudflareBindings
@@ -25,6 +27,7 @@ export class SubmissionService {
     this.suratKesediaanRepo = new SuratKesediaanRepository(db);
     this.suratPermohonanRepo = new SuratPermohonanRepository(db);
     this.storageService = new StorageService(env);
+    this.dosenService = new DosenService(env);
   }
 
   private createServiceError(message: string, code: string, statusCode: number) {
@@ -36,7 +39,11 @@ export class SubmissionService {
 
   private buildDefaultDraftPayload(teamCode: string) {
     const now = new Date();
-    const today = now.toISOString().split('T')[0];
+    // Format as YYYY-MM-DD using local date values, not UTC
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    const today = `${year}-${month}-${day}`;
 
     return {
       letterPurpose: `Belum diisi`,
@@ -210,10 +217,20 @@ export class SubmissionService {
         companyBusinessType: data.companyBusinessType ?? defaults.companyBusinessType,
         division: data.division || defaults.division,
         startDate: data.startDate
-          ? data.startDate.toISOString().split('T')[0]
+          ? (() => {
+              const year = data.startDate.getFullYear();
+              const month = String(data.startDate.getMonth() + 1).padStart(2, '0');
+              const day = String(data.startDate.getDate()).padStart(2, '0');
+              return `${year}-${month}-${day}`;
+            })()
           : defaults.startDate,
         endDate: data.endDate
-          ? data.endDate.toISOString().split('T')[0]
+          ? (() => {
+              const year = data.endDate.getFullYear();
+              const month = String(data.endDate.getMonth() + 1).padStart(2, '0');
+              const day = String(data.endDate.getDate()).padStart(2, '0');
+              return `${year}-${month}-${day}`;
+            })()
           : defaults.endDate,
       });
     } catch {
@@ -446,7 +463,7 @@ export class SubmissionService {
     return await this.submissionRepo.findDocumentsBySubmissionId(submissionId);
   }
 
-  async getLetterRequestStatus(submissionId: string, mahasiswaId: string) {
+  async getLetterRequestStatus(submissionId: string, mahasiswaId: string, sessionId?: string) {
     const submission = await this.submissionRepo.findById(submissionId);
     if (!submission) {
       const error: Error = new Error('Submission tidak ditemukan.');
@@ -491,6 +508,7 @@ export class SubmissionService {
 
     const documentTypes: LetterDocumentType[] = ['SURAT_KESEDIAAN', 'FORM_PERMOHONAN'];
     const response: any[] = [];
+    const dosenNameCache = new Map<string, string | null>();
 
     for (const memberMahasiswaId of acceptedMahasiswaIds) {
       for (const documentType of documentTypes) {
@@ -498,13 +516,24 @@ export class SubmissionService {
           ? latestKesediaanByMember.get(memberMahasiswaId)
           : latestPermohonanByMember.get(memberMahasiswaId);
 
+        let dosenName = null;
+        if (latestRequest && latestRequest.dosenId) {
+          if (dosenNameCache.has(latestRequest.dosenId)) {
+            dosenName = dosenNameCache.get(latestRequest.dosenId);
+          } else {
+            const dosenDetail = await this.dosenService.getDosenById(latestRequest.dosenId, sessionId || '');
+            dosenName = dosenDetail?.profile.fullName || null;
+            dosenNameCache.set(latestRequest.dosenId, dosenName);
+          }
+        }
+
         response.push({
           memberMahasiswaId,
           documentType,
           isAlreadySubmitted: Boolean(latestRequest),
           latestStatus: latestRequest ? this.normalizeLetterStatus(latestRequest.status) : null,
           latestRequestId: latestRequest?.id || null,
-          dosenName: latestRequest?.dosenName || null,
+          dosenName,
           signedFileUrl: latestRequest?.signedFileUrl || null,
           rejectionReason: latestRequest?.rejectionReason || null,
           submittedAt: latestRequest?.submittedAt?.toISOString() || null,

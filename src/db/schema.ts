@@ -149,24 +149,19 @@ export const generatedLetters = pgTable('generated_letters', {
 export const templates = pgTable('templates', {
   id: text('id').primaryKey(),
   name: varchar('name', { length: 255 }).notNull(),
-  type: varchar('type', { length: 50 }).notNull(),
+  type: varchar('type', { length: 50 }).default('standard').notNull(),
   description: text('description'),
   fileName: varchar('file_name', { length: 255 }).notNull(),
   fileUrl: text('file_url').notNull(),
   fileSize: bigint('file_size', { mode: 'number' }).notNull(),
   fileType: varchar('file_type', { length: 100 }).notNull(),
   originalName: varchar('original_name', { length: 255 }).notNull(),
-  fields: json('fields'),
-  version: integer('version').notNull().default(1),
-  isActive: boolean('is_active').notNull().default(true),
   createdByAdminId: text('created_by_admin_id').notNull(),
   updatedByAdminId: text('updated_by_admin_id'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 }, (table) => {
   return {
-    idxType: index('idx_templates_type').on(table.type),
-    idxIsActive: index('idx_templates_is_active').on(table.isActive),
     idxCreatedAt: index('idx_templates_created_at').on(table.createdAt),
   };
 });

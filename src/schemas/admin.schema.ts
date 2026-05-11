@@ -1,20 +1,27 @@
 import { z } from 'zod';
 
+const documentReviewArraySchema = z.array(z.object({
+  documentId: z.string(),
+  status: z.enum(['APPROVED', 'REJECTED']),
+  rejectionReason: z.string().optional(),
+}));
+
+const documentReviewRecordSchema = z.record(
+  z.string(),
+  z.enum(['approved', 'rejected'])
+);
+
 export const rejectSubmissionSchema = z.object({
   reason: z.string().min(1, 'Alasan penolakan harus diisi'),
-  documentReviews: z.array(z.object({
-    documentId: z.string(),
-    status: z.enum(['APPROVED', 'REJECTED']),
-    rejectionReason: z.string().optional(),
-  })).optional(),
+  documentReviews: documentReviewArraySchema.optional(),
 });
 
 export const approveSubmissionSchema = z.object({
-  documentReviews: z.array(z.object({
-    documentId: z.string(),
-    status: z.enum(['APPROVED', 'REJECTED']),
-    rejectionReason: z.string().optional(),
-  })).optional(),
+  documentReviews: z.union([
+    documentReviewArraySchema,
+    documentReviewRecordSchema,
+  ]).optional(),
+  autoGenerateLetter: z.boolean().optional().default(false),
   letterNumber: z.string().optional(),
 });
 

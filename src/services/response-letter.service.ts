@@ -454,7 +454,13 @@ export class ResponseLetterService {
       name: effectiveStudentName,
       nim: effectiveStudentNim,
       prodi: effectiveProdi,
-      tanggal: responseLetter.submittedAt.toISOString().split('T')[0],
+      tanggal: (() => {
+        const d = responseLetter.submittedAt;
+        const year = d.getFullYear();
+        const month = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+      })(),
       company: responseLetter.companyName || submission?.companyName || 'Unknown',
       role: roleLabel,
       memberCount: memberCount,

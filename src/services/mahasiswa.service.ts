@@ -194,7 +194,20 @@ export class MahasiswaService {
 
   private normalizeDate(value: string | Date | null | undefined): Date | null {
     if (!value) return null;
-    const parsed = value instanceof Date ? value : new Date(value);
+    let parsed: Date;
+    if (value instanceof Date) {
+      parsed = value;
+    } else if (typeof value === 'string') {
+      // For DATE-only strings (YYYY-MM-DD), parse without timezone
+      if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+        const [year, month, day] = value.split('-').map(Number);
+        parsed = new Date(year, month - 1, day);
+      } else {
+        parsed = new Date(value);
+      }
+    } else {
+      return null;
+    }
     return Number.isNaN(parsed.getTime()) ? null : parsed;
   }
 
@@ -203,7 +216,11 @@ export class MahasiswaService {
   }
 
   private formatDate(value: Date): string {
-    return value.toISOString().split('T')[0];
+    // Format as YYYY-MM-DD using local date values, not UTC
+    const year = value.getFullYear();
+    const month = String(value.getMonth() + 1).padStart(2, '0');
+    const day = String(value.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
   }
 
   private async resolvePrimaryTeam(mahasiswaId: string): Promise<TeamRecord | null> {
@@ -269,6 +286,8 @@ export class MahasiswaService {
     const start = this.toDateOnly(startDate);
     const end = this.toDateOnly(endDate);
 
+    
+
     if (today > end) {
       return {
         code: 'finished' as const,
@@ -329,17 +348,6 @@ export class MahasiswaService {
       };
     }
 
-    if (submission.status === 'PENDING_REVIEW' || workflowStage === 'PENDING_ADMIN_REVIEW' || workflowStage === 'PENDING_DOSEN_VERIFICATION') {
-      return {
-        code: 'pending_review' as const,
-        submitted: true,
-        label: 'Pengajuan telah dilakukan',
-        description: submission.submittedAt
-          ? `Waktu submit: ${this.formatDate(this.normalizeDate(submission.submittedAt) || new Date())}`
-          : undefined,
-      };
-    }
-
     if (submission.status === 'APPROVED' || workflowStage === 'COMPLETED') {
       return {
         code: 'approved' as const,
@@ -348,10 +356,21 @@ export class MahasiswaService {
       };
     }
 
+    if (submission.status === 'PENDING_REVIEW' || workflowStage === 'PENDING_ADMIN_REVIEW' || workflowStage === 'PENDING_DOSEN_VERIFICATION') {
+      return {
+        code: 'pending_review' as const,
+        submitted: true,
+        label: 'Pengajuan telah dikirimkan',
+        description: submission.submittedAt
+          ? `Waktu submit: ${this.formatDate(this.normalizeDate(submission.submittedAt) || new Date())}`
+          : undefined,
+      };
+    }
+
     return {
       code: 'pending_review' as const,
       submitted: true,
-      label: 'Pengajuan telah dilakukan',
+      label: 'Pengajuan telah dikirimkan',
     };
   }
 
@@ -363,8 +382,8 @@ export class MahasiswaService {
     if (!team || team.status === 'PENDING' || !submission) {
       return {
         title: 'Finalisasi Tim',
-        description: 'Tim Anda belum final. Selesaikan pembentukan tim terlebih dahulu.',
-        actionLabel: 'Ke Buat Tim',
+        description: 'Tim Anda belum ditetapkan. Segera lakukan finalisasi.',
+        actionLabel: 'Ke Pembentukan Tim',
         actionUrl: '/mahasiswa/kp/buat-tim',
       };
     }
@@ -373,7 +392,7 @@ export class MahasiswaService {
       return {
         title: 'Lengkapi Pengajuan',
         description: 'Lengkapi data pengajuan agar proses KP dapat dilanjutkan.',
-        actionLabel: 'Ke Pengajuan',
+        actionLabel: 'Ke Pengajuan KP',
         actionUrl: '/mahasiswa/kp/pengajuan',
       };
     }
@@ -393,9 +412,9 @@ export class MahasiswaService {
 
     if (responseLetter?.verified && responseLetter.letterStatus === 'rejected') {
       return {
-        title: 'Mulai ulang dari bentuk tim',
+        title: 'Lakukan pengajuan ulang',
         description: 'Surat balasan ditolak. Silakan mulai ulang proses dari pembentukan tim.',
-        actionLabel: 'Ke Buat Tim',
+        actionLabel: 'Ke Pembentukan Tim',
         actionUrl: '/mahasiswa/kp/buat-tim',
       };
     }
@@ -403,7 +422,7 @@ export class MahasiswaService {
     if (responseLetter?.verified && responseLetter.letterStatus === 'approved') {
       return {
         title: 'Pelaksanaan kerja praktik',
-        description: 'Surat balasan telah disetujui. Lanjutkan pelaksanaan kerja praktik.',
+        description: 'Surat balasan telah diverifikasi. Lanjutkan pelaksanaan kerja praktik.',
         actionLabel: 'Ke Saat Magang',
         actionUrl: '/mahasiswa/kp/saat-magang',
       };
@@ -411,18 +430,18 @@ export class MahasiswaService {
 
     if ((submission.workflowStage === 'COMPLETED' || submission.status === 'APPROVED') && !responseLetter) {
       return {
-        title: 'Upload surat balasan',
+        title: 'Unggah surat balasan',
         description: 'Unggah surat balasan dari perusahaan untuk melanjutkan proses.',
-        actionLabel: 'Ke Surat Balasan',
+        actionLabel: 'Unggah Surat Balasan',
         actionUrl: '/mahasiswa/kp/surat-balasan',
       };
     }
 
     if ((responseLetter && !responseLetter.verified) || submission.responseLetterStatus === 'submitted') {
       return {
-        title: 'Menunggu pemverifikasian surat balasan',
-        description: 'Surat balasan sudah dikirim and sedang menunggu verifikasi.',
-        actionLabel: 'Lihat Surat Balasan',
+        title: 'Menunggu verifikasi surat balasan',
+        description: 'Surat balasan sudah dikirim dan sedang menunggu verifikasi.',
+        actionLabel: 'Ke Surat Balasan',
         actionUrl: '/mahasiswa/kp/surat-balasan',
       };
     }
@@ -528,7 +547,7 @@ export class MahasiswaService {
     try {
       const token = await this.authService.getSessionAccessToken(sessionId);
       const baseUrl = this.env.SSO_BASE_URL;
-      const url = `${baseUrl}/api/integrations/profile-service/mahasiswa/count-by-semester/${semester}`;
+      const url = `${baseUrl}/api/mahasiswa/stats/count-by-semester/${semester}`;
 
       const response = await fetch(url, {
         headers: {

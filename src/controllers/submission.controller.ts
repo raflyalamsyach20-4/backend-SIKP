@@ -218,7 +218,8 @@ export class SubmissionController {
       const user = this.c.get('user');
       const submissionId = this.c.req.param('submissionId');
 
-      const result = await this.submissionService.getLetterRequestStatus(submissionId, user.mahasiswaId!);
+      const sessionId = this.c.get('sessionId');
+      const result = await this.submissionService.getLetterRequestStatus(submissionId, user.mahasiswaId!, sessionId);
 
       return this.c.json(createResponse(true, 'Status ajuan surat berhasil diambil', result));
     } catch (error) {

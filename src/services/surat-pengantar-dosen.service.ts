@@ -280,6 +280,7 @@ export class SuratPengantarDosenService {
       : currentHistory;
 
     return await this.submissionRepo.update(requestId, {
+      status: 'APPROVED',
       workflowStage: 'COMPLETED',
       dosenVerificationStatus: 'APPROVED',
       dosenVerifiedAt: approvedAt,

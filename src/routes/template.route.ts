@@ -12,14 +12,6 @@ export const createTemplateRoutes = () => {
   const router = new Hono<{ Bindings: CloudflareBindings }>()
     // Apply auth middleware to all template routes
     .use('*', authMiddleware)
-    // Public read routes (specific paths first)
-    .get(
-      '/active',
-      zValidator('query', emptyQuerySchema),
-      async (c) => {
-        return new TemplateController(c).getActive();
-      }
-    )
     .get(
       '/',
       zValidator('query', emptyQuerySchema),
@@ -52,15 +44,6 @@ export const createTemplateRoutes = () => {
       zValidator('query', emptyQuerySchema),
       async (c) => {
         return new TemplateController(c).delete();
-      }
-    )
-    .patch(
-      '/:id/toggle-active',
-      adminOnly,
-      zValidator('param', nonEmptyStringParamsSchema),
-      zValidator('query', emptyQuerySchema),
-      async (c) => {
-        return new TemplateController(c).toggleActive();
       }
     )
     // Public read routes (by ID and download)

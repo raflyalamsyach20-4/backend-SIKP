@@ -314,6 +314,45 @@ export class ResponseLetterRepository {
     return result.length;
   }
 
+  async countVerifiedTeams() {
+    const result = await this.db
+      .select({ teamId: submissions.teamId })
+      .from(responseLetters)
+      .innerJoin(submissions, eq(responseLetters.submissionId, submissions.id))
+      .where(
+        and(
+          eq(responseLetters.letterStatus, 'approved'),
+          eq(responseLetters.verified, true)
+        )
+      );
+
+    const uniqueTeams = new Set(result.map((r) => r.teamId));
+    return uniqueTeams.size;
+  }
+
+  async countVerifiedStudents() {
+    const result = await this.db
+      .select({ mahasiswaId: teamMembers.mahasiswaId })
+      .from(responseLetters)
+      .innerJoin(submissions, eq(responseLetters.submissionId, submissions.id))
+      .innerJoin(teamMembers, eq(submissions.teamId, teamMembers.teamId))
+      .where(
+        and(
+          eq(responseLetters.letterStatus, 'approved'),
+          eq(responseLetters.verified, true),
+          eq(teamMembers.invitationStatus, 'ACCEPTED')
+        )
+      );
+
+    const uniqueStudents = new Set(result.map((r) => r.mahasiswaId));
+    return uniqueStudents.size;
+  }
+
+  async countAll() {
+    const result = await this.db.select().from(responseLetters);
+    return result.length;
+  }
+
   /**
    * Delete response letter
    */
