@@ -1,1 +1,0 @@
-ALTER TABLE "submission_documents" ALTER COLUMN "file_type" SET DATA TYPE varchar(100);

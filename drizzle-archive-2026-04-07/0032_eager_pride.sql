@@ -1,2 +1,0 @@
-ALTER TABLE "surat_permohonan_requests" ADD COLUMN "mahasiswa_esignature_url" text;--> statement-breakpoint
-ALTER TABLE "surat_permohonan_requests" ADD COLUMN "mahasiswa_esignature_snapshot_at" timestamp;

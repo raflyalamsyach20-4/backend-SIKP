@@ -1,1 +1,0 @@
-ALTER TABLE "surat_permohonan_requests" DROP COLUMN IF EXISTS "rejection_reason";

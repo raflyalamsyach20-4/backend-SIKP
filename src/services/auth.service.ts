@@ -260,9 +260,11 @@ export class AuthService {
     };
 
     const profileUrl = this.env.SSO_PROFILE_URL || `${this.env.SSO_BASE_URL}/profile`;
+    console.log(`[AuthService.fetchProfileAndIdentities] Fetching from: ${profileUrl}`);
     const profileResp = await fetch(profileUrl, { headers });
     if (!profileResp.ok) {
       const body = await profileResp.text();
+      console.error(`[AuthService.fetchProfileAndIdentities] SSO Error (${profileResp.status}):`, body);
       const error = new Error(
         `Failed to fetch user profile from SSO (${profileResp.status}): ${body}`,
       ) as Error & { statusCode?: number };
