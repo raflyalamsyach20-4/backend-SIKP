@@ -259,9 +259,35 @@ export class AuthService {
       Accept: "application/json",
     };
 
-    const profileUrl = this.env.SSO_PROFILE_URL || `${this.env.SSO_BASE_URL}/profile`;
+    let profileUrl = this.env.SSO_USERINFO_URL || this.env.SSO_PROFILE_URL || `${this.env.SSO_BASE_URL}/profile`;
     console.log(`[AuthService.fetchProfileAndIdentities] Fetching from: ${profileUrl}`);
-    const profileResp = await fetch(profileUrl, { headers });
+    
+    let profileResp = await fetch(profileUrl, { headers });
+    
+    // If it fails with 404 or 410 or returns the specific "legacy route" message, try fallback
+    if (!profileResp.ok) {
+      const body = await profileResp.clone().text();
+      const isLegacyError = profileResp.status === 410 || 
+                          profileResp.status === 404 || 
+                          body.includes("legacy identity route") || 
+                          body.includes("big-bang cutover") ||
+                          body.includes("Endpoint not found");
+      
+      if (isLegacyError) {
+        let fallbackUrl: string | null = null;
+        if (profileUrl.endsWith('/profile')) {
+          fallbackUrl = `${this.env.SSO_BASE_URL}/me`;
+        } else if (profileUrl.endsWith('/me')) {
+          fallbackUrl = `${this.env.SSO_BASE_URL}/profile`;
+        }
+
+        if (fallbackUrl) {
+          console.warn(`[AuthService.fetchProfileAndIdentities] Profile URL (${profileUrl}) failed or legacy detected. Trying fallback: ${fallbackUrl}`);
+          profileResp = await fetch(fallbackUrl, { headers });
+        }
+      }
+    }
+
     if (!profileResp.ok) {
       const body = await profileResp.text();
       console.error(`[AuthService.fetchProfileAndIdentities] SSO Error (${profileResp.status}):`, body);

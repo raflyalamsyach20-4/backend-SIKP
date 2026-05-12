@@ -118,7 +118,10 @@ export class MentorWorkflowService {
         
         if (!isAuthorized) {
           const internship = await this.workflowRepo.getActiveInternshipByMahasiswaId(req.studentUserId);
-          if (internship && internship.dosenPembimbingId === reviewerUserId) {
+          if (internship && (
+            internship.dosenPembimbingId === reviewerUserId ||
+            (internship as any).dosenPaId === reviewerUserId
+          )) {
             isAuthorized = true;
           }
         }
@@ -312,7 +315,10 @@ export class MentorWorkflowService {
     const isDosenPa = studentSso.dosenPA?.profileId === reviewerUserId;
     if (!isDosenPa) {
       const internship = await this.workflowRepo.getActiveInternshipByMahasiswaId(studentSso.id);
-      if (!internship || internship.dosenPembimbingId !== reviewerUserId) {
+      const internshipAny = internship as any;
+      const isDosenPembimbing = internship?.dosenPembimbingId === reviewerUserId;
+      const isDosenPaById = internshipAny?.dosenPaId === reviewerUserId;
+      if (!isDosenPembimbing && !isDosenPaById) {
          throw this.createServiceError('Only the assigned Dosen PA/Pembimbing can approve this request', 'FORBIDDEN_REVIEWER', 403);
       }
     }

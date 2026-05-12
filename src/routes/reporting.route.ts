@@ -1,5 +1,5 @@
 import { Hono } from 'hono';
-import { authMiddleware, mahasiswaOnly, dosenOnly } from '@/middlewares/auth.middleware';
+import { authMiddleware, mahasiswaOnly, dosenOnly, staffOnly } from '@/middlewares/auth.middleware';
 import { ReportingController } from '@/controllers/reporting.controller';
 
 export const createReportingRoutes = () => {
@@ -46,6 +46,29 @@ export const createReportingRoutes = () => {
 
   route.get('/report/:internshipId',
     async (c) => new ReportingController(c).getReport()
+  );
+
+  // Lecturer - Mentees Reports
+  route.get('/lecturer/reports',
+    dosenOnly,
+    async (c) => new ReportingController(c).getMenteesReports()
+  );
+
+  route.post('/report/:id/approve',
+    dosenOnly,
+    async (c) => new ReportingController(c).approveReport()
+  );
+
+  route.post('/report/:id/reject',
+    dosenOnly,
+    async (c) => new ReportingController(c).rejectReport()
+  );
+
+  // ── Admin Utilities ──────────────────────────────────────────────────────
+  // One-time repair: isi dosenPembimbingId dari titleSubmissions yang sudah approved
+  route.post('/admin/backfill-dosen',
+    staffOnly,
+    async (c) => new ReportingController(c).backfillDosenPembimbing()
   );
 
   return route;

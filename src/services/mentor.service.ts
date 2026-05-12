@@ -286,9 +286,17 @@ export class MentorService {
 
   // ─── Assessments ────────────────────────────────────────────────────────────
 
-  async createAssessment(mentorId: string, identityId: string, data: Omit<CreateAssessmentData, 'internshipId'> & { studentUserId: string }, sessionId: string) {
-    const internshipId = await this.mentorRepo.getInternshipIdForMentee(mentorId, identityId, data.studentUserId);
-    if (!internshipId) throw this.createServiceError('Student not found or not supervised by this mentor', 'INTERNSHIP_NOT_FOUND', 404);
+  async createAssessment(mentorId: string, identityId: string, data: CreateAssessmentData, sessionId: string) {
+    let internshipId: string | undefined = data.internshipId;
+
+    if (!internshipId && data.studentUserId) {
+      const resolvedId = await this.mentorRepo.getInternshipIdForMentee(mentorId, identityId, data.studentUserId);
+      internshipId = resolvedId || undefined;
+    }
+
+    if (!internshipId) {
+      throw this.createServiceError('Internship ID or Student User ID is required', 'INVALID_INPUT', 400);
+    }
 
     // Check for existing assessment
     const existing = await this.mentorRepo.getAssessmentByInternshipId(internshipId);
@@ -316,10 +324,22 @@ export class MentorService {
     return assessment;
   }
 
+  async getAssessmentByStudentIdOnly(studentUserId: string) {
+    const internshipId = await this.mentorRepo.getInternshipIdByStudentId(studentUserId);
+    if (!internshipId) return null;
+
+    const assessment = await this.mentorRepo.getAssessmentByInternshipId(internshipId);
+    return assessment;
+  }
+
   async updateAssessment(mentorId: string, assessmentId: string, data: UpdateAssessmentData) {
     const existing = await this.mentorRepo.findAssessmentById(assessmentId);
     if (!existing) throw new Error('Assessment not found');
     if (existing.pembimbingLapanganId !== mentorId) throw new Error('Access denied: This assessment belongs to a different mentor');
+
+    if (existing.isLocked) {
+      throw new Error('Assessment is locked. Please unlock it first to edit.');
+    }
 
     if (data.kehadiran !== undefined || data.kerjasama !== undefined ||
         data.sikapEtika !== undefined || data.prestasiKerja !== undefined ||
@@ -334,6 +354,14 @@ export class MentorService {
     }
 
     return this.mentorRepo.updateAssessment(assessmentId, data);
+  }
+
+  async unlockAssessment(mentorId: string, assessmentId: string) {
+    const existing = await this.mentorRepo.findAssessmentById(assessmentId);
+    if (!existing) throw new Error('Assessment not found');
+    if (existing.pembimbingLapanganId !== mentorId) throw new Error('Access denied: This assessment belongs to a different mentor');
+
+    return this.mentorRepo.unlockAssessment(assessmentId);
   }
 
   // ─── Helpers ────────────────────────────────────────────────────────────────

@@ -334,6 +334,30 @@ export class MentorController {
   };
 
   /**
+   * GET /api/mentorship/assessments/me
+   */
+  getAssessmentForMe = async () => {
+    try {
+      const user = this.c.get('user') as JWTPayload;
+      const sessionId = (this.c.get('sessionId') as string) || '';
+      if (!user?.mahasiswaId) return this.c.json(createResponse(false, 'Unauthorized or not a student'), 401);
+
+      // We use getAssessmentByStudent logic but with the student's own ID from session
+      // Note: We don't have a mentorProfileId here, so we might need a service method that doesn't check mentor ownership
+      // OR we just use the studentId to find the assessment.
+      const assessment = await this.mentorService.getAssessmentByStudentIdOnly(user.mahasiswaId);
+
+      if (!assessment) {
+        return this.c.json(createResponse(true, 'No assessment found for you yet', null), 200);
+      }
+
+      return this.c.json(createResponse(true, 'Assessment retrieved successfully', assessment), 200);
+    } catch (error) {
+      return handleError(this.c, error, 'Failed to get your assessment');
+    }
+  };
+
+  /**
    * GET /api/mentorship/assessments/:studentId
    */
   getAssessmentByStudent = async () => {
@@ -388,6 +412,24 @@ export class MentorController {
       if (error instanceof Error && error.message.includes('between 0 and 100')) {
         return this.c.json(createResponse(false, error.message), 400);
       }
+    }
+  };
+
+  /**
+   * POST /api/mentorship/assessments/:assessmentId/unlock
+   */
+  unlockAssessment = async () => {
+    try {
+      const context = this.getMentorContext();
+      if (!context) return this.c.json(createResponse(false, 'Unauthorized'), 401);
+
+      const assessmentId = this.c.req.param('assessmentId');
+      const unlocked = await this.mentorService.unlockAssessment(context.profileId, assessmentId);
+
+      return this.c.json(createResponse(true, 'Assessment unlocked successfully', unlocked), 200);
+    } catch (error) {
+      if (error instanceof Error && error.message.includes('not found')) return this.notFound(error.message);
+      if (error instanceof Error && error.message.includes('Access denied')) return this.forbidden(error.message);
       return handleError(this.c, error);
     }
   };

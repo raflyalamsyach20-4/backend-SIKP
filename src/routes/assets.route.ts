@@ -63,7 +63,8 @@ export const createAssetRoutes = () => {
         'signatures/', 
         'submissions/', 
         'logbooks/', 
-        'surat-kesediaan/'
+        'surat-kesediaan/',
+        'reports/'
       ];
       const isAllowed = allowedPrefixes.some(prefix => objectKey.startsWith(prefix));
 
@@ -77,10 +78,17 @@ export const createAssetRoutes = () => {
         return c.json({ success: false, message: 'Asset not found' }, 404);
       }
 
-      const contentType = object.httpMetadata?.contentType || 'application/octet-stream';
+      let contentType = object.httpMetadata?.contentType || 'application/octet-stream';
+      
+      // Fallback for PDFs that were uploaded with generic type
+      if (contentType === 'application/octet-stream' && objectKey.toLowerCase().endsWith('.pdf')) {
+        contentType = 'application/pdf';
+      }
+
       const etag = object.httpEtag;
 
       c.header('Content-Type', contentType);
+      c.header('Content-Disposition', 'inline');
       c.header('Cache-Control', 'public, max-age=3600');
       if (etag) {
         c.header('ETag', etag);

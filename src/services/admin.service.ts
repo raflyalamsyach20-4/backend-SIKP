@@ -261,9 +261,18 @@ export class AdminService {
           return;
         }
 
-        // Fetch student detail to get their Dosen PA
+        // Fetch student detail to get their own Dosen PA from SSO
         const studentDetail = await this.mahasiswaService.getMahasiswaById(member.mahasiswaId, sessionId);
         const dosenPaId = studentDetail?.dosenPA?.profile?.id || studentDetail?.dosenPA?.id || null;
+
+        // dosenPembimbingId:
+        //   1st priority: team.dosenKpId (Dosen PA ketua tim, set saat createTeam)
+        //   2nd priority: dosenPA anggota sendiri dari SSO (fallback jika tim lama atau null)
+        const resolvedDosenPembimbingId = team?.dosenKpId ?? dosenPaId ?? null;
+
+        if (!resolvedDosenPembimbingId) {
+          console.warn(`[ensureInternshipsForSubmission] ⚠️ dosenPembimbingId masih null untuk mahasiswaId=${member.mahasiswaId}. Pastikan Dosen PA sudah ditetapkan di SSO.`);
+        }
 
         await this.submissionRepo.createInternship({
           id: generateId(),
@@ -271,7 +280,7 @@ export class AdminService {
           mahasiswaId: member.mahasiswaId,
           teamId: submission.teamId,
           pembimbingLapanganId: null,
-          dosenPembimbingId: team?.dosenKpId ?? null,
+          dosenPembimbingId: resolvedDosenPembimbingId,
           dosenPaId: dosenPaId,
           companyName: submission.companyName,
           division: submission.division ?? null,

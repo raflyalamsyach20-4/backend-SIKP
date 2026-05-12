@@ -35,6 +35,8 @@ export class MonitoringService {
           ...m,
           studentName: profile?.profile.fullName || 'N/A',
           nim: profile?.nim || 'N/A',
+          programStudi: profile?.prodi?.nama || 'N/A',
+          mentorName: m.mentorName || null,
         };
       })
     );

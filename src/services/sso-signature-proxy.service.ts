@@ -45,6 +45,38 @@ export class SsoSignatureProxyService {
       console.log(`[SsoSignatureProxyService.getActiveSignature] Response status: ${response.status}`);
 
       if (!response.ok) {
+        const body = await response.clone().text();
+        const isLegacyError = response.status === 410 || 
+                            response.status === 404 || 
+                            body.includes("legacy identity route") || 
+                            body.includes("big-bang cutover") ||
+                            body.includes("Endpoint not found");
+
+        if (isLegacyError) {
+          let fallbackUrl: string | null = null;
+          if (url.endsWith('/profile/signature')) {
+            fallbackUrl = url.replace('/profile/signature', '/me/signature');
+          } else if (url.endsWith('/me/signature')) {
+            fallbackUrl = url.replace('/me/signature', '/profile/signature');
+          }
+
+          if (fallbackUrl && fallbackUrl !== url) {
+            console.warn(`[SsoSignatureProxyService.getActiveSignature] Signature URL (${url}) failed. Trying fallback: ${fallbackUrl}`);
+            const retryResp = await fetch(fallbackUrl, {
+              method: 'GET',
+              headers: {
+                'Authorization': `Bearer ${accessToken}`,
+                'Accept': 'application/json',
+              },
+            });
+
+            if (retryResp.ok) {
+              const payload = (await retryResp.json()) as SsoSignatureResponse;
+              return payload.data.activeSignature;
+            }
+          }
+        }
+
         const responseText = await response.text();
         console.error(`[SsoSignatureProxyService.getActiveSignature] Failed with status ${response.status}. Response: ${responseText.substring(0, 200)}`);
         return null;

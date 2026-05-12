@@ -1,6 +1,6 @@
 import { and, desc, eq, sql } from 'drizzle-orm';
 import type { DbClient } from '@/db';
-import { internships, logbooks, mentorApprovalRequests } from '@/db/schema';
+import { internships, logbooks, mentorApprovalRequests, titleSubmissions } from '@/db/schema';
 
 export class MonitoringRepository {
   constructor(private db: DbClient) {}
@@ -11,8 +11,7 @@ export class MonitoringRepository {
   async getLecturerMenteesProgress(lecturerId: string) {
     try {
       console.log(`[MonitoringRepository.getLecturerMenteesProgress] Fetching for lecturerId: ${lecturerId}`);
-      // 1. Get basic internship & student info
-      // Include student if lecturer is assigned as Pembimbing KP OR as Dosen PA
+      // 1. Get basic internship & student info with title submission if exists
       const mentees = await this.db
         .select({
           internshipId: internships.id,
@@ -20,11 +19,24 @@ export class MonitoringRepository {
           companyName: internships.companyName,
           startDate: internships.startDate,
           endDate: internships.endDate,
-          status: internships.status,
+          internshipStatus: internships.status,
           dosenPaId: internships.dosenPaId,
           dosenPembimbingId: internships.dosenPembimbingId,
+          proposedTitle: titleSubmissions.proposedTitle,
+          description: titleSubmissions.description,
+          status: titleSubmissions.status, // Override with title status
+          titleSubmissionId: titleSubmissions.id,
+          mentorName: mentorApprovalRequests.mentorName,
         })
         .from(internships)
+        .leftJoin(titleSubmissions, eq(internships.id, titleSubmissions.internshipId))
+        .leftJoin(
+          mentorApprovalRequests, 
+          and(
+            eq(internships.mahasiswaId, mentorApprovalRequests.studentUserId),
+            eq(mentorApprovalRequests.status, 'APPROVED')
+          )
+        )
         .where(
           sql`${internships.dosenPembimbingId} = ${lecturerId} OR ${internships.dosenPaId} = ${lecturerId}`
         );

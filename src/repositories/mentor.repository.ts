@@ -9,7 +9,8 @@ import {
 import { generateId } from '@/utils/helpers';
 
 export interface CreateAssessmentData {
-  internshipId: string;
+  internshipId?: string;
+  studentUserId?: string;
   kehadiran: number;
   kerjasama: number;
   sikapEtika: number;
@@ -151,6 +152,23 @@ export class MentorRepository {
   }
 
   /**
+   * Get active internship ID for a student
+   */
+  async getInternshipIdByStudentId(studentUserId: string): Promise<string | null> {
+    try {
+      const result = await this.db
+        .select({ id: internships.id })
+        .from(internships)
+        .where(eq(internships.mahasiswaId, studentUserId))
+        .limit(1);
+      return result[0]?.id ?? null;
+    } catch (error) {
+      console.error('[MentorRepository.getInternshipIdByStudentId] Error:', error);
+      throw error;
+    }
+  }
+
+  /**
    * Get internship ID for a mentee supervised by this mentor
    */
   async getInternshipIdForMentee(mentorProfileId: string, identityId: string, studentUserId: string): Promise<string | null> {
@@ -213,7 +231,7 @@ export class MentorRepository {
 
       await this.db.insert(assessments).values({
         id,
-        internshipId: data.internshipId,
+        internshipId: data.internshipId!,
         pembimbingLapanganId: mentorId,
         kehadiran: data.kehadiran,
         kerjasama: data.kerjasama,
@@ -222,6 +240,7 @@ export class MentorRepository {
         kreatifitas: data.kreatifitas,
         totalScore,
         feedback: data.feedback ?? null,
+        isLocked: true, // Always locked after creation
         assessedAt: now,
         createdAt: now,
         updatedAt: now,
@@ -283,6 +302,7 @@ export class MentorRepository {
           ...merged,
           totalScore,
           feedback: data.feedback !== undefined ? data.feedback : existing.feedback,
+          isLocked: true, // Re-lock after update
           updatedAt: new Date(),
         })
         .where(eq(assessments.id, id));
@@ -290,6 +310,22 @@ export class MentorRepository {
       return this.findAssessmentById(id);
     } catch (error) {
       console.error('[MentorRepository.updateAssessment] Error:', error);
+      throw error;
+    }
+  }
+
+  async unlockAssessment(id: string) {
+    try {
+      await this.db
+        .update(assessments)
+        .set({
+          isLocked: false,
+          updatedAt: new Date(),
+        })
+        .where(eq(assessments.id, id));
+      return this.findAssessmentById(id);
+    } catch (error) {
+      console.error('[MentorRepository.unlockAssessment] Error:', error);
       throw error;
     }
   }
