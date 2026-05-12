@@ -188,7 +188,7 @@ export class ReportingController {
   getMenteesReports = async () => {
     try {
       const user = this.c.get('user') as JWTPayload;
-      const data = await this.reportingService.getMenteesReports(user.dosenId);
+      const data = await this.reportingService.getMenteesReports(user.dosenId!);
       return this.c.json(createResponse(true, 'Mentees reports retrieved', data), 200);
     } catch (error) {
       return handleError(this.c, error);
@@ -202,7 +202,7 @@ export class ReportingController {
     try {
       const user = this.c.get('user') as JWTPayload;
       const id = this.c.req.param('id');
-      const result = await this.reportingService.approveReport(id, user.dosenId);
+      const result = await this.reportingService.approveReport(id, user.dosenId!);
       return this.c.json(createResponse(true, 'Report approved successfully', result), 200);
     } catch (error) {
       return handleError(this.c, error);
@@ -218,7 +218,7 @@ export class ReportingController {
       const id = this.c.req.param('id');
       const { reason } = await this.c.req.json();
       
-      const result = await this.reportingService.rejectReport(id, user.dosenId, reason);
+      const result = await this.reportingService.rejectReport(id, user.dosenId!, reason);
       return this.c.json(createResponse(true, 'Report rejected successfully', result), 200);
     } catch (error) {
       return handleError(this.c, error);
