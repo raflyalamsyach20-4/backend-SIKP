@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
 import { AdminController } from '../controllers/admin.controller';
+import { PenilaianController } from '../controllers/penilaian.controller';
 import { authMiddleware, staffOnly } from '../middlewares/auth.middleware';
 import { 
   rejectSubmissionSchema, 
@@ -29,6 +30,9 @@ export const createAdminRoutes = () => {
   // Dashboard & Statistics
   admin.get('/dashboard', (c) => new AdminController(c).getDashboard());
   admin.get('/statistics', (c) => new AdminController(c).getStatistics());
+
+  // Assessment Criteria
+  admin.put('/penilaian/kriteria', (c) => new PenilaianController(c).updateKriteria());
 
   return admin;
 };

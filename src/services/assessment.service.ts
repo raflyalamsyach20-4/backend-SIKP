@@ -1,6 +1,6 @@
 import { createDbClient } from '@/db';
-import { assessments, lecturerAssessments, combinedGrades, internships, mentorSignatures } from '@/db/schema';
-import { eq } from 'drizzle-orm';
+import { assessments, lecturerAssessments, combinedGrades, internships, mentorSignatures, assessmentCriteria } from '@/db/schema';
+import { asc, eq } from 'drizzle-orm';
 import { generateId } from '@/utils/helpers';
 import { MahasiswaService } from './mahasiswa.service';
 import { DosenService } from './dosen.service';
@@ -40,20 +40,35 @@ export class AssessmentService {
     else if (finalScore >= 60) letterGrade = 'C';
     else if (finalScore >= 50) letterGrade = 'D';
 
-    // 4. Save Combined Grade
-    const id = generateId();
-    await this.db.insert(combinedGrades).values({
-      id,
-      internshipId,
-      assessmentId: mentorAssessment?.id || null,
-      lecturerAssessmentId,
-      fieldScore,
-      academicScore,
-      finalScore,
-      letterGrade,
-      status: 'APPROVED',
-      calculatedAt: new Date(),
-    });
+    // 4. Save Combined Grade (Upsert based on internshipId)
+    await this.db
+      .insert(combinedGrades)
+      .values({
+        id: generateId(),
+        internshipId,
+        assessmentId: mentorAssessment?.id || null,
+        lecturerAssessmentId,
+        fieldScore,
+        academicScore,
+        finalScore,
+        letterGrade,
+        status: 'APPROVED',
+        calculatedAt: new Date(),
+      })
+      .onConflictDoUpdate({
+        target: combinedGrades.internshipId,
+        set: {
+          assessmentId: mentorAssessment?.id || null,
+          lecturerAssessmentId,
+          fieldScore,
+          academicScore,
+          finalScore,
+          letterGrade,
+          status: 'APPROVED',
+          calculatedAt: new Date(),
+          updatedAt: new Date(),
+        },
+      });
 
     // 5. Mark Internship as SELESAI
     await this.db.update(internships)
@@ -66,18 +81,100 @@ export class AssessmentService {
   /**
    * Get full assessment recap for an internship
    */
-  async getAssessmentRecap(internshipId: string) {
-    const [combined, mentorScore, lecturerScore] = await Promise.all([
+  async getAssessmentRecap(internshipId: string, sessionId?: string) {
+    const [combined, mentorScore, lecturerScore, internshipRows] = await Promise.all([
       this.db.select().from(combinedGrades).where(eq(combinedGrades.internshipId, internshipId)).limit(1),
       this.db.select().from(assessments).where(eq(assessments.internshipId, internshipId)).limit(1),
       this.db.select().from(lecturerAssessments).where(eq(lecturerAssessments.internshipId, internshipId)).limit(1),
+      this.db.select().from(internships).where(eq(internships.id, internshipId)).limit(1),
     ]);
 
+    const internship = internshipRows[0] || null;
+    let studentProfile: Awaited<ReturnType<MahasiswaService['getMahasiswaById']>> | null = null;
+    let dosenProfile: Awaited<ReturnType<DosenService['getDosenById']>> | null = null;
+
+    if (internship?.mahasiswaId && sessionId) {
+      studentProfile = await this.mahasiswaService.getMahasiswaById(internship.mahasiswaId, sessionId);
+    }
+
+    if (internship?.dosenPembimbingId && sessionId) {
+      dosenProfile = await this.dosenService.getDosenById(internship.dosenPembimbingId, sessionId);
+    }
+
     return {
-      combined: combined[0] || null,
+      student: internship
+        ? {
+            id: internship.mahasiswaId,
+            name: studentProfile?.profile.fullName || '-',
+            nim: studentProfile?.nim || '-',
+            photo: null,
+          }
+        : null,
+      companyName: internship?.companyName || null,
+      startDate: internship?.startDate || null,
+      endDate: internship?.endDate || null,
+      mentorName: null,
+      lecturerName: dosenProfile?.profile.fullName || null,
       mentor: mentorScore[0] || null,
       lecturer: lecturerScore[0] || null,
+      combined: combined[0] || null,
     };
+  }
+
+  async getCriteria(type: 'MENTOR' | 'DOSEN_PA') {
+    return this.db
+      .select()
+      .from(assessmentCriteria)
+      .where(eq(assessmentCriteria.type, type))
+      .orderBy(asc(assessmentCriteria.sortOrder), asc(assessmentCriteria.label));
+  }
+
+  async replaceCriteria(
+    type: 'MENTOR' | 'DOSEN_PA',
+    criteria: Array<{
+      id?: string;
+      categoryId?: string;
+      category?: string;
+      label?: string;
+      description?: string;
+      weight?: number;
+      maxScore?: number;
+      sortOrder?: number;
+      isActive?: boolean;
+    }>,
+  ) {
+    const now = new Date();
+
+    await this.db.transaction(async (tx) => {
+      await tx.delete(assessmentCriteria).where(eq(assessmentCriteria.type, type));
+
+      if (criteria.length === 0) {
+        return;
+      }
+
+      const values = criteria.map((item, index) => {
+        const id = item.categoryId || item.id || generateId();
+        const label = item.label || item.category || 'Kategori';
+        const categoryKey = item.category || label.toLowerCase().replace(/\s+/g, '_');
+
+        return {
+          id,
+          type,
+          categoryId: item.categoryId || item.id || id,
+          categoryKey,
+          label,
+          description: item.description || null,
+          weight: Number(item.weight) || 0,
+          maxScore: Number(item.maxScore) || 100,
+          sortOrder: typeof item.sortOrder === 'number' ? item.sortOrder : index + 1,
+          isActive: typeof item.isActive === 'boolean' ? item.isActive : true,
+          createdAt: now,
+          updatedAt: now,
+        };
+      });
+
+      await tx.insert(assessmentCriteria).values(values);
+    });
   }
 
   /**

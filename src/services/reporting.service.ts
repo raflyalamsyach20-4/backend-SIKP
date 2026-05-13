@@ -299,24 +299,53 @@ export class ReportingService {
     const now = new Date();
 
     const academicScore = Math.round(
-      (scores.formatKesesuaian + scores.penguasaanMateri + scores.analisisPerancangan + scores.sikapEtika) / 4
+      (scores.formatKesesuaian * 0.3) + 
+      (scores.penguasaanMateri * 0.3) + 
+      (scores.analisisPerancangan * 0.3) + 
+      (scores.sikapEtika * 0.1)
     );
 
-    const lecturerAssessmentId = generateId();
-    await this.db.insert(lecturerAssessments).values({
-      id: lecturerAssessmentId,
-      internshipId,
-      dosenId,
-      formatKesesuaian: scores.formatKesesuaian,
-      penguasaanMateri: scores.penguasaanMateri,
-      analisisPerancangan: scores.analisisPerancangan,
-      sikapEtika: scores.sikapEtika,
-      totalScore: academicScore,
-      feedback: scores.feedback,
-      assessedAt: now,
-      createdAt: now,
-      updatedAt: now,
-    });
+    const existing = await this.db
+      .select()
+      .from(lecturerAssessments)
+      .where(eq(lecturerAssessments.internshipId, internshipId))
+      .limit(1);
+
+    let lecturerAssessmentId: string;
+
+    if (existing.length > 0) {
+      lecturerAssessmentId = existing[0].id;
+      await this.db
+        .update(lecturerAssessments)
+        .set({
+          dosenId,
+          formatKesesuaian: scores.formatKesesuaian,
+          penguasaanMateri: scores.penguasaanMateri,
+          analisisPerancangan: scores.analisisPerancangan,
+          sikapEtika: scores.sikapEtika,
+          totalScore: academicScore,
+          feedback: scores.feedback,
+          assessedAt: now,
+          updatedAt: now,
+        })
+        .where(eq(lecturerAssessments.id, lecturerAssessmentId));
+    } else {
+      lecturerAssessmentId = generateId();
+      await this.db.insert(lecturerAssessments).values({
+        id: lecturerAssessmentId,
+        internshipId,
+        dosenId,
+        formatKesesuaian: scores.formatKesesuaian,
+        penguasaanMateri: scores.penguasaanMateri,
+        analisisPerancangan: scores.analisisPerancangan,
+        sikapEtika: scores.sikapEtika,
+        totalScore: academicScore,
+        feedback: scores.feedback,
+        assessedAt: now,
+        createdAt: now,
+        updatedAt: now,
+      });
+    }
 
     await this.db.update(reports)
       .set({ status: 'APPROVED', approvalStatus: 'APPROVED', reviewedBy: dosenId, reviewedAt: now })

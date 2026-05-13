@@ -20,6 +20,7 @@ export const logbookStatusEnum = pgEnum('logbook_status', ['PENDING', 'APPROVED'
 export const reportStatusEnum = pgEnum('report_status', ['DRAFT', 'SUBMITTED', 'APPROVED', 'NEEDS_REVISION', 'REJECTED']);
 export const titleStatusEnum = pgEnum('title_status', ['PENDING', 'APPROVED', 'REJECTED']);
 export const approvalStatusEnum = pgEnum('approval_status', ['PENDING', 'APPROVED', 'REJECTED']);
+export const assessmentCriteriaTypeEnum = pgEnum('assessment_criteria_type', ['MENTOR', 'DOSEN_PA']);
 
 // Minimal auth session store for SSO cutover
 export const authSessions = pgTable('auth_sessions', {
@@ -328,6 +329,28 @@ export const lecturerAssessments = pgTable('lecturer_assessments', {
   assessedAt: timestamp('assessed_at').defaultNow().notNull(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
+});
+
+// Assessment Criteria Table (Admin-managed)
+export const assessmentCriteria = pgTable('assessment_criteria', {
+  id: text('id').primaryKey(),
+  type: assessmentCriteriaTypeEnum('type').notNull(),
+  categoryId: text('category_id'),
+  categoryKey: text('category_key'),
+  label: text('label').notNull(),
+  description: text('description'),
+  weight: integer('weight').notNull(),
+  maxScore: integer('max_score').notNull().default(100),
+  sortOrder: integer('sort_order'),
+  isActive: boolean('is_active').notNull().default(true),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (table) => {
+  return {
+    idxAssessmentCriteriaType: index('idx_assessment_criteria_type').on(table.type),
+    idxAssessmentCriteriaActive: index('idx_assessment_criteria_active').on(table.isActive),
+    idxAssessmentCriteriaCategory: index('idx_assessment_criteria_category').on(table.type, table.categoryId),
+  };
 });
 
 // Combined Grades Table (Rekap Nilai: 30% Mentor + 70% Dosen)
