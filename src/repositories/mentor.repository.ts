@@ -16,6 +16,7 @@ export interface CreateAssessmentData {
   sikapEtika: number;
   prestasiKerja: number;
   kreatifitas: number;
+  components?: any[];
   feedback?: string;
 }
 
@@ -25,6 +26,7 @@ export interface UpdateAssessmentData {
   sikapEtika?: number;
   prestasiKerja?: number;
   kreatifitas?: number;
+  components?: any[];
   feedback?: string;
 }
 
@@ -213,13 +215,32 @@ export class MentorRepository {
 
   // ─── Assessments ────────────────────────────────────────────────────────────
 
-  private computeTotal(data: { kehadiran: number; kerjasama: number; sikapEtika: number; prestasiKerja: number; kreatifitas: number }) {
+  private computeTotal(data: {
+    kehadiran: number;
+    kerjasama: number;
+    sikapEtika: number;
+    prestasiKerja: number;
+    kreatifitas: number;
+    components?: any[];
+  }) {
+    // If we have dynamic components, calculate based on them
+    if (data.components && data.components.length > 0) {
+      let total = 0;
+      for (const comp of data.components) {
+        const score = Number(comp.score) || 0;
+        const weight = Number(comp.weight) || 0;
+        total += score * (weight / 100);
+      }
+      return Math.round(total);
+    }
+
+    // Fallback to legacy hardcoded calculation
     return Math.round(
       data.kehadiran * 0.2 +
-      data.kerjasama * 0.3 +
-      data.sikapEtika * 0.2 +
-      data.prestasiKerja * 0.2 +
-      data.kreatifitas * 0.1
+        data.kerjasama * 0.3 +
+        data.sikapEtika * 0.2 +
+        data.prestasiKerja * 0.2 +
+        data.kreatifitas * 0.1
     );
   }
 
@@ -239,6 +260,7 @@ export class MentorRepository {
         prestasiKerja: data.prestasiKerja,
         kreatifitas: data.kreatifitas,
         totalScore,
+        components: data.components || [],
         feedback: data.feedback ?? null,
         isLocked: true, // Always locked after creation
         assessedAt: now,
@@ -301,6 +323,7 @@ export class MentorRepository {
         .set({
           ...merged,
           totalScore,
+          components: data.components !== undefined ? data.components : existing.components,
           feedback: data.feedback !== undefined ? data.feedback : existing.feedback,
           isLocked: true, // Re-lock after update
           updatedAt: new Date(),

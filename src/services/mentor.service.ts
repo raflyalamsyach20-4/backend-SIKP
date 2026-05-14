@@ -312,6 +312,7 @@ export class MentorService {
       sikapEtika: data.sikapEtika,
       prestasiKerja: data.prestasiKerja,
       kreatifitas: data.kreatifitas,
+      components: data.components,
       feedback: data.feedback,
     });
   }
@@ -343,13 +344,14 @@ export class MentorService {
 
     if (data.kehadiran !== undefined || data.kerjasama !== undefined ||
         data.sikapEtika !== undefined || data.prestasiKerja !== undefined ||
-        data.kreatifitas !== undefined) {
+        data.kreatifitas !== undefined || data.components !== undefined) {
       this.validateScores({
         kehadiran: data.kehadiran ?? existing.kehadiran,
         kerjasama: data.kerjasama ?? existing.kerjasama,
         sikapEtika: data.sikapEtika ?? existing.sikapEtika,
         prestasiKerja: data.prestasiKerja ?? existing.prestasiKerja,
         kreatifitas: data.kreatifitas ?? existing.kreatifitas,
+        components: data.components ?? (existing.components as any[]),
       });
     }
 
@@ -373,7 +375,26 @@ export class MentorService {
     if (!owns) throw new Error('Access denied: Logbook does not belong to your mentee');
   }
 
-  private validateScores(scores: { kehadiran: number; kerjasama: number; sikapEtika: number; prestasiKerja: number; kreatifitas: number }) {
+  private validateScores(scores: { 
+    kehadiran: number; 
+    kerjasama: number; 
+    sikapEtika: number; 
+    prestasiKerja: number; 
+    kreatifitas: number;
+    components?: any[];
+  }) {
+    // If components are provided, validate each one
+    if (scores.components && scores.components.length > 0) {
+      for (const comp of scores.components) {
+        const score = Number(comp.score);
+        if (isNaN(score) || score < 0 || score > (comp.maxScore || 100)) {
+          throw new Error(`Score for '${comp.name || comp.category || 'Kategori'}' must be between 0 and ${comp.maxScore || 100}`);
+        }
+      }
+      return;
+    }
+
+    // Legacy validation
     const fields = ['kehadiran', 'kerjasama', 'sikapEtika', 'prestasiKerja', 'kreatifitas'] as const;
     for (const field of fields) {
       const v = scores[field];

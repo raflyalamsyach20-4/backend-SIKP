@@ -1,4 +1,4 @@
-import { pgTable, text, timestamp, boolean, pgEnum, varchar, integer, uniqueIndex, bigint, json, index, date } from 'drizzle-orm/pg-core';
+import { pgTable, text, timestamp, boolean, pgEnum, varchar, integer, uniqueIndex, bigint, json, index, date, serial } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
 
 // Enums
@@ -303,6 +303,7 @@ export const assessments = pgTable('assessments', {
   originalName: varchar('original_name', { length: 255 }),
   pdfGenerated: boolean('pdf_generated').notNull().default(false),
   isLocked: boolean('is_locked').notNull().default(true),
+  components: json('components').default('[]'),
   assessedAt: timestamp('assessed_at').defaultNow().notNull(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
@@ -326,6 +327,7 @@ export const lecturerAssessments = pgTable('lecturer_assessments', {
   originalName: varchar('original_name', { length: 255 }),
   pdfGenerated: boolean('pdf_generated').notNull().default(false),
   isLocked: boolean('is_locked').notNull().default(true),
+  components: json('components').default('[]'),
   assessedAt: timestamp('assessed_at').defaultNow().notNull(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
@@ -370,6 +372,9 @@ export const combinedGrades = pgTable('combined_grades', {
   fileSize: integer('file_size'),
   originalName: varchar('original_name', { length: 255 }),
   pdfGenerated: boolean('pdf_generated').notNull().default(false),
+  isVerifiedByKaprodi: boolean('is_verified_by_kaprodi').notNull().default(false),
+  verifiedAt: timestamp('verified_at'),
+  verifiedByKaprodiId: text('verified_by_kaprodi_id'),
   calculatedAt: timestamp('calculated_at').defaultNow().notNull(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
@@ -495,6 +500,21 @@ export const auditLogs = pgTable('audit_logs', {
   entityId: text('entity_id').notNull(),
   details: json('details').notNull().default('{}'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
+});
+
+// Faculties Table
+export const faculties = pgTable('faculties', {
+  id: serial('id').primaryKey(),
+  nama: varchar('nama', { length: 255 }).notNull().unique(),
+});
+
+// Program Studies Table
+export const programStudies = pgTable('program_studies', {
+  id: serial('id').primaryKey(),
+  kode: varchar('kode', { length: 20 }).notNull().unique(),
+  nama: varchar('nama', { length: 255 }).notNull(),
+  fakultasId: integer('fakultas_id').references(() => faculties.id),
+  coordinatorId: text('coordinator_id'), // Link to dosen identity ID
 });
 
 

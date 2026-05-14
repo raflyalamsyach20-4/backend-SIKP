@@ -12,6 +12,11 @@ export const createPenilaianRoutes = () => {
   route.get('/recap/:internshipId', async (c) => new PenilaianController(c).getRecap());
   
   route.get('/print/:internshipId', async (c) => new PenilaianController(c).printRecap());
+  
+  route.get('/kaprodi/pending', async (c) => new PenilaianController(c).getPendingVerifications());
+  route.post('/kaprodi/verify/:gradeId', async (c) => new PenilaianController(c).verifyGrade());
+  route.get('/admin/pending', async (c) => new PenilaianController(c).getAdminPendingVerifications());
+  route.post('/admin/verify/:gradeId', async (c) => new PenilaianController(c).verifyGradeByAdmin());
 
   return route;
 };

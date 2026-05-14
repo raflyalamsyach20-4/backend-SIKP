@@ -92,42 +92,46 @@ export class PenilaianController {
    * GET /api/penilaian/kriteria
    */
   getKriteria = async () => {
-    const type = (this.c.req.query('type') || 'MENTOR') as 'MENTOR' | 'DOSEN_PA';
-    const kriteria = type === 'DOSEN_PA' ? DEFAULT_DOSEN_PA_KRITERIA : DEFAULT_MENTOR_KRITERIA;
-    const stored = await this.assessmentService.getCriteria(type);
+    try {
+      const type = (this.c.req.query('type') || 'MENTOR') as 'MENTOR' | 'DOSEN_PA';
+      const kriteria = type === 'DOSEN_PA' ? DEFAULT_DOSEN_PA_KRITERIA : DEFAULT_MENTOR_KRITERIA;
+      const stored = await this.assessmentService.getCriteria(type);
 
-    if (stored.length > 0) {
-      const mapped = stored.map((item) => ({
-        id: item.id,
-        categoryId: item.categoryId || item.id,
-        categoryKey: item.categoryKey || item.label,
-        category: item.label,
-        label: item.label,
-        description: item.description || '-',
-        weight: item.weight,
-        maxScore: item.maxScore,
-        sortOrder: item.sortOrder,
-        isActive: item.isActive,
-      }));
+      if (stored.length > 0) {
+        const mapped = stored.map((item) => ({
+          id: item.id,
+          categoryId: item.categoryId || item.id,
+          categoryKey: item.categoryKey || item.label,
+          category: item.label,
+          label: item.label,
+          description: item.description || '-',
+          weight: item.weight,
+          maxScore: item.maxScore,
+          sortOrder: item.sortOrder,
+          isActive: item.isActive,
+        }));
+
+        return this.c.json(
+          createResponse(true, `Penilaian kriteria (${type}) retrieved successfully`, {
+            kriteria: mapped,
+            totalWeight: mapped.reduce((sum: number, k: any) => sum + k.weight, 0),
+            note: 'Weights reflect the scoring formula: totalScore = Σ(score × weight/100)',
+          }),
+          200
+        );
+      }
 
       return this.c.json(
         createResponse(true, `Penilaian kriteria (${type}) retrieved successfully`, {
-          kriteria: mapped,
-          totalWeight: mapped.reduce((sum: number, k: any) => sum + k.weight, 0),
+          kriteria: kriteria,
+          totalWeight: kriteria.reduce((sum: number, k: any) => sum + k.weight, 0),
           note: 'Weights reflect the scoring formula: totalScore = Σ(score × weight/100)',
         }),
         200
       );
+    } catch (error) {
+      return handleError(this.c, error);
     }
-
-    return this.c.json(
-      createResponse(true, `Penilaian kriteria (${type}) retrieved successfully`, {
-        kriteria: kriteria,
-        totalWeight: kriteria.reduce((sum: number, k: any) => sum + k.weight, 0),
-        note: 'Weights reflect the scoring formula: totalScore = Σ(score × weight/100)',
-      }),
-      200
-    );
   };
 
   /**
@@ -190,7 +194,64 @@ export class PenilaianController {
 
       return this.c.json(createResponse(true, 'Criteria updated', { kriteria, totalWeight, type }), 200);
     } catch (error) {
-      return this.c.json(createResponse(false, 'Invalid request body'), 400);
+      return handleError(this.c, error);
+    }
+  };
+
+  /**
+   * GET /api/penilaian/kaprodi/pending
+   */
+  getPendingVerifications = async () => {
+    try {
+      const user = this.c.get('user') as JWTPayload;
+      const profileId = user.profileId;
+      const sessionId = user.sessionId!;
+      const prodiName = typeof user.prodi === 'string' ? user.prodi : null;
+      const data = await this.assessmentService.getPendingVerifications(profileId, sessionId, prodiName);
+      return this.c.json(createResponse(true, 'Pending verifications retrieved', data), 200);
+    } catch (error) {
+      return handleError(this.c, error);
+    }
+  };
+
+  /**
+   * POST /api/penilaian/kaprodi/verify/:gradeId
+   */
+  verifyGrade = async () => {
+    try {
+      const user = this.c.get('user') as JWTPayload;
+      const profileId = user.profileId;
+      const gradeId = this.c.req.param('gradeId');
+      const result = await this.assessmentService.verifyGrade(gradeId, profileId);
+      return this.c.json(createResponse(true, 'Grade verified successfully', result), 200);
+    } catch (error) {
+      return handleError(this.c, error);
+    }
+  };
+
+  /**
+   * GET /api/penilaian/admin/pending
+   */
+  getAdminPendingVerifications = async () => {
+    try {
+      const sessionId = this.c.get('sessionId') as string;
+      const results = await this.assessmentService.getPendingAdminVerifications(sessionId);
+      return this.c.json(createResponse(true, 'Pending admin verifications retrieved', results), 200);
+    } catch (error) {
+      return handleError(this.c, error);
+    }
+  };
+
+  /**
+   * POST /api/penilaian/admin/verify/:gradeId
+   */
+  verifyGradeByAdmin = async () => {
+    try {
+      const gradeId = this.c.req.param('gradeId');
+      const result = await this.assessmentService.verifyGradeByAdmin(gradeId);
+      return this.c.json(createResponse(true, 'Grade verified by admin successfully', result), 200);
+    } catch (error) {
+      return handleError(this.c, error);
     }
   };
 }

@@ -183,6 +183,8 @@ export class DosenService {
             nidn: dsnIdentity.nidn || null,
             jabatanFungsional: dsnIdentity.jabatanFungsional || null,
             jabatanStruktural: dsnIdentity.jabatanStruktural || null,
+            prodi: dsnIdentity.prodi || null,
+            fakultas: dsnIdentity.fakultas || null,
             profile: {
               id: snapshot.authUserId,
               fullName: snapshot.fullName,

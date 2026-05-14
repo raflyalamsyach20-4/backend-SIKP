@@ -53,12 +53,18 @@ export const createMentorshipRoutes = () => {
   mentorship.post('/assessments', mentorOnly, zValidator('json', z.object({
     internshipId: z.string().optional(),
     studentUserId: z.string().optional(),
-    kehadiran: z.number().min(0).max(100),
-    kerjasama: z.number().min(0).max(100),
-    sikapEtika: z.number().min(0).max(100),
-    prestasiKerja: z.number().min(0).max(100),
-    kreatifitas: z.number().min(0).max(100),
+    kehadiran: z.number().min(0).max(100).optional(),
+    kerjasama: z.number().min(0).max(100).optional(),
+    sikapEtika: z.number().min(0).max(100).optional(),
+    prestasiKerja: z.number().min(0).max(100).optional(),
+    kreatifitas: z.number().min(0).max(100).optional(),
     feedback: z.string().optional(),
+    components: z.array(z.object({
+      categoryId: z.string(),
+      score: z.number().min(0).max(100),
+      label: z.string().optional(),
+      weight: z.number().optional(),
+    })).optional(),
   })), (c) => new MentorController(c).createAssessment(c.req.valid('json')));
 
   mentorship.get('/assessments/me', (c) => new MentorController(c).getAssessmentForMe());
@@ -70,6 +76,12 @@ export const createMentorshipRoutes = () => {
     prestasiKerja: z.number().min(0).max(100).optional(),
     kreatifitas: z.number().min(0).max(100).optional(),
     feedback: z.string().optional(),
+    components: z.array(z.object({
+      categoryId: z.string(),
+      score: z.number().min(0).max(100),
+      label: z.string().optional(),
+      weight: z.number().optional(),
+    })).optional(),
   })), (c) => new MentorController(c).updateAssessment(c.req.valid('json')));
 
   mentorship.post('/assessments/:assessmentId/unlock', mentorOnly, (c) => new MentorController(c).unlockAssessment());

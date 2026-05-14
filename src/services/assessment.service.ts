@@ -4,16 +4,24 @@ import { asc, eq } from 'drizzle-orm';
 import { generateId } from '@/utils/helpers';
 import { MahasiswaService } from './mahasiswa.service';
 import { DosenService } from './dosen.service';
+import { MentorService } from './mentor.service';
+import { programStudies } from '@/db/schema';
+import { StorageService } from './storage.service';
+import { SsoSignatureProxyService } from './sso-signature-proxy.service';
 
 export class AssessmentService {
   private db: ReturnType<typeof createDbClient>;
   private mahasiswaService: MahasiswaService;
   private dosenService: DosenService;
+  private storageService: StorageService;
+  private ssoSignatureProxyService: SsoSignatureProxyService;
 
   constructor(private env: CloudflareBindings) {
     this.db = createDbClient(this.env.DATABASE_URL);
     this.mahasiswaService = new MahasiswaService(this.env);
     this.dosenService = new DosenService(this.env);
+    this.storageService = new StorageService(this.env);
+    this.ssoSignatureProxyService = new SsoSignatureProxyService(this.env);
   }
 
   /**
@@ -52,7 +60,7 @@ export class AssessmentService {
         academicScore,
         finalScore,
         letterGrade,
-        status: 'APPROVED',
+        status: 'PENDING',
         calculatedAt: new Date(),
       })
       .onConflictDoUpdate({
@@ -64,7 +72,7 @@ export class AssessmentService {
           academicScore,
           finalScore,
           letterGrade,
-          status: 'APPROVED',
+          status: 'PENDING',
           calculatedAt: new Date(),
           updatedAt: new Date(),
         },
@@ -99,6 +107,32 @@ export class AssessmentService {
 
     if (internship?.dosenPembimbingId && sessionId) {
       dosenProfile = await this.dosenService.getDosenById(internship.dosenPembimbingId, sessionId);
+      
+      // Auto-sync lecturer signature from SSO
+      try {
+        const mentorService = new MentorService(this.env);
+        await mentorService.syncSignatureFromSso(internship.dosenPembimbingId, sessionId);
+      } catch (err) {
+        console.warn('[AssessmentService] Failed to auto-sync lecturer signature:', err);
+      }
+    }
+
+    // Auto-sync Coordinator signature if possible
+    if (studentProfile?.prodi?.nama && sessionId) {
+       try {
+         const [prodi] = await this.db
+           .select()
+           .from(programStudies)
+           .where(eq(programStudies.nama, studentProfile.prodi.nama))
+           .limit(1);
+         
+         if (prodi?.coordinatorId) {
+            const mentorService = new MentorService(this.env);
+            await mentorService.syncSignatureFromSso(prodi.coordinatorId, sessionId);
+         }
+       } catch (err) {
+         console.warn('[AssessmentService] Failed to auto-sync coordinator signature:', err);
+       }
     }
 
     return {
@@ -225,6 +259,64 @@ export class AssessmentService {
       }
     }
 
+    // 2. Fetch Lecturer and Coordinator signatures
+    let lecturerSigBuffer: Buffer | null = null;
+    let coordinatorSigBuffer: Buffer | null = null;
+    let coordinatorName = '(....................)';
+    let coordinatorNip = '';
+
+    try {
+      // 1. Lecturer Signature (Dosen Pembimbing)
+      // First try local DB signatures table
+      if (data.internship.dosenPembimbingId) {
+        const [sigRecord] = await this.db.select().from(mentorSignatures).where(eq(mentorSignatures.id, data.internship.dosenPembimbingId)).limit(1);
+        if (sigRecord?.signatureUrl) {
+          lecturerSigBuffer = await this.resolveSignatureBuffer(sigRecord.signatureUrl);
+        }
+      }
+
+      // 2. Coordinator Signature (Kaprodi)
+      // Since Kaprodi is likely the one printing this, try their active session signature first
+      const activeSig = await this.ssoSignatureProxyService.getActiveSignature(sessionId);
+      if (activeSig) {
+        const asAny = activeSig as any;
+        let ssoUrl = asAny.signatureImage || asAny.svg || asAny.signatureUrl;
+        
+        if (ssoUrl && typeof ssoUrl === 'string' && ssoUrl.trim().startsWith('<svg')) {
+          const encoded = Buffer.from(ssoUrl).toString('base64');
+          ssoUrl = `data:image/svg+xml;base64,${encoded}`;
+        }
+
+        if (ssoUrl) {
+          coordinatorSigBuffer = await this.resolveSignatureBuffer(ssoUrl);
+        }
+      }
+      
+      // Fallback for Coordinator: check DB if not found in session
+      if (!coordinatorSigBuffer) {
+        const [prodi] = await this.db
+          .select()
+          .from(programStudies)
+          .where(eq(programStudies.nama, studentSso?.prodi?.nama || ''))
+          .limit(1);
+
+        if (prodi?.coordinatorId) {
+          const [sigRecord] = await this.db.select().from(mentorSignatures).where(eq(mentorSignatures.id, prodi.coordinatorId)).limit(1);
+          if (sigRecord?.signatureUrl) {
+            coordinatorSigBuffer = await this.resolveSignatureBuffer(sigRecord.signatureUrl);
+          }
+          
+          const coordProfile = await this.dosenService.getDosenById(prodi.coordinatorId, sessionId);
+          if (coordProfile) {
+            coordinatorName = coordProfile.profile.fullName;
+            coordinatorNip = coordProfile.nip || (coordProfile as any).nidn || '';
+          }
+        }
+      }
+    } catch (err) {
+      console.warn('[AssessmentService] Failed to fetch signatures for PDF:', err);
+    }
+
     // 3. Generate PDF
     const PDFDocument = (await import('pdfkit')).default;
     
@@ -289,11 +381,226 @@ export class AssessmentService {
       doc.fontSize(10).font('Helvetica');
       doc.text('Mengetahui,', 50, sigY);
       doc.text('Dosen Pembimbing,', 400, sigY);
-      doc.moveDown(4);
-      doc.text('Koordinator KP', 50, doc.y);
-      doc.text(dosenSso?.profile.fullName || '(....................)', 400, doc.y);
+      doc.moveDown(0.5);
+
+      const sigImageY = doc.y;
+      
+      // Coordinator Signature (Left)
+      if (coordinatorSigBuffer) {
+        doc.image(coordinatorSigBuffer, 50, sigImageY, { height: 40 });
+      }
+
+      // Lecturer Signature (Right)
+      if (lecturerSigBuffer) {
+        doc.image(lecturerSigBuffer, 400, sigImageY, { height: 40 });
+      }
+
+      doc.moveDown(3);
+      const nameY = doc.y;
+      
+      doc.font('Helvetica-Bold');
+      doc.text('Koordinator Program Studi', 50, sigImageY);
+      doc.text(coordinatorName, 50, nameY);
+      doc.font('Helvetica').fontSize(9);
+      if (coordinatorNip) doc.text(`NIP. ${coordinatorNip}`, 50, nameY + 12);
+      
+      doc.font('Helvetica-Bold').fontSize(10);
+      doc.text(dosenSso?.profile.fullName || '(....................)', 400, nameY);
+      doc.font('Helvetica').fontSize(9);
+      if ((dosenSso as any).nip) doc.text(`NIP. ${(dosenSso as any).nip}`, 400, nameY + 12);
 
       doc.end();
     });
+  }
+
+  /**
+   * Get pending grade verifications for Kaprodi
+   */
+  async getPendingVerifications(coordinatorId: string, sessionId: string, tokenProdi?: string | null) {
+    // 1. Resolve Kaprodi's Prodi
+    let targetProdiNama = "";
+    
+    // Attempt A: Try database mapping
+    const [prodiDb] = await this.db
+      .select()
+      .from(programStudies)
+      .where(eq(programStudies.coordinatorId, coordinatorId))
+      .limit(1);
+    
+    if (prodiDb) {
+      targetProdiNama = prodiDb.nama;
+      console.info(`[AssessmentService] Resolved prodi from DB: ${targetProdiNama}`);
+    } else if (tokenProdi) {
+      // Attempt B: Fallback to JWT Token info
+      targetProdiNama = tokenProdi;
+      console.info(`[AssessmentService] Resolved prodi from JWT Token: ${targetProdiNama}`);
+    } else {
+      // Attempt C: Fallback to SSO Profile (Slowest)
+      console.info(`[AssessmentService] Attempting SSO profile resolution for ${coordinatorId}`);
+      const dosenProfile = await this.dosenService.getDosenById(coordinatorId, sessionId);
+      const rawProdi = dosenProfile?.prodi;
+      if (typeof rawProdi === 'string') {
+        targetProdiNama = rawProdi;
+      } else if (rawProdi?.nama) {
+        targetProdiNama = rawProdi.nama;
+      }
+      
+      if (targetProdiNama) {
+        console.info(`[AssessmentService] Resolved prodi from SSO/Snapshot: ${targetProdiNama}`);
+      }
+    }
+    
+    if (!targetProdiNama) {
+      console.warn(`[AssessmentService] Could not resolve prodi for Kaprodi ${coordinatorId}`);
+      return [];
+    }
+
+    const normalize = (s: string) => s.toLowerCase().replace(/\s+/g, " ").trim();
+    const normalizedTarget = normalize(targetProdiNama);
+
+    // 2. Fetch all combined grades that might belong to this prodi
+
+    const results = await this.db
+      .select({
+        id: combinedGrades.id,
+        internshipId: combinedGrades.internshipId,
+        finalScore: combinedGrades.finalScore,
+        academicScore: combinedGrades.academicScore,
+        fieldScore: combinedGrades.fieldScore,
+        letterGrade: combinedGrades.letterGrade,
+        calculatedAt: combinedGrades.calculatedAt,
+        isVerified: combinedGrades.isVerifiedByKaprodi,
+        studentId: internships.mahasiswaId,
+        companyName: internships.companyName,
+      })
+      .from(combinedGrades)
+      .innerJoin(internships, eq(combinedGrades.internshipId, internships.id));
+    
+    const enrichedResults = await Promise.all(results.map(async (item) => {
+      const studentProfile = await this.mahasiswaService.getMahasiswaById(item.studentId, sessionId);
+      
+      // Robust prodi name extraction
+      let studentProdiRaw = "";
+      if (typeof studentProfile?.prodi === "string") {
+        studentProdiRaw = studentProfile.prodi;
+      } else if (studentProfile?.prodi?.nama) {
+        studentProdiRaw = studentProfile.prodi.nama;
+      }
+      
+      const studentProdi = normalize(studentProdiRaw);
+      
+      // Fuzzy match: check if target prodi name is contained in student prodi name or vice-versa
+      const isMatch = studentProdi === normalizedTarget || 
+                      studentProdi.includes(normalizedTarget) || 
+                      normalizedTarget.includes(studentProdi);
+
+      if (!isMatch) return null;
+
+      return {
+        ...item,
+        studentName: studentProfile?.profile.fullName || '-',
+        nim: studentProfile?.nim || '-',
+      };
+    }));
+
+    const finalResults = enrichedResults.filter((r): r is NonNullable<typeof r> => r !== null);
+    console.info(`[AssessmentService] getPendingVerifications returning ${finalResults.length} students for prodi ${targetProdiNama}`);
+    return finalResults;
+  }
+
+  /**
+   * Verify grade by Kaprodi
+   */
+  async verifyGrade(gradeId: string, coordinatorId: string) {
+    await this.db
+      .update(combinedGrades)
+      .set({
+        isVerifiedByKaprodi: true,
+        verifiedAt: new Date(),
+        verifiedByKaprodiId: coordinatorId,
+        status: 'APPROVED',
+        updatedAt: new Date(),
+      })
+      .where(eq(combinedGrades.id, gradeId));
+    
+    return { success: true };
+  }
+
+  /**
+   * Get pending grade verifications for Admin (Combined Grades)
+   */
+  async getPendingAdminVerifications(sessionId: string) {
+    const results = await this.db
+      .select({
+        id: combinedGrades.id,
+        internshipId: combinedGrades.internshipId,
+        finalScore: combinedGrades.finalScore,
+        letterGrade: combinedGrades.letterGrade,
+        calculatedAt: combinedGrades.calculatedAt,
+        status: combinedGrades.status,
+        isVerifiedByKaprodi: combinedGrades.isVerifiedByKaprodi,
+        studentId: internships.mahasiswaId,
+        companyName: internships.companyName,
+      })
+      .from(combinedGrades)
+      .innerJoin(internships, eq(combinedGrades.internshipId, internships.id))
+      .where(eq(combinedGrades.status, 'PENDING'));
+    
+    const enrichedResults = await Promise.all(results.map(async (item) => {
+      const studentProfile = await this.mahasiswaService.getMahasiswaById(item.studentId, sessionId);
+      
+      return {
+        ...item,
+        studentName: studentProfile?.profile.fullName || '-',
+        nim: studentProfile?.nim || '-',
+        prodi: studentProfile?.prodi?.nama || '-',
+      };
+    }));
+
+    return enrichedResults;
+  }
+
+  /**
+   * Verify grade by Admin
+   */
+  async verifyGradeByAdmin(gradeId: string) {
+    return await this.db
+      .update(combinedGrades)
+      .set({
+        isVerifiedByKaprodi: true, // Admin can bypass
+        status: 'APPROVED',
+        updatedAt: new Date(),
+      })
+      .where(eq(combinedGrades.id, gradeId))
+      .returning();
+  }
+
+  /**
+   * Helper to resolve signature URL (could be R2 key, full URL, or data URL) to Buffer
+   */
+  private async resolveSignatureBuffer(urlOrKey: string): Promise<Buffer | null> {
+    try {
+      // 1. Data URL (Base64)
+      if (urlOrKey.startsWith('data:')) {
+        const base64 = urlOrKey.split(',')[1];
+        return Buffer.from(base64, 'base64');
+      }
+
+      // 2. SVG String (Need to wrap in data URL first? No, pdfkit needs image)
+      // Actually, if it's raw SVG, we have a problem. 
+      // But MentorService converts SVG to data URL.
+      
+      // 3. R2 Key or Full URL
+      if (urlOrKey.startsWith('http')) {
+        const resp = await fetch(urlOrKey);
+        if (resp.ok) return Buffer.from(await resp.arrayBuffer());
+      } else {
+        const file = await this.storageService.getFile(urlOrKey.startsWith('signatures/') ? urlOrKey : `signatures/${urlOrKey}`);
+        if (file) return Buffer.from(await file.arrayBuffer());
+      }
+    } catch (err) {
+      console.warn('[AssessmentService.resolveSignatureBuffer] Failed:', err);
+    }
+    return null;
   }
 }

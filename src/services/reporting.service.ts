@@ -294,16 +294,28 @@ export class ReportingService {
     penguasaanMateri: number;
     analisisPerancangan: number;
     sikapEtika: number;
+    components?: any[];
     feedback?: string;
   }) {
     const now = new Date();
 
-    const academicScore = Math.round(
-      (scores.formatKesesuaian * 0.3) + 
-      (scores.penguasaanMateri * 0.3) + 
-      (scores.analisisPerancangan * 0.3) + 
-      (scores.sikapEtika * 0.1)
-    );
+    let academicScore = 0;
+    if (scores.components && scores.components.length > 0) {
+      let total = 0;
+      for (const comp of scores.components) {
+        const score = Number(comp.score) || 0;
+        const weight = Number(comp.weight) || 0;
+        total += score * (weight / 100);
+      }
+      academicScore = Math.round(total);
+    } else {
+      academicScore = Math.round(
+        (scores.formatKesesuaian * 0.3) + 
+        (scores.penguasaanMateri * 0.3) + 
+        (scores.analisisPerancangan * 0.3) + 
+        (scores.sikapEtika * 0.1)
+      );
+    }
 
     const existing = await this.db
       .select()
@@ -324,6 +336,7 @@ export class ReportingService {
           analisisPerancangan: scores.analisisPerancangan,
           sikapEtika: scores.sikapEtika,
           totalScore: academicScore,
+          components: scores.components || [],
           feedback: scores.feedback,
           assessedAt: now,
           updatedAt: now,
@@ -340,6 +353,7 @@ export class ReportingService {
         analisisPerancangan: scores.analisisPerancangan,
         sikapEtika: scores.sikapEtika,
         totalScore: academicScore,
+        components: scores.components || [],
         feedback: scores.feedback,
         assessedAt: now,
         createdAt: now,

@@ -4,6 +4,8 @@ import { MentorRepository } from '@/repositories/mentor.repository';
 import { MahasiswaService } from './mahasiswa.service';
 import { DosenService } from './dosen.service';
 import { StorageService } from './storage.service';
+import { programStudies, mentorSignatures } from '@/db/schema';
+import { eq } from 'drizzle-orm';
 
 export class InternshipService {
   private mahasiswaRepo: MahasiswaRepository;
@@ -11,11 +13,12 @@ export class InternshipService {
   private mahasiswaService: MahasiswaService;
   private dosenService: DosenService;
   private storageService: StorageService;
+  private db: any;
 
   constructor(private env: CloudflareBindings) {
-    const db = createDbClient(this.env.DATABASE_URL);
-    this.mahasiswaRepo = new MahasiswaRepository(db);
-    this.mentorRepo = new MentorRepository(db);
+    this.db = createDbClient(this.env.DATABASE_URL);
+    this.mahasiswaRepo = new MahasiswaRepository(this.db);
+    this.mentorRepo = new MentorRepository(this.db);
     this.mahasiswaService = new MahasiswaService(this.env);
     this.dosenService = new DosenService(this.env);
     this.storageService = new StorageService(this.env);
@@ -26,44 +29,21 @@ export class InternshipService {
    */
   async getInternshipData(userId: string, sessionId: string) {
     // 1. Resolve Student Details from SSO first to get the correct internal Profile ID
-    // All local DB queries must use profile.id (Mahasiswa ID), not the auth userId (SSO ID)
     const studentProfile = await this.mahasiswaService.getMahasiswaById(userId, sessionId);
     if (!studentProfile) {
       console.error(`[InternshipService.getInternshipData] Mahasiswa profile not found in SSO for userId: ${userId}`);
-      return null; // Return null instead of throw to avoid frontend crash
+      return null;
     }
 
     const mahasiswaId = studentProfile.id;
-    const ssoUserId = studentProfile.profile.id;
-
-    console.log(`[InternshipService] Resolving data for Mahasiswa:`, { 
-      userId, 
-      mahasiswaId, 
-      ssoUserId 
-    });
 
     // 2. Fetch data from local repository using the resolved mahasiswaId
     const data = await this.mahasiswaRepo.getInternshipData(mahasiswaId);
     
-    console.log(`[InternshipService] Repository data:`, { 
-      hasData: !!data,
-      internshipId: data?.internshipId,
-      submissionId: data?.submissionId 
-    });
-    
-    // If no internship data is found, we still want to return the student profile
-    // and potentially any pending mentor requests they might have.
-    // We don't return null early anymore.
-
     // 3. Resolve Mentor Details
     let mentor = null;
     if (data.pembimbingLapanganId) {
-      // 1. Try to get mentor profile (might be reserved/incomplete in SSO)
       const mentorProfile = await this.mentorRepo.findProfileById(data.pembimbingLapanganId);
-      
-      // 2. Fallback to mentor_approval_requests to get real contact info (Email, Phone, etc)
-      // because SSO data might be 'Reserved' or empty during the sync phase.
-      // We try searching by the linked ID first, then fallback to studentUserId since each student only has one active mentor.
       let approvalRequest = await this.mentorRepo.findRequestBySsoMentorId(data.pembimbingLapanganId);
       
       if (!approvalRequest) {
@@ -87,7 +67,6 @@ export class InternshipService {
           mentor.name = approvalRequest.mentorName;
         }
       } else {
-        // 2a. Fallback: Check if we can find by ssoMentorId (Identity ID) from the request
         if (approvalRequest?.ssoMentorId) {
           const fallbackProfile = await this.mentorRepo.findProfileById(approvalRequest.ssoMentorId);
           if (fallbackProfile) {
@@ -120,22 +99,7 @@ export class InternshipService {
         }
       }
     } else {
-      // 3. If NO pembimbingLapanganId, check for PENDING or REJECTED requests in mentor_approval_requests
-      // Try searching by all possible identity formats:
-      // - mahasiswaId: Internal Profile ID (e.g., 1778...)
-      // - studentProfile.profile.id: SSO User UUID
-      // - userId: The ID passed from the controller (might be either)
-      
       let activeRequest = await this.mentorRepo.findLatestRequestByMahasiswaId(mahasiswaId);
-      
-      if (!activeRequest && studentProfile.profile.id !== mahasiswaId) {
-        activeRequest = await this.mentorRepo.findLatestRequestByMahasiswaId(studentProfile.profile.id);
-      }
-      
-      if (!activeRequest && userId !== mahasiswaId && userId !== studentProfile.profile.id) {
-        activeRequest = await this.mentorRepo.findLatestRequestByMahasiswaId(userId);
-      }
-
       if (activeRequest) {
         mentor = {
           id: activeRequest.id,
@@ -144,7 +108,7 @@ export class InternshipService {
           company: activeRequest.companyName,
           position: activeRequest.position,
           phone: activeRequest.mentorPhone,
-          status: activeRequest.status.toLowerCase(), // 'pending' or 'rejected'
+          status: activeRequest.status.toLowerCase(),
           companyAddress: activeRequest.companyAddress,
           rejectionReason: activeRequest.rejectionReason,
           createdAt: activeRequest.createdAt,
@@ -161,9 +125,10 @@ export class InternshipService {
           id: data.dosenPembimbingId,
           name: lecturerProfile.profile.fullName || '',
           email: lecturerProfile.profile.emails.find(e => e.isPrimary)?.email || '',
-          nip: lecturerProfile.nidn || '',
+          nip: lecturerProfile.nip || lecturerProfile.nidn || '',
           phone: '',
           jabatan: lecturerProfile.jabatanFungsional || '',
+          signature: (lecturerProfile as any).signatureUrl ? this.storageService.getAssetProxyUrl((lecturerProfile as any).signatureUrl) : null,
         };
       }
     }
@@ -206,7 +171,47 @@ export class InternshipService {
       } : null,
       mentor,
       lecturer,
+      coordinator: await this.resolveCoordinator(studentProfile.prodi?.nama, sessionId),
     };
   }
-}
 
+  private async resolveCoordinator(prodiName: string | undefined, sessionId: string) {
+    if (!prodiName) return null;
+
+    try {
+      const [prodi] = await this.db
+        .select()
+        .from(programStudies)
+        .where(eq(programStudies.nama, prodiName))
+        .limit(1);
+
+      if (!prodi || !prodi.coordinatorId) {
+        if (prodiName.includes('Manajemen Informatika')) {
+           return {
+             name: "Dr. Abdiansah, S.Kom., M.Cs.",
+             nip: "198410012009121005",
+             signature: null
+           };
+        }
+        return null;
+      }
+
+      const coordinatorProfile = await this.dosenService.getDosenById(prodi.coordinatorId, sessionId);
+      const [signatureRecord] = await this.db
+        .select()
+        .from(mentorSignatures)
+        .where(eq(mentorSignatures.id, prodi.coordinatorId))
+        .limit(1);
+
+      return {
+        id: prodi.coordinatorId,
+        name: coordinatorProfile?.profile.fullName || "Dr. Abdiansah, S.Kom., M.Cs.",
+        nip: coordinatorProfile?.nip || coordinatorProfile?.nidn || "198410012009121005",
+        signature: signatureRecord?.signatureUrl ? this.storageService.getAssetProxyUrl(signatureRecord.signatureUrl) : null,
+      };
+    } catch (err) {
+      console.error(`[InternshipService.resolveCoordinator] Error:`, err);
+      return null;
+    }
+  }
+}
