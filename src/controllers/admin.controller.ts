@@ -100,15 +100,8 @@ export class AdminController {
       let documentReviewsRecord: Record<string, string> | undefined = undefined;
       if (validated.documentReviews) {
         documentReviewsRecord = {};
-        if (Array.isArray(validated.documentReviews)) {
-          for (const review of validated.documentReviews) {
-            documentReviewsRecord[review.documentId] =
-              review.status.toLowerCase();
-          }
-        } else {
-          for (const [documentId, status] of Object.entries(validated.documentReviews)) {
-            documentReviewsRecord[documentId] = String(status).toLowerCase();
-          }
+        for (const review of validated.documentReviews) {
+          documentReviewsRecord[review.documentId] = review.status.toLowerCase();
         }
       }
 
@@ -150,15 +143,8 @@ export class AdminController {
       let documentReviewsRecord: Record<string, string> | undefined = undefined;
       if (validated.documentReviews) {
         documentReviewsRecord = {};
-        if (Array.isArray(validated.documentReviews)) {
-          for (const review of validated.documentReviews) {
-            documentReviewsRecord[review.documentId] =
-              review.status.toLowerCase();
-          }
-        } else {
-          for (const [documentId, status] of Object.entries(validated.documentReviews)) {
-            documentReviewsRecord[documentId] = String(status).toLowerCase();
-          }
+        for (const review of validated.documentReviews) {
+          documentReviewsRecord[review.documentId] = review.status.toLowerCase();
         }
       }
 
