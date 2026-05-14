@@ -206,6 +206,11 @@ export class PenilaianController {
       const user = this.c.get('user') as JWTPayload;
       const profileId = user.profileId;
       const sessionId = user.sessionId!;
+      
+      if (!profileId) {
+        return this.c.json(createResponse(false, 'Profile ID not found in token'), 401);
+      }
+
       const prodiName = typeof user.prodi === 'string' ? user.prodi : null;
       const data = await this.assessmentService.getPendingVerifications(profileId, sessionId, prodiName);
       return this.c.json(createResponse(true, 'Pending verifications retrieved', data), 200);
@@ -222,6 +227,11 @@ export class PenilaianController {
       const user = this.c.get('user') as JWTPayload;
       const profileId = user.profileId;
       const gradeId = this.c.req.param('gradeId');
+
+      if (!profileId || !gradeId) {
+        return this.c.json(createResponse(false, 'Missing profileId or gradeId'), 400);
+      }
+
       const result = await this.assessmentService.verifyGrade(gradeId, profileId);
       return this.c.json(createResponse(true, 'Grade verified successfully', result), 200);
     } catch (error) {
