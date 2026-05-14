@@ -265,10 +265,14 @@ export class AssessmentService {
     let coordinatorName = '(....................)';
     let coordinatorNip = '';
 
+    const mentorService = new MentorService(this.env);
+
     try {
       // 1. Lecturer Signature (Dosen Pembimbing)
-      // First try local DB signatures table
       if (data.internship.dosenPembimbingId) {
+        // Sync from SSO first to ensure we have the latest signature
+        await mentorService.syncSignatureFromSso(data.internship.dosenPembimbingId, sessionId);
+        
         const [sigRecord] = await this.db.select().from(mentorSignatures).where(eq(mentorSignatures.id, data.internship.dosenPembimbingId)).limit(1);
         if (sigRecord?.signatureUrl) {
           lecturerSigBuffer = await this.resolveSignatureBuffer(sigRecord.signatureUrl);
@@ -276,41 +280,52 @@ export class AssessmentService {
       }
 
       // 2. Coordinator Signature (Kaprodi)
-      // Since Kaprodi is likely the one printing this, try their active session signature first
-      const activeSig = await this.ssoSignatureProxyService.getActiveSignature(sessionId);
-      if (activeSig) {
-        const asAny = activeSig as any;
-        let ssoUrl = asAny.signatureImage || asAny.svg || asAny.signatureUrl;
-        
-        if (ssoUrl && typeof ssoUrl === 'string' && ssoUrl.trim().startsWith('<svg')) {
-          const encoded = Buffer.from(ssoUrl).toString('base64');
-          ssoUrl = `data:image/svg+xml;base64,${encoded}`;
-        }
-
-        if (ssoUrl) {
-          coordinatorSigBuffer = await this.resolveSignatureBuffer(ssoUrl);
-        }
-      }
+      // Attempt A: Look for someone with KAPRODI role in this prodi in auth_sessions
+      const { authSessions } = await import('@/db/schema');
+      const { sql, or } = await import('drizzle-orm');
       
-      // Fallback for Coordinator: check DB if not found in session
-      if (!coordinatorSigBuffer) {
-        const [prodi] = await this.db
+      const prodiName = studentSso?.prodi?.nama || '';
+      
+      // Search in profileSnapshot (JSON) for anyone with Kaprodi role
+      const snapshots = await this.db.select().from(authSessions)
+        .where(or(
+          sql`${authSessions.profileSnapshot}::text ILIKE '%KAPRODI%'`,
+          sql`${authSessions.profileSnapshot}::text ILIKE '%Ketua Program Studi%'`,
+          sql`${authSessions.profileSnapshot}::text ILIKE '%Kaprodi%'`
+        ))
+        .limit(50);
+      
+      // Find the one matching the prodi
+      const kaprodiMatch = snapshots.find(s => {
+        const snapshot = s.profileSnapshot as any;
+        const snapshotStr = JSON.stringify(snapshot).toLowerCase();
+        return snapshotStr.includes(prodiName.toLowerCase());
+      });
+
+      let coordinatorId = kaprodiMatch?.authUserId;
+
+      // Attempt B: Fallback to program_studies table if no match in snapshots
+      if (!coordinatorId) {
+        const [prodiDb] = await this.db
           .select()
           .from(programStudies)
-          .where(eq(programStudies.nama, studentSso?.prodi?.nama || ''))
+          .where(eq(programStudies.nama, prodiName))
           .limit(1);
+        coordinatorId = prodiDb?.coordinatorId || undefined;
+      }
 
-        if (prodi?.coordinatorId) {
-          const [sigRecord] = await this.db.select().from(mentorSignatures).where(eq(mentorSignatures.id, prodi.coordinatorId)).limit(1);
-          if (sigRecord?.signatureUrl) {
-            coordinatorSigBuffer = await this.resolveSignatureBuffer(sigRecord.signatureUrl);
-          }
-          
-          const coordProfile = await this.dosenService.getDosenById(prodi.coordinatorId, sessionId);
-          if (coordProfile) {
-            coordinatorName = coordProfile.profile.fullName;
-            coordinatorNip = coordProfile.nip || (coordProfile as any).nidn || '';
-          }
+      if (coordinatorId) {
+        // Sync and get signature
+        await mentorService.syncSignatureFromSso(coordinatorId, sessionId);
+        const [sigRecord] = await this.db.select().from(mentorSignatures).where(eq(mentorSignatures.id, coordinatorId)).limit(1);
+        if (sigRecord?.signatureUrl) {
+          coordinatorSigBuffer = await this.resolveSignatureBuffer(sigRecord.signatureUrl);
+        }
+        
+        const coordProfile = await this.dosenService.getDosenById(coordinatorId, sessionId);
+        if (coordProfile) {
+          coordinatorName = coordProfile.profile.fullName;
+          coordinatorNip = coordProfile.nip || (coordProfile as any).nidn || '';
         }
       }
     } catch (err) {
@@ -367,47 +382,44 @@ export class AssessmentService {
       }
       doc.moveDown();
 
-      // Final Grade Section
-      doc.rect(50, doc.y, 500, 60).stroke();
-      const finalY = doc.y + 15;
+      // Final Score
       doc.font('Helvetica-Bold').fontSize(12);
-      doc.text(`NILAI AKHIR GABUNGAN: ${data.combined?.finalScore || '-'}`, 70, finalY);
-      doc.text(`GRADE: ${data.combined?.letterGrade || '-'}`, 350, finalY);
-      
+      doc.text(`NILAI AKHIR GABUNGAN: ${data.combined?.finalScore || '-'}`, { align: 'left' });
+      doc.text(`GRADE: ${data.combined?.letterGrade || '-'}`, { align: 'left' });
       doc.moveDown(4);
 
-      // Signatures
-      const sigY = doc.y;
+      // Signatures Layout
+      const startSigY = doc.y;
+      
+      // Labels
       doc.fontSize(10).font('Helvetica');
-      doc.text('Mengetahui,', 50, sigY);
-      doc.text('Dosen Pembimbing,', 400, sigY);
-      doc.moveDown(0.5);
+      doc.text('Mengetahui,', 50, startSigY);
+      doc.text('Koordinator Program Studi', 50, startSigY + 15);
+      doc.text(studentSso?.prodi?.nama || '', 50, startSigY + 30);
 
-      const sigImageY = doc.y;
-      
-      // Coordinator Signature (Left)
+      doc.text('Palembang, ' + new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }), 350, startSigY);
+      doc.text('Dosen Pembimbing,', 350, startSigY + 15);
+
+      // Signature Images
+      const imageY = startSigY + 45;
       if (coordinatorSigBuffer) {
-        doc.image(coordinatorSigBuffer, 50, sigImageY, { height: 40 });
+        doc.image(coordinatorSigBuffer, 50, imageY, { height: 50 });
       }
-
-      // Lecturer Signature (Right)
       if (lecturerSigBuffer) {
-        doc.image(lecturerSigBuffer, 400, sigImageY, { height: 40 });
+        doc.image(lecturerSigBuffer, 350, imageY, { height: 50 });
       }
 
-      doc.moveDown(3);
-      const nameY = doc.y;
-      
+      // Names
+      const nameY = imageY + 60;
       doc.font('Helvetica-Bold');
-      doc.text('Koordinator Program Studi', 50, sigImageY);
       doc.text(coordinatorName, 50, nameY);
       doc.font('Helvetica').fontSize(9);
       if (coordinatorNip) doc.text(`NIP. ${coordinatorNip}`, 50, nameY + 12);
-      
+
       doc.font('Helvetica-Bold').fontSize(10);
-      doc.text(dosenSso?.profile.fullName || '(....................)', 400, nameY);
+      doc.text(dosenSso?.profile.fullName || '(....................)', 350, nameY);
       doc.font('Helvetica').fontSize(9);
-      if ((dosenSso as any).nip) doc.text(`NIP. ${(dosenSso as any).nip}`, 400, nameY + 12);
+      if ((dosenSso as any)?.nip) doc.text(`NIP. ${(dosenSso as any).nip}`, 350, nameY + 12);
 
       doc.end();
     });
