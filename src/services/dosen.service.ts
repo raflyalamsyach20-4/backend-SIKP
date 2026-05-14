@@ -2,7 +2,8 @@ import { createDbClient } from '@/db';
 import { 
   TeamRepository, 
   SuratKesediaanRepository, 
-  SuratPermohonanRepository 
+  SuratPermohonanRepository,
+  AuthSessionRepository
 } from '@/repositories';
 import { SuratPengantarDosenService } from './surat-pengantar-dosen.service';
 import { AuthService } from './auth.service';
@@ -153,8 +154,44 @@ export class DosenService {
       }
 
       if (!response.ok) {
-        if (response.status === 404) return null;
-        throw new Error(`Failed to fetch dosen from SSO (${response.status})`);
+        if (response.status === 404) {
+          console.warn(`[DosenService.getDosenById] Dosen ID ${dosenId} not found in SSO`);
+        } else if (response.status === 400) {
+          console.warn(`[DosenService.getDosenById] SSO Gateway rejected ID ${dosenId} (likely non-UUID). Falling back to local cache.`);
+        } else {
+          throw new Error(`Failed to fetch dosen from SSO (${response.status})`);
+        }
+
+        // Fallback to local auth_sessions table (snapshot cache)
+        // This is useful if dosenId is actually an authUserId (CUID)
+        const authSessionRepo = new AuthSessionRepository(createDbClient(this.env.DATABASE_URL));
+        const snapshot = await authSessionRepo.findProfileSnapshotByMahasiswaId(dosenId);
+        
+        if (snapshot) {
+          console.info(`[DosenService.getDosenById] Found snapshot fallback for ${dosenId}`);
+          
+          // Map snapshot to SsoDosenDetail format
+          const dsnIdentity = Array.isArray(snapshot.identities) 
+            ? snapshot.identities.find((i: any) => i.role === 'DOSEN' || i.identityType === 'DOSEN')
+            : snapshot.identities?.dosen;
+
+          if (!dsnIdentity) return null;
+
+          return {
+            id: dsnIdentity.id,
+            nip: dsnIdentity.nip || null,
+            nidn: dsnIdentity.nidn || null,
+            jabatanFungsional: dsnIdentity.jabatanFungsional || null,
+            jabatanStruktural: dsnIdentity.jabatanStruktural || null,
+            profile: {
+              id: snapshot.authUserId,
+              fullName: snapshot.fullName,
+              emails: snapshot.emails || [],
+            }
+          } as any;
+        }
+
+        return null;
       }
 
       const payload = (await response.json()) as SsoDosenResponse;

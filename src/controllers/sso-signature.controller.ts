@@ -56,10 +56,29 @@ export class SsoSignatureController {
 
   getActive = async () => {
     try {
-      const user = this.c.get('user');
-      const sessionId = this.c.get('sessionId');
+      const user = this.c.get('user') as JWTPayload;
+      const sessionId = this.c.get('sessionId') as string;
 
       const data = await this.ssoSignatureProxyService.getActiveSignature(sessionId, user);
+      
+      // Sync to local DB if it's a mentor
+      if (data && data.svg && user.profileId) {
+        try {
+          const { MentorService } = await import('@/services/mentor.service');
+          const mentorService = new MentorService(this.c.env);
+          
+          // Sync using profileId (Main ID)
+          await mentorService.syncSignatureFromSso(user.profileId, sessionId);
+          
+          // Also sync using mentorId (Identity ID) if available as fallback
+          if (user.mentorId && user.mentorId !== user.profileId) {
+            await mentorService.syncSignatureFromSso(user.mentorId, sessionId);
+          }
+        } catch (err) {
+          console.warn('[SsoSignatureController.getActive] Failed to sync to local DB:', err);
+        }
+      }
+
       return this.c.json(createResponse(true, 'Signature retrieved', data));
     } catch (error) {
       return handleError(this.c, error, 'Failed to retrieve signature');

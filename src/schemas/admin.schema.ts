@@ -1,23 +1,47 @@
 import { z } from 'zod';
 
+const documentReviewArraySchema = z.array(z.object({
+  documentId: z.string(),
+  status: z.enum(['APPROVED', 'REJECTED']),
+  rejectionReason: z.string().optional(),
+}));
+
+const documentReviewRecordSchema = z.record(
+  z.string(),
+  z.enum(['approved', 'rejected'])
+);
+
 export const rejectSubmissionSchema = z.object({
-  documentReviews: z.record(z.string(), z.enum(['approved', 'rejected'])).optional(),
-  reason: z.string().min(1),
+  reason: z.string().min(1, 'Alasan penolakan harus diisi'),
+  documentReviews: documentReviewArraySchema.optional(),
 });
 
 export const approveSubmissionSchema = z.object({
-  documentReviews: z.record(z.string(), z.enum(['approved', 'rejected'])).optional(),
+  documentReviews: z.union([
+    documentReviewArraySchema,
+    documentReviewRecordSchema,
+  ]).optional(),
   autoGenerateLetter: z.boolean().optional().default(false),
-  letterNumber: z.string().min(1, 'Nomor surat wajib diisi'),
+  letterNumber: z.string().optional(),
 });
 
 export const generateLetterSchema = z.object({
-  format: z.enum(['pdf', 'docx']).optional().default('pdf'),
+  format: z.enum(['PDF', 'DOCX']).default('PDF'),
 });
 
 export const updateSubmissionStatusSchema = z.object({
-  status: z.enum(['APPROVED', 'REJECTED']).describe('Status to update to'),
-  rejectionReason: z.string().optional().describe('Reason for rejection (required if status is REJECTED)'),
-  letterNumber: z.string().optional().describe('Nomor surat (required if status is APPROVED)'),
-  documentReviews: z.record(z.string(), z.enum(['approved', 'rejected'])).describe('Document review statuses per document ID'),
+  status: z.enum(['DRAFT', 'PENDING_REVIEW', 'REJECTED', 'APPROVED']),
+  rejectionReason: z.string().optional(),
+  documentReviews: z.array(z.object({
+    documentId: z.string(),
+    status: z.enum(['APPROVED', 'REJECTED']),
+    rejectionReason: z.string().optional(),
+  })).optional(),
+  letterNumber: z.string().optional(),
+});
+
+export const approveMentorRequestSchema = z.object({});
+
+export const rejectMentorRequestSchema = z.object({
+  reason: z.string().min(1, 'Alasan penolakan harus diisi'),
 });

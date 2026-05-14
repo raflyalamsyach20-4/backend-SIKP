@@ -48,7 +48,12 @@ export const createDosenRoutes = () => {
     // Surat Kesediaan Routes (nested)
     .route('/surat-kesediaan', createDosenSuratKesediaanRoutes())
     .route('/surat-permohonan', createDosenSuratPermohonanRoutes())
-    .route('/surat-pengantar', createDosenSuratPengantarRoutes());
+    .route('/surat-pengantar', createDosenSuratPengantarRoutes())
+
+    // Email Change Requests
+    .get('/mentor-email-change-requests', async (c) => new (require('../controllers/mentor-workflow.controller').MentorWorkflowController)(c).listMentorEmailChangeRequests())
+    .post('/mentor-email-change-requests/:id/approve', async (c) => new (require('../controllers/mentor-workflow.controller').MentorWorkflowController)(c).approveMentorEmailChangeRequest())
+    .post('/mentor-email-change-requests/:id/reject', zValidator('json', require('zod').z.object({ reason: require('zod').z.string() })), async (c) => new (require('../controllers/mentor-workflow.controller').MentorWorkflowController)(c).rejectMentorEmailChangeRequest(c.req.valid('json')));
 
   return dosen;
 };

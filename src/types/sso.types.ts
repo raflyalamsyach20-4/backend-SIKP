@@ -96,7 +96,6 @@ export interface SsoMentorIdentity {
   instansi: string;
   jabatan: string | null;
   bidang: string | null;
-  noTelepon: string | null;
 }
 
 export type SsoProfileRoleEntry = {
@@ -139,6 +138,7 @@ export interface SsoProfile {
   fullName: string;
   id: string;
   authUserId: string | null;
+  phoneNumber: string | null;
 }
 
 export interface SsoDosenDetail {

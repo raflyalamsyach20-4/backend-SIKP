@@ -43,6 +43,19 @@ export const createResponseLetterRoutes = () => {
     )
 
   /**
+   * Get response letter by submission ID
+   * GET /api/response-letters/submission/:submissionId
+   * Auth: Required
+   */
+    .get(
+      '/submission/:submissionId',
+      zValidator('param', nonEmptyStringParamsSchema),
+      async (c) => {
+        return new ResponseLetterController(c).getResponseLetterBySubmissionId();
+      }
+    )
+
+  /**
    * Mahasiswa: Get my response letter (current user)
    * GET /api/response-letters/my
    * Auth: Required

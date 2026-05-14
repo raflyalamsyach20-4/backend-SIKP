@@ -1,24 +1,33 @@
-import { Hono, Context } from 'hono'
+import { Hono } from 'hono'
 import { cors } from 'hono/cors'
 import { logger } from 'hono/logger'
 
 // Configuration
-import { errorHandler } from '@/errors'
+import { errorHandler } from './errors'
 
 // Routes
-import { createMahasiswaProfileRoutes } from '@/routes/mahasiswa.route'
-import { createAuthRoutes } from '@/routes/auth.route'
-import { createTeamRoutes } from '@/routes/team.route'
-import { createSubmissionRoutes } from '@/routes/submission.route'
-import { createTemplateRoutes } from '@/routes/template.route'
-import { createUtilRoutes } from '@/routes/utils.route'
-import { createResponseLetterRoutes } from '@/routes/response-letter.routes'
-import { createSuratKesediaanFallbackRoutes } from '@/routes/surat-kesediaan.route'
-import { createSuratPermohonanFallbackRoutes } from '@/routes/surat-permohonan.route'
-import { createAssetRoutes } from '@/routes/assets.route'
-import { createSsoSignatureRoutes } from '@/routes/sso-signature.route'
+import { createMahasiswaProfileRoutes } from './routes/mahasiswa.route'
+import { createAuthRoutes } from './routes/auth.route'
+import { createTeamRoutes } from './routes/team.route'
+import { createSubmissionRoutes } from './routes/submission.route'
+import { createTemplateRoutes } from './routes/template.route'
+import { createUtilRoutes } from './routes/utils.route'
+import { createResponseLetterRoutes } from './routes/response-letter.routes'
+import { createSuratKesediaanFallbackRoutes } from './routes/surat-kesediaan.route'
+import { createSuratPermohonanFallbackRoutes } from './routes/surat-permohonan.route'
+import { createAssetRoutes } from './routes/assets.route'
+import { createSsoSignatureRoutes } from './routes/sso-signature.route'
 import { createDosenRoutes } from './routes/dosen.route'
 import { createAdminRoutes } from './routes/admin.route'
+
+// Internship Execution Phase Routes
+import { createInternshipRoutes } from './routes/internship.route'
+import { createLogbookRoutes } from './routes/logbook.route'
+import { createMentorshipRoutes } from './routes/mentorship.route'
+import { createInternshipMonitoringRoutes } from './routes/internship-monitoring.route'
+import { createPenilaianRoutes } from './routes/penilaian.route'
+import { createReportingRoutes } from './routes/reporting.route'
+import { createArchiveRoutes } from './routes/archive.route'
 
 /**
  * Main Application
@@ -72,6 +81,15 @@ const app = new Hono<{ Bindings: CloudflareBindings }>()
 .route('/api/dosen', createDosenRoutes())
 .route('/api/admin', createAdminRoutes())
 
+// Internship & Execution Phase Routes
+.route('/api/internships', createInternshipRoutes())
+.route('/api/logbooks', createLogbookRoutes())
+.route('/api/mentorship', createMentorshipRoutes())
+.route('/api/internship-monitoring', createInternshipMonitoringRoutes())
+.route('/api/penilaian', createPenilaianRoutes())
+.route('/api/reporting', createReportingRoutes())
+.route('/api/archive', createArchiveRoutes())
+
 /**
  * 404 Not Found Handler
  */
@@ -91,4 +109,3 @@ const app = new Hono<{ Bindings: CloudflareBindings }>()
 })
 
 export default app
-

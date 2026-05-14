@@ -65,18 +65,23 @@ export class AuthService {
   private _serviceToken: { token: string; expiresAt: number } | null = null;
 
   /**
-   * Return access token for given sessionId, or null if not available
+   * Return access token for given sessionId, or null if not available.
+   * Optimized to query database directly and avoid full session context load (SSO fetch).
    */
   async getSessionAccessToken(sessionId?: string | null): Promise<string | null> {
     if (!sessionId) return null;
     try {
-      const ctx = await this.loadSessionContext(sessionId);
-      return ctx?.accessToken ?? null;
+      const session = await this.authSessionRepo.findSessionById(sessionId);
+      if (!session || session.expiresAt.getTime() <= Date.now()) {
+        return null;
+      }
+      return session.accessToken;
     } catch (err) {
-      console.warn('[AuthService.getSessionAccessToken] failed to load session context', { sessionId, err });
+      console.warn('[AuthService.getSessionAccessToken] failed to fetch session from DB', { sessionId, err });
       return null;
     }
   }
+
 
   /**
    * Get a service-level access token using client credentials grant.
@@ -104,22 +109,24 @@ export class AuthService {
     });
 
     if (!resp.ok) {
-      console.warn(`[AuthService.getServiceAccessToken] client_credentials failed (${resp.status}). Falling back to active MAHASISWA session token.`);
-      // If client_credentials is not supported by SSO, fallback to any active MAHASISWA session token
+      const body = await resp.text().catch(() => '');
+      console.warn(`[AuthService.getServiceAccessToken] client_credentials failed (${resp.status}): ${body}. Falling back to active ADMIN session token.`);
+      
+      // Fallback to an active ADMIN session token if client_credentials is not supported/configured
       const db = createDbClient(this.env.DATABASE_URL);
       const sessions = await db.query.authSessions.findMany({
         where: (s, { and, eq, gt }) => and(
-          eq(s.activeIdentity, 'MAHASISWA'),
+          eq(s.activeIdentity, 'ADMIN'),
           gt(s.expiresAt, new Date())
         ),
         orderBy: (s, { desc }) => [desc(s.updatedAt)],
         limit: 1
       });
+
       if (sessions.length > 0 && sessions[0].accessToken) {
-        this._serviceToken = { token: sessions[0].accessToken, expiresAt: sessions[0].expiresAt.getTime() };
         return sessions[0].accessToken;
       }
-      const body = await resp.text().catch(() => '');
+
       throw new Error(`Failed to obtain service token from SSO (${resp.status}): ${body}`);
     }
 
@@ -252,10 +259,38 @@ export class AuthService {
       Accept: "application/json",
     };
 
-    const profileUrl = this.env.SSO_PROFILE_URL || `${this.env.SSO_BASE_URL}/profile`;
-    const profileResp = await fetch(profileUrl, { headers });
+    let profileUrl = this.env.SSO_USERINFO_URL || this.env.SSO_PROFILE_URL || `${this.env.SSO_BASE_URL}/profile`;
+    console.log(`[AuthService.fetchProfileAndIdentities] Fetching from: ${profileUrl}`);
+    
+    let profileResp = await fetch(profileUrl, { headers });
+    
+    // If it fails with 404 or 410 or returns the specific "legacy route" message, try fallback
+    if (!profileResp.ok) {
+      const body = await profileResp.clone().text();
+      const isLegacyError = profileResp.status === 410 || 
+                          profileResp.status === 404 || 
+                          body.includes("legacy identity route") || 
+                          body.includes("big-bang cutover") ||
+                          body.includes("Endpoint not found");
+      
+      if (isLegacyError) {
+        let fallbackUrl: string | null = null;
+        if (profileUrl.endsWith('/profile')) {
+          fallbackUrl = `${this.env.SSO_BASE_URL}/me`;
+        } else if (profileUrl.endsWith('/me')) {
+          fallbackUrl = `${this.env.SSO_BASE_URL}/profile`;
+        }
+
+        if (fallbackUrl) {
+          console.warn(`[AuthService.fetchProfileAndIdentities] Profile URL (${profileUrl}) failed or legacy detected. Trying fallback: ${fallbackUrl}`);
+          profileResp = await fetch(fallbackUrl, { headers });
+        }
+      }
+    }
+
     if (!profileResp.ok) {
       const body = await profileResp.text();
+      console.error(`[AuthService.fetchProfileAndIdentities] SSO Error (${profileResp.status}):`, body);
       const error = new Error(
         `Failed to fetch user profile from SSO (${profileResp.status}): ${body}`,
       ) as Error & { statusCode?: number };
@@ -373,10 +408,14 @@ export class AuthService {
       profile = snapshot;
       identities = [];
       const rawIds = profile.identities;
-      if (rawIds.mahasiswa) identities.push({ ...rawIds.mahasiswa, identityType: 'MAHASISWA' });
-      if (rawIds.dosen) identities.push({ ...rawIds.dosen, identityType: 'DOSEN' });
-      if (rawIds.admin) identities.push({ ...rawIds.admin, identityType: 'ADMIN' });
-      if (rawIds.mentor) identities.push({ ...rawIds.mentor, identityType: 'MENTOR' });
+      if (Array.isArray(rawIds)) {
+        identities = rawIds.map((id: any) => ({ ...id, identityType: id.role || id.identityType }));
+      } else if (rawIds) {
+        if (rawIds.mahasiswa) identities.push({ ...rawIds.mahasiswa, identityType: 'MAHASISWA' });
+        if (rawIds.dosen) identities.push({ ...rawIds.dosen, identityType: 'DOSEN' });
+        if (rawIds.admin) identities.push({ ...rawIds.admin, identityType: 'ADMIN' });
+        if (rawIds.mentor) identities.push({ ...rawIds.mentor, identityType: 'MENTOR' });
+      }
     } else {
       // Slow path: old session without snapshot — hit SSO /profile once, then cache
       console.warn(
@@ -404,11 +443,25 @@ export class AuthService {
     const availableIdentities = identities;
     const activeIdentity =
       availableIdentities.find(
-        (item) => item.identityType === session.activeIdentity,
+        (item) => item.identityType?.toLowerCase() === session.activeIdentity?.toLowerCase(),
       ) || null;
 
     const primaryRole = this.pickPrimaryRole(effectiveRoles);
-    const inferredEmail = profile?.emails[0]?.email;
+    const inferredEmail = profile?.emails?.[0]?.email;
+
+    // SSO Gateway may return identities as an array or an object depending on the version.
+    const getIdentityObj = (role: string) => {
+      const ids = profile.identities as any;
+      if (Array.isArray(ids)) {
+        return ids.find((i: any) => i.role === role || i.identityType === role);
+      }
+      return ids?.[role.toLowerCase()];
+    };
+
+    const mhs = getIdentityObj('MAHASISWA');
+    const dsn = getIdentityObj('DOSEN');
+    const adm = getIdentityObj('ADMIN');
+    const mnt = getIdentityObj('MENTOR');
 
     const userPayload: JWTPayload = {
       sub: session.authUserId,
@@ -423,36 +476,32 @@ export class AuthService {
       availableIdentities,
       nama: profile.fullName,
       profileId: profile.id,
-      mahasiswaId: profile.identities.mahasiswa?.id,
-      dosenId: profile.identities.dosen?.id,
-      adminId: profile.identities.admin?.id,
-      mentorId: profile.identities.mentor?.id,
-      dosenPAId: profile.identities.mahasiswa?.dosenPA?.id,
-      nim: profile.identities.mahasiswa?.nim,
-      nipDosen: profile.identities.dosen?.nip,
-      nipAdmin: profile.identities.admin?.nip,
-      nidn: profile.identities.dosen?.nidn,
-      phone: profile.identities.mentor?.noTelepon,
-      jabatan: profile.identities.dosen?.jabatanFungsional,
-      jabatanFungsional: profile.identities.dosen?.jabatanFungsional,
-      jabatanStruktural: profile.identities.dosen?.jabatanStruktural,
-      angkatan: profile.identities.mahasiswa?.angkatan,
-      semesterAktif: profile.identities.mahasiswa?.semesterAktif,
-      jumlahSksLulus: profile.identities.mahasiswa?.jumlahSksLulus,
-      prodi: profile.identities.mahasiswa?.prodi?.nama,
-      fakultas: profile.identities.mahasiswa?.fakultas?.nama,
-      prodiId: profile.identities.mahasiswa?.prodi?.id,
-      fakultasId: profile.identities.mahasiswa?.fakultas?.id,
+      mahasiswaId: mhs?.id,
+      dosenId: dsn?.id,
+      adminId: adm?.id,
+      mentorId: mnt?.id,
+      dosenPAId: mhs?.dosenPA?.id,
+      nim: mhs?.nim,
+      nipDosen: dsn?.nip,
+      nipAdmin: adm?.nip,
+      nidn: dsn?.nidn,
+      phone: mnt?.noTelepon,
+      jabatan: dsn?.jabatanFungsional,
+      jabatanFungsional: dsn?.jabatanFungsional,
+      jabatanStruktural: dsn?.jabatanStruktural,
+      angkatan: mhs?.angkatan,
+      semesterAktif: mhs?.semesterAktif,
+      jumlahSksLulus: mhs?.jumlahSksLulus,
+      prodi: mhs?.prodi?.nama,
+      fakultas: mhs?.fakultas?.nama,
+      prodiId: mhs?.prodi?.id,
+      fakultasId: mhs?.fakultas?.id,
     };
 
-    // ✅ VALIDATE: Mahasiswa must have dosenPAId
+    // ⚠️ Note: Strict dosenPAId validation removed per migration docs. 
+    // This allows students to progress even if SSO data is incomplete.
     if (primaryRole === 'mahasiswa' && !userPayload.dosenPAId) {
-      console.error(`[loadSessionContext] ❌ Mahasiswa missing dosenPAId: ${session.authUserId}`);
-      const error = new Error('Dosen PA tidak ditemukan. Hubungi administrator untuk mengatur dosen PA.') as Error & {
-        statusCode?: number;
-      };
-      error.statusCode = 400;
-      throw error;
+       console.warn(`[loadSessionContext] ⚠️ Mahasiswa missing dosenPAId: ${session.authUserId}. Continuing as per migration policy.`);
     }
 
     return {
@@ -700,8 +749,9 @@ export class AuthService {
   }
 
   async getSessionAccessTokenOrThrow(sessionId: string): Promise<string> {
-    const sessionContext = await this.loadSessionContext(sessionId);
-    if (!sessionContext) {
+    const session = await this.authSessionRepo.findSessionById(sessionId);
+    
+    if (!session || session.expiresAt.getTime() <= Date.now()) {
       const error = new Error("Session not found or expired") as Error & {
         statusCode?: number;
       };
@@ -709,7 +759,7 @@ export class AuthService {
       throw error;
     }
 
-    if (!sessionContext.accessToken) {
+    if (!session.accessToken) {
       const error = new Error(
         "Session access token is not available",
       ) as Error & { statusCode?: number };
@@ -717,8 +767,9 @@ export class AuthService {
       throw error;
     }
 
-    return sessionContext.accessToken;
+    return session.accessToken;
   }
+
 
   async logout(sessionId: string) {
     const session = await this.authSessionRepo.findSessionById(sessionId);

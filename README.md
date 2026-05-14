@@ -73,7 +73,7 @@ SSO_PROXY_TIMEOUT_MS=10000
 
 ```bash
 bun run db:migrate
-bun run db:seed
+bun run db:migrate
 ```
 
 4. Jalankan development server
@@ -92,8 +92,6 @@ bun run deploy
 bun run db:generate
 bun run db:push
 bun run db:migrate
-bun run db:seed
-bun run db:status
 bun run db:studio
 bun run cf-typegen
 ```

@@ -10,3 +10,7 @@ export { SuratKesediaanController } from './surat-kesediaan.controller';
 export { SuratPermohonanController } from './surat-permohonan.controller';
 export { SuratPengantarDosenController } from './surat-pengantar-dosen.controller';
 export { SsoSignatureController } from './sso-signature.controller';
+export { LogbookController } from './logbook.controller';
+export { MentorController } from './mentor.controller';
+export { MentorWorkflowController } from './mentor-workflow.controller';
+export { InternshipController } from './internship.controller';

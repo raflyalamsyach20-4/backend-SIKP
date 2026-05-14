@@ -14,6 +14,13 @@ export const suratPermohonanStatusEnum = pgEnum('surat_permohonan_status', ['MEN
 export const submissionVerificationStatusEnum = pgEnum('submission_verification_status', ['PENDING', 'APPROVED', 'REJECTED']);
 export const workflowStageEnum = pgEnum('workflow_stage', ['DRAFT', 'PENDING_ADMIN_REVIEW', 'PENDING_DOSEN_VERIFICATION', 'COMPLETED', 'REJECTED_ADMIN', 'REJECTED_DOSEN']);
 
+// New Enums for Internship Phase
+export const internshipStatusEnum = pgEnum('internship_status', ['PENDING', 'AKTIF', 'SELESAI', 'DIBATALKAN']);
+export const logbookStatusEnum = pgEnum('logbook_status', ['PENDING', 'APPROVED', 'REJECTED']);
+export const reportStatusEnum = pgEnum('report_status', ['DRAFT', 'SUBMITTED', 'APPROVED', 'NEEDS_REVISION', 'REJECTED']);
+export const titleStatusEnum = pgEnum('title_status', ['PENDING', 'APPROVED', 'REJECTED']);
+export const approvalStatusEnum = pgEnum('approval_status', ['PENDING', 'APPROVED', 'REJECTED']);
+
 // Minimal auth session store for SSO cutover
 export const authSessions = pgTable('auth_sessions', {
   sessionId: text('session_id').primaryKey(),
@@ -234,6 +241,240 @@ export const suratPermohonanRequests = pgTable('surat_permohonan_requests', {
   };
 });
 
+// Internship Phase Tables (Standardized with R2 patterns)
+
+// Internships Table (Auto-created setelah submission approved)
+export const internships = pgTable('internships', {
+  id: text('id').primaryKey(),
+  submissionId: text('submission_id').notNull().references(() => submissions.id, { onDelete: 'cascade' }),
+  mahasiswaId: varchar('mahasiswa_id', { length: 255 }).notNull(),
+  teamId: text('team_id').references(() => teams.id, { onDelete: 'set null' }),
+  pembimbingLapanganId: text('pembimbing_lapangan_id'),
+  dosenPembimbingId: text('dosen_pembimbing_id'),
+  dosenPaId: text('dosen_pa_id'), // New: to allow Academic Advisors to monitor
+  companyName: varchar('company_name', { length: 255 }).notNull(),
+  division: varchar('division', { length: 255 }),
+  startDate: date('start_date').notNull(),
+  endDate: date('end_date').notNull(),
+  status: internshipStatusEnum('status').notNull().default('AKTIF'),
+  archivedAt: timestamp('archived_at'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+});
+
+// Logbooks Table (Logbook harian mahasiswa)
+export const logbooks = pgTable('logbooks', {
+  id: text('id').primaryKey(),
+  internshipId: text('internship_id').notNull().references(() => internships.id, { onDelete: 'cascade' }),
+  date: date('date').notNull(),
+  activity: varchar('activity', { length: 255 }).notNull(),
+  description: text('description').notNull(),
+  hours: integer('hours'),
+  status: logbookStatusEnum('status').notNull().default('PENDING'),
+  fileName: varchar('file_name', { length: 255 }),
+  fileUrl: text('file_url'),
+  fileType: varchar('file_type', { length: 100 }),
+  fileSize: integer('file_size'),
+  originalName: varchar('original_name', { length: 255 }),
+  rejectionReason: text('rejection_reason'),
+  verifiedBy: text('verified_by'),
+  verifiedAt: timestamp('verified_at'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+});
+
+// Assessments Table (Penilaian dari Pembimbing Lapangan - 30%)
+export const assessments = pgTable('assessments', {
+  id: text('id').primaryKey(),
+  internshipId: text('internship_id').notNull().references(() => internships.id, { onDelete: 'cascade' }),
+  pembimbingLapanganId: text('pembimbing_lapangan_id').notNull(),
+  kehadiran: integer('kehadiran').notNull(), // 0-100
+  kerjasama: integer('kerjasama').notNull(), // 0-100
+  sikapEtika: integer('sikap_etika').notNull(), // 0-100
+  prestasiKerja: integer('prestasi_kerja').notNull(), // 0-100
+  kreatifitas: integer('kreatifitas').notNull(), // 0-100
+  totalScore: integer('total_score').notNull(), // Weighted average
+  feedback: text('feedback'),
+  fileName: varchar('file_name', { length: 255 }),
+  fileUrl: text('file_url'),
+  fileType: varchar('file_type', { length: 100 }),
+  fileSize: integer('file_size'),
+  originalName: varchar('original_name', { length: 255 }),
+  pdfGenerated: boolean('pdf_generated').notNull().default(false),
+  isLocked: boolean('is_locked').notNull().default(true),
+  assessedAt: timestamp('assessed_at').defaultNow().notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+});
+
+// Lecturer Assessments Table (Penilaian dari Dosen - 70%)
+export const lecturerAssessments = pgTable('lecturer_assessments', {
+  id: text('id').primaryKey(),
+  internshipId: text('internship_id').notNull().references(() => internships.id, { onDelete: 'cascade' }),
+  dosenId: text('dosen_id').notNull(),
+  formatKesesuaian: integer('format_kesesuaian').notNull(), // 0-100
+  penguasaanMateri: integer('penguasaan_materi').notNull(), // 0-100
+  analisisPerancangan: integer('analisis_perancangan').notNull(), // 0-100
+  sikapEtika: integer('sikap_etika').notNull(), // 0-100
+  totalScore: integer('total_score').notNull(), // Weighted average
+  feedback: text('feedback'),
+  fileName: varchar('file_name', { length: 255 }),
+  fileUrl: text('file_url'),
+  fileType: varchar('file_type', { length: 100 }),
+  fileSize: integer('file_size'),
+  originalName: varchar('original_name', { length: 255 }),
+  pdfGenerated: boolean('pdf_generated').notNull().default(false),
+  isLocked: boolean('is_locked').notNull().default(true),
+  assessedAt: timestamp('assessed_at').defaultNow().notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+});
+
+// Combined Grades Table (Rekap Nilai: 30% Mentor + 70% Dosen)
+export const combinedGrades = pgTable('combined_grades', {
+  id: text('id').primaryKey(),
+  internshipId: text('internship_id').notNull().unique().references(() => internships.id, { onDelete: 'cascade' }),
+  assessmentId: text('assessment_id').references(() => assessments.id, { onDelete: 'set null' }),
+  lecturerAssessmentId: text('lecturer_assessment_id').references(() => lecturerAssessments.id, { onDelete: 'set null' }),
+  fieldScore: integer('field_score'), // Score dari pembimbing lapangan (30%)
+  academicScore: integer('academic_score'), // Score dari dosen (70%)
+  finalScore: integer('final_score').notNull(), // Total combined score
+  letterGrade: varchar('letter_grade', { length: 2 }), // A, B, C, D, E
+  status: approvalStatusEnum('status').notNull().default('PENDING'),
+  fileName: varchar('file_name', { length: 255 }),
+  fileUrl: text('file_url'),
+  fileType: varchar('file_type', { length: 100 }),
+  fileSize: integer('file_size'),
+  originalName: varchar('original_name', { length: 255 }),
+  pdfGenerated: boolean('pdf_generated').notNull().default(false),
+  calculatedAt: timestamp('calculated_at').defaultNow().notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+});
+
+// Reports Table (Laporan Akhir KP)
+export const reports = pgTable('reports', {
+  id: text('id').primaryKey(),
+  internshipId: text('internship_id').notNull().unique().references(() => internships.id, { onDelete: 'cascade' }),
+  title: varchar('title', { length: 500 }),
+  abstract: text('abstract'),
+  fileName: varchar('file_name', { length: 255 }).notNull(),
+  fileUrl: text('file_url').notNull(),
+  fileType: varchar('file_type', { length: 100 }).notNull(),
+  fileSize: integer('file_size').notNull(),
+  originalName: varchar('original_name', { length: 255 }).notNull(),
+  status: reportStatusEnum('status').notNull().default('DRAFT'),
+  submittedAt: timestamp('submitted_at'),
+  reviewedBy: text('reviewed_by'),
+  reviewedAt: timestamp('reviewed_at'),
+  approvalStatus: approvalStatusEnum('approval_status').notNull().default('PENDING'),
+  comments: text('comments'),
+  revisionNotes: text('revision_notes'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+});
+
+// Title Submissions Table (Pengajuan Judul)
+export const titleSubmissions = pgTable('title_submissions', {
+  id: text('id').primaryKey(),
+  internshipId: text('internship_id').notNull().references(() => internships.id, { onDelete: 'cascade' }),
+  proposedTitle: varchar('proposed_title', { length: 500 }).notNull(),
+  description: text('description'),
+  status: titleStatusEnum('status').notNull().default('PENDING'),
+  approvedBy: text('approved_by'),
+  approvedAt: timestamp('approved_at'),
+  rejectionReason: text('rejection_reason'),
+  submittedAt: timestamp('submitted_at').defaultNow().notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+});
+
+// Title Revisions Table (History Revisi Judul)
+export const titleRevisions = pgTable('title_revisions', {
+  id: text('id').primaryKey(),
+  titleSubmissionId: text('title_submission_id').notNull().references(() => titleSubmissions.id, { onDelete: 'cascade' }),
+  revisedTitle: varchar('revised_title', { length: 500 }).notNull(),
+  changeReason: text('change_reason'),
+  requestedAt: timestamp('requested_at').defaultNow().notNull(),
+  requestedBy: text('requested_by').notNull(),
+});
+
+// Notifications Table
+export const notifications = pgTable('notifications', {
+  id: text('id').primaryKey(),
+  userId: text('user_id').notNull(),
+  title: varchar('title', { length: 255 }).notNull(),
+  message: text('message').notNull(),
+  type: varchar('type', { length: 50 }).notNull(), // info, success, warning, error
+  isRead: boolean('is_read').notNull().default(false),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+});
+
+// Mentor Signatures Table (Only for digital signatures, profile data is in SSO)
+export const mentorSignatures = pgTable('mentor_signatures', {
+  id: text('id').primaryKey(), // Link to SSO profileId
+  signatureUrl: text('signature_url'),
+  signatureKey: text('signature_key'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+});
+
+// Mentor Approval Requests (Pengajuan pembimbing lapangan oleh mahasiswa)
+export const mentorApprovalRequests = pgTable('mentor_approval_requests', {
+  id: text('id').primaryKey(),
+  studentUserId: text('student_user_id').notNull(),
+  mentorName: varchar('mentor_name', { length: 255 }).notNull(),
+  mentorEmail: varchar('mentor_email', { length: 255 }).notNull(),
+  mentorPhone: varchar('mentor_phone', { length: 20 }),
+  companyName: varchar('company_name', { length: 255 }),
+  position: varchar('position', { length: 100 }),
+  companyAddress: text('company_address'),
+  status: approvalStatusEnum('status').notNull().default('PENDING'),
+  rejectionReason: text('rejection_reason'),
+  reviewedBy: text('reviewed_by'),
+  reviewedAt: timestamp('reviewed_at'),
+  ssoMentorId: text('sso_mentor_id'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+});
+
+// Mentor Email Change Requests
+export const mentorEmailChangeRequests = pgTable('mentor_email_change_requests', {
+  id: text('id').primaryKey(),
+  mentorId: text('mentor_id').notNull(),
+  currentEmail: varchar('current_email', { length: 255 }).notNull(),
+  requestedEmail: varchar('requested_email', { length: 255 }).notNull(),
+  reason: text('reason'),
+  status: approvalStatusEnum('status').notNull().default('PENDING'),
+  rejectionReason: text('rejection_reason'),
+  reviewedBy: text('reviewed_by'),
+  reviewedAt: timestamp('reviewed_at'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+});
+
+// Mentor Activation Tokens (one-time token for activation/password setup)
+export const mentorActivationTokens = pgTable('mentor_activation_tokens', {
+  id: text('id').primaryKey(),
+  mentorId: text('mentor_id').notNull(),
+  token: varchar('token', { length: 255 }).notNull().unique(),
+  expiresAt: timestamp('expires_at').notNull(),
+  usedAt: timestamp('used_at'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+});
+
+// Audit Logs for approval/rejection critical actions
+export const auditLogs = pgTable('audit_logs', {
+  id: text('id').primaryKey(),
+  actorUserId: text('actor_user_id'),
+  action: varchar('action', { length: 100 }).notNull(),
+  entityType: varchar('entity_type', { length: 100 }).notNull(),
+  entityId: text('entity_id').notNull(),
+  details: json('details').notNull().default('{}'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+});
+
+
 // Relations
 export const teamsRelations = relations(teams, ({ many }) => ({
   members: many(teamMembers),
@@ -254,6 +495,7 @@ export const submissionsRelations = relations(submissions, ({ one, many }) => ({
   }),
   documents: many(submissionDocuments),
   letters: many(generatedLetters),
+  internships: many(internships),
   responseLetters: many(responseLetters),
 }));
 
@@ -283,4 +525,90 @@ export const suratPermohonanRequestsRelations = relations(suratPermohonanRequest
     fields: [suratPermohonanRequests.submissionId],
     references: [submissions.id],
   }),
+}));
+
+// Internship Relations
+export const internshipsRelations = relations(internships, ({ one, many }) => ({
+  submission: one(submissions, {
+    fields: [internships.submissionId],
+    references: [submissions.id],
+  }),
+  team: one(teams, {
+    fields: [internships.teamId],
+    references: [teams.id],
+  }),
+  mentorSignature: one(mentorSignatures, {
+    fields: [internships.pembimbingLapanganId],
+    references: [mentorSignatures.id],
+  }),
+  logbooks: many(logbooks),
+  assessment: one(assessments),
+  lecturerAssessment: one(lecturerAssessments),
+  combinedGrade: one(combinedGrades),
+  report: one(reports),
+  titleSubmissions: many(titleSubmissions),
+}));
+
+export const logbooksRelations = relations(logbooks, ({ one }) => ({
+  internship: one(internships, {
+    fields: [logbooks.internshipId],
+    references: [internships.id],
+  }),
+}));
+
+export const assessmentsRelations = relations(assessments, ({ one }) => ({
+  internship: one(internships, {
+    fields: [assessments.internshipId],
+    references: [internships.id],
+  }),
+  combinedGrade: one(combinedGrades),
+}));
+
+export const lecturerAssessmentsRelations = relations(lecturerAssessments, ({ one }) => ({
+  internship: one(internships, {
+    fields: [lecturerAssessments.internshipId],
+    references: [internships.id],
+  }),
+  combinedGrade: one(combinedGrades),
+}));
+
+export const combinedGradesRelations = relations(combinedGrades, ({ one }) => ({
+  internship: one(internships, {
+    fields: [combinedGrades.internshipId],
+    references: [internships.id],
+  }),
+  assessment: one(assessments, {
+    fields: [combinedGrades.assessmentId],
+    references: [assessments.id],
+  }),
+  lecturerAssessment: one(lecturerAssessments, {
+    fields: [combinedGrades.lecturerAssessmentId],
+    references: [lecturerAssessments.id],
+  }),
+}));
+
+export const reportsRelations = relations(reports, ({ one }) => ({
+  internship: one(internships, {
+    fields: [reports.internshipId],
+    references: [internships.id],
+  }),
+}));
+
+export const titleSubmissionsRelations = relations(titleSubmissions, ({ one, many }) => ({
+  internship: one(internships, {
+    fields: [titleSubmissions.internshipId],
+    references: [internships.id],
+  }),
+  revisions: many(titleRevisions),
+}));
+
+export const titleRevisionsRelations = relations(titleRevisions, ({ one }) => ({
+  titleSubmission: one(titleSubmissions, {
+    fields: [titleRevisions.titleSubmissionId],
+    references: [titleSubmissions.id],
+  }),
+}));
+
+export const mentorSignaturesRelations = relations(mentorSignatures, ({ many }) => ({
+  internships: many(internships),
 }));

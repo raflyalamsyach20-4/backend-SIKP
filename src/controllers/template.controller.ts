@@ -66,7 +66,7 @@ export class TemplateController {
 
       const formData = await this.c.req.formData();
       const fileEntry = formData.get('file');
-      const file = fileEntry instanceof File ? fileEntry : null;
+      const file = (fileEntry as any) instanceof File ? (fileEntry as unknown as File) : null;
       const name = formData.get('name') as string;
       const type = (formData.get('type') as string) || 'standard';
       const description = formData.get('description') as string;
@@ -114,7 +114,7 @@ export class TemplateController {
       const formData = await this.c.req.formData();
 
       const fileEntry = formData.get('file');
-      const file = fileEntry instanceof File ? fileEntry : null;
+      const file = (fileEntry as any) instanceof File ? (fileEntry as unknown as File) : null;
       const name = formData.get('name') as string;
       const type = formData.get('type') as string;
       const description = formData.get('description') as string;
