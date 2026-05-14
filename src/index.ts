@@ -41,7 +41,9 @@ const app = new Hono<{ Bindings: CloudflareBindings }>()
 .use('*', cors({
   origin: (origin) => origin || '*',
   allowMethods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowHeaders: ['Content-Type', 'Authorization'],
+  allowHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+  exposeHeaders: ['Content-Length', 'X-Kuma-Revision'],
+  maxAge: 600,
   credentials: true,
 }))
 

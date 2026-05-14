@@ -154,16 +154,9 @@ export class DosenService {
       }
 
       if (!response.ok) {
-        if (response.status === 404) {
-          console.warn(`[DosenService.getDosenById] Dosen ID ${dosenId} not found in SSO`);
-        } else if (response.status === 400) {
-          console.warn(`[DosenService.getDosenById] SSO Gateway rejected ID ${dosenId} (likely non-UUID). Falling back to local cache.`);
-        } else {
-          throw new Error(`Failed to fetch dosen from SSO (${response.status})`);
-        }
+        console.warn(`[DosenService.getDosenById] SSO returned error ${response.status} for ${dosenId}. Attempting local fallback.`);
 
         // Fallback to local auth_sessions table (snapshot cache)
-        // This is useful if dosenId is actually an authUserId (CUID)
         const authSessionRepo = new AuthSessionRepository(createDbClient(this.env.DATABASE_URL));
         const snapshot = await authSessionRepo.findProfileSnapshotByMahasiswaId(dosenId);
         
@@ -183,8 +176,8 @@ export class DosenService {
             nidn: dsnIdentity.nidn || null,
             jabatanFungsional: dsnIdentity.jabatanFungsional || null,
             jabatanStruktural: dsnIdentity.jabatanStruktural || null,
-            prodi: dsnIdentity.prodi || null,
-            fakultas: dsnIdentity.fakultas || null,
+            prodi: typeof dsnIdentity.prodi === 'string' ? { nama: dsnIdentity.prodi } : dsnIdentity.prodi || null,
+            fakultas: typeof dsnIdentity.fakultas === 'string' ? { nama: dsnIdentity.fakultas } : dsnIdentity.fakultas || null,
             profile: {
               id: snapshot.authUserId,
               fullName: snapshot.fullName,

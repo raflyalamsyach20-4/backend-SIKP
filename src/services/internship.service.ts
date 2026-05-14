@@ -31,7 +31,7 @@ export class InternshipService {
     // 1. Resolve Student Details from SSO first to get the correct internal Profile ID
     const studentProfile = await this.mahasiswaService.getMahasiswaById(userId, sessionId);
     if (!studentProfile) {
-      console.error(`[InternshipService.getInternshipData] Mahasiswa profile not found in SSO for userId: ${userId}`);
+      console.error(`[InternshipService.getInternshipData] CRITICAL: Mahasiswa profile not found in SSO and no local snapshot available for userId: ${userId}`);
       return null;
     }
 

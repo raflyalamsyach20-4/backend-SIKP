@@ -101,13 +101,7 @@ export class MahasiswaService {
       }
 
       if (!response.ok) {
-        if (response.status === 404) {
-          console.warn(`[MahasiswaService.getMahasiswaById] Mahasiswa ID ${mahasiswaId} not found in SSO`);
-        } else if (response.status === 400) {
-          console.warn(`[MahasiswaService.getMahasiswaById] SSO Gateway rejected ID ${mahasiswaId} (likely non-UUID). Falling back to local cache.`);
-        } else {
-          throw new Error(`Failed to fetch mahasiswa from SSO (${response.status})`);
-        }
+        console.warn(`[MahasiswaService.getMahasiswaById] SSO returned error ${response.status} for ${mahasiswaId}. Attempting local fallback.`);
         
         // Fallback to local auth_sessions table
         const authSessionRepo = new AuthSessionRepository(createDbClient(this.env.DATABASE_URL));
@@ -117,21 +111,20 @@ export class MahasiswaService {
           console.info(`[MahasiswaService.getMahasiswaById] Found snapshot fallback for ${mahasiswaId}`);
           
           // Map snapshot to SsoMahasiswaDetail format
-          // The snapshot is the 'profile' object from SSO
           const mhsIdentity = Array.isArray(snapshot.identities) 
             ? snapshot.identities.find((i: any) => i.role === 'MAHASISWA' || i.identityType === 'MAHASISWA')
             : snapshot.identities?.mahasiswa;
 
           return {
-            id: mhsIdentity?.id || snapshot.id, // Use the actual Mahasiswa Identity ID if found
+            id: mhsIdentity?.id || snapshot.id,
             nim: mhsIdentity?.nim || '-',
             angkatan: mhsIdentity?.angkatan || 0,
             status: mhsIdentity?.status || 'aktif',
-            prodi: mhsIdentity?.prodi || null,
-            fakultas: mhsIdentity?.fakultas || null,
+            prodi: typeof mhsIdentity?.prodi === 'string' ? { nama: mhsIdentity.prodi } : mhsIdentity?.prodi || null,
+            fakultas: typeof mhsIdentity?.fakultas === 'string' ? { nama: mhsIdentity.fakultas } : mhsIdentity?.fakultas || null,
             dosenPA: mhsIdentity?.dosenPA || null,
             profile: {
-              id: snapshot.authUserId, // The SSO UUID
+              id: snapshot.authUserId,
               fullName: snapshot.fullName,
               emails: snapshot.emails || [],
             }
