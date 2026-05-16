@@ -14,6 +14,8 @@ type VerifierContext = {
   nama: string | null;
   nip: string | null;
   jabatan: string | null;
+  jabatanStruktural: string[] | null;
+  isWakdek: boolean;
   prodi: string | null;
   esignatureUrl: string | null;
 };
@@ -198,19 +200,30 @@ export class SuratPengantarDosenService {
     const dosen = await this.dosenService.getDosenById(dosenId, sessionId);
     if (!dosen) throw new Error('Dosen tidak ditemukan di SSO');
 
+    const jabatanStruktural = dosen.jabatanStruktural ?? [];
+    // ✅ Detect Wakil Dekan via jabatanStruktural (SSO) OR role from JWT
+    const isWakdek =
+      role === 'wakil_dekan' ||
+      jabatanStruktural.some((j) =>
+        j.toLowerCase().replace(/_/g, ' ').includes('wakil dekan'),
+      );
+
     return {
       userId: dosenId,
       role,
       nama: dosen.profile.fullName,
-      nip: dosen.profile.authUserId, // Use authUserId as NIP if nip field missing in response
+      nip: dosen.profile.authUserId,
       jabatan: dosen.jabatanFungsional,
+      jabatanStruktural,
+      isWakdek,
       prodi: dosen.prodi?.nama || null,
-      esignatureUrl: null, // Fetched differently in new proxy service
+      esignatureUrl: null,
     };
   }
 
   private async canVerifierAccessSubmission(verifier: VerifierContext, leaderMahasiswaId: string | null | undefined, sessionId: string) {
-    if (verifier.role === 'wakil_dekan' || (verifier.jabatan ?? '').toLowerCase().includes('wakil dekan')) return true;
+    // ✅ Wakil Dekan can access all submissions regardless of prodi
+    if (verifier.isWakdek) return true;
     if (!leaderMahasiswaId || !verifier.prodi) return false;
     const leader = await this.mahasiswaService.getMahasiswaById(leaderMahasiswaId, sessionId);
     return verifier.prodi === leader?.prodi?.nama;

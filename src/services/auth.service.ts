@@ -301,6 +301,17 @@ export class AuthService {
     const payload = (await profileResp.json()) as SsoEnvelope;
     const profile = payload.data;
 
+    // 🔍 DEBUG: Log raw SSO profile to diagnose name mismatch
+    console.warn('[DEBUG][SSO_PROFILE_RAW]', JSON.stringify({
+      fullName: profile?.fullName,
+      id: profile?.id,
+      authUserId: profile?.authUserId,
+      emails: profile?.emails?.map((e) => e.email),
+      mahasiswaNim: profile?.identities?.mahasiswa?.nim,
+      allKeys: profile ? Object.keys(profile) : [],
+      rawPayloadKeys: Object.keys(payload),
+    }, null, 2));
+
     if (!profile) {
       throw new Error("Empty profile data from SSO");
     }
@@ -609,6 +620,14 @@ export class AuthService {
       createdAt: new Date(),
       updatedAt: new Date(),
     });
+
+    // ✅ OPTION A: Delete all OTHER sessions for this user so stale profileSnapshots
+    // (which may contain outdated names/data from SSO) are immediately invalidated.
+    // The new session above always has a fresh profileSnapshot fetched moments ago.
+    await this.authSessionRepo.deleteOtherSessionsByAuthUserId(
+      String(authUserId),
+      sessionId,
+    );
 
     console.info("[AUTH][SSO_CALLBACK]", {
       authUserId,

@@ -1,9 +1,9 @@
-import { eq, lte, sql } from 'drizzle-orm';
+import { and, eq, lte, ne, sql } from 'drizzle-orm';
 import type { DbClient } from '@/db';
 import { authSessions } from '@/db/schema';
 
 export class AuthSessionRepository {
-  constructor(private db: DbClient) {}
+  constructor(private db: DbClient) { }
 
   async createSession(data: typeof authSessions.$inferInsert) {
     const result = await this.db
@@ -41,6 +41,21 @@ export class AuthSessionRepository {
     await this.db
       .delete(authSessions)
       .where(eq(authSessions.sessionId, sessionId));
+  }
+
+  /**
+   * Delete all sessions for a given authUserId EXCEPT the current session.
+   * Called at login to invalidate stale sessions (and their cached profileSnapshots).
+   */
+  async deleteOtherSessionsByAuthUserId(authUserId: string, keepSessionId: string) {
+    await this.db
+      .delete(authSessions)
+      .where(
+        and(
+          eq(authSessions.authUserId, authUserId),
+          ne(authSessions.sessionId, keepSessionId),
+        )
+      );
   }
 
   async deleteExpiredSessions(now: Date = new Date()) {

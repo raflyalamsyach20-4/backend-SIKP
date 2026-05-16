@@ -176,6 +176,7 @@ export class SuratKesediaanService {
 
   private toTitleCase(value: string): string {
     return value
+      .replace(/[_-]/g, ' ')   // normalise snake_case / kebab-case → spasi
       .split(/\s+/)
       .filter((token) => token.length > 0)
       .map((token) => token.charAt(0).toUpperCase() + token.slice(1).toLowerCase())

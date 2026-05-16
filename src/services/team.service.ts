@@ -504,26 +504,47 @@ export class TeamService {
       throw new Error('Team not found');
     }
 
-    // Step 4: Authorization check - TWO VALID CASES:
-    // Case 1: Current user IS the one being invited (mahasiswaId === memberRecord.mahasiswaId)
+    // Step 4: Authorization check — ditentukan berdasarkan SIAPA yang membuat record ini:
+    //
+    //   A) UNDANGAN dari ketua ke mahasiswa:
+    //      invitedByMahasiswaId === team.leaderMahasiswaId
+    //      → Hanya mahasiswa yang DIUNDANG (invitee) yang boleh terima/tolak.
+    //      → Ketua TIDAK BOLEH merespons undangan miliknya sendiri.
+    //
+    //   B) PERMINTAAN GABUNG dari mahasiswa ke tim:
+    //      invitedByMahasiswaId === memberRecord.mahasiswaId (atau bukan leader)
+    //      → Hanya KETUA TIM yang boleh terima/tolak.
+    //
     const isBeingInvited = memberRecord.mahasiswaId === mahasiswaId;
-    
-    // Case 2: Current user IS the team leader (mahasiswaId === team.leaderMahasiswaId)
-    const isTeamLeader = mahasiswaId === team.leaderMahasiswaId;
+    const isTeamLeader   = mahasiswaId === team.leaderMahasiswaId;
+    const isLeaderInvite = memberRecord.invitedByMahasiswaId === team.leaderMahasiswaId;
 
     console.log(`[respondToInvitation] 🔐 Authorization check:`, {
       isBeingInvited,
       isTeamLeader,
+      isLeaderInvite,
       currentMahasiswaId: mahasiswaId,
       inviteeMahasiswaId: memberRecord.mahasiswaId,
+      invitedByMahasiswaId: memberRecord.invitedByMahasiswaId,
       teamLeaderId: team.leaderMahasiswaId
     });
 
-    if (!isBeingInvited && !isTeamLeader) {
-      console.error(`[respondToInvitation] ❌ Unauthorized: User is neither invitee nor team leader`);
-      const unauthorizedError: Error = new Error('Unauthorized: only team leader or invitee can respond');
-      unauthorizedError.statusCode = 403;
-      throw unauthorizedError;
+    if (isLeaderInvite) {
+      // Undangan yang dikirim ketua → hanya invitee yang boleh respond
+      if (!isBeingInvited) {
+        console.error(`[respondToInvitation] ❌ Unauthorized: Hanya mahasiswa yang diundang yang dapat merespons undangan ini`);
+        const err: Error = new Error('Hanya mahasiswa yang diundang yang dapat menerima atau menolak undangan ini');
+        err.statusCode = 403;
+        throw err;
+      }
+    } else {
+      // Permintaan gabung dari mahasiswa → hanya ketua yang boleh respond
+      if (!isTeamLeader) {
+        console.error(`[respondToInvitation] ❌ Unauthorized: Hanya ketua tim yang dapat merespons permintaan gabung ini`);
+        const err: Error = new Error('Hanya ketua tim yang dapat menerima atau menolak permintaan gabung ini');
+        err.statusCode = 403;
+        throw err;
+      }
     }
 
     console.log(`[respondToInvitation] ✅ Valid authorization: teamId=${memberRecord.teamId}`);
