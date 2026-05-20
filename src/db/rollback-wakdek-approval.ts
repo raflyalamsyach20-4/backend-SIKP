@@ -1,17 +1,19 @@
 // @ts-nocheck
-import * as dotenv from 'dotenv';
-import { getMaintenanceSql } from './maintenance-client';
+import * as dotenv from "dotenv";
+import { getMaintenanceSql } from "./maintenance-client";
 
-dotenv.config({ path: '.env' });
+dotenv.config({ path: ".env" });
 
 const args = process.argv.slice(2);
-const hasApplyArg = args.includes('--apply');
-const idsArg = args.find((arg) => arg.startsWith('--ids='));
+const hasApplyArg = args.includes("--apply");
+const idsArg = args.find((arg) => arg.startsWith("--ids="));
 
-const APPLY = hasApplyArg || process.env.APPLY === 'true';
-const submissionIdsRaw = idsArg ? idsArg.slice('--ids='.length) : (process.env.SUBMISSION_IDS || '');
+const APPLY = hasApplyArg || process.env.APPLY === "true";
+const submissionIdsRaw = idsArg
+  ? idsArg.slice("--ids=".length)
+  : process.env.SUBMISSION_IDS || "";
 const submissionIds = submissionIdsRaw
-  .split(',')
+  .split(",")
   .map((id) => id.trim())
   .filter((id) => id.length > 0);
 
@@ -22,26 +24,32 @@ const sanitizeId = (id: string) => {
   return id;
 };
 
-const toInClause = (ids: string[]) => ids.map((id) => `'${sanitizeId(id)}'`).join(', ');
+const toInClause = (ids: string[]) =>
+  ids.map((id) => `'${sanitizeId(id)}'`).join(", ");
 
 const run = async () => {
   if (!process.env.DATABASE_URL) {
-    throw new Error('DATABASE_URL is not defined in .env file');
+    throw new Error("DATABASE_URL is not defined in .env file");
   }
 
   const sql = getMaintenanceSql();
 
-  const idFilter = submissionIds.length > 0
-    ? `AND s.id IN (${toInClause(submissionIds)})`
-    : '';
+  const idFilter =
+    submissionIds.length > 0
+      ? `AND s.id IN (${toInClause(submissionIds)})`
+      : "";
 
   try {
-    console.log('\n[Rollback Wakdek Approval] Start\n');
-    console.log(`[Mode] ${APPLY ? 'APPLY (write changes)' : 'DRY RUN (no changes)'}`);
+    console.log("\n[Rollback Wakdek Approval] Start\n");
+    console.log(
+      `[Mode] ${APPLY ? "APPLY (write changes)" : "DRY RUN (no changes)"}`,
+    );
     if (submissionIds.length > 0) {
-      console.log(`[Filter] submission_ids=${submissionIds.join(', ')}`);
+      console.log(`[Filter] submission_ids=${submissionIds.join(", ")}`);
     } else {
-      console.log('[Filter] all submissions that are already approved by dosen/wakil dekan');
+      console.log(
+        "[Filter] all submissions that are already approved by dosen/wakil dekan",
+      );
     }
 
     const candidates = await sql.query(`
@@ -69,18 +77,18 @@ const run = async () => {
     if (candidates.length > 0) {
       for (const row of candidates) {
         console.log(
-          `- ${row.id} | stage=${row.workflow_stage} | status=${row.status} | final_file=${row.final_signed_file_url ? 'yes' : 'no'} | generated_letters=${row.generated_letter_count}`
+          `- ${row.id} | stage=${row.workflow_stage} | status=${row.status} | final_file=${row.final_signed_file_url ? "yes" : "no"} | generated_letters=${row.generated_letter_count}`,
         );
       }
     }
 
     if (!APPLY) {
-      console.log('\n[DRY RUN] No data changed.');
-      console.log('[DRY RUN] Set APPLY=true to execute rollback.\n');
+      console.log("\n[DRY RUN] No data changed.");
+      console.log("[DRY RUN] Set APPLY=true to execute rollback.\n");
       process.exit(0);
     }
 
-    await sql.query('BEGIN');
+    await sql.query("BEGIN");
 
     const deletedLetters = await sql.query(`
       DELETE FROM generated_letters gl
@@ -119,19 +127,21 @@ const run = async () => {
       RETURNING s.id
     `);
 
-    await sql.query('COMMIT');
+    await sql.query("COMMIT");
 
     console.log(`\n[Result] Rolled back submissions: ${rolledBack.length}`);
-    console.log(`[Result] Deleted generated_letters rows: ${deletedLetters.length}`);
-    console.log('\n[Rollback Wakdek Approval] Done.\n');
+    console.log(
+      `[Result] Deleted generated_letters rows: ${deletedLetters.length}`,
+    );
+    console.log("\n[Rollback Wakdek Approval] Done.\n");
     process.exit(0);
   } catch (error) {
     try {
-      await sql.query('ROLLBACK');
+      await sql.query("ROLLBACK");
     } catch {
       // ignore rollback error
     }
-    console.error('[Rollback Wakdek Approval] Failed:', error);
+    console.error("[Rollback Wakdek Approval] Failed:", error);
     process.exit(1);
   }
 };

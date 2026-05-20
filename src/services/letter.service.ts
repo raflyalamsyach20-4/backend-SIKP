@@ -1,15 +1,15 @@
-import PDFDocument from 'pdfkit';
-import { jsPDF } from 'jspdf';
-import { Document, Packer, Paragraph, TextRun } from 'docx';
-import { SubmissionRepository } from '@/repositories/submission.repository';
-import { TeamRepository } from '@/repositories/team.repository';
-import { MahasiswaService } from '@/services/mahasiswa.service';
-import { DosenService } from '@/services/dosen.service';
-import { SsoSignatureProxyService } from '@/services/sso-signature-proxy.service';
-import { StorageService } from './storage.service';
-import { generateId } from '@/utils/helpers';
-import { createDbClient } from '@/db';
-import { UNSRI_LOGO_BASE64 } from '@/constants/unsri-logo.base64';
+import PDFDocument from "pdfkit";
+import { jsPDF } from "jspdf";
+import { Document, Packer, Paragraph, TextRun } from "docx";
+import { SubmissionRepository } from "@/repositories/submission.repository";
+import { TeamRepository } from "@/repositories/team.repository";
+import { MahasiswaService } from "@/services/mahasiswa.service";
+import { DosenService } from "@/services/dosen.service";
+import { SsoSignatureProxyService } from "@/services/sso-signature-proxy.service";
+import { StorageService } from "./storage.service";
+import { generateId } from "@/utils/helpers";
+import { createDbClient } from "@/db";
+import { UNSRI_LOGO_BASE64 } from "@/constants/unsri-logo.base64";
 
 type LetterSubmission = {
   id: string;
@@ -34,7 +34,7 @@ type SuratPengantarPdfEntry = {
   nim: string;
   namaMahasiswa: string;
   programStudi: string;
-  status: 'menunggu' | 'disetujui' | 'ditolak';
+  status: "menunggu" | "disetujui" | "ditolak";
   supervisor?: string;
   teamMembers?: Array<{
     id: string;
@@ -84,15 +84,23 @@ export class LetterService {
     this.storageService = new StorageService(this.env);
   }
 
-  async generateLetter(submissionId: string, adminId: string, format: 'pdf' | 'docx' = 'pdf') {
+  async generateLetter(
+    submissionId: string,
+    adminId: string,
+    format: "pdf" | "docx" = "pdf",
+  ) {
     const submission = await this.submissionRepo.findById(submissionId);
     if (!submission) {
-      throw new Error('Submission not found');
+      throw new Error("Submission not found");
     }
 
-    const adminApproved = submission.adminVerificationStatus === 'APPROVED' || submission.status === 'APPROVED';
+    const adminApproved =
+      submission.adminVerificationStatus === "APPROVED" ||
+      submission.status === "APPROVED";
     if (!adminApproved) {
-      throw new Error('Can only generate letter for admin-approved submissions');
+      throw new Error(
+        "Can only generate letter for admin-approved submissions",
+      );
     }
 
     const letterNumber = await this.generateLetterNumber();
@@ -100,7 +108,7 @@ export class LetterService {
     let fileBuffer: Buffer;
     let fileName: string;
 
-    if (format === 'pdf') {
+    if (format === "pdf") {
       fileBuffer = await this.generatePDF(submission, letterNumber);
       fileName = `surat-pengantar-${submission.id}.pdf`;
     } else {
@@ -111,10 +119,10 @@ export class LetterService {
     const { url } = await this.storageService.uploadFile(
       fileBuffer,
       fileName,
-      'letters',
-      format === 'pdf'
-        ? 'application/pdf'
-        : 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+      "letters",
+      format === "pdf"
+        ? "application/pdf"
+        : "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
     );
 
     return await this.submissionRepo.addGeneratedLetter({
@@ -128,77 +136,119 @@ export class LetterService {
     });
   }
 
-  async generateCoverLetterDocument(submissionId: string, adminId: string, letterNumber?: string | null, sessionId: string = '') {
+  async generateCoverLetterDocument(
+    submissionId: string,
+    adminId: string,
+    letterNumber?: string | null,
+    sessionId: string = "",
+  ) {
     const submission = await this.submissionRepo.findByIdWithTeam(submissionId);
     if (!submission) {
-      throw new Error('Submission not found');
+      throw new Error("Submission not found");
     }
 
     // This method is invoked from admin approval flow before the submission row is fully updated.
     // Accept the pending-admin-review stage as a valid transitional state for cover-letter generation.
     const adminApproved =
-      submission.adminVerificationStatus === 'APPROVED' ||
-      submission.status === 'APPROVED' ||
-      submission.workflowStage === 'PENDING_ADMIN_REVIEW';
+      submission.adminVerificationStatus === "APPROVED" ||
+      submission.status === "APPROVED" ||
+      submission.workflowStage === "PENDING_ADMIN_REVIEW";
     if (!adminApproved) {
-      throw new Error('Can only generate cover letter for admin-approved submissions');
+      throw new Error(
+        "Can only generate cover letter for admin-approved submissions",
+      );
     }
 
-    const existingDocs = await this.submissionRepo.findDocumentsBySubmissionId(submissionId);
+    const existingDocs =
+      await this.submissionRepo.findDocumentsBySubmissionId(submissionId);
     const existingCoverLetter = existingDocs.find(
-      (doc) => doc.documentType === 'SURAT_PENGANTAR' && doc.fileUrl && !doc.fileUrl.startsWith('/uploads/')
+      (doc) =>
+        doc.documentType === "SURAT_PENGANTAR" &&
+        doc.fileUrl &&
+        !doc.fileUrl.startsWith("/uploads/"),
     );
     if (existingCoverLetter) {
       return existingCoverLetter;
     }
 
-    const normalizedLetterNumber = letterNumber || submission.letterNumber || await this.generateLetterNumber();
+    const normalizedLetterNumber =
+      letterNumber ||
+      submission.letterNumber ||
+      (await this.generateLetterNumber());
     const wakilDekanSig = await this.submissionRepo.findWakilDekanSignature();
-    const pdfEntry = await this.buildSuratPengantarPdfEntry(submission, normalizedLetterNumber, wakilDekanSig, 'menunggu', sessionId);
+    const pdfEntry = await this.buildSuratPengantarPdfEntry(
+      submission,
+      normalizedLetterNumber,
+      wakilDekanSig,
+      "menunggu",
+      sessionId,
+    );
     const fileBuffer = await this.generateSuratPengantarPdf(pdfEntry);
     const timestamp = Date.now();
     const fileName = `Surat_Pengantar_Kerja_Praktik_${submission.teamId}_${timestamp}.pdf`;
 
-    const { url } = await this.storageService.uploadFile(fileBuffer, fileName, 'submissions', 'application/pdf');
+    const { url } = await this.storageService.uploadFile(
+      fileBuffer,
+      fileName,
+      "submissions",
+      "application/pdf",
+    );
 
     return await this.submissionRepo.addDocument({
       id: generateId(),
       submissionId,
-      documentType: 'SURAT_PENGANTAR',
+      documentType: "SURAT_PENGANTAR",
       memberMahasiswaId: adminId,
       uploadedByMahasiswaId: adminId,
       originalName: `Surat_Pengantar_Kerja_Praktik_${submission.teamId}.pdf`,
       fileName,
-      fileType: 'application/pdf',
+      fileType: "application/pdf",
       fileSize: fileBuffer.length,
       fileUrl: url,
       createdAt: new Date(),
     });
   }
 
-  async generateFinalSignedLetter(submissionId: string, verifiedByAdminId: string, sessionId: string = '') {
+  async generateFinalSignedLetter(
+    submissionId: string,
+    verifiedByAdminId: string,
+    sessionId: string = "",
+  ) {
     const submission = await this.submissionRepo.findByIdWithTeam(submissionId);
     if (!submission) {
-      throw new Error('Submission not found');
+      throw new Error("Submission not found");
     }
 
-    const existingLetters = await this.submissionRepo.findLettersBySubmissionId(submissionId);
+    const existingLetters =
+      await this.submissionRepo.findLettersBySubmissionId(submissionId);
     const existingSignedLetter = existingLetters.find((letter) => {
-      const lower = (letter.fileName || '').toLowerCase();
-      return lower.includes('-signed-') || lower.includes('final');
+      const lower = (letter.fileName || "").toLowerCase();
+      return lower.includes("-signed-") || lower.includes("final");
     });
     if (existingSignedLetter) {
       return existingSignedLetter;
     }
 
-    const letterNumber = submission.letterNumber || await this.generateLetterNumber();
+    const letterNumber =
+      submission.letterNumber || (await this.generateLetterNumber());
     const wakilDekanSig = await this.submissionRepo.findWakilDekanSignature();
-    const pdfEntry = await this.buildSuratPengantarPdfEntry(submission, letterNumber, wakilDekanSig, 'disetujui', sessionId);
+    const pdfEntry = await this.buildSuratPengantarPdfEntry(
+      submission,
+      letterNumber,
+      wakilDekanSig,
+      "disetujui",
+      sessionId,
+    );
     const fileBuffer = await this.generateSuratPengantarPdf(pdfEntry);
     const timestamp = Date.now();
     const fileName = `surat-pengantar-${submission.id}-signed-${timestamp}.pdf`;
 
-    const { url } = await this.storageService.uploadFile(fileBuffer, fileName, 'letters', 'application/pdf');
+    const { url } = await this.storageService.uploadFile(
+      fileBuffer,
+      fileName,
+      "letters",
+      "application/pdf",
+    );
 
     const letter = await this.submissionRepo.addGeneratedLetter({
       id: generateId(),
@@ -206,7 +256,7 @@ export class LetterService {
       letterNumber,
       fileName,
       fileUrl: url,
-      fileType: 'PDF',
+      fileType: "PDF",
       generatedByAdminId: verifiedByAdminId,
     });
 
@@ -221,78 +271,116 @@ export class LetterService {
     submission: any,
     letterNumber: string,
     wakilDekanSignature: WakilDekanSignature,
-    status: SuratPengantarPdfEntry['status'],
-    sessionId: string = ''
+    status: SuratPengantarPdfEntry["status"],
+    sessionId: string = "",
   ): Promise<SuratPengantarPdfEntry> {
-    const team = submission.team || await this.teamRepo.findById(submission.teamId);
-    const teamMemberRows = await this.teamRepo.findMembersByTeamId(submission.teamId);
+    const team =
+      submission.team || (await this.teamRepo.findById(submission.teamId));
+    const teamMemberRows = await this.teamRepo.findMembersByTeamId(
+      submission.teamId,
+    );
 
-    const acceptedRows = teamMemberRows.filter((member) => member.invitationStatus === 'ACCEPTED');
-    const effectiveRows = acceptedRows.length > 0 ? acceptedRows : teamMemberRows;
+    const acceptedRows = teamMemberRows.filter(
+      (member) => member.invitationStatus === "ACCEPTED",
+    );
+    const effectiveRows =
+      acceptedRows.length > 0 ? acceptedRows : teamMemberRows;
 
-    const teamMembers: NonNullable<SuratPengantarPdfEntry['teamMembers']> = [];
+    const teamMembers: NonNullable<SuratPengantarPdfEntry["teamMembers"]> = [];
     for (const member of effectiveRows) {
-      const student = await this.resolveMahasiswa(member.mahasiswaId, sessionId);
+      const student = await this.resolveMahasiswa(
+        member.mahasiswaId,
+        sessionId,
+      );
       teamMembers.push({
         id: member.mahasiswaId,
         name: student?.name || member.mahasiswaId,
         nim: student?.nim,
-        prodi: student?.prodi || submission.programStudi || '-',
-        role: member.role || 'ANGGOTA',
+        prodi: student?.prodi || submission.programStudi || "-",
+        role: member.role || "ANGGOTA",
       });
     }
 
-    const leaderMember = teamMembers.find((member) => member.role === 'KETUA') || teamMembers[0];
-    const tanggal = this.toIsoDate(submission.submittedAt || submission.createdAt || new Date());
-    
+    const leaderMember =
+      teamMembers.find((member) => member.role === "KETUA") || teamMembers[0];
+    const tanggal = this.toIsoDate(
+      submission.submittedAt || submission.createdAt || new Date(),
+    );
+
     // Resolve supervisor: get dosen name (could be from team or need to resolve from ID)
     let supervisor = team?.dosenKpName || team?.academicSupervisor || undefined;
-    
+
     // If supervisor looks like a UUID (with dashes), try to resolve it to get the name
-    if (supervisor && /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(supervisor)) {
+    if (
+      supervisor &&
+      /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(
+        supervisor,
+      )
+    ) {
       try {
-        const dosenDetail = await this.dosenService.getDosenById(supervisor, sessionId);
+        const dosenDetail = await this.dosenService.getDosenById(
+          supervisor,
+          sessionId,
+        );
         if (dosenDetail?.profile?.fullName) {
           supervisor = dosenDetail.profile.fullName;
         }
       } catch (err) {
-        console.warn('[buildSuratPengantarPdfEntry] Could not resolve dosen UUID to name:', supervisor, err);
+        console.warn(
+          "[buildSuratPengantarPdfEntry] Could not resolve dosen UUID to name:",
+          supervisor,
+          err,
+        );
       }
     }
 
-    const activeSignature = status === 'disetujui'
-      ? await this.ssoSignatureProxyService.getActiveSignature(sessionId)
-      : null;
+    const activeSignature =
+      status === "disetujui"
+        ? await this.ssoSignatureProxyService.getActiveSignature(sessionId)
+        : null;
 
     return {
       id: submission.id,
       tanggal,
-      nim: leaderMember?.nim || submission.nim || '-',
-      namaMahasiswa: leaderMember?.name || submission.namaMahasiswa || 'Mahasiswa',
-      programStudi: leaderMember?.prodi || submission.programStudi || '-',
+      nim: leaderMember?.nim || submission.nim || "-",
+      namaMahasiswa:
+        leaderMember?.name || submission.namaMahasiswa || "Mahasiswa",
+      programStudi: leaderMember?.prodi || submission.programStudi || "-",
       status,
-      supervisor: supervisor || '-',
+      supervisor: supervisor || "-",
       teamMembers,
-      namaPerusahaan: submission.companyName || '-',
-      tujuanSurat: submission.letterPurpose || '-',
-      alamatPerusahaan: submission.companyAddress || '-',
-      divisi: submission.division || '-',
+      namaPerusahaan: submission.companyName || "-",
+      tujuanSurat: submission.letterPurpose || "-",
+      alamatPerusahaan: submission.companyAddress || "-",
+      divisi: submission.division || "-",
       tanggalMulai: this.toIsoDateString(submission.startDate),
       tanggalSelesai: this.toIsoDateString(submission.endDate),
       nomorSurat: letterNumber,
-      dosenNama: wakilDekanSignature?.name || '-',
-      dosenNip: wakilDekanSignature?.nip || '-',
-      dosenJabatan: wakilDekanSignature?.position || '-',
-      dosenEsignatureUrl: status === 'disetujui' ? wakilDekanSignature?.esignatureUrl : undefined,
-      dosenEsignatureSvg: activeSignature?.mimeType === 'image/svg+xml' ? activeSignature.svg : undefined,
+      dosenNama: wakilDekanSignature?.name || "-",
+      dosenNip: wakilDekanSignature?.nip || "-",
+      dosenJabatan: wakilDekanSignature?.position || "-",
+      dosenEsignatureUrl:
+        status === "disetujui" ? wakilDekanSignature?.esignatureUrl : undefined,
+      dosenEsignatureSvg:
+        activeSignature?.mimeType === "image/svg+xml"
+          ? activeSignature.svg
+          : undefined,
     };
   }
 
-  private async resolveMahasiswa(mahasiswaId: string, sessionId: string = ''): Promise<{ name: string; nim?: string; prodi?: string } | null> {
+  private async resolveMahasiswa(
+    mahasiswaId: string,
+    sessionId: string = "",
+  ): Promise<{ name: string; nim?: string; prodi?: string } | null> {
     try {
-      const data = await this.mahasiswaService.getMahasiswaById(mahasiswaId, sessionId);
+      const data = await this.mahasiswaService.getMahasiswaById(
+        mahasiswaId,
+        sessionId,
+      );
       const mahasiswa = data as unknown as Record<string, unknown> | null;
-      const profile = (mahasiswa?.profile as Record<string, unknown> | undefined) || undefined;
+      const profile =
+        (mahasiswa?.profile as Record<string, unknown> | undefined) ||
+        undefined;
       const prodi = mahasiswa?.prodi as Record<string, unknown> | undefined;
       return {
         name: (profile?.fullName as string | undefined) || mahasiswaId,
@@ -300,13 +388,19 @@ export class LetterService {
         prodi: (prodi?.nama as string | undefined) || undefined,
       };
     } catch (err) {
-      console.warn('[resolveMahasiswa] Failed to fetch mahasiswa data:', mahasiswaId, err);
+      console.warn(
+        "[resolveMahasiswa] Failed to fetch mahasiswa data:",
+        mahasiswaId,
+        err,
+      );
       return null;
     }
   }
 
-  private async generateSuratPengantarPdf(entry: SuratPengantarPdfEntry): Promise<Buffer> {
-    const pdf = new jsPDF('portrait', 'mm', 'a4');
+  private async generateSuratPengantarPdf(
+    entry: SuratPengantarPdfEntry,
+  ): Promise<Buffer> {
+    const pdf = new jsPDF("portrait", "mm", "a4");
     const left = 20;
     const right = 190;
     const state = { y: 20 };
@@ -332,7 +426,10 @@ export class LetterService {
         const words = value.split(/\s+/).filter(Boolean);
 
         if (!isLastLine && words.length > 1) {
-          const wordsWidth = words.reduce((total, word) => total + pdf.getTextWidth(word), 0);
+          const wordsWidth = words.reduce(
+            (total, word) => total + pdf.getTextWidth(word),
+            0,
+          );
           const extraSpace = (width - wordsWidth) / (words.length - 1);
           let cursorX = x;
           words.forEach((word, wordIndex) => {
@@ -355,47 +452,66 @@ export class LetterService {
         : [
             {
               id: `fallback-${entry.id}`,
-              name: entry.namaMahasiswa || '-',
-              nim: entry.nim || '-',
-              prodi: entry.programStudi || '-',
-              role: 'Ketua',
+              name: entry.namaMahasiswa || "-",
+              nim: entry.nim || "-",
+              prodi: entry.programStudi || "-",
+              role: "Ketua",
             },
           ];
 
     const tujuanSurat = this.sanitizeText(this.buildRecipientLine(entry));
-    const alamatPerusahaan = entry.alamatPerusahaan || '-';
-    const nomorSurat = entry.nomorSurat || '-';
+    const alamatPerusahaan = entry.alamatPerusahaan || "-";
+    const nomorSurat = entry.nomorSurat || "-";
     const tanggalSurat = this.formatDateLong(entry.approvedAt || entry.tanggal);
 
     const logoX = 12;
     const logoY = 14;
     const logoSize = 36;
     try {
-      pdf.addImage(`data:image/png;base64,${UNSRI_LOGO_BASE64}`, 'PNG', logoX, logoY, logoSize, logoSize);
+      pdf.addImage(
+        `data:image/png;base64,${UNSRI_LOGO_BASE64}`,
+        "PNG",
+        logoX,
+        logoY,
+        logoSize,
+        logoSize,
+      );
     } catch {
       this.drawLogoFallback(pdf, logoX, logoY, logoSize);
     }
 
-    pdf.setFont('times', 'normal');
+    pdf.setFont("times", "normal");
     pdf.setFontSize(16);
-    pdf.text('KEMENTERIAN PENDIDIKAN TINGGI,', 105, state.y, { align: 'center' });
+    pdf.text("KEMENTERIAN PENDIDIKAN TINGGI,", 105, state.y, {
+      align: "center",
+    });
     state.y += 6;
-    pdf.text('SAINS, DAN TEKNOLOGI', 105, state.y, { align: 'center' });
+    pdf.text("SAINS, DAN TEKNOLOGI", 105, state.y, { align: "center" });
     state.y += 7;
 
-    pdf.setFont('times', 'normal');
+    pdf.setFont("times", "normal");
     pdf.setFontSize(14);
-    pdf.text('UNIVERSITAS SRIWIJAYA', 105, state.y, { align: 'center' });
+    pdf.text("UNIVERSITAS SRIWIJAYA", 105, state.y, { align: "center" });
     state.y += 5;
-    pdf.setFont('times', 'bold');
-    pdf.text('FAKULTAS ILMU KOMPUTER', 105, state.y, { align: 'center' });
+    pdf.setFont("times", "bold");
+    pdf.text("FAKULTAS ILMU KOMPUTER", 105, state.y, { align: "center" });
     state.y += 7;
 
-    pdf.setFont('times', 'normal');
+    pdf.setFont("times", "normal");
     pdf.setFontSize(11);
-    pdf.text('Jalan Palembang - Prabumulih Km. 32 Inderalaya Ogan Ilir Kode Pos 30662', 105, state.y, { align: 'center' });
+    pdf.text(
+      "Jalan Palembang - Prabumulih Km. 32 Inderalaya Ogan Ilir Kode Pos 30662",
+      105,
+      state.y,
+      { align: "center" },
+    );
     state.y += 5;
-    pdf.text('Telepon (+62711) 379249. Pos-el humas@ilkom.unsri.ac.id', 105, state.y, { align: 'center' });
+    pdf.text(
+      "Telepon (+62711) 379249. Pos-el humas@ilkom.unsri.ac.id",
+      105,
+      state.y,
+      { align: "center" },
+    );
     state.y += 5;
     pdf.setLineWidth(0.5);
     pdf.line(left, state.y, right, state.y);
@@ -406,47 +522,59 @@ export class LetterService {
     const contentWidth = contentRight - contentLeft;
     const metadataLeft = contentLeft;
     pdf.setFontSize(12);
-    pdf.text('Nomor', metadataLeft, state.y);
-    pdf.text(':', metadataLeft + 22, state.y);
+    pdf.text("Nomor", metadataLeft, state.y);
+    pdf.text(":", metadataLeft + 22, state.y);
     pdf.text(nomorSurat, metadataLeft + 26, state.y);
-    pdf.text(tanggalSurat, contentRight, state.y, { align: 'right' });
+    pdf.text(tanggalSurat, contentRight, state.y, { align: "right" });
     state.y += lineHeight115;
 
-    pdf.text('Lampiran', metadataLeft, state.y);
-    pdf.text(':', metadataLeft + 22, state.y);
-    pdf.text('1 (satu) berkas', metadataLeft + 26, state.y);
+    pdf.text("Lampiran", metadataLeft, state.y);
+    pdf.text(":", metadataLeft + 22, state.y);
+    pdf.text("1 (satu) berkas", metadataLeft + 26, state.y);
     state.y += lineHeight115;
 
-    pdf.text('Perihal', metadataLeft, state.y);
-    pdf.text(':', metadataLeft + 22, state.y);
-    pdf.setFont('times', 'normal');
-    pdf.text('Izin Kerja Praktik', metadataLeft + 26, state.y);
-    pdf.setFont('times', 'normal');
+    pdf.text("Perihal", metadataLeft, state.y);
+    pdf.text(":", metadataLeft + 22, state.y);
+    pdf.setFont("times", "normal");
+    pdf.text("Izin Kerja Praktik", metadataLeft + 26, state.y);
+    pdf.setFont("times", "normal");
     state.y += lineHeight115 * 2;
 
-    pdf.setFont('times', 'bold');
+    pdf.setFont("times", "bold");
     const recipientLabelX = contentLeft;
     const recipientValueX = contentLeft + 20;
     const recipientWidth = contentWidth - (recipientValueX - contentLeft);
 
-    pdf.text('Yth.', recipientLabelX, state.y);
-    const tujuanLines = pdf.splitTextToSize(tujuanSurat, recipientWidth) as string[];
+    pdf.text("Yth.", recipientLabelX, state.y);
+    const tujuanLines = pdf.splitTextToSize(
+      tujuanSurat,
+      recipientWidth,
+    ) as string[];
     pdf.text(tujuanLines, recipientValueX, state.y);
     state.y += Math.max(1, tujuanLines.length) * lineHeight115;
 
-    const alamatLines = pdf.splitTextToSize(alamatPerusahaan, recipientWidth) as string[];
+    const alamatLines = pdf.splitTextToSize(
+      alamatPerusahaan,
+      recipientWidth,
+    ) as string[];
     pdf.text(alamatLines, recipientValueX, state.y);
     state.y += Math.max(1, alamatLines.length) * lineHeight115;
-    
-    pdf.setFont('times', 'normal');
-    pdf.text('di', recipientValueX, state.y);
+
+    pdf.setFont("times", "normal");
+    pdf.text("di", recipientValueX, state.y);
     state.y += lineHeight115;
-    pdf.text('Tempat', recipientValueX + 12, state.y);
+    pdf.text("Tempat", recipientValueX + 12, state.y);
     state.y += lineHeight115 * 3;
 
-    pdf.setFont('times', 'normal');
-    const openingText = 'Dengan hormat, kami sampaikan bahwa salah satu syarat mahasiswa Fakultas Ilmu Komputer Universitas Sriwijaya untuk menyelesaikan pendidikannya adalah melakukan Kerja Praktik (KP). Kerja Praktik ini bertujuan untuk memberikan pengalaman kerja sesuai kompetensi atau program studi mahasiswa berkaitan Teknologi Informasi dan Komunikasi (TIK). Berkenaan hal tersebut, mahasiswa berikut ini :';
-    writeJustifiedParagraph(openingText, contentLeft, contentWidth, lineHeight115);
+    pdf.setFont("times", "normal");
+    const openingText =
+      "Dengan hormat, kami sampaikan bahwa salah satu syarat mahasiswa Fakultas Ilmu Komputer Universitas Sriwijaya untuk menyelesaikan pendidikannya adalah melakukan Kerja Praktik (KP). Kerja Praktik ini bertujuan untuk memberikan pengalaman kerja sesuai kompetensi atau program studi mahasiswa berkaitan Teknologi Informasi dan Komunikasi (TIK). Berkenaan hal tersebut, mahasiswa berikut ini :";
+    writeJustifiedParagraph(
+      openingText,
+      contentLeft,
+      contentWidth,
+      lineHeight115,
+    );
     state.y += 3;
 
     const labelX = contentLeft + 18;
@@ -456,35 +584,47 @@ export class LetterService {
 
     teamMembers.forEach((member, index) => {
       ensureSpace(40);
-      pdf.setFont('times', 'normal');
+      pdf.setFont("times", "normal");
       pdf.text(`${index + 1}.`, contentLeft + 2, state.y);
 
       const writeField = (label: string, value: string) => {
         pdf.text(label, labelX, state.y);
-        pdf.text(':', colonX, state.y);
-        const lines = pdf.splitTextToSize(value || '-', fieldValueWidth) as string[];
+        pdf.text(":", colonX, state.y);
+        const lines = pdf.splitTextToSize(
+          value || "-",
+          fieldValueWidth,
+        ) as string[];
         pdf.text(lines, valueX, state.y);
         state.y += Math.max(1, lines.length) * lineHeight115;
       };
 
-      writeField('Nama', member.name || '-');
-      writeField('NIM', member.nim || '-');
-      writeField('Program Studi', member.prodi || entry.programStudi || '-');
-      writeField('Dosen Pembimbing', entry.supervisor || '-');
+      writeField("Nama", member.name || "-");
+      writeField("NIM", member.nim || "-");
+      writeField("Program Studi", member.prodi || entry.programStudi || "-");
+      writeField("Dosen Pembimbing", entry.supervisor || "-");
       state.y += lineHeight115 * 0.65;
     });
 
     ensureSpace(65);
 
-    const periodText = this.formatRangeDate(entry.tanggalMulai, entry.tanggalSelesai).replace(/\s+/g, ' ').trim();
-    const penutupText = `Merencanakan Kerja Praktik (KP) di unit/bagian/subbagian ${entry.divisi || '-'} yang Bapak/Ibu pimpin pada tanggal ${periodText} dengan proposal KP terlampir. Mohon kiranya Bapak/Ibu dapat memperkenankan/memfasilitasi mahasiswa tersebut.`.replace(/\s+/g, ' ');
+    const periodText = this.formatRangeDate(
+      entry.tanggalMulai,
+      entry.tanggalSelesai,
+    )
+      .replace(/\s+/g, " ")
+      .trim();
+    const penutupText =
+      `Merencanakan Kerja Praktik (KP) di unit/bagian/subbagian ${entry.divisi || "-"} yang Bapak/Ibu pimpin pada tanggal ${periodText} dengan proposal KP terlampir. Mohon kiranya Bapak/Ibu dapat memperkenankan/memfasilitasi mahasiswa tersebut.`.replace(
+        /\s+/g,
+        " ",
+      );
 
-    const words = penutupText.split(' ');
-    let line = '';
+    const words = penutupText.split(" ");
+    let line = "";
     let y = state.y;
     pdf.setFontSize(12);
     for (let i = 0; i < words.length; i++) {
-      const testLine = line.length > 0 ? line + ' ' + words[i] : words[i];
+      const testLine = line.length > 0 ? line + " " + words[i] : words[i];
       const testWidth = pdf.getTextWidth(testLine);
       if (testWidth > contentWidth && line.length > 0) {
         let x = contentLeft;
@@ -492,17 +632,17 @@ export class LetterService {
         while (idx < line.length) {
           const periodIdx = line.indexOf(periodText, idx);
           if (periodIdx === -1) {
-            pdf.setFont('times', 'normal');
+            pdf.setFont("times", "normal");
             pdf.text(line.substring(idx), x, y);
             break;
           }
           if (periodIdx > idx) {
-            pdf.setFont('times', 'normal');
+            pdf.setFont("times", "normal");
             const before = line.substring(idx, periodIdx);
             pdf.text(before, x, y);
             x += pdf.getTextWidth(before);
           }
-          pdf.setFont('times', 'bold');
+          pdf.setFont("times", "bold");
           pdf.text(periodText, x, y);
           x += pdf.getTextWidth(periodText);
           idx = periodIdx + periodText.length;
@@ -519,17 +659,17 @@ export class LetterService {
       while (idx < line.length) {
         const periodIdx = line.indexOf(periodText, idx);
         if (periodIdx === -1) {
-          pdf.setFont('times', 'normal');
+          pdf.setFont("times", "normal");
           pdf.text(line.substring(idx), x, y);
           break;
         }
         if (periodIdx > idx) {
-          pdf.setFont('times', 'normal');
+          pdf.setFont("times", "normal");
           const before = line.substring(idx, periodIdx);
           pdf.text(before, x, y);
           x += pdf.getTextWidth(before);
         }
-        pdf.setFont('times', 'bold');
+        pdf.setFont("times", "bold");
         pdf.text(periodText, x, y);
         x += pdf.getTextWidth(periodText);
         idx = periodIdx + periodText.length;
@@ -538,141 +678,219 @@ export class LetterService {
     }
     state.y = y + 3;
 
-    writeJustifiedParagraph('Atas perkenan dan bantuannya, kami mengucapkan terima kasih.', contentLeft, contentWidth, lineHeight115);
+    writeJustifiedParagraph(
+      "Atas perkenan dan bantuannya, kami mengucapkan terima kasih.",
+      contentLeft,
+      contentWidth,
+      lineHeight115,
+    );
     state.y += 8;
 
     const signX = contentRight - 53;
-    pdf.setFont('times', 'normal');
-    pdf.text('Wakil Dekan Bidang Akademik,', signX, state.y);
-    const signatureTopY = state.y + (-10);
+    pdf.setFont("times", "normal");
+    pdf.text("Wakil Dekan Bidang Akademik,", signX, state.y);
+    const signatureTopY = state.y + -10;
     state.y += 28;
 
     let hasRenderedSignature = false;
-    if (entry.status === 'disetujui' && entry.dosenEsignatureSvg) {
+    if (entry.status === "disetujui" && entry.dosenEsignatureSvg) {
       try {
-        this.drawSignatureSvg(pdf, entry.dosenEsignatureSvg, signX - 38, signatureTopY, 125, 55);
+        this.drawSignatureSvg(
+          pdf,
+          entry.dosenEsignatureSvg,
+          signX - 38,
+          signatureTopY,
+          125,
+          55,
+        );
         hasRenderedSignature = true;
       } catch (error) {
-        console.warn('[generateSuratPengantarPdf] Failed to render SVG e-signature:', error);
+        console.warn(
+          "[generateSuratPengantarPdf] Failed to render SVG e-signature:",
+          error,
+        );
         hasRenderedSignature = false;
       }
     }
 
-    if (!hasRenderedSignature && entry.status === 'disetujui' && entry.dosenEsignatureUrl) {
+    if (
+      !hasRenderedSignature &&
+      entry.status === "disetujui" &&
+      entry.dosenEsignatureUrl
+    ) {
       try {
-        const signatureDataUrl = await this.toDataUrlFromImageUrl(entry.dosenEsignatureUrl);
+        const signatureDataUrl = await this.toDataUrlFromImageUrl(
+          entry.dosenEsignatureUrl,
+        );
         const format = this.getImageFormatFromDataUrl(signatureDataUrl);
-        pdf.addImage(signatureDataUrl, format, signX - 8, signatureTopY, 55, 20);
+        pdf.addImage(
+          signatureDataUrl,
+          format,
+          signX - 8,
+          signatureTopY,
+          55,
+          20,
+        );
         hasRenderedSignature = true;
       } catch (error) {
-        console.warn('[generateSuratPengantarPdf] Failed to render image e-signature fallback:', error);
+        console.warn(
+          "[generateSuratPengantarPdf] Failed to render image e-signature fallback:",
+          error,
+        );
       }
     }
 
     if (!hasRenderedSignature) {
-      pdf.setFont('times', 'italic');
-      pdf.text('[Tanda Tangan Digital]', signX, signatureTopY + 13);
+      pdf.setFont("times", "italic");
+      pdf.text("[Tanda Tangan Digital]", signX, signatureTopY + 13);
     }
 
     pdf.setFontSize(12);
-    pdf.setFont('times', 'normal');
-    pdf.text(entry.dosenNama || '-', signX, state.y);
+    pdf.setFont("times", "normal");
+    pdf.text(entry.dosenNama || "-", signX, state.y);
     state.y += 7;
-    pdf.text(`NIP ${entry.dosenNip || '-'}`, signX, state.y);
+    pdf.text(`NIP ${entry.dosenNip || "-"}`, signX, state.y);
 
-    const safeName = (entry.namaPerusahaan || entry.namaMahasiswa || 'surat')
+    const safeName = (entry.namaPerusahaan || entry.namaMahasiswa || "surat")
       .toLowerCase()
-      .replace(/[^a-z0-9]+/g, '-')
-      .replace(/^-+|-+$/g, '');
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "");
     const filename = `surat-pengantar-${safeName || entry.id}.pdf`;
 
     pdf.save(filename);
-    return Buffer.from(pdf.output('arraybuffer'));
+    return Buffer.from(pdf.output("arraybuffer"));
   }
 
-  private async generatePDF(submission: LetterSubmission, letterNumber: string): Promise<Buffer> {
+  private async generatePDF(
+    submission: LetterSubmission,
+    letterNumber: string,
+  ): Promise<Buffer> {
     return new Promise((resolve, reject) => {
       const doc = new PDFDocument({ margin: 50 });
       const chunks: Buffer[] = [];
 
-      doc.on('data', (chunk) => chunks.push(chunk));
-      doc.on('end', () => resolve(Buffer.concat(chunks)));
-      doc.on('error', reject);
+      doc.on("data", (chunk) => chunks.push(chunk));
+      doc.on("end", () => resolve(Buffer.concat(chunks)));
+      doc.on("error", reject);
 
-      doc.fontSize(12).text('UNIVERSITAS [NAMA UNIVERSITAS]', { align: 'center' });
-      doc.fontSize(10).text('Fakultas [Nama Fakultas]', { align: 'center' });
+      doc
+        .fontSize(12)
+        .text("UNIVERSITAS [NAMA UNIVERSITAS]", { align: "center" });
+      doc.fontSize(10).text("Fakultas [Nama Fakultas]", { align: "center" });
       doc.moveDown();
 
       doc.fontSize(10);
-      doc.text(`Nomor: ${letterNumber}`, { align: 'left' });
-      doc.text(`Tanggal: ${new Date().toLocaleDateString('id-ID')}`, { align: 'left' });
+      doc.text(`Nomor: ${letterNumber}`, { align: "left" });
+      doc.text(`Tanggal: ${new Date().toLocaleDateString("id-ID")}`, {
+        align: "left",
+      });
       doc.moveDown();
 
-      doc.fontSize(14).text('SURAT PENGANTAR KERJA PRAKTIK', { align: 'center', underline: true });
+      doc.fontSize(14).text("SURAT PENGANTAR KERJA PRAKTIK", {
+        align: "center",
+        underline: true,
+      });
       doc.moveDown(2);
 
       doc.fontSize(11);
-      doc.text('Kepada Yth.');
+      doc.text("Kepada Yth.");
       doc.text(`${submission.companyName}`);
       doc.text(`${submission.companyAddress}`);
       doc.moveDown();
 
-      doc.text('Dengan hormat,');
+      doc.text("Dengan hormat,");
       doc.moveDown();
 
-      doc.text('Dengan ini kami mengajukan permohonan kepada Bapak/Ibu untuk dapat menerima mahasiswa kami untuk melaksanakan Kerja Praktik di perusahaan yang Bapak/Ibu pimpin.', { align: 'justify' });
+      doc.text(
+        "Dengan ini kami mengajukan permohonan kepada Bapak/Ibu untuk dapat menerima mahasiswa kami untuk melaksanakan Kerja Praktik di perusahaan yang Bapak/Ibu pimpin.",
+        { align: "justify" },
+      );
       doc.moveDown();
 
-      doc.text('Adapun data mahasiswa tersebut adalah:');
+      doc.text("Adapun data mahasiswa tersebut adalah:");
       doc.text(`Tim: ${submission.teamId}`);
-      doc.text(`Posisi: ${submission.division || '-'}`);
-      doc.text(`Periode: ${submission.startDate ? new Date(submission.startDate).toLocaleDateString('id-ID') : '-'} s/d ${submission.endDate ? new Date(submission.endDate).toLocaleDateString('id-ID') : '-'}`);
+      doc.text(`Posisi: ${submission.division || "-"}`);
+      doc.text(
+        `Periode: ${submission.startDate ? new Date(submission.startDate).toLocaleDateString("id-ID") : "-"} s/d ${submission.endDate ? new Date(submission.endDate).toLocaleDateString("id-ID") : "-"}`,
+      );
       doc.moveDown();
 
-      doc.text('Demikian surat pengantar ini kami sampaikan, atas perhatian dan kerjasamanya kami ucapkan terima kasih.', { align: 'justify' });
+      doc.text(
+        "Demikian surat pengantar ini kami sampaikan, atas perhatian dan kerjasamanya kami ucapkan terima kasih.",
+        { align: "justify" },
+      );
       doc.moveDown(2);
 
-      doc.text('Hormat kami,', { align: 'right' });
+      doc.text("Hormat kami,", { align: "right" });
       doc.moveDown(3);
-      doc.text('[Nama Pejabat]', { align: 'right' });
-      doc.text('[Jabatan]', { align: 'right' });
+      doc.text("[Nama Pejabat]", { align: "right" });
+      doc.text("[Jabatan]", { align: "right" });
 
       doc.end();
     });
   }
 
-  private async generateDOCX(submission: LetterSubmission, letterNumber: string): Promise<Buffer> {
+  private async generateDOCX(
+    submission: LetterSubmission,
+    letterNumber: string,
+  ): Promise<Buffer> {
     const doc = new Document({
       sections: [
         {
           children: [
-            new Paragraph({ text: 'UNIVERSITAS [NAMA UNIVERSITAS]', alignment: 'center' }),
-            new Paragraph({ text: 'Fakultas [Nama Fakultas]', alignment: 'center' }),
-            new Paragraph({ text: '' }),
-            new Paragraph({ children: [new TextRun(`Nomor: ${letterNumber}`)] }),
-            new Paragraph({ children: [new TextRun(`Tanggal: ${new Date().toLocaleDateString('id-ID')}`)] }),
-            new Paragraph({ text: '' }),
-            new Paragraph({ children: [new TextRun({ text: 'SURAT PENGANTAR KERJA PRAKTIK', bold: true })], alignment: 'center' }),
-            new Paragraph({ text: '' }),
-            new Paragraph({ text: 'Kepada Yth.' }),
-            new Paragraph({ text: submission.companyName ?? '' }),
-            new Paragraph({ text: submission.companyAddress ?? '' }),
-            new Paragraph({ text: '' }),
-            new Paragraph({ text: 'Dengan hormat,' }),
-            new Paragraph({ text: '' }),
-            new Paragraph({ text: 'Dengan ini kami mengajukan permohonan kepada Bapak/Ibu untuk dapat menerima mahasiswa kami untuk melaksanakan Kerja Praktik di perusahaan yang Bapak/Ibu pimpin.' }),
-            new Paragraph({ text: '' }),
-            new Paragraph({ text: 'Adapun data mahasiswa tersebut adalah:' }),
+            new Paragraph({
+              text: "UNIVERSITAS [NAMA UNIVERSITAS]",
+              alignment: "center",
+            }),
+            new Paragraph({
+              text: "Fakultas [Nama Fakultas]",
+              alignment: "center",
+            }),
+            new Paragraph({ text: "" }),
+            new Paragraph({
+              children: [new TextRun(`Nomor: ${letterNumber}`)],
+            }),
+            new Paragraph({
+              children: [
+                new TextRun(
+                  `Tanggal: ${new Date().toLocaleDateString("id-ID")}`,
+                ),
+              ],
+            }),
+            new Paragraph({ text: "" }),
+            new Paragraph({
+              children: [
+                new TextRun({
+                  text: "SURAT PENGANTAR KERJA PRAKTIK",
+                  bold: true,
+                }),
+              ],
+              alignment: "center",
+            }),
+            new Paragraph({ text: "" }),
+            new Paragraph({ text: "Kepada Yth." }),
+            new Paragraph({ text: submission.companyName ?? "" }),
+            new Paragraph({ text: submission.companyAddress ?? "" }),
+            new Paragraph({ text: "" }),
+            new Paragraph({ text: "Dengan hormat," }),
+            new Paragraph({ text: "" }),
+            new Paragraph({
+              text: "Dengan ini kami mengajukan permohonan kepada Bapak/Ibu untuk dapat menerima mahasiswa kami untuk melaksanakan Kerja Praktik di perusahaan yang Bapak/Ibu pimpin.",
+            }),
+            new Paragraph({ text: "" }),
+            new Paragraph({ text: "Adapun data mahasiswa tersebut adalah:" }),
             new Paragraph({ text: `Tim: ${submission.teamId}` }),
-            new Paragraph({ text: `Posisi: ${submission.division || '-'}` }),
-            new Paragraph({ text: '' }),
-            new Paragraph({ text: 'Demikian surat pengantar ini kami sampaikan, atas perhatian dan kerjasamanya kami ucapkan terima kasih.' }),
-            new Paragraph({ text: '' }),
-            new Paragraph({ text: 'Hormat kami,' }),
-            new Paragraph({ text: '' }),
-            new Paragraph({ text: '' }),
-            new Paragraph({ text: '[Nama Pejabat]' }),
-            new Paragraph({ text: '[Jabatan]' }),
+            new Paragraph({ text: `Posisi: ${submission.division || "-"}` }),
+            new Paragraph({ text: "" }),
+            new Paragraph({
+              text: "Demikian surat pengantar ini kami sampaikan, atas perhatian dan kerjasamanya kami ucapkan terima kasih.",
+            }),
+            new Paragraph({ text: "" }),
+            new Paragraph({ text: "Hormat kami," }),
+            new Paragraph({ text: "" }),
+            new Paragraph({ text: "" }),
+            new Paragraph({ text: "[Nama Pejabat]" }),
+            new Paragraph({ text: "[Jabatan]" }),
           ],
         },
       ],
@@ -683,7 +901,7 @@ export class LetterService {
 
   private async generateLetterNumber(): Promise<string> {
     const year = new Date().getFullYear();
-    const month = String(new Date().getMonth() + 1).padStart(2, '0');
+    const month = String(new Date().getMonth() + 1).padStart(2, "0");
     const randomNum = Math.floor(Math.random() * 9000) + 1000;
     return `${randomNum}/KP/FT/${month}/${year}`;
   }
@@ -692,15 +910,24 @@ export class LetterService {
     return await this.submissionRepo.findLettersBySubmissionId(submissionId);
   }
 
-  private getImageFormatFromDataUrl(dataUrl: string): 'PNG' | 'JPEG' {
-    return dataUrl.startsWith('data:image/png') ? 'PNG' : 'JPEG';
+  private getImageFormatFromDataUrl(dataUrl: string): "PNG" | "JPEG" {
+    return dataUrl.startsWith("data:image/png") ? "PNG" : "JPEG";
   }
 
-  private extractSvgViewBox(svgText: string): { width: number; height: number } {
+  private extractSvgViewBox(svgText: string): {
+    width: number;
+    height: number;
+  } {
     const viewBoxMatch = svgText.match(/viewBox\s*=\s*"([^"]+)"/i);
     if (viewBoxMatch) {
-      const parts = viewBoxMatch[1].trim().split(/[\s,]+/).map((value) => Number(value));
-      if (parts.length === 4 && parts.every((value) => Number.isFinite(value))) {
+      const parts = viewBoxMatch[1]
+        .trim()
+        .split(/[\s,]+/)
+        .map((value) => Number(value));
+      if (
+        parts.length === 4 &&
+        parts.every((value) => Number.isFinite(value))
+      ) {
         return { width: parts[2], height: parts[3] };
       }
     }
@@ -710,27 +937,39 @@ export class LetterService {
     const width = widthMatch ? Number.parseFloat(widthMatch[1]) : NaN;
     const height = heightMatch ? Number.parseFloat(heightMatch[1]) : NaN;
 
-    if (Number.isFinite(width) && Number.isFinite(height) && width > 0 && height > 0) {
+    if (
+      Number.isFinite(width) &&
+      Number.isFinite(height) &&
+      width > 0 &&
+      height > 0
+    ) {
       return { width, height };
     }
 
     return { width: 200, height: 80 };
   }
 
-  private extractSvgPathData(svgText: string): Array<{ d: string; strokeWidth: number }> {
+  private extractSvgPathData(
+    svgText: string,
+  ): Array<{ d: string; strokeWidth: number }> {
     const paths: Array<{ d: string; strokeWidth: number }> = [];
     const pathRegex = /<path\b[^>]*\bd=(["'])(.*?)\1[^>]*>/gis;
     let match: RegExpExecArray | null;
 
     while ((match = pathRegex.exec(svgText)) !== null) {
       const element = match[0];
-      const strokeWidthMatch = element.match(/stroke-width\s*=\s*(["'])([^"']+)\1/i);
-      const strokeWidth = strokeWidthMatch ? Number.parseFloat(strokeWidthMatch[2]) : 2.5;
+      const strokeWidthMatch = element.match(
+        /stroke-width\s*=\s*(["'])([^"']+)\1/i,
+      );
+      const strokeWidth = strokeWidthMatch
+        ? Number.parseFloat(strokeWidthMatch[2])
+        : 2.5;
 
       if (match[2].trim().length > 0) {
         paths.push({
           d: match[2],
-          strokeWidth: Number.isFinite(strokeWidth) && strokeWidth > 0 ? strokeWidth : 2.5,
+          strokeWidth:
+            Number.isFinite(strokeWidth) && strokeWidth > 0 ? strokeWidth : 2.5,
         });
       }
     }
@@ -742,13 +981,14 @@ export class LetterService {
     pathData: string,
     scale: number,
     offsetX: number,
-    offsetY: number
-  ): Array<{ op: 'm' | 'l' | 'c' | 'h'; c: number[] }> {
-    const tokens = pathData.match(/[a-zA-Z]|[-+]?(?:\d*\.\d+|\d+)(?:e[-+]?\d+)?/g) || [];
-    const ops: Array<{ op: 'm' | 'l' | 'c' | 'h'; c: number[] }> = [];
+    offsetY: number,
+  ): Array<{ op: "m" | "l" | "c" | "h"; c: number[] }> {
+    const tokens =
+      pathData.match(/[a-zA-Z]|[-+]?(?:\d*\.\d+|\d+)(?:e[-+]?\d+)?/g) || [];
+    const ops: Array<{ op: "m" | "l" | "c" | "h"; c: number[] }> = [];
 
     let index = 0;
-    let command = '';
+    let command = "";
     let currentX = 0;
     let currentY = 0;
     let startX = 0;
@@ -757,11 +997,15 @@ export class LetterService {
     let lastCubicControlY = 0;
     let lastQuadraticControlX = 0;
     let lastQuadraticControlY = 0;
-    let previousCommand = '';
+    let previousCommand = "";
 
     const nextNumber = () => Number(tokens[index++]);
-    const hasMoreNumbers = () => index < tokens.length && !/^[a-zA-Z]$/.test(tokens[index]);
-    const transform = (x: number, y: number): [number, number] => [offsetX + x * scale, offsetY + y * scale];
+    const hasMoreNumbers = () =>
+      index < tokens.length && !/^[a-zA-Z]$/.test(tokens[index]);
+    const transform = (x: number, y: number): [number, number] => [
+      offsetX + x * scale,
+      offsetY + y * scale,
+    ];
 
     while (index < tokens.length) {
       const token = tokens[index];
@@ -775,18 +1019,18 @@ export class LetterService {
       const isRelative = command === command.toLowerCase();
       const upper = command.toUpperCase();
 
-      if (upper === 'M') {
+      if (upper === "M") {
         const x = nextNumber();
         const y = nextNumber();
         const absX = isRelative ? currentX + x : x;
         const absY = isRelative ? currentY + y : y;
         const [tx, ty] = transform(absX, absY);
-        ops.push({ op: 'm', c: [tx, ty] });
+        ops.push({ op: "m", c: [tx, ty] });
         currentX = absX;
         currentY = absY;
         startX = absX;
         startY = absY;
-        previousCommand = 'M';
+        previousCommand = "M";
 
         while (hasMoreNumbers()) {
           const lx = nextNumber();
@@ -794,52 +1038,52 @@ export class LetterService {
           const lineX = isRelative ? currentX + lx : lx;
           const lineY = isRelative ? currentY + ly : ly;
           const [txLine, tyLine] = transform(lineX, lineY);
-          ops.push({ op: 'l', c: [txLine, tyLine] });
+          ops.push({ op: "l", c: [txLine, tyLine] });
           currentX = lineX;
           currentY = lineY;
-          previousCommand = 'L';
+          previousCommand = "L";
         }
         continue;
       }
 
-      if (upper === 'L') {
+      if (upper === "L") {
         while (hasMoreNumbers()) {
           const x = nextNumber();
           const y = nextNumber();
           const absX = isRelative ? currentX + x : x;
           const absY = isRelative ? currentY + y : y;
           const [tx, ty] = transform(absX, absY);
-          ops.push({ op: 'l', c: [tx, ty] });
+          ops.push({ op: "l", c: [tx, ty] });
           currentX = absX;
           currentY = absY;
         }
-        previousCommand = 'L';
+        previousCommand = "L";
         continue;
       }
 
-      if (upper === 'H') {
+      if (upper === "H") {
         while (hasMoreNumbers()) {
           const x = nextNumber();
           currentX = isRelative ? currentX + x : x;
           const [tx, ty] = transform(currentX, currentY);
-          ops.push({ op: 'l', c: [tx, ty] });
+          ops.push({ op: "l", c: [tx, ty] });
         }
-        previousCommand = 'H';
+        previousCommand = "H";
         continue;
       }
 
-      if (upper === 'V') {
+      if (upper === "V") {
         while (hasMoreNumbers()) {
           const y = nextNumber();
           currentY = isRelative ? currentY + y : y;
           const [tx, ty] = transform(currentX, currentY);
-          ops.push({ op: 'l', c: [tx, ty] });
+          ops.push({ op: "l", c: [tx, ty] });
         }
-        previousCommand = 'V';
+        previousCommand = "V";
         continue;
       }
 
-      if (upper === 'C') {
+      if (upper === "C") {
         while (hasMoreNumbers()) {
           const x1 = nextNumber();
           const y1 = nextNumber();
@@ -856,28 +1100,30 @@ export class LetterService {
           const [tc1x, tc1y] = transform(c1x, c1y);
           const [tc2x, tc2y] = transform(c2x, c2y);
           const [tx, ty] = transform(endX, endY);
-          ops.push({ op: 'c', c: [tc1x, tc1y, tc2x, tc2y, tx, ty] });
+          ops.push({ op: "c", c: [tc1x, tc1y, tc2x, tc2y, tx, ty] });
           currentX = endX;
           currentY = endY;
           lastCubicControlX = c2x;
           lastCubicControlY = c2y;
-          previousCommand = 'C';
+          previousCommand = "C";
         }
         continue;
       }
 
-      if (upper === 'S') {
+      if (upper === "S") {
         while (hasMoreNumbers()) {
           const x2 = nextNumber();
           const y2 = nextNumber();
           const x = nextNumber();
           const y = nextNumber();
-          const reflectedX = previousCommand === 'C' || previousCommand === 'S'
-            ? (currentX * 2) - lastCubicControlX
-            : currentX;
-          const reflectedY = previousCommand === 'C' || previousCommand === 'S'
-            ? (currentY * 2) - lastCubicControlY
-            : currentY;
+          const reflectedX =
+            previousCommand === "C" || previousCommand === "S"
+              ? currentX * 2 - lastCubicControlX
+              : currentX;
+          const reflectedY =
+            previousCommand === "C" || previousCommand === "S"
+              ? currentY * 2 - lastCubicControlY
+              : currentY;
           const c2x = isRelative ? currentX + x2 : x2;
           const c2y = isRelative ? currentY + y2 : y2;
           const endX = isRelative ? currentX + x : x;
@@ -885,17 +1131,17 @@ export class LetterService {
           const [trX, trY] = transform(reflectedX, reflectedY);
           const [tc2x, tc2y] = transform(c2x, c2y);
           const [tx, ty] = transform(endX, endY);
-          ops.push({ op: 'c', c: [trX, trY, tc2x, tc2y, tx, ty] });
+          ops.push({ op: "c", c: [trX, trY, tc2x, tc2y, tx, ty] });
           currentX = endX;
           currentY = endY;
           lastCubicControlX = c2x;
           lastCubicControlY = c2y;
-          previousCommand = 'S';
+          previousCommand = "S";
         }
         continue;
       }
 
-      if (upper === 'Q') {
+      if (upper === "Q") {
         while (hasMoreNumbers()) {
           const qx = nextNumber();
           const qy = nextNumber();
@@ -912,26 +1158,28 @@ export class LetterService {
           const [tc1x, tc1y] = transform(c1x, c1y);
           const [tc2x, tc2y] = transform(c2x, c2y);
           const [tx, ty] = transform(endX, endY);
-          ops.push({ op: 'c', c: [tc1x, tc1y, tc2x, tc2y, tx, ty] });
+          ops.push({ op: "c", c: [tc1x, tc1y, tc2x, tc2y, tx, ty] });
           currentX = endX;
           currentY = endY;
           lastQuadraticControlX = controlX;
           lastQuadraticControlY = controlY;
-          previousCommand = 'Q';
+          previousCommand = "Q";
         }
         continue;
       }
 
-      if (upper === 'T') {
+      if (upper === "T") {
         while (hasMoreNumbers()) {
           const x = nextNumber();
           const y = nextNumber();
-          const controlX = previousCommand === 'Q' || previousCommand === 'T'
-            ? (currentX * 2) - lastQuadraticControlX
-            : currentX;
-          const controlY = previousCommand === 'Q' || previousCommand === 'T'
-            ? (currentY * 2) - lastQuadraticControlY
-            : currentY;
+          const controlX =
+            previousCommand === "Q" || previousCommand === "T"
+              ? currentX * 2 - lastQuadraticControlX
+              : currentX;
+          const controlY =
+            previousCommand === "Q" || previousCommand === "T"
+              ? currentY * 2 - lastQuadraticControlY
+              : currentY;
           const endX = isRelative ? currentX + x : x;
           const endY = isRelative ? currentY + y : y;
           const c1x = currentX + ((controlX - currentX) * 2) / 3;
@@ -941,17 +1189,17 @@ export class LetterService {
           const [tc1x, tc1y] = transform(c1x, c1y);
           const [tc2x, tc2y] = transform(c2x, c2y);
           const [tx, ty] = transform(endX, endY);
-          ops.push({ op: 'c', c: [tc1x, tc1y, tc2x, tc2y, tx, ty] });
+          ops.push({ op: "c", c: [tc1x, tc1y, tc2x, tc2y, tx, ty] });
           currentX = endX;
           currentY = endY;
           lastQuadraticControlX = controlX;
           lastQuadraticControlY = controlY;
-          previousCommand = 'T';
+          previousCommand = "T";
         }
         continue;
       }
 
-      if (upper === 'A') {
+      if (upper === "A") {
         while (hasMoreNumbers()) {
           nextNumber();
           nextNumber();
@@ -963,20 +1211,20 @@ export class LetterService {
           const endX = isRelative ? currentX + x : x;
           const endY = isRelative ? currentY + y : y;
           const [tx, ty] = transform(endX, endY);
-          ops.push({ op: 'l', c: [tx, ty] });
+          ops.push({ op: "l", c: [tx, ty] });
           currentX = endX;
           currentY = endY;
-          previousCommand = 'A';
+          previousCommand = "A";
         }
         continue;
       }
 
-      if (upper === 'Z') {
+      if (upper === "Z") {
         const [tx, ty] = transform(startX, startY);
-        ops.push({ op: 'h', c: [tx, ty] });
+        ops.push({ op: "h", c: [tx, ty] });
         currentX = startX;
         currentY = startY;
-        previousCommand = 'Z';
+        previousCommand = "Z";
         continue;
       }
 
@@ -986,10 +1234,19 @@ export class LetterService {
     return ops;
   }
 
-  private drawSignatureSvg(pdf: jsPDF, svgText: string, x: number, y: number, width: number, height: number) {
+  private drawSignatureSvg(
+    pdf: jsPDF,
+    svgText: string,
+    x: number,
+    y: number,
+    width: number,
+    height: number,
+  ) {
     const paths = this.extractSvgPathData(svgText);
     if (paths.length === 0) {
-      throw new Error('File e-signature SVG tidak memiliki path yang bisa dirender.');
+      throw new Error(
+        "File e-signature SVG tidak memiliki path yang bisa dirender.",
+      );
     }
 
     const box = this.extractSvgViewBox(svgText);
@@ -1004,7 +1261,12 @@ export class LetterService {
     const offsetY = y + paddingY + (innerHeight - scaledHeight) / 2;
 
     for (const pathData of paths) {
-      const ops = this.parseSvgPathToJsPdfOps(pathData.d, scale, offsetX, offsetY);
+      const ops = this.parseSvgPathToJsPdfOps(
+        pathData.d,
+        scale,
+        offsetX,
+        offsetY,
+      );
       pdf.setLineWidth(Math.max(pathData.strokeWidth * scale * 1.3, 0.4));
       pdf.path(ops);
       pdf.stroke();
@@ -1014,28 +1276,43 @@ export class LetterService {
   private async toDataUrlFromImageUrl(imageUrl: string): Promise<string> {
     const response = await fetch(imageUrl);
     if (!response.ok) {
-      throw new Error('Gagal memuat gambar tanda tangan');
+      throw new Error("Gagal memuat gambar tanda tangan");
     }
 
-    const contentType = (response.headers.get('content-type') || '').split(';')[0].trim().toLowerCase();
+    const contentType = (response.headers.get("content-type") || "")
+      .split(";")[0]
+      .trim()
+      .toLowerCase();
     const bytes = await response.arrayBuffer();
-    const base64 = Buffer.from(bytes).toString('base64');
-    if (contentType === 'image/jpeg' || contentType === 'image/jpg') {
+    const base64 = Buffer.from(bytes).toString("base64");
+    if (contentType === "image/jpeg" || contentType === "image/jpg") {
       return `data:image/jpeg;base64,${base64}`;
     }
     return `data:image/png;base64,${base64}`;
   }
 
   private formatDateLong(dateStr?: string): string {
-    if (!dateStr) return '-';
+    if (!dateStr) return "-";
     const bulan = [
-      'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
-      'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember',
+      "Januari",
+      "Februari",
+      "Maret",
+      "April",
+      "Mei",
+      "Juni",
+      "Juli",
+      "Agustus",
+      "September",
+      "Oktober",
+      "November",
+      "Desember",
     ];
 
     const normalized = dateStr.trim();
     let d: Date;
-    const localDateMatch = normalized.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$/);
+    const localDateMatch = normalized.match(
+      /^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$/,
+    );
     if (localDateMatch) {
       const [, dd, mm, yyyy] = localDateMatch;
       d = new Date(Number(yyyy), Number(mm) - 1, Number(dd));
@@ -1048,15 +1325,15 @@ export class LetterService {
   }
 
   private formatRangeDate(startDate?: string, endDate?: string): string {
-    const start = this.formatDateLong(startDate).replace(/\s+/g, ' ').trim();
-    const end = this.formatDateLong(endDate).replace(/\s+/g, ' ').trim();
+    const start = this.formatDateLong(startDate).replace(/\s+/g, " ").trim();
+    const end = this.formatDateLong(endDate).replace(/\s+/g, " ").trim();
     if (start === end) return start;
     return `${start} - ${end}`;
   }
 
   private sanitizeText(value?: string): string {
-    if (!value) return '';
-    return value.replace(/\s+/g, ' ').trim();
+    if (!value) return "";
+    return value.replace(/\s+/g, " ").trim();
   }
 
   private buildRecipientLine(entry: SuratPengantarPdfEntry): string {
@@ -1066,20 +1343,25 @@ export class LetterService {
       if (tujuan.toLowerCase().includes(company.toLowerCase())) return tujuan;
       return `${tujuan} ${company}`;
     }
-    return tujuan || company || '-';
+    return tujuan || company || "-";
   }
 
-  private drawLogoFallback(pdf: jsPDF, x: number, y: number, size: number): void {
+  private drawLogoFallback(
+    pdf: jsPDF,
+    x: number,
+    y: number,
+    size: number,
+  ): void {
     const centerX = x + size / 2;
     const centerY = y + size / 2;
     pdf.setDrawColor(30, 58, 138);
     pdf.setLineWidth(0.6);
-    pdf.circle(centerX, centerY, size / 2, 'S');
+    pdf.circle(centerX, centerY, size / 2, "S");
     pdf.setFillColor(255, 255, 255);
-    pdf.circle(centerX, centerY, size / 2 - 1.6, 'F');
-    pdf.setFont('times', 'bold');
+    pdf.circle(centerX, centerY, size / 2 - 1.6, "F");
+    pdf.setFont("times", "bold");
     pdf.setFontSize(7);
-    pdf.text('UNSRI', centerX, centerY + 1.8, { align: 'center' });
+    pdf.text("UNSRI", centerX, centerY + 1.8, { align: "center" });
   }
 
   private toIsoDate(value: string | Date): string {
@@ -1091,7 +1373,8 @@ export class LetterService {
   private toIsoDateString(value?: string | Date | null): string | undefined {
     if (!value) return undefined;
     const date = value instanceof Date ? value : new Date(value);
-    if (Number.isNaN(date.getTime())) return typeof value === 'string' ? value : undefined;
+    if (Number.isNaN(date.getTime()))
+      return typeof value === "string" ? value : undefined;
     return date.toISOString();
   }
 }

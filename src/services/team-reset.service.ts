@@ -1,7 +1,7 @@
-import { createDbClient } from '@/db';
-import { NotFoundError } from '@/errors';
-import { SubmissionRepository } from '@/repositories/submission.repository';
-import { TeamRepository } from '@/repositories/team.repository';
+import { createDbClient } from "@/db";
+import { NotFoundError } from "@/errors";
+import { SubmissionRepository } from "@/repositories/submission.repository";
+import { TeamRepository } from "@/repositories/team.repository";
 
 /**
  * Team Reset Service
@@ -23,9 +23,7 @@ export class TeamResetService {
   private submissionRepo: SubmissionRepository;
   private teamRepo: TeamRepository;
 
-  constructor(
-    env: CloudflareBindings
-  ) {
+  constructor(env: CloudflareBindings) {
     const db = createDbClient(env.DATABASE_URL);
     this.submissionRepo = new SubmissionRepository(db);
     this.teamRepo = new TeamRepository(db);
@@ -39,7 +37,9 @@ export class TeamResetService {
    * @throws NotFoundError if submission not found
    */
   async resetTeamWorkflow(submissionId: string): Promise<void> {
-    console.log(`[TeamResetService] Starting archive workflow for submission: ${submissionId}`);
+    console.log(
+      `[TeamResetService] Starting archive workflow for submission: ${submissionId}`,
+    );
 
     try {
       const submission = await this.submissionRepo.findById(submissionId);
@@ -48,21 +48,29 @@ export class TeamResetService {
       }
 
       const teamId = submission.teamId;
-      console.log(`[TeamResetService] Archiving submission ${submissionId} for team: ${teamId}`);
+      console.log(
+        `[TeamResetService] Archiving submission ${submissionId} for team: ${teamId}`,
+      );
 
       // Archive the submission — preserves all related data (documents,
       // surat_permohonan_requests, response letters) for admin/dosen history.
-      await this.submissionRepo.update(submissionId, { archivedAt: new Date() });
+      await this.submissionRepo.update(submissionId, {
+        archivedAt: new Date(),
+      });
       console.log(`[TeamResetService] ✅ Submission ${submissionId} archived`);
 
       // Reset team status so members can re-decide whether to stay in the team
-      await this.teamRepo.update(teamId, { status: 'PENDING' });
+      await this.teamRepo.update(teamId, { status: "PENDING" });
       console.log(`[TeamResetService] ✅ Team ${teamId} reset to PENDING`);
 
-      console.log(`[TeamResetService] ✅ Archive workflow completed successfully`);
+      console.log(
+        `[TeamResetService] ✅ Archive workflow completed successfully`,
+      );
     } catch (error) {
       console.error(`[TeamResetService] ❌ Error in archive workflow:`, error);
-      throw new Error(`Failed to reset team workflow: ${error instanceof Error ? error.message : String(error)}`);
+      throw new Error(
+        `Failed to reset team workflow: ${error instanceof Error ? error.message : String(error)}`,
+      );
     }
   }
 
@@ -94,8 +102,12 @@ export class TeamResetService {
    * @param teamId - The team ID to reset
    * @throws NotFoundError if team not found
    */
-  async resetTeamByTeamId(teamId: string): Promise<{ success: boolean; teamId: string }> {
-    console.log(`[TeamResetService] Starting archive workflow for team: ${teamId}`);
+  async resetTeamByTeamId(
+    teamId: string,
+  ): Promise<{ success: boolean; teamId: string }> {
+    console.log(
+      `[TeamResetService] Starting archive workflow for team: ${teamId}`,
+    );
 
     try {
       const team = await this.teamRepo.findById(teamId);
@@ -105,25 +117,36 @@ export class TeamResetService {
 
       // Find only active (non-archived) submissions
       const activeSubmissions = await this.submissionRepo.findByTeamId(teamId);
-      console.log(`[TeamResetService] Found ${activeSubmissions.length} active submission(s) for team ${teamId}`);
+      console.log(
+        `[TeamResetService] Found ${activeSubmissions.length} active submission(s) for team ${teamId}`,
+      );
 
       // Archive each active submission — preserves all related data for history
       for (const submission of activeSubmissions) {
-        await this.submissionRepo.update(submission.id, { archivedAt: new Date() });
-        console.log(`[TeamResetService] ✅ Archived submission ${submission.id}`);
+        await this.submissionRepo.update(submission.id, {
+          archivedAt: new Date(),
+        });
+        console.log(
+          `[TeamResetService] ✅ Archived submission ${submission.id}`,
+        );
       }
 
       // Reset team status to PENDING so each member can re-decide
-      await this.teamRepo.update(teamId, { status: 'PENDING' });
-      console.log(`[TeamResetService] ✅ Reset team ${teamId} status to PENDING`);
+      await this.teamRepo.update(teamId, { status: "PENDING" });
+      console.log(
+        `[TeamResetService] ✅ Reset team ${teamId} status to PENDING`,
+      );
 
-      console.log(`[TeamResetService] ✅ Archive workflow completed for team ${teamId}`);
+      console.log(
+        `[TeamResetService] ✅ Archive workflow completed for team ${teamId}`,
+      );
 
       return { success: true, teamId };
     } catch (error) {
       console.error(`[TeamResetService] ❌ Error resetting team:`, error);
-      throw new Error(`Failed to reset team: ${error instanceof Error ? error.message : String(error)}`);
+      throw new Error(
+        `Failed to reset team: ${error instanceof Error ? error.message : String(error)}`,
+      );
     }
   }
 }
-

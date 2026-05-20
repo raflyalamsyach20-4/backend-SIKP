@@ -1,5 +1,5 @@
-import { z } from 'zod';
-import { ValidationRules, UserRoles, AdminRoles } from '@/constants';
+import { z } from "zod";
+import { ValidationRules, UserRoles, AdminRoles } from "@/constants";
 
 /**
  * Common field schemas
@@ -15,7 +15,7 @@ const nipSchema = z.string().min(ValidationRules.NIP_MIN_LENGTH);
  */
 export const registerMahasiswaSchema = z.object({
   nim: nimSchema,
-  nama: z.string().min(1, 'Name is required'),
+  nama: z.string().min(1, "Name is required"),
   email: emailSchema,
   password: passwordSchema,
   fakultas: z.string().optional(),
@@ -33,7 +33,7 @@ export type RegisterMahasiswaInput = z.infer<typeof registerMahasiswaSchema>;
  */
 export const registerAdminSchema = z.object({
   nip: nipSchema,
-  nama: z.string().min(1, 'Name is required'),
+  nama: z.string().min(1, "Name is required"),
   email: emailSchema,
   password: passwordSchema,
   role: z.enum([AdminRoles.ADMIN, AdminRoles.KAPRODI, AdminRoles.WAKIL_DEKAN]),
@@ -49,7 +49,7 @@ export type RegisterAdminInput = z.infer<typeof registerAdminSchema>;
  */
 export const registerDosenSchema = z.object({
   nip: nipSchema,
-  nama: z.string().min(1, 'Name is required'),
+  nama: z.string().min(1, "Name is required"),
   email: emailSchema,
   password: passwordSchema,
   jabatan: z.string().optional(),
@@ -65,7 +65,7 @@ export type RegisterDosenInput = z.infer<typeof registerDosenSchema>;
  */
 export const loginSchema = z.object({
   email: emailSchema,
-  password: z.string().min(1, 'Password is required'),
+  password: z.string().min(1, "Password is required"),
 });
 
 export type LoginInput = z.infer<typeof loginSchema>;
@@ -74,13 +74,16 @@ export type LoginInput = z.infer<typeof loginSchema>;
  * SSO Callback Schema
  */
 export const authCallbackSchema = z.object({
-  code: z.string().min(1, 'code is required'),
-  state: z.string().min(1, 'state is required'),
-  codeVerifier: z.string().min(1, 'codeVerifier is required'),
+  code: z.string().min(1, "code is required"),
+  state: z.string().min(1, "state is required"),
+  codeVerifier: z.string().min(1, "codeVerifier is required"),
   redirectUri: z
     .string()
-    .url('redirectUri must be a valid URL')
-    .refine((value) => value.endsWith('/callback'), 'redirectUri must end with /callback'),
+    .url("redirectUri must be a valid URL")
+    .refine(
+      (value) => value.endsWith("/callback"),
+      "redirectUri must end with /callback",
+    ),
 });
 
 export type AuthCallbackInput = z.infer<typeof authCallbackSchema>;
@@ -89,11 +92,17 @@ export type AuthCallbackInput = z.infer<typeof authCallbackSchema>;
  * SSO Prepare Schema
  */
 export const authPrepareSchema = z.object({
-  codeChallenge: z.string().min(43, 'codeChallenge is too short').max(128, 'codeChallenge is too long'),
+  codeChallenge: z
+    .string()
+    .min(43, "codeChallenge is too short")
+    .max(128, "codeChallenge is too long"),
   redirectUri: z
     .string()
-    .url('redirectUri must be a valid URL')
-    .refine((value) => value.endsWith('/callback'), 'redirectUri must end with /callback')
+    .url("redirectUri must be a valid URL")
+    .refine(
+      (value) => value.endsWith("/callback"),
+      "redirectUri must end with /callback",
+    )
     .optional(),
 });
 
@@ -103,7 +112,7 @@ export type AuthPrepareInput = z.infer<typeof authPrepareSchema>;
  * Select Active Identity Schema
  */
 export const selectIdentitySchema = z.object({
-  identityType: z.string().min(1, 'identityType is required'),
+  identityType: z.string().min(1, "identityType is required"),
 });
 
 export type SelectIdentityInput = z.infer<typeof selectIdentitySchema>;
@@ -111,44 +120,58 @@ export type SelectIdentityInput = z.infer<typeof selectIdentitySchema>;
 /**
  * Update Dosen Profile Schema
  */
-export const updateDosenProfileSchema = z.object({
-  nama: z.string().min(1, 'Name is required').max(255).optional(),
-  email: emailSchema.optional(),
-  phone: phoneSchema,
-  jabatan: z.string().max(100).optional().nullable(),
-  fakultas: z.string().max(100).optional().nullable(),
-  prodi: z.string().max(100).optional().nullable(),
-}).refine((data) => {
-  // At least one field should be provided
-  return Object.values(data).some(value => value !== undefined && value !== null);
-}, 'At least one field must be provided for update');
+export const updateDosenProfileSchema = z
+  .object({
+    nama: z.string().min(1, "Name is required").max(255).optional(),
+    email: emailSchema.optional(),
+    phone: phoneSchema,
+    jabatan: z.string().max(100).optional().nullable(),
+    fakultas: z.string().max(100).optional().nullable(),
+    prodi: z.string().max(100).optional().nullable(),
+  })
+  .refine((data) => {
+    // At least one field should be provided
+    return Object.values(data).some(
+      (value) => value !== undefined && value !== null,
+    );
+  }, "At least one field must be provided for update");
 
 export type UpdateDosenProfileInput = z.infer<typeof updateDosenProfileSchema>;
 
 /**
  * Update Mahasiswa Profile Schema
  */
-export const updateMahasiswaProfileSchema = z.object({
-  nama: z.string().min(1, 'Name is required').max(255).optional(),
-  email: emailSchema.optional(),
-  phone: phoneSchema,
-  fakultas: z.string().max(100).optional().nullable(),
-  prodi: z.string().max(100).optional().nullable(),
-  semester: z.number().int().positive().optional().nullable(),
-  jumlahSksSelesai: z.number().int().nonnegative().optional().nullable(),
-  angkatan: z.string().max(10).optional().nullable(),
-}).refine((data) => {
-  return Object.values(data).some(value => value !== undefined && value !== null);
-}, 'At least one field must be provided for update');
+export const updateMahasiswaProfileSchema = z
+  .object({
+    nama: z.string().min(1, "Name is required").max(255).optional(),
+    email: emailSchema.optional(),
+    phone: phoneSchema,
+    fakultas: z.string().max(100).optional().nullable(),
+    prodi: z.string().max(100).optional().nullable(),
+    semester: z.number().int().positive().optional().nullable(),
+    jumlahSksSelesai: z.number().int().nonnegative().optional().nullable(),
+    angkatan: z.string().max(10).optional().nullable(),
+  })
+  .refine((data) => {
+    return Object.values(data).some(
+      (value) => value !== undefined && value !== null,
+    );
+  }, "At least one field must be provided for update");
 
-export type UpdateMahasiswaProfileInput = z.infer<typeof updateMahasiswaProfileSchema>;
+export type UpdateMahasiswaProfileInput = z.infer<
+  typeof updateMahasiswaProfileSchema
+>;
 
 /**
  * Search Query Schema
  */
 export const searchQuerySchema = z.object({
-  q: z.string().min(ValidationRules.SEARCH_QUERY_MIN_LENGTH, 
-    `Search query must be at least ${ValidationRules.SEARCH_QUERY_MIN_LENGTH} characters`),
+  q: z
+    .string()
+    .min(
+      ValidationRules.SEARCH_QUERY_MIN_LENGTH,
+      `Search query must be at least ${ValidationRules.SEARCH_QUERY_MIN_LENGTH} characters`,
+    ),
 });
 
 export type SearchQueryInput = z.infer<typeof searchQuerySchema>;

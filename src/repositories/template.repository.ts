@@ -1,17 +1,24 @@
-import { eq, and, ilike, desc } from 'drizzle-orm';
-import type { DbClient } from '@/db';
-import { templates } from '@/db/schema';
-import type { Template } from '@/types';
+import { eq, and, ilike, desc } from "drizzle-orm";
+import type { DbClient } from "@/db";
+import { templates } from "@/db/schema";
+import type { Template } from "@/types";
 
 export class TemplateRepository {
   constructor(private db: DbClient) {}
 
   async findById(id: string): Promise<Template | null> {
-    const result = await this.db.select().from(templates).where(eq(templates.id, id)).limit(1);
+    const result = await this.db
+      .select()
+      .from(templates)
+      .where(eq(templates.id, id))
+      .limit(1);
     return (result[0] as Template) || null;
   }
 
-  async findAll(filters?: { type?: string; search?: string }): Promise<Template[]> {
+  async findAll(filters?: {
+    type?: string;
+    search?: string;
+  }): Promise<Template[]> {
     const conditions = [];
 
     if (filters?.type) {
@@ -19,9 +26,7 @@ export class TemplateRepository {
     }
 
     if (filters?.search) {
-      conditions.push(
-        ilike(templates.name, `%${filters.search}%`)
-      );
+      conditions.push(ilike(templates.name, `%${filters.search}%`));
     }
 
     if (conditions.length > 0) {
@@ -33,7 +38,10 @@ export class TemplateRepository {
       return results as Template[];
     }
 
-    const results = await this.db.select().from(templates).orderBy(desc(templates.createdAt));
+    const results = await this.db
+      .select()
+      .from(templates)
+      .orderBy(desc(templates.createdAt));
     return results as Template[];
   }
 
@@ -42,7 +50,10 @@ export class TemplateRepository {
     return result[0] as Template;
   }
 
-  async update(id: string, data: Partial<typeof templates.$inferInsert>): Promise<Template | null> {
+  async update(
+    id: string,
+    data: Partial<typeof templates.$inferInsert>,
+  ): Promise<Template | null> {
     const result = await this.db
       .update(templates)
       .set({ ...data, updatedAt: new Date() })
@@ -52,12 +63,19 @@ export class TemplateRepository {
   }
 
   async delete(id: string): Promise<boolean> {
-    const result = await this.db.delete(templates).where(eq(templates.id, id)).returning();
+    const result = await this.db
+      .delete(templates)
+      .where(eq(templates.id, id))
+      .returning();
     return result.length > 0;
   }
 
   async findByFileName(fileName: string): Promise<Template | null> {
-    const result = await this.db.select().from(templates).where(eq(templates.fileName, fileName)).limit(1);
+    const result = await this.db
+      .select()
+      .from(templates)
+      .where(eq(templates.fileName, fileName))
+      .limit(1);
     return (result[0] as Template) || null;
   }
 
@@ -66,4 +84,3 @@ export class TemplateRepository {
     return result.length;
   }
 }
-

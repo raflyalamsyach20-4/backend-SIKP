@@ -1,6 +1,6 @@
-import { eq, desc, inArray, and, sql } from 'drizzle-orm';
-import type { DbClient } from '@/db';
-import { suratKesediaanRequests } from '@/db/schema';
+import { eq, desc, inArray, and, sql } from "drizzle-orm";
+import type { DbClient } from "@/db";
+import { suratKesediaanRequests } from "@/db/schema";
 
 export class SuratKesediaanRepository {
   constructor(private db: DbClient) {}
@@ -114,8 +114,8 @@ export class SuratKesediaanRepository {
         and(
           eq(suratKesediaanRequests.memberMahasiswaId, memberMahasiswaId),
           eq(suratKesediaanRequests.dosenId, dosenId),
-          eq(suratKesediaanRequests.status, 'MENUNGGU')
-        )
+          eq(suratKesediaanRequests.status, "MENUNGGU"),
+        ),
       )
       .limit(1);
 
@@ -130,7 +130,10 @@ export class SuratKesediaanRepository {
     return result[0];
   }
 
-  async update(id: string, data: Partial<typeof suratKesediaanRequests.$inferInsert>) {
+  async update(
+    id: string,
+    data: Partial<typeof suratKesediaanRequests.$inferInsert>,
+  ) {
     const result = await this.db
       .update(suratKesediaanRequests)
       .set(data)
@@ -147,12 +150,12 @@ export class SuratKesediaanRepository {
       approvedAt: Date;
       signedFileUrl: string;
       signedFileKey: string;
-    }
+    },
   ) {
     const result = await this.db
       .update(suratKesediaanRequests)
       .set({
-        status: 'DISETUJUI',
+        status: "DISETUJUI",
         approvedByDosenId: data.approvedByDosenId,
         approvedAt: data.approvedAt,
         signedFileUrl: data.signedFileUrl,
@@ -162,8 +165,8 @@ export class SuratKesediaanRepository {
         and(
           eq(suratKesediaanRequests.id, id),
           eq(suratKesediaanRequests.dosenId, dosenId),
-          eq(suratKesediaanRequests.status, 'MENUNGGU')
-        )
+          eq(suratKesediaanRequests.status, "MENUNGGU"),
+        ),
       )
       .returning();
 
@@ -174,7 +177,7 @@ export class SuratKesediaanRepository {
     const result = await this.db
       .update(suratKesediaanRequests)
       .set({
-        status: 'DITOLAK',
+        status: "DITOLAK",
         approvedByDosenId: dosenId,
         approvedAt: new Date(),
         rejectionReason: reason,
@@ -183,8 +186,8 @@ export class SuratKesediaanRepository {
         and(
           eq(suratKesediaanRequests.id, id),
           eq(suratKesediaanRequests.dosenId, dosenId),
-          eq(suratKesediaanRequests.status, 'MENUNGGU')
-        )
+          eq(suratKesediaanRequests.status, "MENUNGGU"),
+        ),
       )
       .returning();
 
@@ -195,7 +198,7 @@ export class SuratKesediaanRepository {
     const result = await this.db
       .update(suratKesediaanRequests)
       .set({
-        status: 'MENUNGGU',
+        status: "MENUNGGU",
         rejectionReason: null,
         approvedAt: null,
         approvedByDosenId: null,
@@ -206,15 +209,18 @@ export class SuratKesediaanRepository {
         and(
           eq(suratKesediaanRequests.id, id),
           eq(suratKesediaanRequests.memberMahasiswaId, memberMahasiswaId),
-          sql`${suratKesediaanRequests.status}::text in ('DITOLAK', 'REJECTED')`
-        )
+          sql`${suratKesediaanRequests.status}::text in ('DITOLAK', 'REJECTED')`,
+        ),
       )
       .returning();
 
     return result[0] || null;
   }
 
-  async updateBulk(ids: string[], data: Partial<typeof suratKesediaanRequests.$inferInsert>) {
+  async updateBulk(
+    ids: string[],
+    data: Partial<typeof suratKesediaanRequests.$inferInsert>,
+  ) {
     const result = await this.db
       .update(suratKesediaanRequests)
       .set(data)
@@ -257,7 +263,9 @@ export class SuratKesediaanRepository {
         submittedAt: suratKesediaanRequests.createdAt,
       })
       .from(suratKesediaanRequests)
-      .where(inArray(suratKesediaanRequests.memberMahasiswaId, memberMahasiswaIds))
+      .where(
+        inArray(suratKesediaanRequests.memberMahasiswaId, memberMahasiswaIds),
+      )
       .orderBy(desc(suratKesediaanRequests.createdAt));
   }
 }

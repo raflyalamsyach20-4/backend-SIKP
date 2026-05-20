@@ -1,13 +1,13 @@
-import { Context } from 'hono';
-import { deleteCookie, getCookie, setCookie } from 'hono/cookie';
-import { AuthService } from '@/services/auth.service';
-import { createResponse, generateId, handleError } from '@/utils/helpers';
+import { Context } from "hono";
+import { deleteCookie, getCookie, setCookie } from "hono/cookie";
+import { AuthService } from "@/services/auth.service";
+import { createResponse, generateId, handleError } from "@/utils/helpers";
 import {
   AuthCallbackInput,
   AuthPrepareInput,
   SelectIdentityInput,
-} from '@/validation';
-import { SuccessMessages, ErrorMessages } from '@/constants';
+} from "@/validation";
+import { SuccessMessages, ErrorMessages } from "@/constants";
 
 /**
  * Auth Controller
@@ -16,9 +16,7 @@ import { SuccessMessages, ErrorMessages } from '@/constants';
 export class AuthController {
   private authService: AuthService;
 
-  constructor(
-    private c: Context<{ Bindings: CloudflareBindings }>
-  ) {
+  constructor(private c: Context<{ Bindings: CloudflareBindings }>) {
     this.authService = new AuthService(this.c.env);
   }
 
@@ -31,21 +29,23 @@ export class AuthController {
       const authorizeUrl = this.authService.buildAuthorizeUrl(
         state,
         data.codeChallenge,
-        data.redirectUri || this.c.env.SSO_REDIRECT_URI
+        data.redirectUri || this.c.env.SSO_REDIRECT_URI,
       );
 
-      setCookie(this.c, 'sikp_oauth_state', state, {
+      setCookie(this.c, "sikp_oauth_state", state, {
         httpOnly: true,
         secure: Boolean(this.c.env.AUTH_COOKIE_SECURE),
         sameSite: this.c.env.AUTH_COOKIE_SAMESITE as "strict" | "lax" | "none",
-        path: '/',
+        path: "/",
         maxAge: 600,
       });
 
-      return this.c.json(createResponse(true, 'SSO authorize URL generated', {
-        state,
-        authorizeUrl,
-      }));
+      return this.c.json(
+        createResponse(true, "SSO authorize URL generated", {
+          state,
+          authorizeUrl,
+        }),
+      );
     } catch (error) {
       return handleError(this.c, error, ErrorMessages.BAD_REQUEST);
     }
@@ -56,38 +56,45 @@ export class AuthController {
    */
   callback = async (data: AuthCallbackInput) => {
     try {
-      const expectedState = getCookie(this.c, 'sikp_oauth_state');
+      const expectedState = getCookie(this.c, "sikp_oauth_state");
 
-      const result = await this.authService.handleCallback(data, expectedState || null);
+      const result = await this.authService.handleCallback(
+        data,
+        expectedState || null,
+      );
 
       setCookie(this.c, this.c.env.AUTH_SESSION_COOKIE_NAME, result.sessionId, {
         httpOnly: true,
         secure: Boolean(this.c.env.AUTH_COOKIE_SECURE),
         sameSite: this.c.env.AUTH_COOKIE_SAMESITE as "strict" | "lax" | "none",
-        path: '/',
+        path: "/",
         maxAge: Number(this.c.env.AUTH_SESSION_TTL_SECONDS),
       });
 
       if (expectedState) {
-        deleteCookie(this.c, 'sikp_oauth_state', { path: '/' });
+        deleteCookie(this.c, "sikp_oauth_state", { path: "/" });
       }
 
       if (result.requiresIdentitySelection) {
-        return this.c.json(createResponse(true, SuccessMessages.LOGIN_SUCCESS, {
-          sessionEstablished: false,
-          requiresIdentitySelection: true,
-          identities: result.identities,
-          effectivePermissions: result.effectivePermissions,
-        }));
+        return this.c.json(
+          createResponse(true, SuccessMessages.LOGIN_SUCCESS, {
+            sessionEstablished: false,
+            requiresIdentitySelection: true,
+            identities: result.identities,
+            effectivePermissions: result.effectivePermissions,
+          }),
+        );
       }
 
-      return this.c.json(createResponse(true, SuccessMessages.LOGIN_SUCCESS, {
-        sessionEstablished: true,
-        requiresIdentitySelection: false,
-        activeIdentity: result.activeIdentity,
-        effectiveRoles: result.effectiveRoles,
-        effectivePermissions: result.effectivePermissions,
-      }));
+      return this.c.json(
+        createResponse(true, SuccessMessages.LOGIN_SUCCESS, {
+          sessionEstablished: true,
+          requiresIdentitySelection: false,
+          activeIdentity: result.activeIdentity,
+          effectiveRoles: result.effectiveRoles,
+          effectivePermissions: result.effectivePermissions,
+        }),
+      );
     } catch (error) {
       return handleError(this.c, error, ErrorMessages.LOGIN_FAILED);
     }
@@ -98,12 +105,14 @@ export class AuthController {
    */
   identities = async () => {
     try {
-      const sessionId = this.c.get('sessionId');
+      const sessionId = this.c.get("sessionId");
       const identities = await this.authService.getIdentities(sessionId);
 
-      return this.c.json(createResponse(true, 'User identities retrieved', {
-        identities,
-      }));
+      return this.c.json(
+        createResponse(true, "User identities retrieved", {
+          identities,
+        }),
+      );
     } catch (error) {
       return handleError(this.c, error, ErrorMessages.UNAUTHORIZED);
     }
@@ -114,15 +123,20 @@ export class AuthController {
    */
   selectIdentity = async (data: SelectIdentityInput) => {
     try {
-      const sessionId = this.c.get('sessionId');
+      const sessionId = this.c.get("sessionId");
 
-      const result = await this.authService.selectIdentity(sessionId, data.identityType);
+      const result = await this.authService.selectIdentity(
+        sessionId,
+        data.identityType,
+      );
 
-      return this.c.json(createResponse(true, 'Identity selected', {
-        activeIdentity: result.activeIdentity,
-        effectiveRoles: result.effectiveRoles,
-        effectivePermissions: result.effectivePermissions,
-      }));
+      return this.c.json(
+        createResponse(true, "Identity selected", {
+          activeIdentity: result.activeIdentity,
+          effectiveRoles: result.effectiveRoles,
+          effectivePermissions: result.effectivePermissions,
+        }),
+      );
     } catch (error) {
       return handleError(this.c, error, ErrorMessages.BAD_REQUEST);
     }
@@ -133,10 +147,12 @@ export class AuthController {
    */
   me = async () => {
     try {
-      const sessionId = this.c.get('sessionId');
+      const sessionId = this.c.get("sessionId");
       const me = await this.authService.getMe(sessionId);
 
-      return this.c.json(createResponse(true, SuccessMessages.USER_RETRIEVED, me));
+      return this.c.json(
+        createResponse(true, SuccessMessages.USER_RETRIEVED, me),
+      );
     } catch (error) {
       return handleError(this.c, error, ErrorMessages.USER_NOT_FOUND);
     }
@@ -147,14 +163,14 @@ export class AuthController {
    */
   logout = async () => {
     try {
-      const sessionId = this.c.get('sessionId');
+      const sessionId = this.c.get("sessionId");
       await this.authService.logout(sessionId);
 
       deleteCookie(this.c, this.c.env.AUTH_SESSION_COOKIE_NAME, {
-        path: '/',
+        path: "/",
       });
 
-      return this.c.json(createResponse(true, 'Logout successful'));
+      return this.c.json(createResponse(true, "Logout successful"));
     } catch (error) {
       return handleError(this.c, error, ErrorMessages.UNAUTHORIZED);
     }

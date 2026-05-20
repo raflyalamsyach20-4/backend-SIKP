@@ -1,8 +1,8 @@
-import { eq, and, desc, asc } from 'drizzle-orm';
-import type { DbClient } from '@/db';
-import { responseLetters, submissions, teams, teamMembers } from '@/db/schema';
-import type { ResponseLetter, ResponseLetterWithDetails } from '@/types';
-import { generateId } from '@/utils/helpers';
+import { eq, and, desc, asc } from "drizzle-orm";
+import type { DbClient } from "@/db";
+import { responseLetters, submissions, teams, teamMembers } from "@/db/schema";
+import type { ResponseLetter, ResponseLetterWithDetails } from "@/types";
+import { generateId } from "@/utils/helpers";
 
 /**
  * Response Letter Repository
@@ -22,14 +22,20 @@ export class ResponseLetterRepository {
     fileSize?: number;
     fileUrl?: string;
     memberMahasiswaId?: string;
-    letterStatus: 'approved' | 'rejected';
+    letterStatus: "approved" | "rejected";
     studentName?: string | null;
     studentNim?: string | null;
     companyName?: string | null;
     supervisorName?: string | null;
     memberCount?: number | null;
     roleLabel?: string | null;
-    membersSnapshot?: Array<{ id: number | string; name: string; nim: string; prodi?: string; role?: string }> | null;
+    membersSnapshot?: Array<{
+      id: number | string;
+      name: string;
+      nim: string;
+      prodi?: string;
+      role?: string;
+    }> | null;
   }): Promise<ResponseLetter> {
     const id = generateId();
 
@@ -76,7 +82,9 @@ export class ResponseLetterRepository {
   /**
    * Find response letter by submission ID
    */
-  async findBySubmissionId(submissionId: string): Promise<ResponseLetter | null> {
+  async findBySubmissionId(
+    submissionId: string,
+  ): Promise<ResponseLetter | null> {
     const [responseLetter] = await this.db
       .select()
       .from(responseLetters)
@@ -114,7 +122,9 @@ export class ResponseLetterRepository {
   /**
    * Get response letter with full details
    */
-  async findByIdWithDetails(id: string): Promise<ResponseLetterWithDetails | null> {
+  async findByIdWithDetails(
+    id: string,
+  ): Promise<ResponseLetterWithDetails | null> {
     const result = await this.db
       .select({
         responseLetter: responseLetters,
@@ -135,7 +145,7 @@ export class ResponseLetterRepository {
 
     // Get team members
     const teamId = data.team?.id;
-    const membersData = teamId 
+    const membersData = teamId
       ? await this.db
           .select({
             member: teamMembers,
@@ -152,10 +162,10 @@ export class ResponseLetterRepository {
       members: membersData.map((m) => ({
         id: m.member.mahasiswaId,
         nama: null,
-        email: '',
-        password: '',
+        email: "",
+        password: "",
         phone: null,
-        role: 'MAHASISWA',
+        role: "MAHASISWA",
         isActive: true,
         mahasiswaProfile: undefined,
       })),
@@ -166,20 +176,20 @@ export class ResponseLetterRepository {
    * Get all response letters with filters
    */
   async findAll(filters?: {
-    status?: 'all' | 'approved' | 'rejected' | 'verified' | 'unverified';
-    sort?: 'date' | 'name';
+    status?: "all" | "approved" | "rejected" | "verified" | "unverified";
+    sort?: "date" | "name";
     limit?: number;
     offset?: number;
   }): Promise<ResponseLetterWithDetails[]> {
     const whereCondition =
-      filters?.status === 'verified'
+      filters?.status === "verified"
         ? eq(responseLetters.verified, true)
-        : filters?.status === 'unverified'
+        : filters?.status === "unverified"
           ? eq(responseLetters.verified, false)
-          : filters?.status === 'approved'
-            ? eq(responseLetters.letterStatus, 'approved')
-            : filters?.status === 'rejected'
-              ? eq(responseLetters.letterStatus, 'rejected')
+          : filters?.status === "approved"
+            ? eq(responseLetters.letterStatus, "approved")
+            : filters?.status === "rejected"
+              ? eq(responseLetters.letterStatus, "rejected")
               : undefined;
 
     const baseQuery = this.db
@@ -192,13 +202,19 @@ export class ResponseLetterRepository {
       .leftJoin(submissions, eq(responseLetters.submissionId, submissions.id))
       .leftJoin(teams, eq(submissions.teamId, teams.id));
 
-    const filteredQuery = whereCondition ? baseQuery.where(and(whereCondition)) : baseQuery;
+    const filteredQuery = whereCondition
+      ? baseQuery.where(and(whereCondition))
+      : baseQuery;
     const sortedQuery =
-      filters?.sort === 'name'
+      filters?.sort === "name"
         ? filteredQuery.orderBy(asc(responseLetters.studentName))
         : filteredQuery.orderBy(desc(responseLetters.submittedAt));
-    const limitedQuery = filters?.limit ? sortedQuery.limit(filters.limit) : sortedQuery;
-    const finalQuery = filters?.offset ? limitedQuery.offset(filters.offset) : limitedQuery;
+    const limitedQuery = filters?.limit
+      ? sortedQuery.limit(filters.limit)
+      : sortedQuery;
+    const finalQuery = filters?.offset
+      ? limitedQuery.offset(filters.offset)
+      : limitedQuery;
 
     const results = await finalQuery;
 
@@ -224,8 +240,8 @@ export class ResponseLetterRepository {
             id: m.member.mahasiswaId,
             mahasiswaId: m.member.mahasiswaId,
             nama: null,
-            email: '',
-            password: '',
+            email: "",
+            password: "",
             phone: null,
             role: m.member.role,
             invitationStatus: m.member.invitationStatus,
@@ -233,7 +249,7 @@ export class ResponseLetterRepository {
             mahasiswaProfile: undefined,
           })),
         } as ResponseLetterWithDetails;
-      })
+      }),
     );
 
     return responseLettersWithDetails;
@@ -242,10 +258,7 @@ export class ResponseLetterRepository {
   /**
    * Update response letter verification status
    */
-  async verify(
-    id: string,
-    adminId: string
-  ): Promise<ResponseLetter> {
+  async verify(id: string, adminId: string): Promise<ResponseLetter> {
     const [updated] = await this.db
       .update(responseLetters)
       .set({
@@ -271,7 +284,7 @@ export class ResponseLetterRepository {
       fileSize: number;
       fileUrl: string;
       memberMahasiswaId: string;
-      letterStatus: 'approved' | 'rejected';
+      letterStatus: "approved" | "rejected";
       submissionId: string | null;
       studentName: string | null;
       studentNim: string | null;
@@ -279,8 +292,14 @@ export class ResponseLetterRepository {
       supervisorName: string | null;
       memberCount: number | null;
       roleLabel: string | null;
-      membersSnapshot?: Array<{ id: number | string; name: string; nim: string; prodi?: string; role?: string }> | null;
-    }>
+      membersSnapshot?: Array<{
+        id: number | string;
+        name: string;
+        nim: string;
+        prodi?: string;
+        role?: string;
+      }> | null;
+    }>,
   ): Promise<ResponseLetter> {
     const [updated] = await this.db
       .update(responseLetters)
@@ -295,7 +314,7 @@ export class ResponseLetterRepository {
     const result = await this.db
       .select()
       .from(responseLetters)
-      .where(eq(responseLetters.letterStatus, 'approved'));
+      .where(eq(responseLetters.letterStatus, "approved"));
 
     return result.length;
   }
@@ -306,9 +325,9 @@ export class ResponseLetterRepository {
       .from(responseLetters)
       .where(
         and(
-          eq(responseLetters.letterStatus, 'approved'),
-          eq(responseLetters.verified, true)
-        )
+          eq(responseLetters.letterStatus, "approved"),
+          eq(responseLetters.verified, true),
+        ),
       );
 
     return result.length;
@@ -321,9 +340,9 @@ export class ResponseLetterRepository {
       .innerJoin(submissions, eq(responseLetters.submissionId, submissions.id))
       .where(
         and(
-          eq(responseLetters.letterStatus, 'approved'),
-          eq(responseLetters.verified, true)
-        )
+          eq(responseLetters.letterStatus, "approved"),
+          eq(responseLetters.verified, true),
+        ),
       );
 
     const uniqueTeams = new Set(result.map((r) => r.teamId));
@@ -338,10 +357,10 @@ export class ResponseLetterRepository {
       .innerJoin(teamMembers, eq(submissions.teamId, teamMembers.teamId))
       .where(
         and(
-          eq(responseLetters.letterStatus, 'approved'),
+          eq(responseLetters.letterStatus, "approved"),
           eq(responseLetters.verified, true),
-          eq(teamMembers.invitationStatus, 'ACCEPTED')
-        )
+          eq(teamMembers.invitationStatus, "ACCEPTED"),
+        ),
       );
 
     const uniqueStudents = new Set(result.map((r) => r.mahasiswaId));
@@ -363,11 +382,19 @@ export class ResponseLetterRepository {
   /**
    * Check if user is member of team
    */
-  async isMahasiswaMemberOfTeam(mahasiswaId: string, teamId: string): Promise<boolean> {
+  async isMahasiswaMemberOfTeam(
+    mahasiswaId: string,
+    teamId: string,
+  ): Promise<boolean> {
     const [member] = await this.db
       .select()
       .from(teamMembers)
-      .where(and(eq(teamMembers.mahasiswaId, mahasiswaId), eq(teamMembers.teamId, teamId)))
+      .where(
+        and(
+          eq(teamMembers.mahasiswaId, mahasiswaId),
+          eq(teamMembers.teamId, teamId),
+        ),
+      )
       .limit(1);
 
     return !!member;
@@ -378,7 +405,7 @@ export class ResponseLetterRepository {
    * This is used by the getMyResponseLetter endpoint
    */
   async findByUserTeamWithDetails(
-    mahasiswaId: string
+    mahasiswaId: string,
   ): Promise<(ResponseLetterWithDetails & { isLeader: boolean }) | null> {
     // 1. Get user's team (only accepted members)
     const teamMembersResult = await this.db
@@ -388,10 +415,12 @@ export class ResponseLetterRepository {
       })
       .from(teamMembers)
       .innerJoin(teams, eq(teamMembers.teamId, teams.id))
-      .where(and(
-        eq(teamMembers.mahasiswaId, mahasiswaId),
-        eq(teamMembers.invitationStatus, 'ACCEPTED')
-      ))
+      .where(
+        and(
+          eq(teamMembers.mahasiswaId, mahasiswaId),
+          eq(teamMembers.invitationStatus, "ACCEPTED"),
+        ),
+      )
       .limit(1);
 
     if (!teamMembersResult || teamMembersResult.length === 0) {
@@ -400,7 +429,7 @@ export class ResponseLetterRepository {
 
     const userTeamMember = teamMembersResult[0];
     const teamId = userTeamMember.team.id;
-    const isLeader = userTeamMember.member.role === 'KETUA';
+    const isLeader = userTeamMember.member.role === "KETUA";
 
     // 2. Get the most recent submission for this team
     const submissionsResult = await this.db
@@ -451,8 +480,8 @@ export class ResponseLetterRepository {
         id: m.member.mahasiswaId,
         mahasiswaId: m.member.mahasiswaId,
         nama: null,
-        email: '',
-        password: '',
+        email: "",
+        password: "",
         phone: null,
         role: m.member.role,
         invitationStatus: m.member.invitationStatus,

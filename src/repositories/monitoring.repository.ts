@@ -1,6 +1,12 @@
-import { and, desc, eq, sql } from 'drizzle-orm';
-import type { DbClient } from '@/db';
-import { internships, logbooks, mentorApprovalRequests, titleSubmissions } from '@/db/schema';
+import { and, desc, eq, sql } from "drizzle-orm";
+import type { DbClient } from "@/db";
+import {
+  internships,
+  logbooks,
+  mentorApprovalRequests,
+  titleSubmissions,
+  teams,
+} from "@/db/schema";
 
 export class MonitoringRepository {
   constructor(private db: DbClient) {}
@@ -10,12 +16,15 @@ export class MonitoringRepository {
    */
   async getLecturerMenteesProgress(lecturerId: string) {
     try {
-      console.log(`[MonitoringRepository.getLecturerMenteesProgress] Fetching for lecturerId: ${lecturerId}`);
+      console.log(
+        `[MonitoringRepository.getLecturerMenteesProgress] Fetching for lecturerId: ${lecturerId}`,
+      );
       // 1. Get basic internship & student info with title submission if exists
       const mentees = await this.db
         .select({
           internshipId: internships.id,
           mahasiswaId: internships.mahasiswaId,
+          teamId: internships.teamId,
           companyName: internships.companyName,
           startDate: internships.startDate,
           endDate: internships.endDate,
@@ -29,19 +38,24 @@ export class MonitoringRepository {
           mentorName: mentorApprovalRequests.mentorName,
         })
         .from(internships)
-        .leftJoin(titleSubmissions, eq(internships.id, titleSubmissions.internshipId))
         .leftJoin(
-          mentorApprovalRequests, 
+          titleSubmissions,
+          eq(internships.id, titleSubmissions.internshipId),
+        )
+        .leftJoin(
+          mentorApprovalRequests,
           and(
             eq(internships.mahasiswaId, mentorApprovalRequests.studentUserId),
-            eq(mentorApprovalRequests.status, 'APPROVED')
-          )
+            eq(mentorApprovalRequests.status, "APPROVED"),
+          ),
         )
         .where(
-          sql`${internships.dosenPembimbingId} = ${lecturerId} OR ${internships.dosenPaId} = ${lecturerId}`
+          sql`${internships.dosenPembimbingId} = ${lecturerId} OR ${internships.dosenPaId} = ${lecturerId}`,
         );
-      
-      console.log(`[MonitoringRepository.getLecturerMenteesProgress] Found ${mentees.length} matches in DB`);
+
+      console.log(
+        `[MonitoringRepository.getLecturerMenteesProgress] Found ${mentees.length} matches in DB`,
+      );
 
       // 2. For each mentee, get logbook stats
       const enrichedMentees = await Promise.all(
@@ -58,14 +72,22 @@ export class MonitoringRepository {
 
           return {
             ...m,
-            stats: stats[0] || { totalHours: 0, totalPending: 0, totalApproved: 0, lastLogbookDate: null },
+            stats: stats[0] || {
+              totalHours: 0,
+              totalPending: 0,
+              totalApproved: 0,
+              lastLogbookDate: null,
+            },
           };
-        })
+        }),
       );
 
       return enrichedMentees;
     } catch (error) {
-      console.error('[MonitoringRepository.getLecturerMenteesProgress] Error:', error);
+      console.error(
+        "[MonitoringRepository.getLecturerMenteesProgress] Error:",
+        error,
+      );
       throw error;
     }
   }
@@ -73,7 +95,10 @@ export class MonitoringRepository {
   /**
    * Get logbooks for a specific student, verified to be under this lecturer (as Pembimbing OR PA)
    */
-  async getStudentLogbooksForLecturer(lecturerId: string, studentUserId: string) {
+  async getStudentLogbooksForLecturer(
+    lecturerId: string,
+    studentUserId: string,
+  ) {
     return await this.db
       .select({
         logbook: logbooks,
@@ -86,14 +111,14 @@ export class MonitoringRepository {
         mentorApprovalRequests,
         and(
           eq(internships.mahasiswaId, mentorApprovalRequests.studentUserId),
-          eq(mentorApprovalRequests.status, 'APPROVED')
-        )
+          eq(mentorApprovalRequests.status, "APPROVED"),
+        ),
       )
       .where(
         and(
           sql`${internships.dosenPembimbingId} = ${lecturerId} OR ${internships.dosenPaId} = ${lecturerId}`,
-          eq(internships.mahasiswaId, studentUserId)
-        )
+          eq(internships.mahasiswaId, studentUserId),
+        ),
       )
       .orderBy(desc(logbooks.date), desc(logbooks.createdAt));
   }
@@ -110,6 +135,15 @@ export class MonitoringRepository {
     return await this.db
       .select()
       .from(internships)
-      .where(eq(internships.status, 'AKTIF'));
+      .where(eq(internships.status, "AKTIF"));
+  }
+
+  async getTeamById(teamId: string) {
+    const rows = await this.db
+      .select()
+      .from(teams)
+      .where(eq(teams.id, teamId))
+      .limit(1);
+    return rows[0] || null;
   }
 }

@@ -1,19 +1,19 @@
-import { SubmissionRepository } from '@/repositories/submission.repository';
-import { ResponseLetterRepository } from '@/repositories/response-letter.repository';
-import { TeamRepository } from '@/repositories/team.repository';
-import { TemplateRepository } from '@/repositories/template.repository';
-import { LetterService } from './letter.service';
-import { DosenService } from './dosen.service';
-import { MahasiswaService } from './mahasiswa.service';
-import { submissions } from '@/db/schema';
-import { createDbClient } from '@/db';
-import type { SsoMahasiswaDetail } from '@/types';
-import { generateId } from '@/utils/helpers';
+import { SubmissionRepository } from "@/repositories/submission.repository";
+import { ResponseLetterRepository } from "@/repositories/response-letter.repository";
+import { TeamRepository } from "@/repositories/team.repository";
+import { TemplateRepository } from "@/repositories/template.repository";
+import { LetterService } from "./letter.service";
+import { DosenService } from "./dosen.service";
+import { MahasiswaService } from "./mahasiswa.service";
+import { submissions } from "@/db/schema";
+import { createDbClient } from "@/db";
+import type { SsoMahasiswaDetail } from "@/types";
+import { generateId } from "@/utils/helpers";
 
 type AdminActivity = {
   action: string;
   time: string;
-  status: 'success' | 'info';
+  status: "success" | "info";
 };
 
 type MonthlySubmissionStat = {
@@ -45,13 +45,15 @@ type SubmissionLike = {
 };
 
 type SubmissionRecord = typeof submissions.$inferSelect;
-type TeamRecord = NonNullable<Awaited<ReturnType<TeamRepository['findById']>>>;
-type TeamMemberRecord = Awaited<ReturnType<TeamRepository['findMembersByTeamId']>>[number];
+type TeamRecord = NonNullable<Awaited<ReturnType<TeamRepository["findById"]>>>;
+type TeamMemberRecord = Awaited<
+  ReturnType<TeamRepository["findMembersByTeamId"]>
+>[number];
 
 type StatusHistoryEntry = {
-  status: 'APPROVED' | 'REJECTED';
-  workflowStage: 'PENDING_DOSEN_VERIFICATION' | 'REJECTED_ADMIN';
-  actor: 'ADMIN';
+  status: "APPROVED" | "REJECTED";
+  workflowStage: "PENDING_DOSEN_VERIFICATION" | "REJECTED_ADMIN";
+  actor: "ADMIN";
   date: string;
   reason?: string;
   letterNumber?: string;
@@ -67,9 +69,7 @@ export class AdminService {
   private mahasiswaService: MahasiswaService;
   private db: ReturnType<typeof createDbClient>;
 
-  constructor(
-    private env: CloudflareBindings
-  ) {
+  constructor(private env: CloudflareBindings) {
     this.db = createDbClient(this.env.DATABASE_URL);
     this.letterService = new LetterService(this.env);
     this.dosenService = new DosenService(this.env);
@@ -88,7 +88,12 @@ export class AdminService {
   }
 
   private async buildStudentIdentityMap(
-    submission: SubmissionLike & { team?: { members?: Array<{ user?: { id?: string | null } | null }> } | null | undefined },
+    submission: SubmissionLike & {
+      team?:
+        | { members?: Array<{ user?: { id?: string | null } | null }> }
+        | null
+        | undefined;
+    },
     sessionId: string,
   ) {
     const ids = new Set<string>();
@@ -100,7 +105,10 @@ export class AdminService {
 
     return await Promise.all(
       Array.from(ids).map(async (id) => {
-        const mahasiswa = await this.mahasiswaService.getMahasiswaById(id, sessionId);
+        const mahasiswa = await this.mahasiswaService.getMahasiswaById(
+          id,
+          sessionId,
+        );
         return [
           id,
           {
@@ -123,10 +131,16 @@ export class AdminService {
         dosenKpId?: string | null;
         dosenKpName?: string | null;
         academicSupervisor?: string | null;
-        status: 'PENDING' | 'FIXED';
+        status: "PENDING" | "FIXED";
         members?: Array<{
           id: string;
-          user?: { id?: string | null; name?: string | null; email?: string | null; nim?: string | null; prodi?: string | null };
+          user?: {
+            id?: string | null;
+            name?: string | null;
+            email?: string | null;
+            nim?: string | null;
+            prodi?: string | null;
+          };
           role?: string | null;
           status?: string | null;
         }>;
@@ -134,7 +148,13 @@ export class AdminService {
       documents?: Array<{
         id: string;
         uploadedByMahasiswaId: string;
-        uploadedByUser?: { id: string; name: string | null; email: string | null; nim: string | null; prodi: string | null };
+        uploadedByUser?: {
+          id: string;
+          name: string | null;
+          email: string | null;
+          nim: string | null;
+          prodi: string | null;
+        };
       }>;
     },
     sessionId: string,
@@ -151,7 +171,8 @@ export class AdminService {
       this.buildStudentIdentityMap(submission, sessionId),
     ]);
 
-    const dosenName = this.normalizeIdentityName(dosenDetail?.profile.fullName) ||
+    const dosenName =
+      this.normalizeIdentityName(dosenDetail?.profile.fullName) ||
       this.normalizeIdentityName(team.dosenKpName) ||
       this.normalizeIdentityName(team.academicSupervisor) ||
       null;
@@ -186,7 +207,7 @@ export class AdminService {
       };
     });
 
-    const validDocIds = new Set(enrichedDocuments.map(d => d.id));
+    const validDocIds = new Set(enrichedDocuments.map((d) => d.id));
     const rawDocumentReviews = (submission as any).documentReviews || {};
     const filteredReviews: Record<string, string> = {};
     for (const [docId, status] of Object.entries(rawDocumentReviews)) {
@@ -208,16 +229,32 @@ export class AdminService {
     };
   }
 
-  private getLastFourMonths(): Array<{ monthDate: Date; monthKey: string; monthLabel: string }> {
-    const formatter = new Intl.DateTimeFormat('id-ID', { month: 'short' });
+  private getLastFourMonths(): Array<{
+    monthDate: Date;
+    monthKey: string;
+    monthLabel: string;
+  }> {
+    const formatter = new Intl.DateTimeFormat("id-ID", { month: "short" });
     const current = new Date();
-    const startOfCurrent = new Date(current.getFullYear(), current.getMonth(), 1);
-    const months: Array<{ monthDate: Date; monthKey: string; monthLabel: string }> = [];
+    const startOfCurrent = new Date(
+      current.getFullYear(),
+      current.getMonth(),
+      1,
+    );
+    const months: Array<{
+      monthDate: Date;
+      monthKey: string;
+      monthLabel: string;
+    }> = [];
 
     for (let offset = 3; offset >= 0; offset -= 1) {
-      const monthDate = new Date(startOfCurrent.getFullYear(), startOfCurrent.getMonth() - offset, 1);
+      const monthDate = new Date(
+        startOfCurrent.getFullYear(),
+        startOfCurrent.getMonth() - offset,
+        1,
+      );
       const year = monthDate.getFullYear();
-      const month = `${monthDate.getMonth() + 1}`.padStart(2, '0');
+      const month = `${monthDate.getMonth() + 1}`.padStart(2, "0");
       const monthKey = `${year}-${month}`;
       const monthLabel = formatter.format(monthDate);
       months.push({ monthDate, monthKey, monthLabel });
@@ -235,35 +272,47 @@ export class AdminService {
 
   private resolveMonthKey(date: Date): string {
     const year = date.getFullYear();
-    const month = `${date.getMonth() + 1}`.padStart(2, '0');
+    const month = `${date.getMonth() + 1}`.padStart(2, "0");
     return `${year}-${month}`;
   }
 
-  private async ensureInternshipsForSubmission(submission: SubmissionRecord, sessionId: string) {
+  private async ensureInternshipsForSubmission(
+    submission: SubmissionRecord,
+    sessionId: string,
+  ) {
     if (!submission.teamId) {
       return;
     }
 
     const team = await this.teamRepo.findById(submission.teamId);
     const members = await this.teamRepo.findMembersByTeamId(submission.teamId);
-    const acceptedMembers = members.filter((member) => member.invitationStatus === 'ACCEPTED');
+    const acceptedMembers = members.filter(
+      (member) => member.invitationStatus === "ACCEPTED",
+    );
     const targets = acceptedMembers.length > 0 ? acceptedMembers : members;
 
     const now = new Date();
     await Promise.all(
       targets.map(async (member) => {
-        const existing = await this.submissionRepo.findInternshipBySubmissionAndMahasiswa(
-          submission.id,
-          member.mahasiswaId
-        );
+        const existing =
+          await this.submissionRepo.findInternshipBySubmissionAndMahasiswa(
+            submission.id,
+            member.mahasiswaId,
+          );
 
         if (existing) {
           return;
         }
 
         // Fetch student detail to get their own Dosen PA from SSO
-        const studentDetail = await this.mahasiswaService.getMahasiswaById(member.mahasiswaId, sessionId);
-        const dosenPaId = studentDetail?.dosenPA?.profile?.id || studentDetail?.dosenPA?.id || null;
+        const studentDetail = await this.mahasiswaService.getMahasiswaById(
+          member.mahasiswaId,
+          sessionId,
+        );
+        const dosenPaId =
+          studentDetail?.dosenPA?.profile?.id ||
+          studentDetail?.dosenPA?.id ||
+          null;
 
         // dosenPembimbingId:
         //   1st priority: team.dosenKpId (Dosen PA ketua tim, set saat createTeam)
@@ -271,7 +320,9 @@ export class AdminService {
         const resolvedDosenPembimbingId = team?.dosenKpId ?? dosenPaId ?? null;
 
         if (!resolvedDosenPembimbingId) {
-          console.warn(`[ensureInternshipsForSubmission] ⚠️ dosenPembimbingId masih null untuk mahasiswaId=${member.mahasiswaId}. Pastikan Dosen PA sudah ditetapkan di SSO.`);
+          console.warn(
+            `[ensureInternshipsForSubmission] ⚠️ dosenPembimbingId masih null untuk mahasiswaId=${member.mahasiswaId}. Pastikan Dosen PA sudah ditetapkan di SSO.`,
+          );
         }
 
         await this.submissionRepo.createInternship({
@@ -286,19 +337,24 @@ export class AdminService {
           division: submission.division ?? null,
           startDate: submission.startDate,
           endDate: submission.endDate,
-          status: 'AKTIF',
+          status: "AKTIF",
           createdAt: now,
           updatedAt: now,
         });
-      })
+      }),
     );
   }
 
-  private buildMonthlyStats(submissions: SubmissionLike[]): MonthlySubmissionStat[] {
+  private buildMonthlyStats(
+    submissions: SubmissionLike[],
+  ): MonthlySubmissionStat[] {
     const monthBuckets = this.getLastFourMonths();
     const allowedKeys = new Set(monthBuckets.map((item) => item.monthKey));
-    const aggregation = new Map<string, { submissions: number; approved: number }>();
-    
+    const aggregation = new Map<
+      string,
+      { submissions: number; approved: number }
+    >();
+
     monthBuckets.forEach((item) => {
       aggregation.set(item.monthKey, { submissions: 0, approved: 0 });
     });
@@ -311,19 +367,30 @@ export class AdminService {
       const bucket = aggregation.get(monthKey);
       if (!bucket) return;
       bucket.submissions += 1;
-      if (submission.status === 'APPROVED') bucket.approved += 1;
+      if (submission.status === "APPROVED") bucket.approved += 1;
     });
 
     return monthBuckets.map(({ monthKey, monthLabel }) => {
-      const bucket = aggregation.get(monthKey) || { submissions: 0, approved: 0 };
-      const approvalRate = bucket.submissions > 0 ? Math.round((bucket.approved / bucket.submissions) * 100) : 0;
-      return { month: monthLabel, submissions: bucket.submissions, approved: bucket.approved, approvalRate };
+      const bucket = aggregation.get(monthKey) || {
+        submissions: 0,
+        approved: 0,
+      };
+      const approvalRate =
+        bucket.submissions > 0
+          ? Math.round((bucket.approved / bucket.submissions) * 100)
+          : 0;
+      return {
+        month: monthLabel,
+        submissions: bucket.submissions,
+        approved: bucket.approved,
+        approvalRate,
+      };
     });
   }
 
   async getDashboard(sessionId: string): Promise<AdminDashboardPayload> {
     if (!this.responseLetterRepo || !this.teamRepo || !this.templateRepo) {
-      throw new Error('Admin dashboard dependencies are not configured');
+      throw new Error("Admin dashboard dependencies are not configured");
     }
 
     const [
@@ -334,7 +401,7 @@ export class AdminService {
       totalDosenPembimbingKp,
       totalTemplateDokumen,
       allSubmissions,
-      mahasiswaAktifSemester4
+      mahasiswaAktifSemester4,
     ] = await Promise.all([
       this.responseLetterRepo.countVerifiedStudents(),
       this.responseLetterRepo.countVerifiedTeams(),
@@ -360,44 +427,69 @@ export class AdminService {
   }
 
   private getCurrentStage(submission: SubmissionLike) {
-    return submission.workflowStage ?? (submission.status === 'PENDING_REVIEW' ? 'PENDING_ADMIN_REVIEW' : submission.status);
+    return (
+      submission.workflowStage ??
+      (submission.status === "PENDING_REVIEW"
+        ? "PENDING_ADMIN_REVIEW"
+        : submission.status)
+    );
   }
 
-  private matchesStatusBucket(submission: SubmissionLike, status: 'DRAFT' | 'PENDING_REVIEW' | 'REJECTED' | 'APPROVED') {
+  private matchesStatusBucket(
+    submission: SubmissionLike,
+    status: "DRAFT" | "PENDING_REVIEW" | "REJECTED" | "APPROVED",
+  ) {
     const currentStage = this.getCurrentStage(submission);
-    if (status === 'DRAFT') return currentStage === 'DRAFT';
-    if (status === 'PENDING_REVIEW') return currentStage === 'PENDING_ADMIN_REVIEW' || currentStage === 'PENDING_DOSEN_VERIFICATION';
-    if (status === 'APPROVED') return currentStage === 'COMPLETED';
-    return currentStage === 'REJECTED_ADMIN' || currentStage === 'REJECTED_DOSEN';
+    if (status === "DRAFT") return currentStage === "DRAFT";
+    if (status === "PENDING_REVIEW")
+      return (
+        currentStage === "PENDING_ADMIN_REVIEW" ||
+        currentStage === "PENDING_DOSEN_VERIFICATION"
+      );
+    if (status === "APPROVED") return currentStage === "COMPLETED";
+    return (
+      currentStage === "REJECTED_ADMIN" || currentStage === "REJECTED_DOSEN"
+    );
   }
 
   private async getMahasiswaCached(
     mahasiswaId: string,
     sessionId: string,
-    cache: Map<string, SsoMahasiswaDetail | null>
+    cache: Map<string, SsoMahasiswaDetail | null>,
   ) {
     if (cache.has(mahasiswaId)) {
       return cache.get(mahasiswaId) ?? null;
     }
 
-    const student = await this.mahasiswaService.getMahasiswaById(mahasiswaId, sessionId);
+    const student = await this.mahasiswaService.getMahasiswaById(
+      mahasiswaId,
+      sessionId,
+    );
     cache.set(mahasiswaId, student);
     return student;
   }
 
-  private resolveMahasiswaEmail(student: SsoMahasiswaDetail | null): string | null {
+  private resolveMahasiswaEmail(
+    student: SsoMahasiswaDetail | null,
+  ): string | null {
     if (!student) return null;
-    return student.profile.emails.find((entry) => entry.isPrimary)?.email ?? null;
+    return (
+      student.profile.emails.find((entry) => entry.isPrimary)?.email ?? null
+    );
   }
 
   private async enrichTeamMembers(
     members: TeamMemberRecord[],
     sessionId: string,
-    cache: Map<string, SsoMahasiswaDetail | null>
+    cache: Map<string, SsoMahasiswaDetail | null>,
   ) {
     return await Promise.all(
       members.map(async (member) => {
-        const student = await this.getMahasiswaCached(member.mahasiswaId, sessionId, cache);
+        const student = await this.getMahasiswaCached(
+          member.mahasiswaId,
+          sessionId,
+          cache,
+        );
 
         return {
           id: member.id,
@@ -411,48 +503,72 @@ export class AdminService {
           role: member.role,
           status: member.invitationStatus,
         };
-      })
+      }),
     );
   }
 
   private async buildAdminSubmissionEntry(
     submission: SubmissionRecord,
     sessionId: string,
-    wakilDekanSignature: Awaited<ReturnType<SubmissionRepository['findWakilDekanSignature']>>,
-    mahasiswaCache: Map<string, SsoMahasiswaDetail | null>
+    wakilDekanSignature: Awaited<
+      ReturnType<SubmissionRepository["findWakilDekanSignature"]>
+    >,
+    mahasiswaCache: Map<string, SsoMahasiswaDetail | null>,
   ) {
-    const team = submission.teamId ? await this.teamRepo.findById(submission.teamId) : null;
-    let members: Awaited<ReturnType<AdminService['enrichTeamMembers']>> = [];
+    const team = submission.teamId
+      ? await this.teamRepo.findById(submission.teamId)
+      : null;
+    let members: Awaited<ReturnType<AdminService["enrichTeamMembers"]>> = [];
     let academicSupervisor: string | null = null;
     let dosenKpName: string | null = null;
 
     if (team) {
-      const dosenKpId = await this.submissionRepo.resolveTeamKpSupervisorByTeamId(team.id);
+      const dosenKpId =
+        await this.submissionRepo.resolveTeamKpSupervisorByTeamId(team.id);
       if (dosenKpId) {
-        const dosenKpDetail = await this.dosenService.getDosenById(dosenKpId, sessionId);
+        const dosenKpDetail = await this.dosenService.getDosenById(
+          dosenKpId,
+          sessionId,
+        );
         if (dosenKpDetail) {
           dosenKpName = dosenKpDetail.profile.fullName;
         }
       }
 
-      const leaderStudent = await this.getMahasiswaCached(team.leaderMahasiswaId, sessionId, mahasiswaCache);
+      const leaderStudent = await this.getMahasiswaCached(
+        team.leaderMahasiswaId,
+        sessionId,
+        mahasiswaCache,
+      );
       if (leaderStudent?.dosenPA) {
         academicSupervisor = leaderStudent.dosenPA.profile.fullName;
       } else {
-        academicSupervisor = await this.submissionRepo.resolveAcademicSupervisorByLeaderMahasiswaId(team.leaderMahasiswaId);
+        academicSupervisor =
+          await this.submissionRepo.resolveAcademicSupervisorByLeaderMahasiswaId(
+            team.leaderMahasiswaId,
+          );
       }
 
       const memberRows = await this.teamRepo.findMembersByTeamId(team.id);
-      members = await this.enrichTeamMembers(memberRows, sessionId, mahasiswaCache);
+      members = await this.enrichTeamMembers(
+        memberRows,
+        sessionId,
+        mahasiswaCache,
+      );
     }
 
-    const docs = await this.submissionRepo.findDocumentsBySubmissionId(submission.id);
-    const coverLetterDoc = docs.find((d) => d.documentType === 'SURAT_PENGANTAR');
+    const docs = await this.submissionRepo.findDocumentsBySubmissionId(
+      submission.id,
+    );
+    const coverLetterDoc = docs.find(
+      (d) => d.documentType === "SURAT_PENGANTAR",
+    );
 
     return {
       ...submission,
       wakilDekanSignature,
-      signedFileUrl: submission.finalSignedFileUrl || coverLetterDoc?.fileUrl || undefined,
+      signedFileUrl:
+        submission.finalSignedFileUrl || coverLetterDoc?.fileUrl || undefined,
       team: team
         ? ({
             ...team,
@@ -465,14 +581,22 @@ export class AdminService {
     };
   }
 
-  private async buildAdminSubmissions(submissions: SubmissionRecord[], sessionId: string) {
+  private async buildAdminSubmissions(
+    submissions: SubmissionRecord[],
+    sessionId: string,
+  ) {
     const wakilDekanSignature = await this.getWakdekOfficialSignature();
     const mahasiswaCache = new Map<string, SsoMahasiswaDetail | null>();
 
     return await Promise.all(
       submissions.map((submission) =>
-        this.buildAdminSubmissionEntry(submission, sessionId, wakilDekanSignature, mahasiswaCache)
-      )
+        this.buildAdminSubmissionEntry(
+          submission,
+          sessionId,
+          wakilDekanSignature,
+          mahasiswaCache,
+        ),
+      ),
     );
   }
 
@@ -487,17 +611,19 @@ export class AdminService {
   }
 
   async getSubmissionsByStatus(
-    status: 'DRAFT' | 'PENDING_REVIEW' | 'REJECTED' | 'APPROVED',
-    sessionId: string
+    status: "DRAFT" | "PENDING_REVIEW" | "REJECTED" | "APPROVED",
+    sessionId: string,
   ) {
     const submissions = await this.submissionRepo.findAllForAdmin();
-    const filtered = submissions.filter((submission) => this.matchesStatusBucket(submission, status));
+    const filtered = submissions.filter((submission) =>
+      this.matchesStatusBucket(submission, status),
+    );
     return await this.buildAdminSubmissions(filtered, sessionId);
   }
 
   async getSubmissionById(id: string, sessionId: string) {
     const submission = await this.submissionRepo.findById(id);
-    if (!submission) throw new Error('Submission not found');
+    if (!submission) throw new Error("Submission not found");
 
     const wakilDekanSignature = await this.getWakdekOfficialSignature();
     const mahasiswaCache = new Map<string, SsoMahasiswaDetail | null>();
@@ -505,7 +631,7 @@ export class AdminService {
       submission as SubmissionRecord,
       sessionId,
       wakilDekanSignature,
-      mahasiswaCache
+      mahasiswaCache,
     );
 
     const letters = await this.submissionRepo.findLettersBySubmissionId(id);
@@ -514,57 +640,76 @@ export class AdminService {
       letters,
       submissionStatus: submission.workflowStage ?? submission.status,
       submission_status: submission.workflowStage ?? submission.status,
-      adminStatus: submission.adminVerificationStatus ?? 'PENDING',
-      admin_status: submission.adminVerificationStatus ?? 'PENDING',
-      isAdminApproved: (submission.adminVerificationStatus ?? 'PENDING') === 'APPROVED',
+      adminStatus: submission.adminVerificationStatus ?? "PENDING",
+      admin_status: submission.adminVerificationStatus ?? "PENDING",
+      isAdminApproved:
+        (submission.adminVerificationStatus ?? "PENDING") === "APPROVED",
     };
   }
 
   async updateSubmissionStatus(
     submissionId: string,
     adminId: string,
-    status: 'APPROVED' | 'REJECTED',
+    status: "APPROVED" | "REJECTED",
     sessionId: string,
     rejectionReason?: string,
     documentReviews?: Record<string, string>,
     letterNumber?: string,
   ) {
-    if (!['APPROVED', 'REJECTED'].includes(status)) throw new Error('Status must be either APPROVED or REJECTED');
+    if (!["APPROVED", "REJECTED"].includes(status))
+      throw new Error("Status must be either APPROVED or REJECTED");
 
     const submission = await this.submissionRepo.findById(submissionId);
-    if (!submission) throw new Error('Submission tidak ditemukan');
+    if (!submission) throw new Error("Submission tidak ditemukan");
 
     const currentStage = this.getCurrentStage(submission);
-    if (currentStage !== 'PENDING_ADMIN_REVIEW') throw new Error('Can only update submissions with PENDING_ADMIN_REVIEW stage');
+    if (currentStage !== "PENDING_ADMIN_REVIEW")
+      throw new Error(
+        "Can only update submissions with PENDING_ADMIN_REVIEW stage",
+      );
 
-    if (status === 'REJECTED' && (!rejectionReason || rejectionReason.trim().length === 0)) {
-      throw new Error('Rejection reason is required when rejecting');
+    if (
+      status === "REJECTED" &&
+      (!rejectionReason || rejectionReason.trim().length === 0)
+    ) {
+      throw new Error("Rejection reason is required when rejecting");
     }
 
-    if (status === 'APPROVED') {
-      if (!letterNumber || letterNumber.trim().length === 0) throw new Error('Nomor surat wajib diisi saat menyetujui submission');
-      if (!documentReviews || Object.keys(documentReviews).length === 0) throw new Error('documentReviews is required');
-      const hasRejected = Object.values(documentReviews).some((docStatus) => docStatus === 'rejected');
-      if (hasRejected) throw new Error('Tidak dapat approve submission jika ada dokumen yang di-reject');
+    if (status === "APPROVED") {
+      if (!letterNumber || letterNumber.trim().length === 0)
+        throw new Error("Nomor surat wajib diisi saat menyetujui submission");
+      if (!documentReviews || Object.keys(documentReviews).length === 0)
+        throw new Error("documentReviews is required");
+      const hasRejected = Object.values(documentReviews).some(
+        (docStatus) => docStatus === "rejected",
+      );
+      if (hasRejected)
+        throw new Error(
+          "Tidak dapat approve submission jika ada dokumen yang di-reject",
+        );
     }
 
     const normalizedLetterNumber = letterNumber?.trim();
     const now = new Date();
     const historyEntry: StatusHistoryEntry = {
       status,
-      workflowStage: status === 'APPROVED' ? 'PENDING_DOSEN_VERIFICATION' : 'REJECTED_ADMIN',
-      actor: 'ADMIN',
+      workflowStage:
+        status === "APPROVED" ? "PENDING_DOSEN_VERIFICATION" : "REJECTED_ADMIN",
+      actor: "ADMIN",
       date: now.toISOString(),
     };
 
-    if (status === 'REJECTED') historyEntry.reason = rejectionReason;
-    if (status === 'APPROVED' && normalizedLetterNumber) historyEntry.letterNumber = normalizedLetterNumber;
+    if (status === "REJECTED") historyEntry.reason = rejectionReason;
+    if (status === "APPROVED" && normalizedLetterNumber)
+      historyEntry.letterNumber = normalizedLetterNumber;
 
-    const currentHistory = Array.isArray(submission.statusHistory) ? submission.statusHistory : [];
+    const currentHistory = Array.isArray(submission.statusHistory)
+      ? submission.statusHistory
+      : [];
     const newHistory = [...currentHistory, historyEntry];
 
     const updateData: Partial<typeof submissions.$inferInsert> = {
-      status: 'PENDING_REVIEW',
+      status: "PENDING_REVIEW",
       statusHistory: newHistory,
       documentReviews: documentReviews || {},
       updatedAt: now,
@@ -574,58 +719,70 @@ export class AdminService {
 
     if (documentReviews) {
       for (const [docId, docStatus] of Object.entries(documentReviews)) {
-        await this.submissionRepo.updateDocumentStatus(docId, docStatus === 'approved' ? 'APPROVED' : 'REJECTED');
+        await this.submissionRepo.updateDocumentStatus(
+          docId,
+          docStatus === "approved" ? "APPROVED" : "REJECTED",
+        );
       }
     }
 
-    if (status === 'APPROVED') {
+    if (status === "APPROVED") {
       updateData.letterNumber = normalizedLetterNumber || null;
-      updateData.adminVerificationStatus = 'APPROVED';
+      updateData.adminVerificationStatus = "APPROVED";
       updateData.adminRejectionReason = null;
-      updateData.dosenVerificationStatus = 'PENDING';
+      updateData.dosenVerificationStatus = "PENDING";
       updateData.dosenVerifiedAt = null;
       updateData.dosenVerifiedByDosenId = null;
       updateData.dosenRejectionReason = null;
-      updateData.workflowStage = 'PENDING_DOSEN_VERIFICATION';
+      updateData.workflowStage = "PENDING_DOSEN_VERIFICATION";
       updateData.finalSignedFileUrl = null;
 
       // Automatically create the cover letter template used by the frontend preview.
-      await this.letterService.generateCoverLetterDocument(submissionId, adminId, normalizedLetterNumber || submission.letterNumber || null, sessionId);
+      await this.letterService.generateCoverLetterDocument(
+        submissionId,
+        adminId,
+        normalizedLetterNumber || submission.letterNumber || null,
+        sessionId,
+      );
     } else {
       updateData.rejectionReason = rejectionReason;
-      updateData.adminVerificationStatus = 'REJECTED';
+      updateData.adminVerificationStatus = "REJECTED";
       updateData.adminRejectionReason = rejectionReason;
-      updateData.dosenVerificationStatus = 'PENDING';
+      updateData.dosenVerificationStatus = "PENDING";
       updateData.dosenVerifiedAt = null;
       updateData.dosenVerifiedByDosenId = null;
       updateData.dosenRejectionReason = null;
-      updateData.workflowStage = 'REJECTED_ADMIN';
+      updateData.workflowStage = "REJECTED_ADMIN";
       updateData.letterNumber = null;
       updateData.finalSignedFileUrl = null;
     }
 
     // If rejected, clean up any generated letters and cover letter documents
     // so re-approvals can recreate them without causing unique/index conflicts.
-    if (status === 'REJECTED') {
+    if (status === "REJECTED") {
       try {
         // Delete all generated letters associated with this submission
         await this.submissionRepo.deleteLettersBySubmissionId(submissionId);
-        
+
         // Delete system-generated cover letter documents
-        const existingDocs = await this.submissionRepo.findDocumentsBySubmissionId(submissionId);
+        const existingDocs =
+          await this.submissionRepo.findDocumentsBySubmissionId(submissionId);
         for (const doc of existingDocs) {
-          if (doc.documentType === 'SURAT_PENGANTAR') {
+          if (doc.documentType === "SURAT_PENGANTAR") {
             await this.submissionRepo.deleteDocument(doc.id);
           }
         }
       } catch (err) {
-        console.warn('[AdminService.updateSubmissionStatus] Failed to cleanup generated letters or cover letter documents on reject', err);
+        console.warn(
+          "[AdminService.updateSubmissionStatus] Failed to cleanup generated letters or cover letter documents on reject",
+          err,
+        );
       }
     }
 
     const updated = await this.submissionRepo.update(submissionId, updateData);
-    if (!updated) throw new Error('Failed to update submission status');
-    if (status === 'APPROVED') {
+    if (!updated) throw new Error("Failed to update submission status");
+    if (status === "APPROVED") {
       await this.ensureInternshipsForSubmission(updated, sessionId);
     }
 
@@ -633,48 +790,114 @@ export class AdminService {
     return await this.getSubmissionById(submissionId, sessionId);
   }
 
-  async approveSubmission(submissionId: string, adminId: string, sessionId: string, documentReviews?: Record<string, string>, letterNumber?: string) {
+  async approveSubmission(
+    submissionId: string,
+    adminId: string,
+    sessionId: string,
+    documentReviews?: Record<string, string>,
+    letterNumber?: string,
+  ) {
     const submission = await this.submissionRepo.findById(submissionId);
-    if (!submission) throw new Error('Submission not found');
-    if (this.getCurrentStage(submission) !== 'PENDING_ADMIN_REVIEW') throw new Error('Can only approve pending submissions');
+    if (!submission) throw new Error("Submission not found");
+    if (this.getCurrentStage(submission) !== "PENDING_ADMIN_REVIEW")
+      throw new Error("Can only approve pending submissions");
 
-    const docs = await this.submissionRepo.findDocumentsBySubmissionId(submissionId);
-    const normalizedDocumentReviews = documentReviews && Object.keys(documentReviews).length > 0 ? documentReviews : docs.reduce<Record<string, string>>((acc, doc) => { acc[doc.id] = 'approved'; return acc; }, {});
+    const docs =
+      await this.submissionRepo.findDocumentsBySubmissionId(submissionId);
+    const normalizedDocumentReviews =
+      documentReviews && Object.keys(documentReviews).length > 0
+        ? documentReviews
+        : docs.reduce<Record<string, string>>((acc, doc) => {
+            acc[doc.id] = "approved";
+            return acc;
+          }, {});
 
-    return await this.updateSubmissionStatus(submissionId, adminId, 'APPROVED', sessionId, undefined, normalizedDocumentReviews, letterNumber);
+    return await this.updateSubmissionStatus(
+      submissionId,
+      adminId,
+      "APPROVED",
+      sessionId,
+      undefined,
+      normalizedDocumentReviews,
+      letterNumber,
+    );
   }
 
-  async rejectSubmission(submissionId: string, adminId: string, sessionId: string, reason: string, documentReviews?: Record<string, string>) {
+  async rejectSubmission(
+    submissionId: string,
+    adminId: string,
+    sessionId: string,
+    reason: string,
+    documentReviews?: Record<string, string>,
+  ) {
     const submission = await this.submissionRepo.findById(submissionId);
-    if (!submission) throw new Error('Submission not found');
-    if (this.getCurrentStage(submission) !== 'PENDING_ADMIN_REVIEW') throw new Error('Can only reject pending submissions');
+    if (!submission) throw new Error("Submission not found");
+    if (this.getCurrentStage(submission) !== "PENDING_ADMIN_REVIEW")
+      throw new Error("Can only reject pending submissions");
 
-    const docs = await this.submissionRepo.findDocumentsBySubmissionId(submissionId);
-    const normalizedDocumentReviews = documentReviews && Object.keys(documentReviews).length > 0 ? documentReviews : docs.reduce<Record<string, string>>((acc, doc, i) => { acc[doc.id] = i === 0 ? 'rejected' : 'approved'; return acc; }, {});
+    const docs =
+      await this.submissionRepo.findDocumentsBySubmissionId(submissionId);
+    const normalizedDocumentReviews =
+      documentReviews && Object.keys(documentReviews).length > 0
+        ? documentReviews
+        : docs.reduce<Record<string, string>>((acc, doc, i) => {
+            acc[doc.id] = i === 0 ? "rejected" : "approved";
+            return acc;
+          }, {});
 
-    return await this.updateSubmissionStatus(submissionId, adminId, 'REJECTED', sessionId, reason, normalizedDocumentReviews);
+    return await this.updateSubmissionStatus(
+      submissionId,
+      adminId,
+      "REJECTED",
+      sessionId,
+      reason,
+      normalizedDocumentReviews,
+    );
   }
 
-  async generateLetterForSubmission(submissionId: string, adminId: string, format: 'pdf' | 'docx' = 'pdf') {
-    if (!this.letterService) throw new Error('Letter service not configured');
+  async generateLetterForSubmission(
+    submissionId: string,
+    adminId: string,
+    format: "pdf" | "docx" = "pdf",
+  ) {
+    if (!this.letterService) throw new Error("Letter service not configured");
     const submission = await this.submissionRepo.findById(submissionId);
-    if (!submission) throw new Error('Submission not found');
-    if (submission.workflowStage !== 'COMPLETED' || submission.dosenVerificationStatus !== 'APPROVED') {
-      throw new Error('Final letter can only be generated after dosen verification is completed');
+    if (!submission) throw new Error("Submission not found");
+    if (
+      submission.workflowStage !== "COMPLETED" ||
+      submission.dosenVerificationStatus !== "APPROVED"
+    ) {
+      throw new Error(
+        "Final letter can only be generated after dosen verification is completed",
+      );
     }
-    return await this.letterService.generateLetter(submissionId, adminId, format);
+    return await this.letterService.generateLetter(
+      submissionId,
+      adminId,
+      format,
+    );
   }
 
   async getSubmissionStatistics() {
     const allSubmissions = await this.submissionRepo.findAll();
     return {
       total: allSubmissions.length,
-      draft: allSubmissions.filter(s => this.matchesStatusBucket(s, 'DRAFT')).length,
-      pending: allSubmissions.filter(s => this.matchesStatusBucket(s, 'PENDING_REVIEW')).length,
-      pendingDosenVerification: allSubmissions.filter(s => s.workflowStage === 'PENDING_DOSEN_VERIFICATION').length,
-      completed: allSubmissions.filter(s => s.workflowStage === 'COMPLETED').length,
-      approved: allSubmissions.filter(s => this.matchesStatusBucket(s, 'APPROVED')).length,
-      rejected: allSubmissions.filter(s => this.matchesStatusBucket(s, 'REJECTED')).length,
+      draft: allSubmissions.filter((s) => this.matchesStatusBucket(s, "DRAFT"))
+        .length,
+      pending: allSubmissions.filter((s) =>
+        this.matchesStatusBucket(s, "PENDING_REVIEW"),
+      ).length,
+      pendingDosenVerification: allSubmissions.filter(
+        (s) => s.workflowStage === "PENDING_DOSEN_VERIFICATION",
+      ).length,
+      completed: allSubmissions.filter((s) => s.workflowStage === "COMPLETED")
+        .length,
+      approved: allSubmissions.filter((s) =>
+        this.matchesStatusBucket(s, "APPROVED"),
+      ).length,
+      rejected: allSubmissions.filter((s) =>
+        this.matchesStatusBucket(s, "REJECTED"),
+      ).length,
     };
   }
 }

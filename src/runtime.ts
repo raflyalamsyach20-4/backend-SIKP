@@ -1,6 +1,6 @@
-import { createDbClient } from '@/db';
-import { createAppConfig } from '@/config';
-import { MockR2Bucket } from '@/services';
+import { createDbClient } from "@/db";
+import { createAppConfig } from "@/config";
+import { MockR2Bucket } from "@/services";
 import {
   AuthSessionRepository,
   TeamRepository,
@@ -9,7 +9,7 @@ import {
   ResponseLetterRepository,
   SuratKesediaanRepository,
   SuratPermohonanRepository,
-} from '@/repositories';
+} from "@/repositories";
 import {
   TeamService,
   SubmissionService,
@@ -24,8 +24,7 @@ import {
   SuratKesediaanService,
   SuratPermohonanService,
   SuratPengantarDosenService,
-} from '@/services';
-
+} from "@/services";
 
 const resolveBucket = (config: ReturnType<typeof createAppConfig>) => {
   return config.storage.useMockR2
@@ -36,7 +35,7 @@ const resolveBucket = (config: ReturnType<typeof createAppConfig>) => {
 export const createRuntime = (env: CloudflareBindings) => {
   const config = createAppConfig(env);
   const dbClient = createDbClient(config.database.url);
-  
+
   const authSessionRepository = new AuthSessionRepository(dbClient);
   const teamRepository = new TeamRepository(dbClient);
   const submissionRepository = new SubmissionRepository(dbClient);
@@ -49,9 +48,9 @@ export const createRuntime = (env: CloudflareBindings) => {
   const teamResetService = new TeamResetService(env);
   const letterService = new LetterService(env);
   const templateService = new TemplateService(env);
-  
+
   const responseLetterService = new ResponseLetterService(env);
-  
+
   const suratPengantarDosenService = new SuratPengantarDosenService(env);
   const suratKesediaanService = new SuratKesediaanService(env);
   const suratPermohonanService = new SuratPermohonanService(env);

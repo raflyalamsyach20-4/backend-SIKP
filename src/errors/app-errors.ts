@@ -5,7 +5,11 @@ export class AppError extends Error {
   public readonly statusCode: number;
   public readonly isOperational: boolean;
 
-  constructor(message: string, statusCode: number = 500, isOperational: boolean = true) {
+  constructor(
+    message: string,
+    statusCode: number = 500,
+    isOperational: boolean = true,
+  ) {
     super(message);
     this.statusCode = statusCode;
     this.isOperational = isOperational;
@@ -24,7 +28,7 @@ export class AppError extends Error {
  * 400 Bad Request
  */
 export class BadRequestError extends AppError {
-  constructor(message: string = 'Bad Request') {
+  constructor(message: string = "Bad Request") {
     super(message, 400);
     Object.setPrototypeOf(this, BadRequestError.prototype);
   }
@@ -34,7 +38,7 @@ export class BadRequestError extends AppError {
  * 401 Unauthorized
  */
 export class UnauthorizedError extends AppError {
-  constructor(message: string = 'Unauthorized') {
+  constructor(message: string = "Unauthorized") {
     super(message, 401);
     Object.setPrototypeOf(this, UnauthorizedError.prototype);
   }
@@ -44,7 +48,7 @@ export class UnauthorizedError extends AppError {
  * 403 Forbidden
  */
 export class ForbiddenError extends AppError {
-  constructor(message: string = 'Forbidden') {
+  constructor(message: string = "Forbidden") {
     super(message, 403);
     Object.setPrototypeOf(this, ForbiddenError.prototype);
   }
@@ -54,7 +58,7 @@ export class ForbiddenError extends AppError {
  * 404 Not Found
  */
 export class NotFoundError extends AppError {
-  constructor(message: string = 'Resource not found') {
+  constructor(message: string = "Resource not found") {
     super(message, 404);
     Object.setPrototypeOf(this, NotFoundError.prototype);
   }
@@ -64,7 +68,7 @@ export class NotFoundError extends AppError {
  * 409 Conflict
  */
 export class ConflictError extends AppError {
-  constructor(message: string = 'Conflict') {
+  constructor(message: string = "Conflict") {
     super(message, 409);
     Object.setPrototypeOf(this, ConflictError.prototype);
   }
@@ -76,7 +80,7 @@ export class ConflictError extends AppError {
 export class ValidationError extends AppError {
   public readonly errors: unknown;
 
-  constructor(message: string = 'Validation failed', errors?: unknown) {
+  constructor(message: string = "Validation failed", errors?: unknown) {
     super(message, 422);
     this.errors = errors;
     Object.setPrototypeOf(this, ValidationError.prototype);
@@ -87,7 +91,7 @@ export class ValidationError extends AppError {
  * 500 Internal Server Error
  */
 export class InternalServerError extends AppError {
-  constructor(message: string = 'Internal server error') {
+  constructor(message: string = "Internal server error") {
     super(message, 500, false);
     Object.setPrototypeOf(this, InternalServerError.prototype);
   }

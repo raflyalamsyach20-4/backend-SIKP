@@ -1,6 +1,6 @@
-import { Context } from 'hono';
-import { LogbookService } from '@/services/logbook.service';
-import { createResponse, handleError } from '@/utils/helpers';
+import { Context } from "hono";
+import { LogbookService } from "@/services/logbook.service";
+import { createResponse, handleError } from "@/utils/helpers";
 
 type ErrorLike = {
   code?: string;
@@ -11,7 +11,7 @@ type ErrorLike = {
 type ErrorResponseStatusCode = 400 | 401 | 403 | 404 | 409 | 422 | 500;
 
 const toErrorLike = (value: unknown): ErrorLike => {
-  if (typeof value === 'object' && value !== null) {
+  if (typeof value === "object" && value !== null) {
     return value as ErrorLike;
   }
   return {};
@@ -30,7 +30,7 @@ const toSafeErrorStatus = (statusCode?: number): ErrorResponseStatusCode => {
   }
   return 500;
 };
-import type { JWTPayload } from '@/types';
+import type { JWTPayload } from "@/types";
 
 export class LogbookController {
   private logbookService: LogbookService;
@@ -40,7 +40,7 @@ export class LogbookController {
   }
 
   private getUserId(): string | null {
-    const user = this.c.get('user') as JWTPayload;
+    const user = this.c.get("user") as JWTPayload;
     return user?.mahasiswaId ?? user?.userId ?? null;
   }
 
@@ -50,27 +50,31 @@ export class LogbookController {
   createLogbook = async (validated: any) => {
     try {
       const userId = this.getUserId();
-      if (!userId) return this.c.json(createResponse(false, 'Unauthorized'), 401);
+      if (!userId)
+        return this.c.json(createResponse(false, "Unauthorized"), 401);
 
       const entry = await this.logbookService.createLogbook(userId, validated);
 
-      return this.c.json(createResponse(true, 'Logbook entry created successfully', entry), 201);
+      return this.c.json(
+        createResponse(true, "Logbook entry created successfully", entry),
+        201,
+      );
     } catch (error) {
       const err = toErrorLike(error);
       if (err.code) {
         return this.c.json(
           {
             success: false,
-            message: err.message || 'Failed to create logbook',
+            message: err.message || "Failed to create logbook",
             error: {
               code: err.code,
             },
             data: null,
           },
-          toSafeErrorStatus(err.statusCode)
+          toSafeErrorStatus(err.statusCode),
         );
       }
-      return handleError(this.c, error, 'Failed to create logbook');
+      return handleError(this.c, error, "Failed to create logbook");
     }
   };
 
@@ -80,12 +84,19 @@ export class LogbookController {
   getLogbookList = async () => {
     try {
       const userId = this.getUserId();
-      if (!userId) return this.c.json(createResponse(false, 'Unauthorized'), 401);
+      if (!userId)
+        return this.c.json(createResponse(false, "Unauthorized"), 401);
 
       const data = await this.logbookService.getLogbooks(userId);
-      return this.c.json(createResponse(true, 'Logbook entries retrieved successfully', data), 200);
+      return this.c.json(
+        createResponse(true, "Logbook entries retrieved successfully", data),
+        200,
+      );
     } catch (error) {
-      if (error instanceof Error && error.message.includes('active internship')) {
+      if (
+        error instanceof Error &&
+        error.message.includes("active internship")
+      ) {
         return this.c.json(createResponse(false, error.message), 422);
       }
       return handleError(this.c, error);
@@ -98,12 +109,19 @@ export class LogbookController {
   getLogbookStats = async () => {
     try {
       const userId = this.getUserId();
-      if (!userId) return this.c.json(createResponse(false, 'Unauthorized'), 401);
+      if (!userId)
+        return this.c.json(createResponse(false, "Unauthorized"), 401);
 
       const stats = await this.logbookService.getLogbookStats(userId);
-      return this.c.json(createResponse(true, 'Logbook stats retrieved successfully', stats), 200);
+      return this.c.json(
+        createResponse(true, "Logbook stats retrieved successfully", stats),
+        200,
+      );
     } catch (error) {
-      if (error instanceof Error && error.message.includes('active internship')) {
+      if (
+        error instanceof Error &&
+        error.message.includes("active internship")
+      ) {
         return this.c.json(createResponse(false, error.message), 422);
       }
       return handleError(this.c, error);
@@ -116,27 +134,31 @@ export class LogbookController {
   getLogbookDetail = async () => {
     try {
       const userId = this.getUserId();
-      if (!userId) return this.c.json(createResponse(false, 'Unauthorized'), 401);
+      if (!userId)
+        return this.c.json(createResponse(false, "Unauthorized"), 401);
 
-      const id = this.c.req.param('id');
+      const id = this.c.req.param("id");
       const entry = await this.logbookService.getLogbookById(userId, id);
-      return this.c.json(createResponse(true, 'Logbook entry retrieved successfully', entry), 200);
+      return this.c.json(
+        createResponse(true, "Logbook entry retrieved successfully", entry),
+        200,
+      );
     } catch (error) {
       const err = toErrorLike(error);
       if (err.code) {
         return this.c.json(
           {
             success: false,
-            message: err.message || 'Failed to get logbook',
+            message: err.message || "Failed to get logbook",
             error: {
               code: err.code,
             },
             data: null,
           },
-          toSafeErrorStatus(err.statusCode)
+          toSafeErrorStatus(err.statusCode),
         );
       }
-      return handleError(this.c, error, 'Failed to get logbook');
+      return handleError(this.c, error, "Failed to get logbook");
     }
   };
 
@@ -146,34 +168,41 @@ export class LogbookController {
   uploadPhoto = async () => {
     try {
       const userId = this.getUserId();
-      if (!userId) return this.c.json(createResponse(false, 'Unauthorized'), 401);
+      if (!userId)
+        return this.c.json(createResponse(false, "Unauthorized"), 401);
 
-      const id = this.c.req.param('id');
+      const id = this.c.req.param("id");
       const formData = await this.c.req.formData();
-      const file = formData.get('file') as File;
+      const file = formData.get("file") as File;
 
-      if (!file || typeof file === 'string') {
-        return this.c.json(createResponse(false, 'No file uploaded or invalid file'), 400);
+      if (!file || typeof file === "string") {
+        return this.c.json(
+          createResponse(false, "No file uploaded or invalid file"),
+          400,
+        );
       }
 
       const updated = await this.logbookService.uploadPhoto(userId, id, file);
-      return this.c.json(createResponse(true, 'Photo uploaded successfully', updated), 200);
+      return this.c.json(
+        createResponse(true, "Photo uploaded successfully", updated),
+        200,
+      );
     } catch (error) {
       const err = toErrorLike(error);
       if (err.code) {
         return this.c.json(
           {
             success: false,
-            message: err.message || 'Failed to upload photo',
+            message: err.message || "Failed to upload photo",
             error: {
               code: err.code,
             },
             data: null,
           },
-          toSafeErrorStatus(err.statusCode)
+          toSafeErrorStatus(err.statusCode),
         );
       }
-      return handleError(this.c, error, 'Failed to upload photo');
+      return handleError(this.c, error, "Failed to upload photo");
     }
   };
 
@@ -183,18 +212,30 @@ export class LogbookController {
   updateLogbook = async (validated: any) => {
     try {
       const userId = this.getUserId();
-      if (!userId) return this.c.json(createResponse(false, 'Unauthorized'), 401);
+      if (!userId)
+        return this.c.json(createResponse(false, "Unauthorized"), 401);
 
-      const id = this.c.req.param('logbookId');
+      const id = this.c.req.param("logbookId");
 
-      const updated = await this.logbookService.updateLogbook(userId, id, validated);
+      const updated = await this.logbookService.updateLogbook(
+        userId,
+        id,
+        validated,
+      );
 
-      return this.c.json(createResponse(true, 'Logbook entry updated successfully', updated), 200);
+      return this.c.json(
+        createResponse(true, "Logbook entry updated successfully", updated),
+        200,
+      );
     } catch (error) {
-      if (error instanceof Error && error.message.includes('not found')) {
+      if (error instanceof Error && error.message.includes("not found")) {
         return this.c.json(createResponse(false, error.message), 404);
       }
-      if (error instanceof Error && (error.message.includes('Cannot edit') || error.message.includes('Cannot delete'))) {
+      if (
+        error instanceof Error &&
+        (error.message.includes("Cannot edit") ||
+          error.message.includes("Cannot delete"))
+      ) {
         return this.c.json(createResponse(false, error.message), 422);
       }
       return handleError(this.c, error);
@@ -207,16 +248,20 @@ export class LogbookController {
   deleteLogbook = async () => {
     try {
       const userId = this.getUserId();
-      if (!userId) return this.c.json(createResponse(false, 'Unauthorized'), 401);
+      if (!userId)
+        return this.c.json(createResponse(false, "Unauthorized"), 401);
 
-      const id = this.c.req.param('logbookId');
+      const id = this.c.req.param("logbookId");
       await this.logbookService.deleteLogbook(userId, id);
-      return this.c.json(createResponse(true, 'Logbook entry deleted successfully'), 200);
+      return this.c.json(
+        createResponse(true, "Logbook entry deleted successfully"),
+        200,
+      );
     } catch (error) {
-      if (error instanceof Error && error.message.includes('not found')) {
+      if (error instanceof Error && error.message.includes("not found")) {
         return this.c.json(createResponse(false, error.message), 404);
       }
-      if (error instanceof Error && error.message.includes('Cannot delete')) {
+      if (error instanceof Error && error.message.includes("Cannot delete")) {
         return this.c.json(createResponse(false, error.message), 422);
       }
       return handleError(this.c, error);
@@ -229,16 +274,20 @@ export class LogbookController {
   submitLogbook = async () => {
     try {
       const userId = this.getUserId();
-      if (!userId) return this.c.json(createResponse(false, 'Unauthorized'), 401);
+      if (!userId)
+        return this.c.json(createResponse(false, "Unauthorized"), 401);
 
-      const id = this.c.req.param('id');
+      const id = this.c.req.param("id");
       const entry = await this.logbookService.submitLogbook(userId, id);
-      return this.c.json(createResponse(true, 'Logbook entry submitted for review', entry), 200);
+      return this.c.json(
+        createResponse(true, "Logbook entry submitted for review", entry),
+        200,
+      );
     } catch (error) {
-      if (error instanceof Error && error.message.includes('not found')) {
+      if (error instanceof Error && error.message.includes("not found")) {
         return this.c.json(createResponse(false, error.message), 404);
       }
-      if (error instanceof Error && error.message.includes('status')) {
+      if (error instanceof Error && error.message.includes("status")) {
         return this.c.json(createResponse(false, error.message), 422);
       }
       return handleError(this.c, error);

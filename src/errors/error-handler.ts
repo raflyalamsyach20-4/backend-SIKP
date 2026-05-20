@@ -1,6 +1,6 @@
-import { Context } from 'hono';
-import { ZodError } from 'zod';
-import { AppError, ValidationError } from './app-errors';
+import { Context } from "hono";
+import { ZodError } from "zod";
+import { AppError, ValidationError } from "./app-errors";
 
 type ErrorStatusCode = 400 | 401 | 403 | 404 | 409 | 422 | 500;
 
@@ -9,7 +9,7 @@ type ErrorStatusCode = 400 | 401 | 403 | 404 | 409 | 422 | 500;
  */
 const formatZodError = (error: ZodError) => {
   return error.issues.map((err) => ({
-    path: err.path.join('.'),
+    path: err.path.join("."),
     message: err.message,
   }));
 };
@@ -18,7 +18,7 @@ const formatZodError = (error: ZodError) => {
  * Global error handler middleware
  */
 export const errorHandler = (error: Error, c: Context): Response => {
-  console.error('Error:', error);
+  console.error("Error:", error);
 
   // Handle Zod validation errors
   if (error instanceof ZodError) {
@@ -26,10 +26,10 @@ export const errorHandler = (error: Error, c: Context): Response => {
     return c.json(
       {
         success: false,
-        message: 'Validation failed',
+        message: "Validation failed",
         errors: formattedErrors,
       },
-      422
+      422,
     ) as Response;
   }
 
@@ -66,10 +66,11 @@ export const errorHandler = (error: Error, c: Context): Response => {
   return c.json(
     {
       success: false,
-      message: process.env.NODE_ENV === 'production' 
-        ? 'Internal server error' 
-        : error.message,
+      message:
+        process.env.NODE_ENV === "production"
+          ? "Internal server error"
+          : error.message,
     },
-    500
+    500,
   ) as Response;
 };

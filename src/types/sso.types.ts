@@ -3,7 +3,15 @@ import { type JWTPayload as JoseJWTPayload } from "jose";
 /**
  * Section 1: Base & Shared Types
  */
-export type RbacRole = "mahasiswa" | "dosen" | "admin" | "mentor" | "wakil_dekan" | "kaprodi" | "user" | "superadmin";
+export type RbacRole =
+  | "mahasiswa"
+  | "dosen"
+  | "admin"
+  | "mentor"
+  | "wakil_dekan"
+  | "kaprodi"
+  | "user"
+  | "superadmin";
 export type IdentityRole = "MAHASISWA" | "DOSEN" | "ADMIN" | "MENTOR";
 
 export interface SsoEmail {
@@ -161,13 +169,18 @@ export interface SsoMahasiswaDetail extends SsoMahasiswaIdentity {
  */
 export type SsoDosenResponse = SsoApiResponse<SsoDosenDetail>;
 export type SsoMahasiswaResponse = SsoApiResponse<SsoMahasiswaDetail>;
-export type SsoMahasiswaSearchResponse = SsoPaginatedResponse<SsoMahasiswaDetail>;
+export type SsoMahasiswaSearchResponse =
+  SsoPaginatedResponse<SsoMahasiswaDetail>;
 
 /**
  * Section 6: Domain Specific Helpers & Enums
  */
 export type DosenJabatanStruktural = "DEKAN" | "WAKIL_DEKAN" | "KAPRODI";
-export type DosenJabatanFungsional = "GURU_BESAR" | "LEKTOR_KEPALA" | "LEKTOR" | "ASISTEN_AHLI";
+export type DosenJabatanFungsional =
+  | "GURU_BESAR"
+  | "LEKTOR_KEPALA"
+  | "LEKTOR"
+  | "ASISTEN_AHLI";
 
 /**
  * Section 7: Signature & Document Types
@@ -181,4 +194,6 @@ export interface SsoActiveSignature {
   svg: string;
 }
 
-export type SsoSignatureResponse = SsoApiResponse<{ activeSignature: SsoActiveSignature | null }>;
+export type SsoSignatureResponse = SsoApiResponse<{
+  activeSignature: SsoActiveSignature | null;
+}>;

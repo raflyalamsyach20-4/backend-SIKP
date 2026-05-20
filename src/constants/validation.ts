@@ -18,8 +18,8 @@ export const ValidationRules = {
  */
 export const FileUpload = {
   MAX_FILE_SIZE_MB: 10,
-  ALLOWED_DOCUMENT_TYPES: ['pdf', 'doc', 'docx'],
-  ALLOWED_IMAGE_TYPES: ['jpg', 'jpeg', 'png'],
+  ALLOWED_DOCUMENT_TYPES: ["pdf", "doc", "docx"],
+  ALLOWED_IMAGE_TYPES: ["jpg", "jpeg", "png"],
 } as const;
 
 /**
