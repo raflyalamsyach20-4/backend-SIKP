@@ -34,6 +34,13 @@ const normalizeR2Key = (rawParam: string) => {
     }
   }
 
+  // Handle proxy URLs that already include the api/assets/r2 prefix.
+  const proxyMarker = 'api/assets/r2/';
+  const proxyIndex = candidate.indexOf(proxyMarker);
+  if (proxyIndex >= 0) {
+    candidate = candidate.slice(proxyIndex + proxyMarker.length);
+  }
+
   const idx = candidate.indexOf('esignatures/');
   if (idx >= 0) {
     candidate = candidate.slice(idx);
