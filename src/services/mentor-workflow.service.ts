@@ -337,39 +337,98 @@ export class MentorWorkflowService {
     };
   }
 
-  private async fetchSsoMentorByEmail(email: string, token: string) {
-    try {
-      const baseUrl = this.env.SSO_BASE_URL;
-      const url = `${baseUrl}/api/mentor?email=${encodeURIComponent(email)}`;
+  private async fetchSsoMentorByEmail(email: string, sessionToken: string) {
+    const normalizedEmail = email.trim().toLowerCase();
+    const baseUrl = this.env.SSO_BASE_URL;
 
-      const response = await fetch(url, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          Accept: "application/json",
-        },
-      });
+    // Define search attempts: try 'email' parameter first, then fallback to 'search' parameter
+    const searchParamsKeys = ["email", "search"];
 
-      if (!response.ok) return null;
+    for (const paramKey of searchParamsKeys) {
+      try {
+        const url = `${baseUrl}/api/mentor?${paramKey}=${encodeURIComponent(normalizedEmail)}`;
+        console.info(`[MentorWorkflowService.fetchSsoMentorByEmail] Querying SSO: ${url}`);
 
-      const payload = (await response.json()) as {
-        success: boolean;
-        data: any;
-      };
-      if (payload.success && payload.data) {
-        // Some SSO APIs return an array for search, others return a single object
-        if (Array.isArray(payload.data)) {
-          return payload.data[0] || null;
+        // Try session token first
+        let response = await fetch(url, {
+          headers: {
+            Authorization: `Bearer ${sessionToken}`,
+            Accept: "application/json",
+          },
+        });
+
+        // Fallback to service token if unauthorized or forbidden
+        if (!response.ok && (response.status === 401 || response.status === 403)) {
+          console.warn(
+            `[MentorWorkflowService.fetchSsoMentorByEmail] Session token rejected (${response.status}) for ${paramKey} search, falling back to service token.`
+          );
+          try {
+            const serviceToken = await this.authService.getServiceAccessToken();
+            response = await fetch(url, {
+              headers: {
+                Authorization: `Bearer ${serviceToken}`,
+                Accept: "application/json",
+              },
+            });
+          } catch (serviceTokenErr) {
+            console.error(
+              "[MentorWorkflowService.fetchSsoMentorByEmail] Failed to get service token:",
+              serviceTokenErr
+            );
+          }
         }
-        return payload.data;
+
+        if (response.ok) {
+          const payload = (await response.json()) as {
+            success: boolean;
+            data: any;
+          };
+
+          if (payload.success && payload.data) {
+            let foundMentor: any = null;
+            if (Array.isArray(payload.data)) {
+              // If it's an array, make sure we find the one that actually matches the email
+              foundMentor = payload.data.find((m: any) => {
+                const emailCandidates = [
+                  m?.email,
+                  m?.profile?.email,
+                  m?.profile?.emails?.[0]?.email,
+                  m?.profile?.emails?.find((e: any) => e.isPrimary)?.email,
+                ].filter((e): e is string => typeof e === "string" && e.trim() !== "");
+                
+                return emailCandidates.some(e => e.trim().toLowerCase() === normalizedEmail);
+              });
+              // Fallback to first item if it's an array but none explicitly matched email (just in case)
+              if (!foundMentor && payload.data.length > 0) {
+                foundMentor = payload.data[0];
+              }
+            } else {
+              foundMentor = payload.data;
+            }
+
+            if (foundMentor) {
+              console.info(
+                `[MentorWorkflowService.fetchSsoMentorByEmail] Successfully resolved mentor via param '${paramKey}':`,
+                foundMentor.email || foundMentor.profile?.email || foundMentor.id
+              );
+              return foundMentor;
+            }
+          }
+        } else {
+          console.warn(
+            `[MentorWorkflowService.fetchSsoMentorByEmail] SSO returned status ${response.status} for param '${paramKey}'`
+          );
+        }
+      } catch (err) {
+        console.warn(
+          `[MentorWorkflowService.fetchSsoMentorByEmail] Error during search with param '${paramKey}':`,
+          err
+        );
       }
-      return null;
-    } catch (error) {
-      console.warn(
-        "[MentorWorkflowService.fetchSsoMentorByEmail] Failed to fetch:",
-        error,
-      );
-      return null;
     }
+
+    console.info(`[MentorWorkflowService.fetchSsoMentorByEmail] Mentor with email ${normalizedEmail} not found in SSO after all attempts.`);
+    return null;
   }
 
   private async createSsoMentor(
@@ -387,7 +446,7 @@ export class MentorWorkflowService {
       const baseUrl = this.env.SSO_BASE_URL;
       const url = `${baseUrl}/api/mentor`;
 
-      const response = await fetch(url, {
+      let response = await fetch(url, {
         method: "POST",
         headers: {
           Authorization: `Bearer ${token}`,
@@ -396,6 +455,29 @@ export class MentorWorkflowService {
         },
         body: JSON.stringify(data),
       });
+
+      if (!response.ok && (response.status === 401 || response.status === 403)) {
+        console.warn(
+          `[MentorWorkflowService.createSsoMentor] Session token rejected (${response.status}) during creation, falling back to service token.`
+        );
+        try {
+          const serviceToken = await this.authService.getServiceAccessToken();
+          response = await fetch(url, {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${serviceToken}`,
+              "Content-Type": "application/json",
+              Accept: "application/json",
+            },
+            body: JSON.stringify(data),
+          });
+        } catch (serviceTokenErr) {
+          console.error(
+            "[MentorWorkflowService.createSsoMentor] Failed to get service token for fallback:",
+            serviceTokenErr
+          );
+        }
+      }
 
       if (!response.ok) {
         const body = await response.text();
