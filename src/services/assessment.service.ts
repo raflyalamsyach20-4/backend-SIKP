@@ -367,6 +367,158 @@ export class AssessmentService {
       .where(eq(combinedGrades.id, gradeId));
     return { success: true };
   }
+  async getPendingVerifications(profileId: string, sessionId: string, prodiName: string | null) {
+    const pendingList = await this.db
+      .select()
+      .from(combinedGrades)
+      .where(
+        and(
+          eq(combinedGrades.isVerifiedByKaprodi, false),
+          eq(combinedGrades.status, "PENDING")
+        )
+      );
+
+    const results = [];
+    for (const grade of pendingList) {
+      const internshipRows = await this.db
+        .select()
+        .from(internships)
+        .where(eq(internships.id, grade.internshipId))
+        .limit(1);
+      const internship = internshipRows[0];
+      if (!internship) continue;
+
+      const studentProfile = await this.mahasiswaService.getMahasiswaById(
+        internship.mahasiswaId,
+        sessionId,
+      );
+      if (prodiName && studentProfile) {
+        const studentProdi = typeof studentProfile.prodi === "object" && studentProfile.prodi
+          ? (studentProfile.prodi as any).nama
+          : typeof studentProfile.prodi === "string"
+          ? studentProfile.prodi
+          : "";
+        if (studentProdi.toLowerCase() !== prodiName.toLowerCase()) {
+          continue;
+        }
+      }
+
+      results.push({
+        id: grade.id,
+        internshipId: grade.internshipId,
+        studentName: studentProfile?.profile.fullName || "-",
+        studentNim: studentProfile?.nim || "-",
+        prodi: (typeof studentProfile?.prodi === "object" && studentProfile?.prodi ? (studentProfile.prodi as any).nama : studentProfile?.prodi) || "-",
+        companyName: internship.companyName,
+        finalScore: grade.finalScore,
+        letterGrade: grade.letterGrade,
+        calculatedAt: grade.calculatedAt,
+      });
+    }
+    return results;
+  }
+
+  async getPendingLecturerVerifications(profileId: string, sessionId: string, prodiName: string | null) {
+    const pendingList = await this.db
+      .select()
+      .from(lecturerAssessments)
+      .where(
+        and(
+          eq(lecturerAssessments.isVerifiedByKaprodi, false),
+          eq(lecturerAssessments.status, "PENDING")
+        )
+      );
+
+    const results = [];
+    for (const assessment of pendingList) {
+      const internshipRows = await this.db
+        .select()
+        .from(internships)
+        .where(eq(internships.id, assessment.internshipId))
+        .limit(1);
+      const internship = internshipRows[0];
+      if (!internship) continue;
+
+      const studentProfile = await this.mahasiswaService.getMahasiswaById(
+        internship.mahasiswaId,
+        sessionId,
+      );
+      if (prodiName && studentProfile) {
+        const studentProdi = typeof studentProfile.prodi === "object" && studentProfile.prodi
+          ? (studentProfile.prodi as any).nama
+          : typeof studentProfile.prodi === "string"
+          ? studentProfile.prodi
+          : "";
+        if (studentProdi.toLowerCase() !== prodiName.toLowerCase()) {
+          continue;
+        }
+      }
+
+      results.push({
+        id: assessment.id,
+        internshipId: assessment.internshipId,
+        studentName: studentProfile?.profile.fullName || "-",
+        studentNim: studentProfile?.nim || "-",
+        prodi: (typeof studentProfile?.prodi === "object" && studentProfile?.prodi ? (studentProfile.prodi as any).nama : studentProfile?.prodi) || "-",
+        companyName: internship.companyName,
+        totalScore: assessment.totalScore,
+        assessedAt: assessment.assessedAt,
+      });
+    }
+    return results;
+  }
+
+  async getPendingAdminVerifications(sessionId: string) {
+    const pendingList = await this.db
+      .select()
+      .from(combinedGrades)
+      .where(
+        and(
+          eq(combinedGrades.isVerifiedByKaprodi, true),
+          eq(combinedGrades.status, "PENDING")
+        )
+      );
+
+    const results = [];
+    for (const grade of pendingList) {
+      const internshipRows = await this.db
+        .select()
+        .from(internships)
+        .where(eq(internships.id, grade.internshipId))
+        .limit(1);
+      const internship = internshipRows[0];
+      if (!internship) continue;
+
+      const studentProfile = await this.mahasiswaService.getMahasiswaById(
+        internship.mahasiswaId,
+        sessionId,
+      );
+
+      results.push({
+        id: grade.id,
+        internshipId: grade.internshipId,
+        studentName: studentProfile?.profile.fullName || "-",
+        studentNim: studentProfile?.nim || "-",
+        prodi: (typeof studentProfile?.prodi === "object" && studentProfile?.prodi ? (studentProfile.prodi as any).nama : studentProfile?.prodi) || "-",
+        companyName: internship.companyName,
+        finalScore: grade.finalScore,
+        letterGrade: grade.letterGrade,
+        calculatedAt: grade.calculatedAt,
+      });
+    }
+    return results;
+  }
+
+  async verifyGradeByAdmin(gradeId: string) {
+    await this.db
+      .update(combinedGrades)
+      .set({
+        status: "APPROVED",
+        updatedAt: new Date(),
+      })
+      .where(eq(combinedGrades.id, gradeId));
+    return { success: true };
+  }
 
   private async resolveSignatureBuffer(url: string): Promise<Buffer | null> {
     try {
