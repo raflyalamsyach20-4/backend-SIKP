@@ -2,6 +2,7 @@ import { createDbClient } from "@/db";
 import { TeamRepository } from "@/repositories/team.repository";
 import { SubmissionRepository } from "@/repositories/submission.repository";
 import { ResponseLetterRepository } from "@/repositories/response-letter.repository";
+import { MentorWorkflowRepository } from "@/repositories/mentor-workflow.repository";
 import { StorageService } from "@/services/storage.service";
 import { AuthService } from "./auth.service";
 import { DosenService } from "./dosen.service";
@@ -55,6 +56,7 @@ export class MahasiswaService {
   private teamRepository: TeamRepository;
   private submissionRepository: SubmissionRepository;
   private responseLetterRepository: ResponseLetterRepository;
+  private mentorWorkflowRepository: MentorWorkflowRepository;
   private storageService: StorageService;
   private authService: AuthService;
 
@@ -65,6 +67,7 @@ export class MahasiswaService {
     this.teamRepository = new TeamRepository(db);
     this.submissionRepository = new SubmissionRepository(db);
     this.responseLetterRepository = new ResponseLetterRepository(db);
+    this.mentorWorkflowRepository = new MentorWorkflowRepository(db);
     this.storageService = new StorageService(this.env);
     this.authService = new AuthService(this.env);
   }
@@ -568,6 +571,7 @@ export class MahasiswaService {
 
   private async resolveTeamInfo(
     team: TeamRecord | null,
+    mahasiswaId: string,
     sessionId: string,
   ): Promise<DashboardPayload["teamInfo"]> {
     if (!team) return null;
@@ -592,12 +596,30 @@ export class MahasiswaService {
       ? await this.dosenService.getDosenById(team.dosenKpId, sessionId)
       : null;
 
+    // Fetch approved mentor approval request for this student
+    const mentorRequests =
+      await this.mentorWorkflowRepository.listMentorApprovalRequestsByStudent(
+        mahasiswaId,
+      );
+    const approvedMentor = mentorRequests.find(
+      (r) => r.status === "APPROVED",
+    ) || mentorRequests[0] || null;
+
+    const mentorName =
+      approvedMentor?.status === "APPROVED"
+        ? approvedMentor.mentorName
+        : null;
+    const mentorEmail =
+      approvedMentor?.status === "APPROVED"
+        ? approvedMentor.mentorEmail
+        : null;
+
     return {
       teamId: team.id,
       teamName: team.code,
       members: enrichedMembers,
-      mentorName: null,
-      mentorEmail: null,
+      mentorName,
+      mentorEmail,
       dosenName: dosenSsoData?.profile.fullName || null,
       dosenNip: dosenSsoData?.nip || null,
     };
@@ -624,7 +646,7 @@ export class MahasiswaService {
         responseLetter,
       ),
       statusPengajuan: this.resolveStatusPengajuan(submission),
-      teamInfo: await this.resolveTeamInfo(team, sessionId),
+      teamInfo: await this.resolveTeamInfo(team, mahasiswaId, sessionId),
       activities: [],
     };
   }

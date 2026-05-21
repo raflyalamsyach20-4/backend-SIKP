@@ -7,6 +7,8 @@ import {
   mentorActivationTokens,
   mentorApprovalRequests,
   mentorEmailChangeRequests,
+  teams,
+  teamMembers,
 } from "../db/schema";
 
 export class MentorWorkflowRepository {
@@ -52,6 +54,7 @@ export class MentorWorkflowRepository {
           mentorName: mentorApprovalRequests.mentorName,
           mentorEmail: mentorApprovalRequests.mentorEmail,
           mentorPhone: mentorApprovalRequests.mentorPhone,
+          mentorNip: mentorApprovalRequests.mentorNip,
           companyName: mentorApprovalRequests.companyName,
           position: mentorApprovalRequests.position,
           status: mentorApprovalRequests.status,
@@ -79,6 +82,7 @@ export class MentorWorkflowRepository {
           mentorName: mentorApprovalRequests.mentorName,
           mentorEmail: mentorApprovalRequests.mentorEmail,
           mentorPhone: mentorApprovalRequests.mentorPhone,
+          mentorNip: mentorApprovalRequests.mentorNip,
           companyName: mentorApprovalRequests.companyName,
           position: mentorApprovalRequests.position,
           status: mentorApprovalRequests.status,
@@ -118,6 +122,20 @@ export class MentorWorkflowRepository {
     }
   }
 
+  async deleteMentorApprovalRequest(id: string) {
+    try {
+      await this.db
+        .delete(mentorApprovalRequests)
+        .where(eq(mentorApprovalRequests.id, id));
+    } catch (error) {
+      console.error(
+        "[MentorWorkflowRepository.deleteMentorApprovalRequest] Error:",
+        error,
+      );
+      throw error;
+    }
+  }
+
   async getActiveInternshipByMahasiswaId(userId: string) {
     try {
       const rows = await this.db
@@ -134,6 +152,32 @@ export class MentorWorkflowRepository {
     } catch (error) {
       console.error(
         "[MentorWorkflowRepository.getActiveInternshipByMahasiswaId] Error:",
+        error,
+      );
+      throw error;
+    }
+  }
+
+  /**
+   * Get the active team for a mahasiswa (via teamMembers join),
+   * used to resolve dosenKpId for authorization when no internship record exists.
+   */
+  async getTeamByMahasiswaId(mahasiswaId: string) {
+    try {
+      const rows = await this.db
+        .select({
+          teamId: teams.id,
+          dosenKpId: teams.dosenKpId,
+          teamStatus: teams.status,
+        })
+        .from(teamMembers)
+        .innerJoin(teams, eq(teamMembers.teamId, teams.id))
+        .where(eq(teamMembers.mahasiswaId, mahasiswaId))
+        .limit(1);
+      return rows[0] ?? null;
+    } catch (error) {
+      console.error(
+        "[MentorWorkflowRepository.getTeamByMahasiswaId] Error:",
         error,
       );
       throw error;

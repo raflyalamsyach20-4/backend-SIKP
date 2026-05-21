@@ -156,6 +156,47 @@ export class MentorWorkflowController {
     }
   };
 
+  editMentorApprovalRequest = async (validated: any) => {
+    try {
+      const requestId = this.c.req.param("id");
+      const studentUserId = this.getUserId();
+      if (!studentUserId)
+        return this.c.json(createResponse(false, "Unauthorized"), 401);
+
+      const request = await this.service.editMentorApprovalRequest(
+        requestId,
+        studentUserId,
+        validated,
+      );
+      return this.c.json(
+        createResponse(true, "Mentor approval request updated", request),
+        200,
+      );
+    } catch (error) {
+      return handleError(this.c, error);
+    }
+  };
+
+  deleteMentorApprovalRequest = async () => {
+    try {
+      const requestId = this.c.req.param("id");
+      const studentUserId = this.getUserId();
+      if (!studentUserId)
+        return this.c.json(createResponse(false, "Unauthorized"), 401);
+
+      const result = await this.service.deleteMentorApprovalRequest(
+        requestId,
+        studentUserId,
+      );
+      return this.c.json(
+        createResponse(true, "Mentor approval request deleted", result),
+        200,
+      );
+    } catch (error) {
+      return handleError(this.c, error);
+    }
+  };
+
   createMentorEmailChangeRequest = async (validated: any) => {
     try {
       const mentorId = this.getUserId();

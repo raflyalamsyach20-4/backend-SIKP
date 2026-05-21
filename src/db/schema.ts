@@ -671,6 +671,7 @@ export const mentorApprovalRequests = pgTable("mentor_approval_requests", {
   mentorName: varchar("mentor_name", { length: 255 }).notNull(),
   mentorEmail: varchar("mentor_email", { length: 255 }).notNull(),
   mentorPhone: varchar("mentor_phone", { length: 20 }),
+  mentorNip: varchar("mentor_nip", { length: 50 }),
   companyName: varchar("company_name", { length: 255 }),
   position: varchar("position", { length: 100 }),
   companyAddress: text("company_address"),

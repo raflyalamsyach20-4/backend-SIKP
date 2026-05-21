@@ -121,6 +121,7 @@ export class InternshipService {
         status: approvalRequest?.status?.toLowerCase() || "approved",
         companyAddress: approvalRequest?.companyAddress || "",
         signature: null,
+        nip: approvalRequest?.mentorNip || "",
       };
     } else {
       let activeRequest =
@@ -137,6 +138,7 @@ export class InternshipService {
           companyAddress: activeRequest.companyAddress,
           rejectionReason: activeRequest.rejectionReason,
           createdAt: activeRequest.createdAt,
+          nip: activeRequest.mentorNip || "",
         };
       }
     }

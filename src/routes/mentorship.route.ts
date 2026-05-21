@@ -24,6 +24,7 @@ export const createMentorshipRoutes = () => {
         mentorName: z.string(),
         mentorEmail: z.string().email(),
         mentorPhone: z.string().optional(),
+        mentorNip: z.string().optional(),
         companyName: z.string().optional(),
         position: z.string().optional(),
         companyAddress: z.string().optional(),
@@ -43,6 +44,28 @@ export const createMentorshipRoutes = () => {
   );
   mentorship.get("/requests", staffOnly, (c) =>
     new MentorWorkflowController(c).listMentorApprovalRequests(),
+  );
+  mentorship.put(
+    "/requests/:id",
+    zValidator(
+      "json",
+      z.object({
+        mentorName: z.string(),
+        mentorEmail: z.string().email(),
+        mentorPhone: z.string().optional(),
+        mentorNip: z.string().optional(),
+        companyName: z.string().optional(),
+        position: z.string().optional(),
+        companyAddress: z.string().optional(),
+      }),
+    ),
+    (c) =>
+      new MentorWorkflowController(c).editMentorApprovalRequest(
+        c.req.valid("json"),
+      ),
+  );
+  mentorship.delete("/requests/:id", (c) =>
+    new MentorWorkflowController(c).deleteMentorApprovalRequest(),
   );
   mentorship.post("/requests/:id/approve", staffOnly, (c) =>
     new MentorWorkflowController(c).approveMentorApprovalRequest(),
@@ -64,6 +87,7 @@ export const createMentorshipRoutes = () => {
         mentorName: z.string(),
         mentorEmail: z.string().email(),
         mentorPhone: z.string().optional(),
+        mentorNip: z.string().optional(),
         companyName: z.string().optional(),
         position: z.string().optional(),
         companyAddress: z.string().optional(),

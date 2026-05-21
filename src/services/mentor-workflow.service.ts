@@ -39,6 +39,7 @@ export class MentorWorkflowService {
       mentorName: string;
       mentorEmail: string;
       mentorPhone?: string;
+      mentorNip?: string;
       companyName?: string;
       position?: string;
       companyAddress?: string;
@@ -51,6 +52,7 @@ export class MentorWorkflowService {
       mentorName: data.mentorName,
       mentorEmail: data.mentorEmail.toLowerCase(),
       mentorPhone: data.mentorPhone ?? null,
+      mentorNip: data.mentorNip ?? null,
       companyName: data.companyName ?? null,
       position: data.position ?? null,
       companyAddress: data.companyAddress ?? null,
@@ -89,6 +91,26 @@ export class MentorWorkflowService {
     const authSessionRepo = new AuthSessionRepository(
       createDbClient(this.env.DATABASE_URL),
     );
+
+    // Resolve all possible reviewer IDs (lecturer identity ID vs profile ID)
+    const reviewerIds = new Set<string>([reviewerUserId]);
+    if (userRole === "dosen") {
+      try {
+        const snapshot = await authSessionRepo.findProfileSnapshotByMahasiswaId(reviewerUserId);
+        if (snapshot) {
+          const dsnIdentity = snapshot.identities?.dosen;
+          if (dsnIdentity) {
+            if (dsnIdentity.id) reviewerIds.add(dsnIdentity.id);
+            if (dsnIdentity.profileId) reviewerIds.add(dsnIdentity.profileId);
+          }
+        }
+      } catch (err) {
+        console.error(
+          "[MentorWorkflowService.listMentorApprovalRequests] Failed to resolve reviewer IDs:",
+          err,
+        );
+      }
+    }
 
     const results = await Promise.all(
       requests.map(async (req: any) => {
@@ -154,8 +176,17 @@ export class MentorWorkflowService {
 
           if (dosenPaData) {
             isAuthorized =
-              dosenPaData.profileId === reviewerUserId ||
-              dosenPaData.id === reviewerUserId;
+              reviewerIds.has(dosenPaData.profileId || "") ||
+              reviewerIds.has(dosenPaData.id || "");
+            console.warn(
+              `[MentorAuth] requestId=${req.id} studentId=${req.studentUserId}` +
+              ` | Cek1(SSO dosenPA): profileId=${dosenPaData.profileId} id=${dosenPaData.id} reviewerIds=${Array.from(reviewerIds).join(", ")} => ${isAuthorized}`,
+            );
+          } else {
+            console.warn(
+              `[MentorAuth] requestId=${req.id} studentId=${req.studentUserId}` +
+              ` | Cek1(SSO dosenPA): dosenPA data NOT FOUND in SSO profile`,
+            );
           }
 
           if (!isAuthorized) {
@@ -163,14 +194,38 @@ export class MentorWorkflowService {
               await this.workflowRepo.getActiveInternshipByMahasiswaId(
                 req.studentUserId,
               );
+            console.warn(
+              `[MentorAuth] requestId=${req.id} studentId=${req.studentUserId}` +
+              ` | Cek2(internship): dosenPembimbingId=${internship?.dosenPembimbingId} dosenPaId=${(internship as any)?.dosenPaId} reviewerIds=${Array.from(reviewerIds).join(", ")} status=${internship?.status}`,
+            );
             if (
               internship &&
-              (internship.dosenPembimbingId === reviewerUserId ||
-                (internship as any).dosenPaId === reviewerUserId)
+              (reviewerIds.has(internship.dosenPembimbingId || "") ||
+                reviewerIds.has((internship as any).dosenPaId || ""))
             ) {
               isAuthorized = true;
             }
           }
+
+          // Fallback 3: check via team membership (for members who don't yet
+          // have an internship record of their own)
+          if (!isAuthorized) {
+            const team = await this.workflowRepo.getTeamByMahasiswaId(
+              req.studentUserId,
+            );
+            console.warn(
+              `[MentorAuth] requestId=${req.id} studentId=${req.studentUserId}` +
+              ` | Cek3(team): dosenKpId=${team?.dosenKpId} reviewerIds=${Array.from(reviewerIds).join(", ")} => ${reviewerIds.has(team?.dosenKpId || "")}`,
+            );
+            if (team && reviewerIds.has(team.dosenKpId || "")) {
+              isAuthorized = true;
+            }
+          }
+
+          console.warn(
+            `[MentorAuth] requestId=${req.id} studentId=${req.studentUserId}` +
+            ` | FINAL isAuthorized=${isAuthorized}`,
+          );
 
           // If not authorized, filter it out
           if (!isAuthorized) return null;
@@ -281,6 +336,7 @@ export class MentorWorkflowService {
       mentorName: string;
       mentorEmail: string;
       mentorPhone?: string;
+      mentorNip?: string;
       companyName?: string;
       position?: string;
       companyAddress?: string;
@@ -310,6 +366,7 @@ export class MentorWorkflowService {
         mentorName: data.mentorName,
         mentorEmail: data.mentorEmail.toLowerCase(),
         mentorPhone: data.mentorPhone ?? null,
+        mentorNip: data.mentorNip ?? null,
         companyName: data.companyName ?? null,
         position: data.position ?? null,
         companyAddress: data.companyAddress ?? null,
@@ -335,6 +392,106 @@ export class MentorWorkflowService {
       ...updated,
       status: this.normalizeStatus(updated!.status),
     };
+  }
+
+  /**
+   * Edit a pending mentor approval request (only if status is PENDING)
+   */
+  async editMentorApprovalRequest(
+    requestId: string,
+    studentUserId: string,
+    data: {
+      mentorName: string;
+      mentorEmail: string;
+      mentorPhone?: string;
+      mentorNip?: string;
+      companyName?: string;
+      position?: string;
+      companyAddress?: string;
+    },
+  ) {
+    const existing =
+      await this.workflowRepo.getMentorApprovalRequestById(requestId);
+    if (!existing)
+      throw this.createServiceError(
+        "Request not found",
+        "REQUEST_NOT_FOUND",
+        404,
+      );
+    if (existing.studentUserId !== studentUserId)
+      throw this.createServiceError("Forbidden", "FORBIDDEN", 403);
+    if (existing.status !== "PENDING")
+      throw this.createServiceError(
+        "Only pending requests can be edited",
+        "INVALID_STATUS",
+        409,
+      );
+
+    const updated = await this.workflowRepo.updateMentorApprovalRequest(
+      requestId,
+      {
+        mentorName: data.mentorName,
+        mentorEmail: data.mentorEmail.toLowerCase(),
+        mentorPhone: data.mentorPhone ?? null,
+        mentorNip: data.mentorNip ?? null,
+        companyName: data.companyName ?? null,
+        position: data.position ?? null,
+        companyAddress: data.companyAddress ?? null,
+        updatedAt: new Date(),
+      },
+    );
+
+    await this.workflowRepo.createAuditLog({
+      id: generateId(),
+      actorUserId: studentUserId,
+      action: "EDIT_MENTOR_APPROVAL_REQUEST",
+      entityType: "mentor_approval_requests",
+      entityId: requestId,
+      details: { mentorEmail: data.mentorEmail },
+      createdAt: new Date(),
+    });
+
+    return {
+      ...updated,
+      status: this.normalizeStatus(updated!.status),
+    };
+  }
+
+  /**
+   * Delete/Cancel a pending mentor approval request (only if status is PENDING)
+   */
+  async deleteMentorApprovalRequest(requestId: string, studentUserId: string) {
+    const existing =
+      await this.workflowRepo.getMentorApprovalRequestById(requestId);
+    if (!existing)
+      throw this.createServiceError(
+        "Request not found",
+        "REQUEST_NOT_FOUND",
+        404,
+      );
+    if (existing.studentUserId !== studentUserId)
+      throw this.createServiceError("Forbidden", "FORBIDDEN", 403);
+    if (existing.status !== "PENDING")
+      throw this.createServiceError(
+        "Only pending requests can be deleted",
+        "INVALID_STATUS",
+        409,
+      );
+
+    // Delete request from database via repository
+    await this.workflowRepo.deleteMentorApprovalRequest(requestId);
+
+    await this.workflowRepo.createAuditLog({
+      id: generateId(),
+      actorUserId: studentUserId,
+      action: "DELETE_MENTOR_APPROVAL_REQUEST",
+      entityType: "mentor_approval_requests",
+      entityId: requestId,
+      details: { mentorEmail: existing.mentorEmail },
+      createdAt: new Date(),
+    });
+
+    return { success: true };
   }
 
   private async fetchSsoMentorByEmail(email: string, sessionToken: string) {
@@ -532,14 +689,37 @@ export class MentorWorkflowService {
       );
     }
 
-    const isDosenPa = studentSso.dosenPA?.profileId === reviewerUserId;
+    // Resolve all possible reviewer IDs (lecturer identity ID vs profile ID)
+    const reviewerIds = new Set<string>([reviewerUserId]);
+    try {
+      const authSessionRepo = new AuthSessionRepository(
+        createDbClient(this.env.DATABASE_URL),
+      );
+      const snapshot = await authSessionRepo.findProfileSnapshotByMahasiswaId(reviewerUserId);
+      if (snapshot) {
+        const dsnIdentity = snapshot.identities?.dosen;
+        if (dsnIdentity) {
+          if (dsnIdentity.id) reviewerIds.add(dsnIdentity.id);
+          if (dsnIdentity.profileId) reviewerIds.add(dsnIdentity.profileId);
+        }
+      }
+    } catch (err) {
+      console.error(
+        "[MentorWorkflowService.approveMentorApprovalRequest] Failed to resolve reviewer IDs:",
+        err,
+      );
+    }
+
+    const isDosenPa =
+      reviewerIds.has(studentSso.dosenPA?.profileId || "") ||
+      reviewerIds.has(studentSso.dosenPA?.id || "");
     if (!isDosenPa) {
       const internship =
         await this.workflowRepo.getActiveInternshipByMahasiswaId(studentSso.id);
       const internshipAny = internship as any;
       const isDosenPembimbing =
-        internship?.dosenPembimbingId === reviewerUserId;
-      const isDosenPaById = internshipAny?.dosenPaId === reviewerUserId;
+        reviewerIds.has(internship?.dosenPembimbingId || "");
+      const isDosenPaById = reviewerIds.has(internshipAny?.dosenPaId || "");
       if (!isDosenPembimbing && !isDosenPaById) {
         throw this.createServiceError(
           "Only the assigned Dosen PA/Pembimbing can approve this request",
