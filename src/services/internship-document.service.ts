@@ -14,9 +14,11 @@ import { createDbClient } from "@/db";
 import { LogbookRepository } from "@/repositories/logbook.repository";
 import { MahasiswaRepository } from "@/repositories/mahasiswa.repository";
 import { MentorRepository } from "@/repositories/mentor.repository";
+import { AuthSessionRepository } from "@/repositories/auth-session.repository";
 import { StorageService } from "./storage.service";
 import { MahasiswaService } from "./mahasiswa.service";
 import { DosenService } from "./dosen.service";
+import { SsoSignatureProxyService } from "./sso-signature-proxy.service";
 import {
   assessments,
   lecturerAssessments,
@@ -34,9 +36,11 @@ export class InternshipDocumentService {
   private logbookRepo: LogbookRepository;
   private mahasiswaRepo: MahasiswaRepository;
   private mentorRepo: MentorRepository;
+  private authSessionRepo: AuthSessionRepository;
   private storageService: StorageService;
   private mahasiswaService: MahasiswaService;
   private dosenService: DosenService;
+  private ssoSignatureProxyService: SsoSignatureProxyService;
   private db: ReturnType<typeof createDbClient>;
 
   constructor(private env: CloudflareBindings) {
@@ -44,9 +48,11 @@ export class InternshipDocumentService {
     this.logbookRepo = new LogbookRepository(this.db);
     this.mahasiswaRepo = new MahasiswaRepository(this.db);
     this.mentorRepo = new MentorRepository(this.db);
+    this.authSessionRepo = new AuthSessionRepository(this.db);
     this.storageService = new StorageService(this.env);
     this.mahasiswaService = new MahasiswaService(this.env);
     this.dosenService = new DosenService(this.env);
+    this.ssoSignatureProxyService = new SsoSignatureProxyService(this.env);
   }
 
   /**
@@ -118,10 +124,17 @@ export class InternshipDocumentService {
     );
 
     let mentorProfile = null;
+    let mentorSignature = null;
     if (data.pembimbingLapanganId) {
       mentorProfile = await this.mentorRepo.findProfileById(
         data.pembimbingLapanganId,
       );
+      if (options.withSignature) {
+        mentorSignature = await this.resolveMentorSignature(
+          data.pembimbingLapanganId,
+          data.internshipId,
+        );
+      }
     }
 
     if (options.format === "pdf") {
@@ -129,6 +142,7 @@ export class InternshipDocumentService {
         studentProfile,
         data,
         mentorProfile,
+        mentorSignature,
         logbookEntries,
         options.withSignature,
       );
@@ -167,10 +181,17 @@ export class InternshipDocumentService {
     const assessment = assessmentResult[0] || null;
 
     let mentorProfile = null;
+    let mentorSignature = null;
     if (data.pembimbingLapanganId) {
       mentorProfile = await this.mentorRepo.findProfileById(
         data.pembimbingLapanganId,
       );
+      if (options.withSignature) {
+        mentorSignature = await this.resolveMentorSignature(
+          data.pembimbingLapanganId,
+          data.internshipId,
+        );
+      }
     }
 
     if (options.format === "pdf") {
@@ -178,6 +199,7 @@ export class InternshipDocumentService {
         studentProfile,
         data,
         mentorProfile,
+        mentorSignature,
         assessment,
         options.withSignature,
       );
@@ -222,10 +244,114 @@ export class InternshipDocumentService {
     }
   }
 
+  private async resolveMentorSignature(mentorId: string, internshipId?: string) {
+    // 1. Coba ambil dari cache database lokal terlebih dahulu!
+    if (internshipId) {
+      try {
+        const [cachedInternship] = await this.db
+          .select({
+            base64: internships.mentorSignatureBase64,
+            mimeType: internships.mentorSignatureMimeType,
+          })
+          .from(internships)
+          .where(eq(internships.id, internshipId))
+          .limit(1);
+
+        if (cachedInternship?.base64) {
+          const rawBase64 = cachedInternship.base64.trim();
+          const mime = cachedInternship.mimeType || "image/svg+xml";
+
+          if (mime.includes("svg") || rawBase64.startsWith("<svg") || rawBase64.includes("<svg")) {
+            let svgText = rawBase64;
+            if (!rawBase64.startsWith("<svg") && !rawBase64.includes("<svg")) {
+              // Decode base64 to SVG text
+              svgText = Buffer.from(rawBase64.replace(/^data:image\/svg\+xml;base64,/, ""), "base64").toString("utf-8");
+            }
+
+            // Gelapkan & pertebal tanda tangan SVG
+            const styleInject = `
+<style>
+  svg, path, line, polyline, polygon, rect, circle {
+    color: #000000 !important;
+  }
+  *[stroke]:not([stroke="none"]):not([stroke="transparent"]) {
+    stroke: #000000 !important;
+    stroke-width: 2.2px !important;
+  }
+  *[fill]:not([fill="none"]):not([fill="transparent"]) {
+    fill: #000000 !important;
+  }
+</style>`;
+            const svgOpenTagIndex = svgText.indexOf(">");
+            if (svgOpenTagIndex !== -1) {
+              svgText = svgText.slice(0, svgOpenTagIndex + 1) + styleInject + svgText.slice(svgOpenTagIndex + 1);
+            }
+
+            return {
+              svg: svgText,
+              mimeType: mime,
+            };
+          } else {
+            // PNG/JPEG - convert base64 to buffer
+            const cleanBase64 = rawBase64.replace(/^data:image\/(png|jpeg|jpg);base64,/, "");
+            return {
+              mimeType: mime,
+              pngOrJpegBuffer: Buffer.from(cleanBase64, "base64"),
+            };
+          }
+        }
+      } catch (err) {
+        console.warn(
+          `[InternshipDocumentService.resolveMentorSignature] Gagal mengambil cache TTD untuk internship ${internshipId}:`,
+          err,
+        );
+      }
+    }
+
+    // 2. Fallback ke SSO jika belum dicache
+    const session = await this.authSessionRepo.findSessionByMentorId(mentorId);
+    const accessToken = session?.accessToken || null;
+    if (!accessToken) return null;
+
+    const signature =
+      await this.ssoSignatureProxyService.getActiveSignatureByAccessToken(
+        accessToken,
+      );
+    if (!signature) return null;
+
+    let svgText = signature.svg;
+    const styleInject = `
+<style>
+  svg, path, line, polyline, polygon, rect, circle {
+    color: #000000 !important;
+  }
+  *[stroke]:not([stroke="none"]):not([stroke="transparent"]) {
+    stroke: #000000 !important;
+    stroke-width: 2.2px !important;
+  }
+  *[fill]:not([fill="none"]):not([fill="transparent"]) {
+    fill: #000000 !important;
+  }
+</style>`;
+
+    if (svgText) {
+      const svgOpenTagIndex = svgText.indexOf(">");
+      if (svgOpenTagIndex !== -1) {
+        svgText = svgText.slice(0, svgOpenTagIndex + 1) + styleInject + svgText.slice(svgOpenTagIndex + 1);
+      }
+    }
+
+    return {
+      svg: svgText,
+      mimeType: signature.mimeType,
+    };
+  }
+
   private async generateLogbookPDF(
     student: any,
     internship: any,
     mentor: any,
+    mentorSignature: { svg?: string; mimeType?: string } | null,
     entries: any[],
     withSignature: boolean,
   ): Promise<Buffer> {
@@ -404,7 +530,7 @@ export class InternshipDocumentService {
       font: fontNormal,
     });
 
-    currentY -= 70;
+    currentY -= 200;
     page.drawText(student.profile.fullName, {
       x: 100,
       y: currentY,
@@ -418,31 +544,83 @@ export class InternshipDocumentService {
       font: fontNormal,
     });
 
-    if (withSignature && mentor?.signatureUrl) {
-      const sigBuffer = await this.fetchImageBuffer(mentor.signatureUrl);
-      if (sigBuffer) {
+    if (withSignature) {
+      let rendered = false;
+
+      if (mentorSignature?.svg) {
         try {
-          const sigImage = await this.embedImageToPdf(pdfDoc, sigBuffer);
-          const sigDims = sigImage.scaleToFit(120, 50);
+          const sigImage = await (pdfDoc as any).embedSvg(
+            mentorSignature.svg,
+          );
+          const sigDims = sigImage.scaleToFit(300, 150);
           page.drawImage(sigImage, {
             x: 400,
-            y: currentY + 10,
+            y: currentY + 30,
             width: sigDims.width,
             height: sigDims.height,
           });
+          rendered = true;
         } catch (e) {
           console.error(
-            "[InternshipDocumentService] Failed to embed signature to Logbook PDF:",
+            "[InternshipDocumentService] Failed to embed SVG signature to Logbook PDF:",
             e,
           );
-          page.drawText("[Gagal Memuat Tanda Tangan Digital]", {
-            x: 400,
-            y: currentY + 20,
-            size: 8,
-            font: fontNormal,
-            color: rgb(1, 0, 0),
-          });
         }
+      }
+
+      // Dukungan untuk PNG/JPEG hasil cache database lokal
+      if (!rendered && (mentorSignature as any)?.pngOrJpegBuffer) {
+        try {
+          const sigImage = await this.embedImageToPdf(
+            pdfDoc,
+            (mentorSignature as any).pngOrJpegBuffer,
+          );
+          const sigDims = sigImage.scaleToFit(300, 150);
+          page.drawImage(sigImage, {
+            x: 400,
+            y: currentY + 30,
+            width: sigDims.width,
+            height: sigDims.height,
+          });
+          rendered = true;
+        } catch (e) {
+          console.error(
+            "[InternshipDocumentService] Failed to embed cached PNG/JPEG signature to Logbook PDF:",
+            e,
+          );
+        }
+      }
+
+      if (!rendered && mentor?.signatureUrl) {
+        const sigBuffer = await this.fetchImageBuffer(mentor.signatureUrl);
+        if (sigBuffer) {
+          try {
+            const sigImage = await this.embedImageToPdf(pdfDoc, sigBuffer);
+            const sigDims = sigImage.scaleToFit(300, 150);
+            page.drawImage(sigImage, {
+              x: 400,
+              y: currentY + 30,
+              width: sigDims.width,
+              height: sigDims.height,
+            });
+            rendered = true;
+          } catch (e) {
+            console.error(
+              "[InternshipDocumentService] Failed to embed signature to Logbook PDF:",
+              e,
+            );
+          }
+        }
+      }
+
+      if (!rendered) {
+        page.drawText("[Gagal Memuat Tanda Tangan Digital]", {
+          x: 400,
+          y: currentY + 20,
+          size: 8,
+          font: fontNormal,
+          color: rgb(1, 0, 0),
+        });
       }
     }
 
@@ -568,6 +746,11 @@ export class InternshipDocumentService {
     student: any,
     internship: any,
     mentor: any,
+    mentorSignature: {
+      svg?: string;
+      mimeType?: string;
+      pngOrJpegBuffer?: Buffer;
+    } | null,
     assessment: any,
     withSignature: boolean,
   ): Promise<Buffer> {
@@ -687,31 +870,84 @@ export class InternshipDocumentService {
       font: fontNormal,
     });
 
-    if (withSignature && mentor?.signatureUrl) {
-      const sigBuffer = await this.fetchImageBuffer(mentor.signatureUrl);
-      if (sigBuffer) {
+    const nameY = currentY;
+
+    if (withSignature) {
+      let rendered = false;
+
+      if (mentorSignature?.svg) {
         try {
-          const sigImage = await this.embedImageToPdf(pdfDoc, sigBuffer);
+          const sigImage = await (pdfDoc as any).embedSvg(
+            mentorSignature.svg,
+          );
           const sigDims = sigImage.scaleToFit(120, 50);
           page.drawImage(sigImage, {
             x: 400,
-            y: currentY + 10,
+            y: nameY + 10,
             width: sigDims.width,
             height: sigDims.height,
           });
+          rendered = true;
         } catch (e) {
           console.error(
-            "[InternshipDocumentService] Failed to embed signature to Assessment PDF:",
+            "[InternshipDocumentService] Failed to embed SVG signature to Assessment PDF:",
             e,
           );
-          page.drawText("[Gagal Memuat Tanda Tangan Digital]", {
-            x: 400,
-            y: currentY + 20,
-            size: 8,
-            font: fontNormal,
-            color: rgb(1, 0, 0),
-          });
         }
+      }
+
+      if (!rendered && mentorSignature?.pngOrJpegBuffer) {
+        try {
+          const sigImage = await this.embedImageToPdf(
+            pdfDoc,
+            mentorSignature.pngOrJpegBuffer,
+          );
+          const sigDims = sigImage.scaleToFit(120, 50);
+          page.drawImage(sigImage, {
+            x: 400,
+            y: nameY + 10,
+            width: sigDims.width,
+            height: sigDims.height,
+          });
+          rendered = true;
+        } catch (e) {
+          console.error(
+            "[InternshipDocumentService] Failed to embed cached PNG/JPEG signature to Assessment PDF:",
+            e,
+          );
+        }
+      }
+
+      if (!rendered && mentor?.signatureUrl) {
+        const sigBuffer = await this.fetchImageBuffer(mentor.signatureUrl);
+        if (sigBuffer) {
+          try {
+            const sigImage = await this.embedImageToPdf(pdfDoc, sigBuffer);
+            const sigDims = sigImage.scaleToFit(120, 50);
+            page.drawImage(sigImage, {
+              x: 400,
+              y: nameY + 10,
+              width: sigDims.width,
+              height: sigDims.height,
+            });
+            rendered = true;
+          } catch (e) {
+            console.error(
+              "[InternshipDocumentService] Failed to embed signature to Assessment PDF:",
+              e,
+            );
+          }
+        }
+      }
+
+      if (!rendered) {
+        page.drawText("[Gagal Memuat Tanda Tangan Digital]", {
+          x: 400,
+          y: nameY + 20,
+          size: 8,
+          font: fontNormal,
+          color: rgb(1, 0, 0),
+        });
       }
     }
 

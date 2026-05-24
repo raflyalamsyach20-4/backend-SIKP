@@ -79,6 +79,26 @@ export class AuthSessionRepository {
     return null;
   }
 
+  async findSessionByMentorId(mentorIdentityId: string) {
+    const sessions = await this.db.select().from(authSessions);
+    for (const session of sessions) {
+      const snapshot = session.profileSnapshot as any;
+      if (!snapshot) continue;
+
+      const identities = snapshot.identities;
+      if (Array.isArray(identities)) {
+        const mentor = identities.find((i: any) => i?.role === "MENTOR");
+        if (mentor?.id === mentorIdentityId) return session;
+        continue;
+      }
+
+      const mentor = identities?.mentor;
+      if (mentor?.id === mentorIdentityId) return session;
+    }
+
+    return null;
+  }
+
   async getIdentityCache(authUserId: string) {
     void authUserId;
     return [];

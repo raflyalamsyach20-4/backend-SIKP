@@ -5,7 +5,9 @@ import { MentorWorkflowRepository } from "@/repositories/mentor-workflow.reposit
 import { MahasiswaService } from "./mahasiswa.service";
 import { DosenService } from "./dosen.service";
 import { StorageService } from "./storage.service";
-import { authSessions, teams, mentorApprovalRequests } from "@/db/schema";
+import { AuthSessionRepository } from "@/repositories/auth-session.repository";
+import { SsoSignatureProxyService } from "./sso-signature-proxy.service";
+import { authSessions, teams, mentorApprovalRequests, internships } from "@/db/schema";
 import { eq, and, or, sql } from "drizzle-orm";
 
 export class InternshipService {
@@ -15,6 +17,8 @@ export class InternshipService {
   private mahasiswaService: MahasiswaService;
   private dosenService: DosenService;
   private storageService: StorageService;
+  private authSessionRepo: AuthSessionRepository;
+  private ssoSignatureProxyService: SsoSignatureProxyService;
   private db: any;
 
   constructor(private env: CloudflareBindings) {
@@ -25,6 +29,62 @@ export class InternshipService {
     this.mahasiswaService = new MahasiswaService(this.env);
     this.dosenService = new DosenService(this.env);
     this.storageService = new StorageService(this.env);
+    this.authSessionRepo = new AuthSessionRepository(this.db);
+    this.ssoSignatureProxyService = new SsoSignatureProxyService(this.env);
+  }
+
+  private async resolveMentorSignature(mentorId: string, internshipId?: string) {
+    // 1. Coba ambil dari cache database lokal terlebih dahulu!
+    if (internshipId) {
+      try {
+        const [cachedInternship] = await this.db
+          .select({
+            base64: internships.mentorSignatureBase64,
+            mimeType: internships.mentorSignatureMimeType,
+          })
+          .from(internships)
+          .where(eq(internships.id, internshipId))
+          .limit(1);
+
+        if (cachedInternship?.base64) {
+          const rawBase64 = cachedInternship.base64.trim();
+          const mime = cachedInternship.mimeType || "image/svg+xml";
+
+          // Jika berupa SVG mentah, ubah ke base64
+          if (rawBase64.startsWith("<svg") || rawBase64.includes("<svg")) {
+            const base64Text = Buffer.from(rawBase64).toString("base64");
+            return `data:${mime};base64,${base64Text}`;
+          }
+
+          // Jika sudah merupakan format data URL lengkap
+          if (rawBase64.startsWith("data:")) {
+            return rawBase64;
+          }
+
+          // Format base64 standar
+          return `data:${mime};base64,${rawBase64}`;
+        }
+      } catch (err) {
+        console.warn(
+          `[InternshipService.resolveMentorSignature] Gagal mengambil cache TTD untuk internship ${internshipId}:`,
+          err,
+        );
+      }
+    }
+
+    // 2. Fallback ke SSO jika belum dicache
+    const session = await this.authSessionRepo.findSessionByMentorId(mentorId);
+    const accessToken = session?.accessToken || null;
+    if (!accessToken) return null;
+
+    const signature =
+      await this.ssoSignatureProxyService.getActiveSignatureByAccessToken(
+        accessToken,
+      );
+    if (!signature?.svg) return null;
+
+    const base64 = Buffer.from(signature.svg).toString("base64");
+    return `data:${signature.mimeType || "image/svg+xml"};base64,${base64}`;
   }
 
   /**
@@ -120,7 +180,10 @@ export class InternshipService {
         phone: approvalRequest?.mentorPhone || "",
         status: approvalRequest?.status?.toLowerCase() || "approved",
         companyAddress: approvalRequest?.companyAddress || "",
-        signature: null,
+        signature: await this.resolveMentorSignature(
+          data.pembimbingLapanganId,
+          data.internshipId || undefined,
+        ),
         nip: approvalRequest?.mentorNip || "",
       };
     } else {

@@ -198,5 +198,12 @@ export const createMentorshipRoutes = () => {
     new MentorController(c).unlockAssessment(),
   );
 
+  // --- Mentor Signature Cache ---
+  // Endpoint untuk mentor memperbarui cache TTD dari SSO ke DB.
+  // Berguna jika mentor sudah update TTD di SSO dan ingin dokumen PDF terbaru menggunakan TTD baru.
+  mentorship.post("/signature-cache/refresh", mentorOnly, (c) =>
+    new MentorController(c).refreshSignatureCache(),
+  );
+
   return mentorship;
 };

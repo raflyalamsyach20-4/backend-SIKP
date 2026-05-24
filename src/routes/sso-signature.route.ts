@@ -23,6 +23,10 @@ export const createSsoSignatureRoutes = () => {
     .get("/signature", async (c) => {
       const controller = new SsoSignatureController(c);
       return controller.getActive();
+    })
+    .put("/signature/save-to-internship", async (c) => {
+      const controller = new SsoSignatureController(c);
+      return controller.saveToInternship();
     });
 
   return profile;

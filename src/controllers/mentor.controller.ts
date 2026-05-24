@@ -529,12 +529,14 @@ export class MentorController {
       if (!context)
         return this.c.json(createResponse(false, "Unauthorized"), 401);
 
+      const sessionId = (this.c.get("sessionId") as string) || "";
       const assessmentId = this.c.req.param("assessmentId");
 
       const updated = await this.mentorService.updateAssessment(
         context.profileId,
         assessmentId,
         validated,
+        sessionId,
       );
 
       return this.c.json(
@@ -582,4 +584,54 @@ export class MentorController {
       return handleError(this.c, error);
     }
   };
+
+  // ─── Mentor Signature Cache ─────────────────────────────────────────────────
+
+  /**
+   * POST /api/mentorship/signature-cache/refresh?internshipId=xxx
+   * Memaksa refresh cache TTD mentor dari SSO ke DB.
+   * Berguna jika mentor sudah update TTD di SSO dan ingin sync.
+   */
+  refreshSignatureCache = async () => {
+    try {
+      const context = this.getMentorContext();
+      const sessionId = (this.c.get("sessionId") as string) || "";
+      if (!context)
+        return this.c.json(createResponse(false, "Unauthorized"), 401);
+
+      const internshipId = this.c.req.query("internshipId");
+      if (!internshipId) {
+        return this.c.json(
+          createResponse(false, "internshipId query param diperlukan"),
+          400,
+        );
+      }
+
+      const success = await this.mentorService.refreshMentorSignatureCache(
+        internshipId,
+        sessionId,
+      );
+
+      if (!success) {
+        return this.c.json(
+          createResponse(
+            false,
+            "Gagal memperbarui cache TTD. Pastikan TTD sudah diupload di portal SSO.",
+          ),
+          422,
+        );
+      }
+
+      return this.c.json(
+        createResponse(true, "Cache TTD mentor berhasil diperbarui.", {
+          internshipId,
+          refreshedAt: new Date().toISOString(),
+        }),
+        200,
+      );
+    } catch (error) {
+      return handleError(this.c, error, "Gagal refresh cache TTD");
+    }
+  };
 }
+

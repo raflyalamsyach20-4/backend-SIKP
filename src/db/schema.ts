@@ -445,6 +445,15 @@ export const internships = pgTable("internships", {
   endDate: date("end_date").notNull(),
   status: internshipStatusEnum("status").notNull().default("AKTIF"),
   archivedAt: timestamp("archived_at"),
+  // ─── Mentor Signature Cache ────────────────────────────────────────────────
+  // Menyimpan TTD mentor sebagai base64 agar tidak perlu fetch SSO setiap
+  // kali generate PDF. Di-cache pertama kali mentor approve/verifikasi logbook.
+  mentorSignatureBase64: text("mentor_signature_base64"),
+  mentorSignatureMimeType: varchar("mentor_signature_mime_type", {
+    length: 50,
+  }),
+  mentorSignatureCachedAt: timestamp("mentor_signature_cached_at"),
+  // ──────────────────────────────────────────────────────────────────────────
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
