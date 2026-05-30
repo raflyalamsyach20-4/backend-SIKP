@@ -256,7 +256,7 @@ export class AuthService {
   private normalizeProfile(profile: SsoEnvelope['data']) {
     if (!profile) return profile;
 
-    const raw = profile as Record<string, unknown> & {
+    const raw = (profile as unknown) as Record<string, unknown> & {
       fullName?: string | null;
       name?: string | null;
       nama?: string | null;
@@ -444,7 +444,7 @@ export class AuthService {
       // Fast path: read from DB cache — zero SSO network calls
       profile = this.normalizeProfile(snapshot);
       identities = [];
-      const rawIds = profile.identities;
+      const rawIds = profile?.identities;
       if (Array.isArray(rawIds)) {
         identities = rawIds.map((id: any) => ({ ...id, identityType: id.role || id.identityType }));
       } else if (rawIds) {
@@ -488,7 +488,7 @@ export class AuthService {
 
     // SSO Gateway may return identities as an array or an object depending on the version.
     const getIdentityObj = (role: string) => {
-      const ids = profile.identities as any;
+      const ids = profile?.identities as any;
       if (Array.isArray(ids)) {
         return ids.find((i: any) => i.role === role || i.identityType === role);
       }
@@ -511,8 +511,8 @@ export class AuthService {
       effectivePermissions,
       activeIdentity,
       availableIdentities,
-      nama: profile.fullName,
-      profileId: profile.id,
+      nama: profile?.fullName || '',
+      profileId: profile?.id,
       mahasiswaId: mhs?.id,
       dosenId: dsn?.id,
       adminId: adm?.id,
