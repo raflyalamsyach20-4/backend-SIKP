@@ -68,15 +68,34 @@ export class MahasiswaService {
     return this._dosenService;
   }
 
+  private normalizeSsoProfile(profile: any) {
+    if (!profile) return profile;
+
+    const fullName = profile.fullName || profile.name || profile.nama || profile.full_name || '';
+    const emails = Array.isArray(profile.emails)
+      ? profile.emails
+      : profile.email
+        ? [{ email: profile.email }]
+        : [];
+
+    return {
+      ...profile,
+      fullName,
+      emails,
+    };
+  }
+
   /**
    * Fetch Mahasiswa detail from SSO by ID
    */
   async getMahasiswaById(mahasiswaId: string, sessionId: string): Promise<SsoMahasiswaDetail | null> {
     try {
       let token = await this.authService.getSessionAccessToken(sessionId);
+      let usedServiceToken = false;
       if (!token) {
         // fallback to service token
         token = await this.authService.getServiceAccessToken();
+        usedServiceToken = true;
         console.warn('[MahasiswaService.getMahasiswaById] Using service token fallback for mahasiswa lookup', { mahasiswaId });
       }
       const baseUrl = this.env.SSO_BASE_URL;
@@ -115,15 +134,17 @@ export class MahasiswaService {
         
         if (snapshot) {
           console.info(`[MahasiswaService.getMahasiswaById] Found snapshot fallback for ${mahasiswaId}`);
+
+          const normalizedSnapshot = this.normalizeSsoProfile(snapshot);
           
           // Map snapshot to SsoMahasiswaDetail format
           // The snapshot is the 'profile' object from SSO
-          const mhsIdentity = Array.isArray(snapshot.identities) 
-            ? snapshot.identities.find((i: any) => i.role === 'MAHASISWA' || i.identityType === 'MAHASISWA')
-            : snapshot.identities?.mahasiswa;
+          const mhsIdentity = Array.isArray(normalizedSnapshot.identities) 
+            ? normalizedSnapshot.identities.find((i: any) => i.role === 'MAHASISWA' || i.identityType === 'MAHASISWA')
+            : normalizedSnapshot.identities?.mahasiswa;
 
           return {
-            id: mhsIdentity?.id || snapshot.id, // Use the actual Mahasiswa Identity ID if found
+            id: mhsIdentity?.id || normalizedSnapshot.id, // Use the actual Mahasiswa Identity ID if found
             nim: mhsIdentity?.nim || '-',
             angkatan: mhsIdentity?.angkatan || 0,
             status: mhsIdentity?.status || 'aktif',
@@ -131,9 +152,9 @@ export class MahasiswaService {
             fakultas: mhsIdentity?.fakultas || null,
             dosenPA: mhsIdentity?.dosenPA || null,
             profile: {
-              id: snapshot.authUserId, // The SSO UUID
-              fullName: snapshot.fullName,
-              emails: snapshot.emails || [],
+              id: normalizedSnapshot.authUserId, // The SSO UUID
+              fullName: normalizedSnapshot.fullName,
+              emails: normalizedSnapshot.emails || [],
             }
           } as any;
         }
@@ -141,8 +162,55 @@ export class MahasiswaService {
         return null;
       }
 
-      const payload = (await response.json()) as SsoMahasiswaResponse;
-      return payload.data;
+      let payload = (await response.json()) as SsoMahasiswaResponse;
+
+      if ((!payload?.data || payload.success === false) && !usedServiceToken) {
+        console.warn(`[MahasiswaService.getMahasiswaById] Empty payload with session token for ${mahasiswaId}. Retrying with service token.`);
+        const serviceToken = await this.authService.getServiceAccessToken();
+        usedServiceToken = true;
+        const retryResp = await fetch(url, {
+          headers: {
+            Authorization: `Bearer ${serviceToken}`,
+            Accept: 'application/json',
+          },
+        });
+
+        if (retryResp.ok) {
+          payload = (await retryResp.json()) as SsoMahasiswaResponse;
+        }
+      }
+
+      if (!payload.data) {
+        const authSessionRepo = new AuthSessionRepository(createDbClient(this.env.DATABASE_URL));
+        const snapshot = await authSessionRepo.findProfileSnapshotByMahasiswaId(mahasiswaId);
+        if (snapshot) {
+          console.info(`[MahasiswaService.getMahasiswaById] Using snapshot fallback after empty payload for ${mahasiswaId}`);
+          const normalizedSnapshot = this.normalizeSsoProfile(snapshot);
+          const mhsIdentity = Array.isArray(normalizedSnapshot.identities) 
+            ? normalizedSnapshot.identities.find((i: any) => i.role === 'MAHASISWA' || i.identityType === 'MAHASISWA')
+            : normalizedSnapshot.identities?.mahasiswa;
+
+          return {
+            id: mhsIdentity?.id || normalizedSnapshot.id,
+            nim: mhsIdentity?.nim || '-',
+            angkatan: mhsIdentity?.angkatan || 0,
+            status: mhsIdentity?.status || 'aktif',
+            prodi: mhsIdentity?.prodi || null,
+            fakultas: mhsIdentity?.fakultas || null,
+            dosenPA: mhsIdentity?.dosenPA || null,
+            profile: {
+              id: normalizedSnapshot.authUserId,
+              fullName: normalizedSnapshot.fullName,
+              emails: normalizedSnapshot.emails || [],
+            },
+          } as any;
+        }
+      }
+
+      if (payload.data?.profile) {
+        payload.data.profile = this.normalizeSsoProfile(payload.data.profile);
+      }
+      return payload.data || null;
     } catch (error) {
       console.error(`[MahasiswaService.getMahasiswaById] Error fetching from SSO:`, error);
       return null;
@@ -155,6 +223,7 @@ export class MahasiswaService {
   async getMahasiswaByNim(nim: string, sessionId: string): Promise<SsoMahasiswaDetail | null> {
     try {
       const token = await this.authService.getSessionAccessToken(sessionId);
+      let usedServiceToken = false;
       const baseUrl = this.env.SSO_BASE_URL;
       const url = `${baseUrl}/api/mahasiswa/nim/${nim}`;
 
@@ -168,6 +237,7 @@ export class MahasiswaService {
       if (!response.ok && (response.status === 401 || response.status === 403)) {
         console.warn(`[MahasiswaService.getMahasiswaByNim] Session token rejected (${response.status}), falling back to service token`);
         const serviceToken = await this.authService.getServiceAccessToken();
+        usedServiceToken = true;
         response = await fetch(url, {
           headers: {
             Authorization: `Bearer ${serviceToken}`,
@@ -184,8 +254,50 @@ export class MahasiswaService {
         throw new Error(`Failed to fetch mahasiswa from SSO (${response.status})`);
       }
 
-      const payload = (await response.json()) as SsoMahasiswaResponse;
-      return payload.data;
+      let payload = (await response.json()) as SsoMahasiswaResponse;
+
+      if ((!payload?.data || payload.success === false) && !usedServiceToken) {
+        console.warn(`[MahasiswaService.getMahasiswaByNim] Empty payload with session token for ${nim}. Retrying with service token.`);
+        const serviceToken = await this.authService.getServiceAccessToken();
+        const retryResp = await fetch(url, {
+          headers: {
+            Authorization: `Bearer ${serviceToken}`,
+            Accept: 'application/json',
+          },
+        });
+        if (retryResp.ok) {
+          payload = (await retryResp.json()) as SsoMahasiswaResponse;
+        }
+      }
+
+      if (!payload.data) {
+        const authSessionRepo = new AuthSessionRepository(createDbClient(this.env.DATABASE_URL));
+        const snapshot = await authSessionRepo.findProfileSnapshotByMahasiswaId(nim);
+        if (snapshot) {
+          console.info(`[MahasiswaService.getMahasiswaByNim] Using snapshot fallback after empty payload for ${nim}`);
+          const normalizedSnapshot = this.normalizeSsoProfile(snapshot);
+          const mhsIdentity = Array.isArray(normalizedSnapshot.identities) 
+            ? normalizedSnapshot.identities.find((i: any) => i.role === 'MAHASISWA' || i.identityType === 'MAHASISWA')
+            : normalizedSnapshot.identities?.mahasiswa;
+
+          return {
+            id: mhsIdentity?.id || normalizedSnapshot.id,
+            nim: mhsIdentity?.nim || nim,
+            angkatan: mhsIdentity?.angkatan || 0,
+            status: mhsIdentity?.status || 'aktif',
+            prodi: mhsIdentity?.prodi || null,
+            fakultas: mhsIdentity?.fakultas || null,
+            dosenPA: mhsIdentity?.dosenPA || null,
+            profile: {
+              id: normalizedSnapshot.authUserId,
+              fullName: normalizedSnapshot.fullName,
+              emails: normalizedSnapshot.emails || [],
+            },
+          } as any;
+        }
+      }
+
+      return payload.data || null;
     } catch (error) {
       console.error(`[MahasiswaService.getMahasiswaByNim] Error fetching from SSO:`, error);
       return null;

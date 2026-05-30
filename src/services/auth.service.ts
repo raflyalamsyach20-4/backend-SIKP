@@ -253,6 +253,32 @@ export class AuthService {
     return (await response.json()) as TokenExchangeResponse;
   }
 
+  private normalizeProfile(profile: SsoEnvelope['data']) {
+    if (!profile) return profile;
+
+    const raw = profile as Record<string, unknown> & {
+      fullName?: string | null;
+      name?: string | null;
+      nama?: string | null;
+      full_name?: string | null;
+      emails?: Array<{ email: string }> | null;
+      email?: string | null;
+    };
+
+    const fullName = raw.fullName || raw.name || raw.nama || raw.full_name || '';
+    const emails = Array.isArray(raw.emails)
+      ? raw.emails
+      : raw.email
+        ? [{ email: raw.email }]
+        : [];
+
+    return {
+      ...raw,
+      fullName,
+      emails,
+    } as SsoEnvelope['data'];
+  }
+
   private async fetchProfileAndIdentities(accessToken: string) {
     const headers = {
       Authorization: `Bearer ${accessToken}`,
@@ -299,7 +325,7 @@ export class AuthService {
     }
 
     const payload = (await profileResp.json()) as SsoEnvelope;
-    const profile = payload.data;
+    const profile = this.normalizeProfile(payload.data);
 
     // 🔍 DEBUG: Log raw SSO profile to diagnose name mismatch
     console.warn('[DEBUG][SSO_PROFILE_RAW]', JSON.stringify({
@@ -416,7 +442,7 @@ export class AuthService {
     const snapshot = session.profileSnapshot as SsoEnvelope['data'] | null;
     if (snapshot) {
       // Fast path: read from DB cache — zero SSO network calls
-      profile = snapshot;
+      profile = this.normalizeProfile(snapshot);
       identities = [];
       const rawIds = profile.identities;
       if (Array.isArray(rawIds)) {
@@ -434,7 +460,7 @@ export class AuthService {
         { sessionId },
       );
       const fetched = await this.fetchProfileAndIdentities(session.accessToken);
-      profile = fetched.profile;
+      profile = this.normalizeProfile(fetched.profile);
       identities = fetched.identities;
 
       // Persist snapshot so future requests skip this path
