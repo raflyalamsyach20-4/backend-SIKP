@@ -24,7 +24,7 @@
 		"FRONTEND_URL": "https://sikp-mi-unsri.vercel.app", 
 		"AUTH_SESSION_TTL_SECONDS": "43200",
 		"AUTH_COOKIE_SECURE": "true",
-		"AUTH_COOKIE_SAMESITE": "Lax",
+		"AUTH_COOKIE_SAMESITE": "None",
 		"AUTH_SESSION_COOKIE_NAME": "sikp_session",
 		"SSO_SIGNATURE_PATH": "/signature",
 		"SSO_PROXY_TIMEOUT_MS": "10000",
