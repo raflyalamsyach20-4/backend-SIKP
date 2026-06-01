@@ -1,16 +1,28 @@
 import { createDbClient } from "@/db";
+import { eq } from "drizzle-orm";
+import { internships } from "@/db/schema";
 import { MonitoringRepository } from "@/repositories/monitoring.repository";
 import { MahasiswaService } from "./mahasiswa.service";
+import { StorageService } from "./storage.service";
+import { InternshipDocumentService } from "./internship-document.service";
+import { zipSync } from "fflate";
 
 export class MonitoringService {
+  private db: ReturnType<typeof createDbClient>;
   private monitoringRepo: MonitoringRepository;
   private mahasiswaService: MahasiswaService;
+  private storageService: StorageService;
+  private documentService: InternshipDocumentService;
 
   constructor(private env: CloudflareBindings) {
-    const db = createDbClient(this.env.DATABASE_URL);
-    this.monitoringRepo = new MonitoringRepository(db);
+    this.db = createDbClient(this.env.DATABASE_URL);
+    this.monitoringRepo = new MonitoringRepository(this.db);
     this.mahasiswaService = new MahasiswaService(this.env);
+    this.storageService = new StorageService(this.env);
+    this.documentService = new InternshipDocumentService(this.env);
   }
+
+  private static LOGBOOK_PDF_VERSION = 5;
 
   /**
    * Get all supervisees with their progress stats, enriched with SSO data
@@ -102,7 +114,9 @@ export class MonitoringService {
       status: row.logbook.status,
       hours: row.logbook.hours,
       rejectionReason: row.logbook.rejectionReason,
-      photoUrl: row.logbook.fileUrl,
+      photoUrl: row.logbook.fileUrl
+        ? this.storageService.getAssetProxyUrl(row.logbook.fileUrl)
+        : null,
       mentorName: row.mentorName || "-",
       createdAt: row.logbook.createdAt,
       verifiedAt: row.logbook.verifiedAt,
@@ -224,5 +238,120 @@ export class MonitoringService {
       `[MonitoringService.syncMenteesProgress] Sync finished. Total synced: ${syncCount}`,
     );
     return { synced: syncCount };
+  }
+
+  private buildSafeFileName(value: string) {
+    const normalized = value
+      .replace(/[^a-zA-Z0-9-_ ]/g, " ")
+      .replace(/\s+/g, " ")
+      .trim()
+      .replace(/\s/g, "_");
+
+    return normalized || "logbook";
+  }
+
+  private async readStorageObject(
+    object: R2ObjectBody | { body?: any; httpMetadata?: any } | null,
+  ): Promise<Buffer | null> {
+    if (!object) return null;
+
+    if ("arrayBuffer" in object && typeof object.arrayBuffer === "function") {
+      const arrayBuffer = await object.arrayBuffer();
+      return Buffer.from(arrayBuffer);
+    }
+
+    if ("body" in object && object.body) {
+      const arrayBuffer = await new Response(object.body).arrayBuffer();
+      return Buffer.from(arrayBuffer);
+    }
+
+    return null;
+  }
+
+  private async getOrCreateLogbookPdf(
+    internshipId: string,
+    sessionId: string,
+    fileName: string,
+  ) {
+    const [cached] = await this.db
+      .select({
+        logbookPdfKey: internships.logbookPdfKey,
+        logbookPdfUrl: internships.logbookPdfUrl,
+        logbookPdfVersion: internships.logbookPdfVersion,
+      })
+      .from(internships)
+      .where(eq(internships.id, internshipId))
+      .limit(1);
+
+    if (
+      cached?.logbookPdfKey &&
+      cached.logbookPdfVersion === MonitoringService.LOGBOOK_PDF_VERSION
+    ) {
+      const stored = await this.storageService.getFile(cached.logbookPdfKey);
+      const buffer = await this.readStorageObject(stored as any);
+      if (buffer) return buffer;
+    }
+
+    const buffer = await this.documentService.generateLogbookByInternshipId(
+      internshipId,
+      sessionId,
+      { format: "pdf", withSignature: true },
+    );
+
+    const upload = await this.storageService.uploadBuffer(
+      buffer,
+      fileName,
+      "logbooks",
+      "application/pdf",
+    );
+
+    await this.db
+      .update(internships)
+      .set({
+        logbookPdfUrl: upload.url,
+        logbookPdfKey: upload.key,
+        logbookPdfGeneratedAt: new Date(),
+        logbookPdfVersion: MonitoringService.LOGBOOK_PDF_VERSION,
+        updatedAt: new Date(),
+      })
+      .where(eq(internships.id, internshipId));
+
+    return buffer;
+  }
+
+  async exportLogbookZip(lecturerId: string, sessionId: string) {
+    const mentees = await this.getMenteesProgress(lecturerId, sessionId);
+    const files: Record<string, Uint8Array> = {};
+
+    for (const mentee of mentees) {
+      if (!mentee.internshipId) continue;
+
+      const baseName = this.buildSafeFileName(
+        `${mentee.nim || ""}_${mentee.studentName || ""}`,
+      );
+      let fileName = `${baseName}.pdf`;
+      if (files[fileName]) {
+        fileName = `${baseName}_${mentee.internshipId.slice(0, 8)}.pdf`;
+      }
+
+      const buffer = await this.getOrCreateLogbookPdf(
+        mentee.internshipId,
+        sessionId,
+        fileName,
+      );
+
+      files[fileName] = new Uint8Array(buffer);
+    }
+
+    if (Object.keys(files).length === 0) {
+      throw new Error("Tidak ada logbook untuk diexport.");
+    }
+
+    const zipBytes = zipSync(files, { level: 0 });
+    const zipBuffer = Buffer.from(zipBytes);
+    const dateTag = new Date().toISOString().slice(0, 10).replace(/-/g, "");
+    const fileName = `logbook_pa_${dateTag}.zip`;
+
+    return { buffer: zipBuffer, fileName };
   }
 }

@@ -113,4 +113,26 @@ export class MonitoringController {
       return handleError(this.c, error);
     }
   };
+
+  /**
+   * GET /api/internship-monitoring/logbooks/export
+   * Export logbook ZIP for all supervised students
+   */
+  exportLogbookZip = async () => {
+    try {
+      const user = this.getUser();
+      const sessionId = user.sessionId!;
+      const lecturerId = user.profileId!;
+
+      const { buffer, fileName } =
+        await this.monitoringService.exportLogbookZip(lecturerId, sessionId);
+
+      return this.c.body(buffer as any, 200, {
+        "Content-Type": "application/zip",
+        "Content-Disposition": `attachment; filename="${fileName}"`,
+      });
+    } catch (error) {
+      return handleError(this.c, error);
+    }
+  };
 }

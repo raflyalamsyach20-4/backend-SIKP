@@ -21,6 +21,9 @@ export const createInternshipMonitoringRoutes = () => {
   monitoring.get("/inactive", (c) =>
     new MonitoringController(c).getInactiveStudents(),
   );
+  monitoring.get("/logbooks/export", (c) =>
+    new MonitoringController(c).exportLogbookZip(),
+  );
   monitoring.post("/sync", (c) => new MonitoringController(c).syncMentees());
 
   // Legacy Compatibility (Aliases)

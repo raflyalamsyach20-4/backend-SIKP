@@ -494,16 +494,27 @@ export class MentorWorkflowService {
     return { success: true };
   }
 
-  private async fetchSsoMentorByEmail(email: string, sessionToken: string) {
+  private async fetchSsoMentorByEmail(email: string, sessionToken: string, name?: string) {
     const normalizedEmail = email.trim().toLowerCase();
     const baseUrl = this.env.SSO_BASE_URL;
 
-    // Define search attempts: try 'email' parameter first, then fallback to 'search' parameter
-    const searchParamsKeys = ["email", "search"];
+    // Define search terms to attempt on /api/mentor?search=
+    const searchTerms: string[] = [];
+    if (name && name.trim()) {
+      const cleanName = name.trim();
+      const firstWord = cleanName.split(/\s+/)[0];
+      if (firstWord) searchTerms.push(firstWord);
+      searchTerms.push(cleanName);
+    }
+    // Final fallback: empty string to fetch all mentors and filter in memory
+    searchTerms.push("");
 
-    for (const paramKey of searchParamsKeys) {
+    for (const term of searchTerms) {
       try {
-        const url = `${baseUrl}/api/mentor?${paramKey}=${encodeURIComponent(normalizedEmail)}`;
+        const url = term 
+          ? `${baseUrl}/api/mentor?search=${encodeURIComponent(term)}`
+          : `${baseUrl}/api/mentor`;
+
         console.info(`[MentorWorkflowService.fetchSsoMentorByEmail] Querying SSO: ${url}`);
 
         // Try session token first
@@ -517,7 +528,7 @@ export class MentorWorkflowService {
         // Fallback to service token if unauthorized or forbidden
         if (!response.ok && (response.status === 401 || response.status === 403)) {
           console.warn(
-            `[MentorWorkflowService.fetchSsoMentorByEmail] Session token rejected (${response.status}) for ${paramKey} search, falling back to service token.`
+            `[MentorWorkflowService.fetchSsoMentorByEmail] Session token rejected (${response.status}) for search, falling back to service token.`
           );
           try {
             const serviceToken = await this.authService.getServiceAccessToken();
@@ -544,28 +555,40 @@ export class MentorWorkflowService {
           if (payload.success && payload.data) {
             let foundMentor: any = null;
             if (Array.isArray(payload.data)) {
-              // If it's an array, make sure we find the one that actually matches the email
+              // Look through all returned mentors and match by primary/profile email
               foundMentor = payload.data.find((m: any) => {
                 const emailCandidates = [
                   m?.email,
                   m?.profile?.email,
                   m?.profile?.emails?.[0]?.email,
                   m?.profile?.emails?.find((e: any) => e.isPrimary)?.email,
+                  ...(Array.isArray(m?.profile?.emails) 
+                    ? m.profile.emails.map((e: any) => e?.email) 
+                    : [])
                 ].filter((e): e is string => typeof e === "string" && e.trim() !== "");
                 
                 return emailCandidates.some(e => e.trim().toLowerCase() === normalizedEmail);
               });
-              // Fallback to first item if it's an array but none explicitly matched email (just in case)
-              if (!foundMentor && payload.data.length > 0) {
-                foundMentor = payload.data[0];
-              }
             } else {
-              foundMentor = payload.data;
+              const m = payload.data;
+              const emailCandidates = [
+                m?.email,
+                m?.profile?.email,
+                m?.profile?.emails?.[0]?.email,
+                m?.profile?.emails?.find((e: any) => e.isPrimary)?.email,
+                ...(Array.isArray(m?.profile?.emails) 
+                  ? m.profile.emails.map((e: any) => e?.email) 
+                  : [])
+              ].filter((e): e is string => typeof e === "string" && e.trim() !== "");
+
+              if (emailCandidates.some(e => e.trim().toLowerCase() === normalizedEmail)) {
+                foundMentor = m;
+              }
             }
 
             if (foundMentor) {
               console.info(
-                `[MentorWorkflowService.fetchSsoMentorByEmail] Successfully resolved mentor via param '${paramKey}':`,
+                `[MentorWorkflowService.fetchSsoMentorByEmail] Successfully resolved mentor:`,
                 foundMentor.email || foundMentor.profile?.email || foundMentor.id
               );
               return foundMentor;
@@ -573,12 +596,12 @@ export class MentorWorkflowService {
           }
         } else {
           console.warn(
-            `[MentorWorkflowService.fetchSsoMentorByEmail] SSO returned status ${response.status} for param '${paramKey}'`
+            `[MentorWorkflowService.fetchSsoMentorByEmail] SSO returned status ${response.status} for search term '${term}'`
           );
         }
       } catch (err) {
         console.warn(
-          `[MentorWorkflowService.fetchSsoMentorByEmail] Error during search with param '${paramKey}':`,
+          `[MentorWorkflowService.fetchSsoMentorByEmail] Error during search with term '${term}':`,
           err
         );
       }
@@ -600,8 +623,31 @@ export class MentorWorkflowService {
     token: string,
   ) {
     try {
+      // =========================================================================
+      // HIT SSO ENDPOINT UNTUK MEMBUAT AKUN MENTOR BARU
+      // =========================================================================
+      // Di sini SIKP melakukan hit HTTP POST ke Endpoint SSO (`/api/mentor`) untuk:
+      // 1. Mendaftarkan identitas Mentor Baru di sistem SSO terintegrasi.
+      // 2. Mengirimkan payload berupa nama lengkap (`fullName`), instansi (`instansi`),
+      //    email, no. HP (`phoneNumber`), jabatan, dan bidang pekerjaan.
+      //    Menggunakan pemetaan terstandarisasi yang bersih (hanya mengirimkan field yang diizinkan
+      //    oleh Zod schema strict di backend SSO agar tidak memicu error unrecognized_keys).
+      //    Nilai opsional di-fallback ke string kosong `""` atau `"-"` agar properti tetap
+      //    ter-serialisasi dalam JSON payload dan tidak melanggar batasan database NOT NULL.
+      // 3. Menggunakan otorisasi Bearer token (Token SSO milik pengguna saat ini)
+      //    yang akan di-fallback ke Service Token jika token pengguna kadaluarsa/ditolak.
+      // =========================================================================
       const baseUrl = this.env.SSO_BASE_URL;
       const url = `${baseUrl}/api/mentor`;
+
+      const cleanPayload = {
+        fullName: data.fullName,
+        instansi: data.instansi || "Instansi Terkait",
+        email: data.email,
+        phoneNumber: data.phoneNumber || "",
+        jabatan: data.jabatan || "",
+        bidang: data.bidang || "-",
+      };
 
       let response = await fetch(url, {
         method: "POST",
@@ -610,7 +656,7 @@ export class MentorWorkflowService {
           "Content-Type": "application/json",
           Accept: "application/json",
         },
-        body: JSON.stringify(data),
+        body: JSON.stringify(cleanPayload),
       });
 
       if (!response.ok && (response.status === 401 || response.status === 403)) {
@@ -626,7 +672,7 @@ export class MentorWorkflowService {
               "Content-Type": "application/json",
               Accept: "application/json",
             },
-            body: JSON.stringify(data),
+            body: JSON.stringify(cleanPayload),
           });
         } catch (serviceTokenErr) {
           console.error(
@@ -642,6 +688,11 @@ export class MentorWorkflowService {
           "[MentorWorkflowService.createSsoMentor] SSO Error:",
           body,
         );
+        if (response.status === 500 || body.includes("PROFILE_SERVICE_ERROR")) {
+          console.warn(
+            `[MentorWorkflowService.createSsoMentor] 💡 TIP: 500 PROFILE_SERVICE_ERROR usually indicates that email '${data.email}' is ALREADY registered in another role (e.g. Mahasiswa or Dosen) in the SSO database. Please use a unique, unregistered email for the Field Supervisor.`
+          );
+        }
         throw new Error(`Failed to create mentor in SSO (${response.status})`);
       }
 
@@ -746,6 +797,7 @@ export class MentorWorkflowService {
     let ssoMentor = await this.fetchSsoMentorByEmail(
       request.mentorEmail,
       accessToken,
+      request.mentorName,
     );
 
     if (!ssoMentor) {

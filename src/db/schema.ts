@@ -453,9 +453,21 @@ export const internships = pgTable("internships", {
     length: 50,
   }),
   mentorSignatureCachedAt: timestamp("mentor_signature_cached_at"),
+  // ─── Logbook PDF Cache ─────────────────────────────────────────────────────
+  logbookPdfUrl: text("logbook_pdf_url"),
+  logbookPdfKey: text("logbook_pdf_key"),
+  logbookPdfGeneratedAt: timestamp("logbook_pdf_generated_at"),
+  logbookPdfVersion: integer("logbook_pdf_version").default(1),
   // ──────────────────────────────────────────────────────────────────────────
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
+}, (table) => {
+  return {
+    idxInternshipsDosenPaId: index("idx_internships_dosen_pa_id").on(table.dosenPaId),
+    idxInternshipsMahasiswaId: index("idx_internships_mahasiswa_id").on(table.mahasiswaId),
+    idxInternshipsStartDate: index("idx_internships_start_date").on(table.startDate),
+    idxInternshipsEndDate: index("idx_internships_end_date").on(table.endDate),
+  };
 });
 
 // Logbooks Table (Logbook harian mahasiswa)

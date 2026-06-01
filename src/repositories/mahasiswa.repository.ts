@@ -24,7 +24,7 @@ export class MahasiswaRepository {
     );
     const result = await this.db
       .select({
-        studentId: teamMembers.mahasiswaId,
+        studentId: internships.mahasiswaId,
         submissionId: submissions.id,
         teamId: teams.id,
         company: submissions.companyName,
@@ -53,6 +53,50 @@ export class MahasiswaRepository {
         eq(teamMembers.mahasiswaId, internships.mahasiswaId),
       )
       .where(eq(teamMembers.mahasiswaId, mahasiswaId))
+      .limit(1);
+
+    return result[0] || null;
+  }
+
+  /**
+   * Get complete internship data by internship ID
+   * Note: Student details (name, nim) are resolved via service layer.
+   */
+  async getInternshipDataByInternshipId(internshipId: string) {
+    console.log(
+      `[MahasiswaRepository] Querying internship data by internshipId: ${internshipId}`,
+    );
+    const result = await this.db
+      .select({
+        studentId: teamMembers.mahasiswaId,
+        submissionId: submissions.id,
+        teamId: teams.id,
+        company: submissions.companyName,
+        companyAddress: submissions.companyAddress,
+        division: submissions.division,
+        submissionStartDate: submissions.startDate,
+        submissionEndDate: submissions.endDate,
+        submissionStatus: submissions.status,
+        submittedAt: submissions.submittedAt,
+        approvedAt: submissions.approvedAt,
+        approvedBy: submissions.approvedByAdminId,
+        internshipId: internships.id,
+        internshipStatus: internships.status,
+        pembimbingLapanganId: internships.pembimbingLapanganId,
+        dosenPembimbingId: internships.dosenPembimbingId,
+        internshipStartDate: internships.startDate,
+        internshipEndDate: internships.endDate,
+        internshipCreatedAt: internships.createdAt,
+        internshipUpdatedAt: internships.updatedAt,
+      })
+      .from(internships)
+      .leftJoin(
+        teamMembers,
+        eq(internships.mahasiswaId, teamMembers.mahasiswaId),
+      )
+      .leftJoin(teams, eq(teamMembers.teamId, teams.id))
+      .leftJoin(submissions, eq(teams.id, submissions.teamId))
+      .where(eq(internships.id, internshipId))
       .limit(1);
 
     return result[0] || null;

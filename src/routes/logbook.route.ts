@@ -50,7 +50,7 @@ export const createLogbookRoutes = () => {
       mahasiswaOnly,
       validateFileUpload({
         fieldName: "file",
-        maxSizeMB: 2,
+        maxSizeMB: 5,
         allowedMimeTypes: ["image/jpeg", "image/png", "image/webp"],
       }),
       async (c) => {

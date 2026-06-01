@@ -34,6 +34,24 @@ export class InternshipService {
   }
 
   private async resolveMentorSignature(mentorId: string, internshipId?: string) {
+    const styleInject = `
+<style>
+  svg, path, line, polyline, polygon, rect, circle {
+    color: #000000 !important;
+  }
+  path, line, polyline, polygon {
+    stroke: #000000 !important;
+    stroke-width: 2.5px !important;
+  }
+  *[stroke]:not([stroke="none"]):not([stroke="transparent"]) {
+    stroke: #000000 !important;
+    stroke-width: 2.5px !important;
+  }
+  *[fill]:not([fill="none"]):not([fill="transparent"]) {
+    fill: #000000 !important;
+  }
+</style>`;
+
     // 1. Coba ambil dari cache database lokal terlebih dahulu!
     if (internshipId) {
       try {
@@ -50,18 +68,29 @@ export class InternshipService {
           const rawBase64 = cachedInternship.base64.trim();
           const mime = cachedInternship.mimeType || "image/svg+xml";
 
-          // Jika berupa SVG mentah, ubah ke base64
-          if (rawBase64.startsWith("<svg") || rawBase64.includes("<svg")) {
-            const base64Text = Buffer.from(rawBase64).toString("base64");
+          if (mime.includes("svg") || rawBase64.startsWith("<svg") || rawBase64.includes("<svg")) {
+            let svgText = rawBase64;
+            if (!rawBase64.startsWith("<svg") && !rawBase64.includes("<svg")) {
+              // Decode base64 to SVG text
+              const cleanB64 = rawBase64.replace(/^data:image\/svg\+xml;base64,/, "");
+              svgText = Buffer.from(cleanB64, "base64").toString("utf-8");
+            }
+
+            const svgOpenTagIndex = svgText.indexOf(">");
+            if (svgOpenTagIndex !== -1) {
+              svgText = svgText.slice(0, svgOpenTagIndex + 1) + styleInject + svgText.slice(svgOpenTagIndex + 1);
+            }
+
+            const base64Text = Buffer.from(svgText).toString("base64");
             return `data:${mime};base64,${base64Text}`;
           }
 
-          // Jika sudah merupakan format data URL lengkap
+          // Jika berupa format data URL PNG/JPEG lengkap
           if (rawBase64.startsWith("data:")) {
             return rawBase64;
           }
 
-          // Format base64 standar
+          // Format base64 standar PNG/JPEG
           return `data:${mime};base64,${rawBase64}`;
         }
       } catch (err) {
@@ -83,7 +112,13 @@ export class InternshipService {
       );
     if (!signature?.svg) return null;
 
-    const base64 = Buffer.from(signature.svg).toString("base64");
+    let svgText = signature.svg;
+    const svgOpenTagIndex = svgText.indexOf(">");
+    if (svgOpenTagIndex !== -1) {
+      svgText = svgText.slice(0, svgOpenTagIndex + 1) + styleInject + svgText.slice(svgOpenTagIndex + 1);
+    }
+
+    const base64 = Buffer.from(svgText).toString("base64");
     return `data:${signature.mimeType || "image/svg+xml"};base64,${base64}`;
   }
 

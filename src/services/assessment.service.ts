@@ -44,8 +44,22 @@ export class AssessmentService {
 
     const mentorAssessment = mentorAssessmentResult[0];
     const fieldScore = mentorAssessment ? mentorAssessment.totalScore : 0;
+
+    // === RUMUS PERHITUNGAN NILAI AKHIR MAGANG/KP GABUNGAN ===
+    // Nilai akhir dihitung dengan menggabungkan dua komponen nilai:
+    // 1. Nilai Lapangan (dari Pembimbing Lapangan/Mentor): Bobot 30% (0.3)
+    // 2. Nilai Akademis (dari Dosen Pembimbing Akademik): Bobot 70% (0.7)
+    // Rumus: Nilai Akhir = (Nilai Lapangan * 30%) + (Nilai Akademis * 70%)
+    // Nilai akhir dibulatkan ke bilangan bulat terdekat menggunakan Math.round().
     const finalScore = Math.round(fieldScore * 0.3 + academicScore * 0.7);
 
+    // === ATURAN KONVERSI NILAI ANGKA KE HURUF (LETTER GRADE) ===
+    // Konversi nilai akhir (angka) menjadi nilai huruf mengikuti standar:
+    // - Nilai Akhir >= 80  => A
+    // - Nilai Akhir >= 70  => B
+    // - Nilai Akhir >= 60  => C
+    // - Nilai Akhir >= 50  => D
+    // - Nilai Akhir < 50   => E (Gagal)
     let letterGrade = "E";
     if (finalScore >= 80) letterGrade = "A";
     else if (finalScore >= 70) letterGrade = "B";

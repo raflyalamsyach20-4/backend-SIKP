@@ -12,6 +12,7 @@ import { StorageService } from "./storage.service";
 import { AuthService } from "./auth.service";
 import { MahasiswaService } from "./mahasiswa.service";
 import { SsoSignatureProxyService } from "./sso-signature-proxy.service";
+import { InternshipDocumentService } from "./internship-document.service";
 
 export class MentorService {
   private db: DbClient;
@@ -21,6 +22,7 @@ export class MentorService {
   private storageService: StorageService;
   private mahasiswaService: MahasiswaService;
   private ssoSignatureProxyService: SsoSignatureProxyService;
+  private documentService: InternshipDocumentService;
 
   constructor(private env: CloudflareBindings) {
     this.db = createDbClient(this.env.DATABASE_URL);
@@ -30,6 +32,7 @@ export class MentorService {
     this.storageService = new StorageService(this.env);
     this.mahasiswaService = new MahasiswaService(this.env);
     this.ssoSignatureProxyService = new SsoSignatureProxyService(this.env);
+    this.documentService = new InternshipDocumentService(this.env);
   }
 
   private createServiceError(
@@ -328,7 +331,46 @@ export class MentorService {
       ),
     );
 
+    this.cacheLogbookPdfIfReady(internshipId, sessionId).catch((err) =>
+      console.warn(
+        "[MentorService.approveAllLogbooks] Gagal cache PDF logbook (non-critical):",
+        err,
+      ),
+    );
+
     return { message: "All pending logbook entries approved", internshipId };
+  }
+
+  private async cacheLogbookPdfIfReady(
+    internshipId: string,
+    sessionId: string,
+  ) {
+    const isFull = await this.documentService.isLogbookFull(internshipId);
+    if (!isFull) return;
+
+    const buffer = await this.documentService.generateLogbookByInternshipId(
+      internshipId,
+      sessionId,
+      { format: "pdf", withSignature: true },
+    );
+
+    const { url, key } = await this.storageService.uploadBuffer(
+      buffer,
+      `logbook-${internshipId}.pdf`,
+      "logbooks",
+      "application/pdf",
+    );
+
+    await this.db
+      .update(internships)
+      .set({
+        logbookPdfUrl: url,
+        logbookPdfKey: key,
+        logbookPdfGeneratedAt: new Date(),
+        logbookPdfVersion: 4,
+        updatedAt: new Date(),
+      })
+      .where(eq(internships.id, internshipId));
   }
 
   // ─── Assessments ────────────────────────────────────────────────────────────

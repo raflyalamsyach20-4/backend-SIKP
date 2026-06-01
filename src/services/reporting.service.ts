@@ -51,6 +51,11 @@ export class ReportingService {
   ) {
     const now = new Date();
 
+    const MAX_REPORT_SIZE = 5 * 1024 * 1024; // 5 MB
+    if (data.file.size > MAX_REPORT_SIZE) {
+      throw new Error("Ukuran file laporan terlalu besar. Maksimal 5 MB.");
+    }
+
     // 1. Upload Report File
     const uniqueFileName = this.storageService.generateUniqueFileName(
       data.file.name,
@@ -212,6 +217,11 @@ export class ReportingService {
       throw new Error(
         "Judul harus disetujui terlebih dahulu sebelum mengunggah laporan.",
       );
+    }
+
+    const MAX_REPORT_SIZE = 5 * 1024 * 1024; // 5 MB
+    if (data.file.size > MAX_REPORT_SIZE) {
+      throw new Error("Ukuran file laporan terlalu besar. Maksimal 5 MB.");
     }
 
     const uniqueFileName = this.storageService.generateUniqueFileName(
@@ -429,8 +439,17 @@ export class ReportingService {
   ) {
     const now = new Date();
 
+    // === RUMUS PERHITUNGAN NILAI AKADEMIK DOSEN PEMBIMBING ===
+    // Dosen Pembimbing menilai berdasarkan 4 komponen kriteria penilaian:
+    // 1. Format & Kesesuaian Laporan: 30% (bobot 0.3)
+    // 2. Penguasaan Materi & Presentasi: 30% (bobot 0.3)
+    // 3. Analisis & Perancangan Sistem: 30% (bobot 0.3)
+    // 4. Sikap & Etika Bimbingan: 10% (bobot 0.1)
+    // Nilai akhir dibulatkan ke bilangan bulat terdekat menggunakan Math.round().
+
     let academicScore = 0;
     if (scores.components && scores.components.length > 0) {
+      // Perhitungan dinamis jika kriteria penilaian didapatkan dari kustomisasi database
       let total = 0;
       for (const comp of scores.components) {
         const score = Number(comp.score) || 0;
@@ -439,6 +458,7 @@ export class ReportingService {
       }
       academicScore = Math.round(total);
     } else {
+      // Perhitungan statis bawaan menggunakan bobot standar (30%, 30%, 30%, 10%)
       academicScore = Math.round(
         (Number(scores.formatKesesuaian) || 0) * 0.3 +
           (Number(scores.penguasaanMateri) || 0) * 0.3 +

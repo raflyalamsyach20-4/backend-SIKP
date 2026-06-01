@@ -458,6 +458,31 @@ export class MentorRepository {
     kreatifitas: number;
     components?: any[];
   }) {
+    // =========================================================================
+    // RUMUS PERHITUNGAN TOTAL SKOR PENILAIAN OLEH MENTOR
+    // =========================================================================
+    // Sistem penilaian ini mendukung dua metode perhitungan total skor:
+    //
+    // Opsi A: Menggunakan Komponen Penilaian Dinamis (Dynamic Components)
+    // Jika data komponen dinamis diisi, skor total dihitung dengan rumus:
+    //   Total Skor = Σ (Skor Komponen * (Bobot Komponen / 100))
+    // Contoh:
+    //   Komponen 1: Skor 80, Bobot 20% => Kontribusi = 80 * 0.2 = 16
+    //   Komponen 2: Skor 90, Bobot 80% => Kontribusi = 90 * 0.8 = 72
+    //   Total = 16 + 72 = 88
+    //
+    // Opsi B: Metode Klasik/Fallback (Hardcoded Legacy Weights)
+    // Jika tidak ada komponen dinamis, maka perhitungan menggunakan bobot tetap:
+    //   1. Kehadiran     : Bobot 20% (0.2)
+    //   2. Kerjasama     : Bobot 30% (0.3)
+    //   3. Sikap/Etika   : Bobot 20% (0.2)
+    //   4. Prestasi Kerja: Bobot 20% (0.2)
+    //   5. Kreativitas   : Bobot 10% (0.1)
+    // Rumus: Total = (Kehadiran * 20%) + (Kerjasama * 30%) + (Sikap * 20%) + (Prestasi * 20%) + (Kreativitas * 10%)
+    //
+    // Catatan: Hasil akhir selalu dibulatkan ke bilangan bulat terdekat (Math.round).
+    // =========================================================================
+
     // If we have dynamic components, calculate based on them
     if (data.components && data.components.length > 0) {
       let total = 0;
@@ -598,8 +623,78 @@ export class MentorRepository {
   // ─── Profile & Signature ───────────────────────────────────────────────────
 
   async findProfileById(id: string) {
-    // Table deleted as per Pola 1 migration
-    return null;
+    try {
+      const [request] = await this.db
+        .select()
+        .from(mentorApprovalRequests)
+        .where(
+          and(
+            eq(mentorApprovalRequests.status, "APPROVED"),
+            or(
+              eq(mentorApprovalRequests.ssoMentorId, id),
+              eq(mentorApprovalRequests.reviewedBy, id)
+            )
+          )
+        )
+        .limit(1);
+
+      if (request) {
+        return {
+          id: request.ssoMentorId || id,
+          fullName: request.mentorName,
+          email: request.mentorEmail,
+          phone: request.mentorPhone,
+          company: request.companyName,
+          position: request.position,
+        };
+      }
+
+      // Fallback: search by ssoMentorId in active internships
+      const [internship] = await this.db
+        .select({
+          id: internships.id,
+        })
+        .from(internships)
+        .where(eq(internships.pembimbingLapanganId, id))
+        .limit(1);
+
+      if (internship) {
+        const [internshipRecord] = await this.db
+          .select()
+          .from(internships)
+          .where(eq(internships.id, internship.id))
+          .limit(1);
+
+        if (internshipRecord) {
+          const [reqByStudent] = await this.db
+            .select()
+            .from(mentorApprovalRequests)
+            .where(
+              and(
+                eq(mentorApprovalRequests.studentUserId, internshipRecord.mahasiswaId),
+                eq(mentorApprovalRequests.status, "APPROVED")
+              )
+            )
+            .limit(1);
+
+          if (reqByStudent) {
+            return {
+              id: id,
+              fullName: reqByStudent.mentorName,
+              email: reqByStudent.mentorEmail,
+              phone: reqByStudent.mentorPhone,
+              company: reqByStudent.companyName,
+              position: reqByStudent.position,
+            };
+          }
+        }
+      }
+
+      return null;
+    } catch (e) {
+      console.error("[MentorRepository.findProfileById] Error:", e);
+      return null;
+    }
   }
 
   async updateProfile(id: string, data: any) {

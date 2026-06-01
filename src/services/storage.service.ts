@@ -153,6 +153,67 @@ export class StorageService {
     }
   }
 
+  async uploadBuffer(
+    buffer: Buffer | Uint8Array | ArrayBuffer,
+    fileName: string,
+    folder: string = "documents",
+    contentType: string = "application/octet-stream",
+  ): Promise<{ url: string; key: string }> {
+    const fileKey = `${folder}/${Date.now()}-${nanoid(10)}-${fileName}`;
+
+    try {
+      console.log(`[StorageService] 📤 Uploading buffer to R2: ${fileKey}`);
+
+      const resolvedBuffer =
+        buffer instanceof ArrayBuffer ? Buffer.from(buffer) : Buffer.from(buffer);
+
+      if (this.s3Fallback) {
+        console.log("[StorageService] 🔄 Using S3 storage...");
+        await this.s3Fallback.uploadFile(fileKey, resolvedBuffer, contentType);
+        const url = `${this.r2Domain}/${fileKey}`;
+        console.log(`[StorageService] ✅ Uploaded via S3. URL: ${url}`);
+        return { url, key: fileKey };
+      }
+
+      if (!this.r2Bucket) {
+        console.error(
+          "[StorageService] ❌ R2_BUCKET is not initialized and no S3 fallback found",
+        );
+        throw new Error(
+          "R2_BUCKET is not available and S3 fallback is not configured.",
+        );
+      }
+
+      console.log("[StorageService] Calling r2Bucket.put()...");
+      const uploadResult = await this.r2Bucket.put(fileKey, resolvedBuffer, {
+        httpMetadata: {
+          contentType,
+          contentDisposition: "inline",
+        },
+      });
+
+      console.log(`[StorageService] ✅ File uploaded successfully to R2`);
+      console.log(`[StorageService] Upload result:`, uploadResult);
+
+      const head = await this.r2Bucket.head(fileKey);
+      if (!head) {
+        console.error(
+          "[StorageService] ❌ Uploaded file not found on R2 after put",
+        );
+        throw new Error("Upload verification failed: file not present in R2");
+      }
+
+      const url = `${this.r2Domain}/${fileKey}`;
+      console.log(`[StorageService] 🔗 Generated URL: ${url}`);
+      return { url, key: fileKey };
+    } catch (error) {
+      console.error(`[StorageService] ❌ Upload failed:`, error);
+      const errorMessage =
+        error instanceof Error ? error.message : "Unknown error";
+      throw new Error(`Failed to upload file to R2: ${errorMessage}`);
+    }
+  }
+
   private isRemoteR2(): boolean {
     // If we have an R2 bucket binding, we're in "Remote R2" mode.
     // However, if we're in development, we might still prefer S3 fallback if available.

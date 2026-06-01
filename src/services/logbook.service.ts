@@ -223,8 +223,8 @@ export class LogbookService {
       );
     }
 
-    // Validate file size (2MB)
-    const maxSizeMB = 2;
+    // Validate file size (5MB)
+    const maxSizeMB = 5;
     if (!this.storageService.validateFileSize(file.size, maxSizeMB)) {
       throw this.createServiceError(
         `File size exceeds ${maxSizeMB}MB limit.`,
