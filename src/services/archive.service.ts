@@ -1,6 +1,12 @@
-import { createDbClient } from '@/db';
-import { internships, submissions, combinedGrades, reports, teamMembers } from '@/db/schema';
-import { eq, and, desc, or, isNotNull } from 'drizzle-orm';
+import { createDbClient } from "@/db";
+import {
+  internships,
+  submissions,
+  combinedGrades,
+  reports,
+  teamMembers,
+} from "@/db/schema";
+import { eq, and, desc, or, isNotNull } from "drizzle-orm";
 
 export class ArchiveService {
   private db: ReturnType<typeof createDbClient>;
@@ -28,14 +34,16 @@ export class ArchiveService {
       .from(internships)
       .leftJoin(combinedGrades, eq(internships.id, combinedGrades.internshipId))
       .leftJoin(reports, eq(internships.id, reports.internshipId))
-      .where(and(
-        eq(internships.mahasiswaId, userId),
-        or(
-          eq(internships.status, 'SELESAI'), 
-          eq(internships.status, 'DIBATALKAN'),
-          isNotNull(internships.archivedAt)
-        )
-      ))
+      .where(
+        and(
+          eq(internships.mahasiswaId, userId),
+          or(
+            eq(internships.status, "SELESAI"),
+            eq(internships.status, "DIBATALKAN"),
+            isNotNull(internships.archivedAt),
+          ),
+        ),
+      )
       .orderBy(desc(internships.endDate));
   }
 
@@ -55,15 +63,17 @@ export class ArchiveService {
       })
       .from(submissions)
       .innerJoin(teamMembers, eq(submissions.teamId, teamMembers.teamId))
-      .where(and(
-        eq(teamMembers.mahasiswaId, userId),
-        or(
-          eq(submissions.workflowStage, 'COMPLETED'),
-          eq(submissions.workflowStage, 'REJECTED_ADMIN'),
-          eq(submissions.workflowStage, 'REJECTED_DOSEN'),
-          isNotNull(submissions.archivedAt)
-        )
-      ))
+      .where(
+        and(
+          eq(teamMembers.mahasiswaId, userId),
+          or(
+            eq(submissions.workflowStage, "COMPLETED"),
+            eq(submissions.workflowStage, "REJECTED_ADMIN"),
+            eq(submissions.workflowStage, "REJECTED_DOSEN"),
+            isNotNull(submissions.archivedAt),
+          ),
+        ),
+      )
       .orderBy(desc(submissions.updatedAt));
   }
 
@@ -84,11 +94,13 @@ export class ArchiveService {
       })
       .from(internships)
       .leftJoin(combinedGrades, eq(internships.id, combinedGrades.internshipId))
-      .where(or(
-        eq(internships.status, 'SELESAI'), 
-        eq(internships.status, 'DIBATALKAN'),
-        isNotNull(internships.archivedAt)
-      ))
+      .where(
+        or(
+          eq(internships.status, "SELESAI"),
+          eq(internships.status, "DIBATALKAN"),
+          isNotNull(internships.archivedAt),
+        ),
+      )
       .orderBy(desc(internships.createdAt));
   }
 
@@ -107,12 +119,14 @@ export class ArchiveService {
         archivedAt: submissions.archivedAt,
       })
       .from(submissions)
-      .where(or(
-        eq(submissions.workflowStage, 'COMPLETED'),
-        eq(submissions.workflowStage, 'REJECTED_ADMIN'),
-        eq(submissions.workflowStage, 'REJECTED_DOSEN'),
-        isNotNull(submissions.archivedAt)
-      ))
+      .where(
+        or(
+          eq(submissions.workflowStage, "COMPLETED"),
+          eq(submissions.workflowStage, "REJECTED_ADMIN"),
+          eq(submissions.workflowStage, "REJECTED_DOSEN"),
+          isNotNull(submissions.archivedAt),
+        ),
+      )
       .orderBy(desc(submissions.updatedAt));
   }
 

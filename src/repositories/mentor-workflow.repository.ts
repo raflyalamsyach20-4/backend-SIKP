@@ -1,5 +1,5 @@
-import { and, desc, eq, isNull } from 'drizzle-orm';
-import type { DbClient } from '../db';
+import { and, desc, eq, isNull } from "drizzle-orm";
+import type { DbClient } from "../db";
 import {
   auditLogs,
   internships,
@@ -7,18 +7,24 @@ import {
   mentorActivationTokens,
   mentorApprovalRequests,
   mentorEmailChangeRequests,
-  mentorSignatures,
-} from '../db/schema';
+  teams,
+  teamMembers,
+} from "../db/schema";
 
 export class MentorWorkflowRepository {
-  constructor(private db: DbClient) {}
+  constructor(public db: DbClient) {}
 
-  async createMentorApprovalRequest(data: typeof mentorApprovalRequests.$inferInsert) {
+  async createMentorApprovalRequest(
+    data: typeof mentorApprovalRequests.$inferInsert,
+  ) {
     try {
       await this.db.insert(mentorApprovalRequests).values(data);
       return this.getMentorApprovalRequestById(data.id);
     } catch (error) {
-      console.error('[MentorWorkflowRepository.createMentorApprovalRequest] Error:', error);
+      console.error(
+        "[MentorWorkflowRepository.createMentorApprovalRequest] Error:",
+        error,
+      );
       throw error;
     }
   }
@@ -32,7 +38,10 @@ export class MentorWorkflowRepository {
         .limit(1);
       return rows[0] ?? null;
     } catch (error) {
-      console.error('[MentorWorkflowRepository.getMentorApprovalRequestById] Error:', error);
+      console.error(
+        "[MentorWorkflowRepository.getMentorApprovalRequestById] Error:",
+        error,
+      );
       throw error;
     }
   }
@@ -45,6 +54,7 @@ export class MentorWorkflowRepository {
           mentorName: mentorApprovalRequests.mentorName,
           mentorEmail: mentorApprovalRequests.mentorEmail,
           mentorPhone: mentorApprovalRequests.mentorPhone,
+          mentorNip: mentorApprovalRequests.mentorNip,
           companyName: mentorApprovalRequests.companyName,
           position: mentorApprovalRequests.position,
           status: mentorApprovalRequests.status,
@@ -56,7 +66,10 @@ export class MentorWorkflowRepository {
         .from(mentorApprovalRequests)
         .orderBy(desc(mentorApprovalRequests.createdAt));
     } catch (error) {
-      console.error('[MentorWorkflowRepository.listMentorApprovalRequests] Error:', error);
+      console.error(
+        "[MentorWorkflowRepository.listMentorApprovalRequests] Error:",
+        error,
+      );
       throw error;
     }
   }
@@ -69,6 +82,7 @@ export class MentorWorkflowRepository {
           mentorName: mentorApprovalRequests.mentorName,
           mentorEmail: mentorApprovalRequests.mentorEmail,
           mentorPhone: mentorApprovalRequests.mentorPhone,
+          mentorNip: mentorApprovalRequests.mentorNip,
           companyName: mentorApprovalRequests.companyName,
           position: mentorApprovalRequests.position,
           status: mentorApprovalRequests.status,
@@ -81,12 +95,18 @@ export class MentorWorkflowRepository {
         .where(eq(mentorApprovalRequests.studentUserId, studentUserId))
         .orderBy(desc(mentorApprovalRequests.createdAt));
     } catch (error) {
-      console.error('[MentorWorkflowRepository.listMentorApprovalRequestsByStudent] Error:', error);
+      console.error(
+        "[MentorWorkflowRepository.listMentorApprovalRequestsByStudent] Error:",
+        error,
+      );
       throw error;
     }
   }
 
-  async updateMentorApprovalRequest(id: string, data: Partial<typeof mentorApprovalRequests.$inferInsert>) {
+  async updateMentorApprovalRequest(
+    id: string,
+    data: Partial<typeof mentorApprovalRequests.$inferInsert>,
+  ) {
     try {
       await this.db
         .update(mentorApprovalRequests)
@@ -94,7 +114,24 @@ export class MentorWorkflowRepository {
         .where(eq(mentorApprovalRequests.id, id));
       return this.getMentorApprovalRequestById(id);
     } catch (error) {
-      console.error('[MentorWorkflowRepository.updateMentorApprovalRequest] Error:', error);
+      console.error(
+        "[MentorWorkflowRepository.updateMentorApprovalRequest] Error:",
+        error,
+      );
+      throw error;
+    }
+  }
+
+  async deleteMentorApprovalRequest(id: string) {
+    try {
+      await this.db
+        .delete(mentorApprovalRequests)
+        .where(eq(mentorApprovalRequests.id, id));
+    } catch (error) {
+      console.error(
+        "[MentorWorkflowRepository.deleteMentorApprovalRequest] Error:",
+        error,
+      );
       throw error;
     }
   }
@@ -104,33 +141,99 @@ export class MentorWorkflowRepository {
       const rows = await this.db
         .select()
         .from(internships)
-        .where(and(eq(internships.mahasiswaId, userId), eq(internships.status, 'AKTIF')))
+        .where(
+          and(
+            eq(internships.mahasiswaId, userId),
+            eq(internships.status, "AKTIF"),
+          ),
+        )
         .limit(1);
       return rows[0] ?? null;
     } catch (error) {
-      console.error('[MentorWorkflowRepository.getActiveInternshipByMahasiswaId] Error:', error);
+      console.error(
+        "[MentorWorkflowRepository.getActiveInternshipByMahasiswaId] Error:",
+        error,
+      );
+      throw error;
+    }
+  }
+
+  /**
+   * Get the active team for a mahasiswa (via teamMembers join),
+   * used to resolve dosenKpId for authorization when no internship record exists.
+   */
+  async getTeamByMahasiswaId(mahasiswaId: string) {
+    try {
+      const rows = await this.db
+        .select({
+          teamId: teams.id,
+          dosenKpId: teams.dosenKpId,
+          teamStatus: teams.status,
+        })
+        .from(teamMembers)
+        .innerJoin(teams, eq(teamMembers.teamId, teams.id))
+        .where(eq(teamMembers.mahasiswaId, mahasiswaId))
+        .limit(1);
+      return rows[0] ?? null;
+    } catch (error) {
+      console.error(
+        "[MentorWorkflowRepository.getTeamByMahasiswaId] Error:",
+        error,
+      );
       throw error;
     }
   }
 
   async assignMentorToInternship(internshipId: string, mentorId: string) {
     try {
+      // 1. Get the internship to find its teamId
+      const [internship] = await this.db
+        .select()
+        .from(internships)
+        .where(eq(internships.id, internshipId))
+        .limit(1);
+
+      let dosenKpId = null;
+      if (internship?.teamId) {
+        // 2. Resolve Dosen KP from the team
+        const teamsModule = await import("../db/schema");
+        const [team] = await this.db
+          .select()
+          .from(teamsModule.teams)
+          .where(eq(teamsModule.teams.id, internship.teamId))
+          .limit(1);
+        dosenKpId = team?.dosenKpId || null;
+      }
+
+      // 3. Update the internship with both Mentor and Dosen KP (if available)
       await this.db
         .update(internships)
-        .set({ pembimbingLapanganId: mentorId, updatedAt: new Date() })
+        .set({
+          pembimbingLapanganId: mentorId,
+          dosenPembimbingId: dosenKpId, // Fill this when mentor is approved
+          updatedAt: new Date(),
+        })
         .where(eq(internships.id, internshipId));
     } catch (error) {
-      console.error('[MentorWorkflowRepository.assignMentorToInternship] Error:', error);
+      console.error(
+        "[MentorWorkflowRepository.assignMentorToInternship] Error:",
+        error,
+      );
       throw error;
     }
   }
 
-  async createActivationToken(data: typeof mentorActivationTokens.$inferInsert) {
+  async createActivationToken(
+    data: typeof mentorActivationTokens.$inferInsert,
+  ) {
     try {
       await this.db.insert(mentorActivationTokens).values(data);
       return this.findActivationTokenByToken(data.token);
     } catch (error) {
-      console.error('[MentorWorkflowRepository.createActivationToken] Error:', error);
+      console.error(
+        "[MentorWorkflowRepository.createActivationToken] Error:",
+        error,
+      );
       throw error;
     }
   }
@@ -144,7 +247,10 @@ export class MentorWorkflowRepository {
         .limit(1);
       return rows[0] ?? null;
     } catch (error) {
-      console.error('[MentorWorkflowRepository.findActivationTokenByToken] Error:', error);
+      console.error(
+        "[MentorWorkflowRepository.findActivationTokenByToken] Error:",
+        error,
+      );
       throw error;
     }
   }
@@ -157,14 +263,17 @@ export class MentorWorkflowRepository {
         .where(
           and(
             eq(mentorActivationTokens.mentorId, mentorId),
-            isNull(mentorActivationTokens.usedAt)
-          )
+            isNull(mentorActivationTokens.usedAt),
+          ),
         )
         .orderBy(desc(mentorActivationTokens.createdAt))
         .limit(1);
       return rows[0] ?? null;
     } catch (error) {
-      console.error('[MentorWorkflowRepository.findActiveActivationTokenForMentor] Error:', error);
+      console.error(
+        "[MentorWorkflowRepository.findActiveActivationTokenForMentor] Error:",
+        error,
+      );
       throw error;
     }
   }
@@ -176,17 +285,25 @@ export class MentorWorkflowRepository {
         .set({ usedAt: new Date() })
         .where(eq(mentorActivationTokens.token, token));
     } catch (error) {
-      console.error('[MentorWorkflowRepository.markActivationTokenUsed] Error:', error);
+      console.error(
+        "[MentorWorkflowRepository.markActivationTokenUsed] Error:",
+        error,
+      );
       throw error;
     }
   }
 
-  async createMentorEmailChangeRequest(data: typeof mentorEmailChangeRequests.$inferInsert) {
+  async createMentorEmailChangeRequest(
+    data: typeof mentorEmailChangeRequests.$inferInsert,
+  ) {
     try {
       await this.db.insert(mentorEmailChangeRequests).values(data);
       return this.getMentorEmailChangeRequestById(data.id);
     } catch (error) {
-      console.error('[MentorWorkflowRepository.createMentorEmailChangeRequest] Error:', error);
+      console.error(
+        "[MentorWorkflowRepository.createMentorEmailChangeRequest] Error:",
+        error,
+      );
       throw error;
     }
   }
@@ -200,7 +317,10 @@ export class MentorWorkflowRepository {
         .limit(1);
       return rows[0] ?? null;
     } catch (error) {
-      console.error('[MentorWorkflowRepository.getMentorEmailChangeRequestById] Error:', error);
+      console.error(
+        "[MentorWorkflowRepository.getMentorEmailChangeRequestById] Error:",
+        error,
+      );
       throw error;
     }
   }
@@ -212,12 +332,18 @@ export class MentorWorkflowRepository {
         .from(mentorEmailChangeRequests)
         .orderBy(desc(mentorEmailChangeRequests.createdAt));
     } catch (error) {
-      console.error('[MentorWorkflowRepository.listMentorEmailChangeRequests] Error:', error);
+      console.error(
+        "[MentorWorkflowRepository.listMentorEmailChangeRequests] Error:",
+        error,
+      );
       throw error;
     }
   }
 
-  async updateMentorEmailChangeRequest(id: string, data: Partial<typeof mentorEmailChangeRequests.$inferInsert>) {
+  async updateMentorEmailChangeRequest(
+    id: string,
+    data: Partial<typeof mentorEmailChangeRequests.$inferInsert>,
+  ) {
     try {
       await this.db
         .update(mentorEmailChangeRequests)
@@ -225,7 +351,10 @@ export class MentorWorkflowRepository {
         .where(eq(mentorEmailChangeRequests.id, id));
       return this.getMentorEmailChangeRequestById(id);
     } catch (error) {
-      console.error('[MentorWorkflowRepository.updateMentorEmailChangeRequest] Error:', error);
+      console.error(
+        "[MentorWorkflowRepository.updateMentorEmailChangeRequest] Error:",
+        error,
+      );
       throw error;
     }
   }
@@ -249,7 +378,10 @@ export class MentorWorkflowRepository {
         .innerJoin(internships, eq(logbooks.internshipId, internships.id))
         .orderBy(desc(logbooks.date), desc(logbooks.createdAt));
     } catch (error) {
-      console.error('[MentorWorkflowRepository.listDosenLogbookMonitor] Error:', error);
+      console.error(
+        "[MentorWorkflowRepository.listDosenLogbookMonitor] Error:",
+        error,
+      );
       throw error;
     }
   }
@@ -274,7 +406,10 @@ export class MentorWorkflowRepository {
         .where(eq(internships.mahasiswaId, studentUserId))
         .orderBy(desc(logbooks.date), desc(logbooks.createdAt));
     } catch (error) {
-      console.error('[MentorWorkflowRepository.listDosenLogbookMonitorByStudent] Error:', error);
+      console.error(
+        "[MentorWorkflowRepository.listDosenLogbookMonitorByStudent] Error:",
+        error,
+      );
       throw error;
     }
   }
@@ -283,23 +418,13 @@ export class MentorWorkflowRepository {
     try {
       await this.db.insert(auditLogs).values(data);
     } catch (error) {
-      console.error('[MentorWorkflowRepository.createAuditLog] Error:', error);
+      console.error("[MentorWorkflowRepository.createAuditLog] Error:", error);
       throw error;
     }
   }
 
-  async ensureMentorSignatureRecord(data: typeof mentorSignatures.$inferInsert) {
-    try {
-      await this.db.insert(mentorSignatures).values(data).onConflictDoUpdate({
-        target: mentorSignatures.id,
-        set: { updatedAt: new Date() }
-      });
-      const rows = await this.db.select().from(mentorSignatures).where(eq(mentorSignatures.id, data.id)).limit(1);
-      return rows[0] ?? null;
-    } catch (error) {
-      console.error('[MentorWorkflowRepository.ensureMentorSignatureRecord] Error:', error);
-      throw error;
-    }
+  async ensureMentorSignatureRecord(data: any) {
+    // Table deleted as per Pola 1 migration
+    return null;
   }
 }
-

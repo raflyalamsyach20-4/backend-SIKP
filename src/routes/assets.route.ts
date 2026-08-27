@@ -1,15 +1,15 @@
-import { Context, Hono } from 'hono';
-import { zValidator } from '@hono/zod-validator';
-import { emptyQuerySchema } from '@/schemas/common.schema';
-import { createRuntime } from '@/runtime';
+import { Context, Hono } from "hono";
+import { zValidator } from "@hono/zod-validator";
+import { emptyQuerySchema } from "@/schemas/common.schema";
+import { createRuntime } from "@/runtime";
 
 const setAssetCorsHeaders = (c: Context) => {
-  const origin = c.req.header('Origin') || '*';
-  c.header('Access-Control-Allow-Origin', origin);
-  c.header('Vary', 'Origin');
-  c.header('Access-Control-Allow-Methods', 'GET,HEAD,OPTIONS');
-  c.header('Access-Control-Allow-Headers', 'Authorization,Content-Type');
-  c.header('Access-Control-Expose-Headers', 'Content-Type,Content-Length,ETag');
+  const origin = c.req.header("Origin") || "*";
+  c.header("Access-Control-Allow-Origin", origin);
+  c.header("Vary", "Origin");
+  c.header("Access-Control-Allow-Methods", "GET,HEAD,OPTIONS");
+  c.header("Access-Control-Allow-Headers", "Authorization,Content-Type");
+  c.header("Access-Control-Expose-Headers", "Content-Type,Content-Length,ETag");
 };
 
 const decodeSafely = (value: string) => {
@@ -28,77 +28,77 @@ const normalizeR2Key = (rawParam: string) => {
   if (/^https?:\/\//i.test(candidate)) {
     try {
       const url = new URL(candidate);
-      candidate = decodeSafely(url.pathname.replace(/^\/+/, ''));
+      candidate = decodeSafely(url.pathname.replace(/^\/+/, ""));
     } catch {
       // Keep original candidate if URL parsing fails.
     }
   }
 
-  // Handle proxy URLs that already include the api/assets/r2 prefix.
-  const proxyMarker = 'api/assets/r2/';
-  const proxyIndex = candidate.indexOf(proxyMarker);
-  if (proxyIndex >= 0) {
-    candidate = candidate.slice(proxyIndex + proxyMarker.length);
-  }
-
-  const idx = candidate.indexOf('esignatures/');
+  const idx = candidate.indexOf("esignatures/");
   if (idx >= 0) {
     candidate = candidate.slice(idx);
   }
 
-  return candidate.replace(/^\/+/, '');
+  return candidate.replace(/^\/+/, "");
 };
 
 export const createAssetRoutes = () => {
   const routes = new Hono<{ Bindings: CloudflareBindings }>()
-    .options('/r2/*', zValidator('query', emptyQuerySchema), (c: Context) => {
+    .options("/r2/*", zValidator("query", emptyQuerySchema), (c: Context) => {
       setAssetCorsHeaders(c);
       return c.body(null, 204);
     })
-    .get('/r2/*', zValidator('query', emptyQuerySchema), async (c: Context) => {
+    .get("/r2/*", zValidator("query", emptyQuerySchema), async (c: Context) => {
       setAssetCorsHeaders(c);
 
       const runtime = createRuntime(c.env);
       const pathname = new URL(c.req.url).pathname;
-      const marker = '/api/assets/r2/';
+      const marker = "/api/assets/r2/";
       const markerIndex = pathname.indexOf(marker);
-      const rawPathPart = markerIndex >= 0 ? pathname.slice(markerIndex + marker.length) : '';
+      const rawPathPart =
+        markerIndex >= 0 ? pathname.slice(markerIndex + marker.length) : "";
       const objectKey = normalizeR2Key(rawPathPart);
 
       const allowedPrefixes = [
-        'esignatures/', 
-        'signatures/', 
-        'submissions/', 
-        'logbooks/', 
-        'surat-kesediaan/',
-        'reports/'
+        "esignatures/",
+        "signatures/",
+        "submissions/",
+        "logbooks/",
+        "surat-kesediaan/",
+        "reports/",
       ];
-      const isAllowed = allowedPrefixes.some(prefix => objectKey.startsWith(prefix));
+      const isAllowed = allowedPrefixes.some((prefix) =>
+        objectKey.startsWith(prefix),
+      );
 
       if (!isAllowed) {
-        return c.json({ success: false, message: 'Forbidden asset path' }, 403);
+        return c.json({ success: false, message: "Forbidden asset path" }, 403);
       }
 
       const object = await runtime.storageService.getFile(objectKey);
 
       if (!object) {
-        return c.json({ success: false, message: 'Asset not found' }, 404);
+        return c.json({ success: false, message: "Asset not found" }, 404);
       }
 
-      let contentType = object.httpMetadata?.contentType || 'application/octet-stream';
-      
+      let contentType =
+        object.httpMetadata?.contentType || "application/octet-stream";
+
       // Fallback for PDFs that were uploaded with generic type
-      if (contentType === 'application/octet-stream' && objectKey.toLowerCase().endsWith('.pdf')) {
-        contentType = 'application/pdf';
+      if (
+        contentType === "application/octet-stream" &&
+        objectKey.toLowerCase().endsWith(".pdf")
+      ) {
+        contentType = "application/pdf";
       }
 
       const etag = object.httpEtag;
 
-      c.header('Content-Type', contentType);
-      c.header('Content-Disposition', 'inline');
-      c.header('Cache-Control', 'public, max-age=3600');
+      c.header("Content-Type", contentType);
+      c.header("Content-Disposition", "inline");
+      c.header("Cache-Control", "public, max-age=3600");
       if (etag) {
-        c.header('ETag', etag);
+        c.header("ETag", etag);
       }
 
       return new Response(object.body, { status: 200, headers: c.res.headers });

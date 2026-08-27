@@ -1,16 +1,21 @@
-import { PDFDocument, StandardFonts, rgb, type PDFPage } from 'pdf-lib';
-import { SuratPermohonanRepository } from '@/repositories/surat-permohonan.repository';
-import { TeamRepository } from '@/repositories/team.repository';
-import { SubmissionRepository } from '@/repositories/submission.repository';
-import { StorageService } from '@/services/storage.service';
-import { generateId } from '@/utils/helpers';
-import type { RbacRole } from '@/types';
-import { createDbClient } from '@/db';
-import { DosenService } from './dosen.service';
-import { MahasiswaService } from './mahasiswa.service';
-import { SsoSignatureProxyService } from './sso-signature-proxy.service';
+import { PDFDocument, StandardFonts, rgb, type PDFPage } from "pdf-lib";
+import { SuratPermohonanRepository } from "@/repositories/surat-permohonan.repository";
+import { TeamRepository } from "@/repositories/team.repository";
+import { SubmissionRepository } from "@/repositories/submission.repository";
+import { StorageService } from "@/services/storage.service";
+import { generateId } from "@/utils/helpers";
+import type { RbacRole } from "@/types";
+import { createDbClient } from "@/db";
+import { DosenService } from "./dosen.service";
+import { MahasiswaService } from "./mahasiswa.service";
+import { SsoSignatureProxyService } from "./sso-signature-proxy.service";
 
-const ALLOWED_SIGNATURE_MIME_TYPES = ['image/png', 'image/jpeg', 'image/jpg', 'image/svg+xml'];
+const ALLOWED_SIGNATURE_MIME_TYPES = [
+  "image/png",
+  "image/jpeg",
+  "image/jpg",
+  "image/svg+xml",
+];
 
 type BulkApproveFailure = {
   requestId: string;
@@ -55,9 +60,7 @@ export class SuratPermohonanService {
   private dosenService: DosenService;
   private ssoSignatureProxyService: SsoSignatureProxyService;
 
-  constructor(
-    private env: CloudflareBindings
-  ) {
+  constructor(private env: CloudflareBindings) {
     const db = createDbClient(this.env.DATABASE_URL);
     this.suratPermohonanRepo = new SuratPermohonanRepository(db);
     this.teamRepo = new TeamRepository(db);
@@ -68,7 +71,9 @@ export class SuratPermohonanService {
     this.ssoSignatureProxyService = new SsoSignatureProxyService(this.env);
   }
 
-  private getSignatureSource(activeSignature: Record<string, unknown>): string | null {
+  private getSignatureSource(
+    activeSignature: Record<string, unknown>,
+  ): string | null {
     const candidates = [
       activeSignature.signatureImage,
       activeSignature.signatureUrl,
@@ -79,7 +84,7 @@ export class SuratPermohonanService {
     ];
 
     for (const candidate of candidates) {
-      if (typeof candidate === 'string' && candidate.trim().length > 0) {
+      if (typeof candidate === "string" && candidate.trim().length > 0) {
         return candidate.trim();
       }
     }
@@ -91,39 +96,55 @@ export class SuratPermohonanService {
     if (/^https?:\/\//i.test(source)) {
       const response = await fetch(source);
       if (!response.ok) {
-        throw new Error(`Gagal mengambil file e-signature dari URL (${response.status}).`);
+        throw new Error(
+          `Gagal mengambil file e-signature dari URL (${response.status}).`,
+        );
       }
 
       const arrayBuffer = await response.arrayBuffer();
       return Buffer.from(arrayBuffer);
     }
 
-    if (source.startsWith('data:')) {
-      const commaIndex = source.indexOf(',');
+    if (source.startsWith("data:")) {
+      const commaIndex = source.indexOf(",");
       if (commaIndex === -1) {
-        throw new Error('Format data URL e-signature tidak valid.');
+        throw new Error("Format data URL e-signature tidak valid.");
       }
 
       const metadata = source.slice(5, commaIndex);
       const payload = source.slice(commaIndex + 1);
 
       if (/;base64/i.test(metadata)) {
-        return Buffer.from(payload, 'base64');
+        return Buffer.from(payload, "base64");
       }
 
-      return Buffer.from(decodeURIComponent(payload), 'utf8');
+      return Buffer.from(decodeURIComponent(payload), "utf8");
     }
 
-    const cleaned = source.replace(/^data:image\/\w+;base64,/, '').replace(/\s+/g, '');
+    const cleaned = source
+      .replace(/^data:image\/\w+;base64,/, "")
+      .replace(/\s+/g, "");
     const looksBase64 = /^[A-Za-z0-9+/=]+$/.test(cleaned);
-    return Buffer.from(looksBase64 ? cleaned : source, looksBase64 ? 'base64' : 'utf8');
+    return Buffer.from(
+      looksBase64 ? cleaned : source,
+      looksBase64 ? "base64" : "utf8",
+    );
   }
 
-  private extractSvgViewBox(svgText: string): { width: number; height: number } {
+  private extractSvgViewBox(svgText: string): {
+    width: number;
+    height: number;
+  } {
     const viewBoxMatch = svgText.match(/viewBox\s*=\s*"([^"]+)"/i);
     if (viewBoxMatch) {
-      const parts = viewBoxMatch[1].trim().split(/[\s,]+/).map((value) => Number(value));
-      if (parts.length === 4 && parts.every((value) => Number.isFinite(value))) {
+      const parts = viewBoxMatch[1]
+        .trim()
+        .split(/[\s,]+/)
+        .map((value) => Number(value));
+      if (
+        parts.length === 4 &&
+        parts.every((value) => Number.isFinite(value))
+      ) {
         return { width: parts[2], height: parts[3] };
       }
     }
@@ -133,27 +154,39 @@ export class SuratPermohonanService {
     const width = widthMatch ? Number.parseFloat(widthMatch[1]) : NaN;
     const height = heightMatch ? Number.parseFloat(heightMatch[1]) : NaN;
 
-    if (Number.isFinite(width) && Number.isFinite(height) && width > 0 && height > 0) {
+    if (
+      Number.isFinite(width) &&
+      Number.isFinite(height) &&
+      width > 0 &&
+      height > 0
+    ) {
       return { width, height };
     }
 
     return { width: 200, height: 80 };
   }
 
-  private extractSvgPathData(svgText: string): Array<{ d: string; strokeWidth: number }> {
+  private extractSvgPathData(
+    svgText: string,
+  ): Array<{ d: string; strokeWidth: number }> {
     const paths: Array<{ d: string; strokeWidth: number }> = [];
     const pathRegex = /<path\b[^>]*\bd=(["'])(.*?)\1[^>]*>/gis;
     let match: RegExpExecArray | null;
 
     while ((match = pathRegex.exec(svgText)) !== null) {
       const element = match[0];
-      const strokeWidthMatch = element.match(/stroke-width\s*=\s*(["'])([^"']+)\1/i);
-      const strokeWidth = strokeWidthMatch ? Number.parseFloat(strokeWidthMatch[2]) : 2.5;
+      const strokeWidthMatch = element.match(
+        /stroke-width\s*=\s*(["'])([^"']+)\1/i,
+      );
+      const strokeWidth = strokeWidthMatch
+        ? Number.parseFloat(strokeWidthMatch[2])
+        : 2.5;
 
       if (match[2].trim().length > 0) {
         paths.push({
           d: match[2],
-          strokeWidth: Number.isFinite(strokeWidth) && strokeWidth > 0 ? strokeWidth : 2.5,
+          strokeWidth:
+            Number.isFinite(strokeWidth) && strokeWidth > 0 ? strokeWidth : 2.5,
         });
       }
     }
@@ -167,11 +200,13 @@ export class SuratPermohonanService {
     x: number,
     y: number,
     width: number,
-    height: number
+    height: number,
   ) {
     const paths = this.extractSvgPathData(svgText);
     if (paths.length === 0) {
-      throw new Error('File e-signature SVG tidak memiliki path yang bisa dirender.');
+      throw new Error(
+        "File e-signature SVG tidak memiliki path yang bisa dirender.",
+      );
     }
 
     //atur posisi e-sign
@@ -182,7 +217,10 @@ export class SuratPermohonanService {
     const innerHeight = Math.max(height - paddingY * 2, 1);
 
     // Slightly enlarge to make signature more prominent but keep aspect ratio
-    const baseScale = Math.min(innerWidth / box.width, innerHeight / box.height);
+    const baseScale = Math.min(
+      innerWidth / box.width,
+      innerHeight / box.height,
+    );
     const scale = baseScale * 5.08;
     const scaledWidth = box.width * scale;
     const scaledHeight = box.height * scale;
@@ -206,45 +244,71 @@ export class SuratPermohonanService {
   /**
    * Mahasiswa mengajukan surat permohonan KP.
    */
-  async requestSuratPermohonan(memberMahasiswaId: string, mahasiswaId: string, sessionId:string) {
-    const memberMahasiswa = await this.mahasiswaService.getMahasiswaById(memberMahasiswaId, sessionId);
+  async requestSuratPermohonan(
+    memberMahasiswaId: string,
+    mahasiswaId: string,
+    sessionId: string,
+  ) {
+    const memberMahasiswa = await this.mahasiswaService.getMahasiswaById(
+      memberMahasiswaId,
+      sessionId,
+    );
     if (!memberMahasiswa) {
-      const error: Error = new Error('Mahasiswa tidak ditemukan.');
+      const error: Error = new Error("Mahasiswa tidak ditemukan.");
       error.statusCode = 404;
       throw error;
     }
 
-    const fixedTeam = await this.resolveFixedTeamForRequest(memberMahasiswaId, mahasiswaId);
+    const fixedTeam = await this.resolveFixedTeamForRequest(
+      memberMahasiswaId,
+      mahasiswaId,
+    );
     const submission = await this.resolveSubmissionByTeamId(fixedTeam.id);
 
-    if (!submission.companyName || !submission.startDate || !submission.endDate) {
-      const error: Error = new Error('Data perusahaan belum lengkap. Isi terlebih dahulu nama perusahaan, tanggal mulai, dan tanggal selesai KP.');
+    if (
+      !submission.companyName ||
+      !submission.startDate ||
+      !submission.endDate
+    ) {
+      const error: Error = new Error(
+        "Data perusahaan belum lengkap. Isi terlebih dahulu nama perusahaan, tanggal mulai, dan tanggal selesai KP.",
+      );
       error.statusCode = 422;
       throw error;
     }
 
     const dosenId = fixedTeam.dosenKpId || null;
     if (!dosenId) {
-      const error: Error = new Error('Dosen KP tim belum ditetapkan. Silakan hubungi admin.');
+      const error: Error = new Error(
+        "Dosen KP tim belum ditetapkan. Silakan hubungi admin.",
+      );
       error.statusCode = 422;
       throw error;
     }
 
     const dosen = await this.dosenService.getDosenById(dosenId, sessionId);
     if (!dosen) {
-      const error: Error = new Error('Dosen tidak ditemukan.');
+      const error: Error = new Error("Dosen tidak ditemukan.");
       error.statusCode = 400;
       throw error;
     }
 
-    const existing = await this.suratPermohonanRepo.findExistingPending(memberMahasiswaId,dosenId);
+    const existing = await this.suratPermohonanRepo.findExistingPending(
+      memberMahasiswaId,
+      dosenId,
+    );
     if (existing) {
-      const error: Error = new Error('Pengajuan surat permohonan untuk mahasiswa ini sudah dalam proses.');
+      const error: Error = new Error(
+        "Pengajuan surat permohonan untuk mahasiswa ini sudah dalam proses.",
+      );
       error.statusCode = 409;
       throw error;
     }
 
-    const mahasiswaEsignatureUrl = await this.resolveMahasiswaEsignatureUrl(memberMahasiswaId, sessionId);
+    const mahasiswaEsignatureUrl = await this.resolveMahasiswaEsignatureUrl(
+      memberMahasiswaId,
+      sessionId,
+    );
 
     const requestId = generateId();
     await this.suratPermohonanRepo.create({
@@ -252,7 +316,7 @@ export class SuratPermohonanService {
       memberMahasiswaId: memberMahasiswaId,
       dosenId: dosenId,
       submissionId: submission.id,
-      status: 'MENUNGGU',
+      status: "MENUNGGU",
       mahasiswaEsignatureUrl,
       mahasiswaEsignatureSnapshotAt: new Date(),
     });
@@ -263,95 +327,139 @@ export class SuratPermohonanService {
   /**
    * Dosen melihat list ajuan surat permohonan.
    */
-  async getRequestsForDosen(dosenId: string, role: RbacRole, sessionId: string) {
-    console.info('[SuratPermohonanService.getRequestsForDosen] start', {
+  async getRequestsForDosen(
+    dosenId: string,
+    role: RbacRole,
+    sessionId: string,
+  ) {
+    console.info("[SuratPermohonanService.getRequestsForDosen] start", {
       dosenId,
       role,
       sessionId,
     });
 
     const requests =
-      role === 'wakil_dekan'
+      role === "wakil_dekan"
         ? await this.suratPermohonanRepo.findAllWithDetails()
         : await this.suratPermohonanRepo.findByDosenIdWithDetails(dosenId);
 
-    console.info('[SuratPermohonanService.getRequestsForDosen] fetched-requests', {
-      count: requests.length,
-      ids: requests.map((req) => req.id),
-    });
+    console.info(
+      "[SuratPermohonanService.getRequestsForDosen] fetched-requests",
+      {
+        count: requests.length,
+        ids: requests.map((req) => req.id),
+      },
+    );
 
     // Enrich requests with student and dosen data
     const enrichedRequests = await Promise.all(
       requests.map(async (req) => {
         const mahasiswaId = req.memberMahasiswaId || req.namaMahasiswa;
-        console.info('[SuratPermohonanService.getRequestsForDosen] resolve-identities', {
-          requestId: req.id,
-          mahasiswaId,
-          dosenId: req.dosenId,
-          status: req.status,
-        });
-
-        const mahasiswa = await this.mahasiswaService.getMahasiswaById(mahasiswaId, sessionId);
-        const dosen = await this.dosenService.getDosenById(req.dosenId, sessionId);
-
-        if (!mahasiswa) {
-          console.warn('[SuratPermohonanService.getRequestsForDosen] mahasiswa-not-found', {
+        console.info(
+          "[SuratPermohonanService.getRequestsForDosen] resolve-identities",
+          {
             requestId: req.id,
             mahasiswaId,
-          });
+            dosenId: req.dosenId,
+            status: req.status,
+          },
+        );
+
+        const mahasiswa = await this.mahasiswaService.getMahasiswaById(
+          mahasiswaId,
+          sessionId,
+        );
+        const dosen = await this.dosenService.getDosenById(
+          req.dosenId,
+          sessionId,
+        );
+
+        if (!mahasiswa) {
+          console.warn(
+            "[SuratPermohonanService.getRequestsForDosen] mahasiswa-not-found",
+            {
+              requestId: req.id,
+              mahasiswaId,
+            },
+          );
         }
 
         if (!dosen) {
-          console.warn('[SuratPermohonanService.getRequestsForDosen] dosen-not-found', {
-            requestId: req.id,
-            dosenId: req.dosenId,
-          });
+          console.warn(
+            "[SuratPermohonanService.getRequestsForDosen] dosen-not-found",
+            {
+              requestId: req.id,
+              dosenId: req.dosenId,
+            },
+          );
         }
-        
+
         const team = await this.teamRepo.findTeamsByMahasiswaId(mahasiswaId);
         const preferredTeam = team && team.length > 0 ? team[0] : null;
-        
+
         let teamMembers = undefined;
         if (preferredTeam) {
-          const members = await this.teamRepo.findMembersByTeamId(preferredTeam.id);
+          const members = await this.teamRepo.findMembersByTeamId(
+            preferredTeam.id,
+          );
           if (members.length > 0) {
             const enrichedMembers = await Promise.all(
               members.map(async (member) => {
-                const memberData = await this.mahasiswaService.getMahasiswaById(member.mahasiswaId, sessionId);
+                const memberData = await this.mahasiswaService.getMahasiswaById(
+                  member.mahasiswaId,
+                  sessionId,
+                );
                 return {
                   id: member.id,
                   name: memberData?.profile?.fullName || member.mahasiswaId,
                   nim: memberData?.nim || null,
                   prodi: memberData?.prodi?.nama || null,
-                  role: member.role === 'KETUA' ? 'Ketua' : 'Anggota',
+                  role: member.role === "KETUA" ? "Ketua" : "Anggota",
                 };
-              })
+              }),
             );
             teamMembers = enrichedMembers;
           }
         } else {
-          console.warn('[SuratPermohonanService.getRequestsForDosen] team-not-found', {
-            requestId: req.id,
-            mahasiswaId,
-          });
+          console.warn(
+            "[SuratPermohonanService.getRequestsForDosen] team-not-found",
+            {
+              requestId: req.id,
+              mahasiswaId,
+            },
+          );
         }
 
         const supervisorName = preferredTeam?.dosenKpId
-          ? (await this.dosenService.getDosenById(preferredTeam.dosenKpId, sessionId))?.profile?.fullName
+          ? (
+              await this.dosenService.getDosenById(
+                preferredTeam.dosenKpId,
+                sessionId,
+              )
+            )?.profile?.fullName
           : undefined;
 
-        const proxiedMahasiswaEsignatureUrl = this.storageService.getEsignatureAssetProxyUrlFromPublicUrl(req.mahasiswaEsignatureUrl);
+        const proxiedMahasiswaEsignatureUrl =
+          this.storageService.getEsignatureAssetProxyUrlFromPublicUrl(
+            req.mahasiswaEsignatureUrl,
+          );
 
         return {
           id: req.id,
           memberMahasiswaId: mahasiswaId,
           tanggal: this.formatDateOnly(req.tanggal),
           nim: mahasiswa?.nim || null,
-          namaMahasiswa: mahasiswa?.profile?.fullName || 'Unknown',
+          namaMahasiswa: mahasiswa?.profile?.fullName || "Unknown",
           programStudi: mahasiswa?.prodi?.nama || null,
           angkatan: mahasiswa?.angkatan || null,
-          semester: mahasiswa?.semesterAktif != null ? String(mahasiswa.semesterAktif) : null,
-          jumlahSks: mahasiswa?.jumlahSksLulus != null ? String(mahasiswa.jumlahSksLulus) : null,
+          semester:
+            mahasiswa?.semesterAktif != null
+              ? String(mahasiswa.semesterAktif)
+              : null,
+          jumlahSks:
+            mahasiswa?.jumlahSksLulus != null
+              ? String(mahasiswa.jumlahSksLulus)
+              : null,
           tahunAjaran: this.getAcademicYear(req.tanggal),
           email: mahasiswa?.profile?.emails?.[0]?.email || null,
           noHp: null,
@@ -362,14 +470,18 @@ export class SuratPermohonanService {
           mahasiswaEsignatureUrl: proxiedMahasiswaEsignatureUrl,
           mahasiswa_esignature_url: proxiedMahasiswaEsignatureUrl,
           mahasiswaEsignatureSnapshotAt: req.mahasiswaEsignatureSnapshotAt,
-          dosenNama: dosen?.profile?.fullName || '-',
+          dosenNama: dosen?.profile?.fullName || "-",
           dosenNip: dosen?.nip || null,
-          dosenJabatan: dosen?.jabatanStruktural?.join(', ') || dosen?.jabatanFungsional || '-',
+          dosenJabatan:
+            dosen?.jabatanStruktural?.join(", ") ||
+            dosen?.jabatanFungsional ||
+            "-",
           dosenEsignatureUrl: req.dosenEsignatureUrl,
           signedFileUrl: req.signedFileUrl,
           approvedAt: req.approvedAt,
-          rejectedAt: req.status === 'DITOLAK' ? req.rejectedAt : null,
-          rejectionReason: req.status === 'DITOLAK' ? (req.rejectionReason ?? null) : null,
+          rejectedAt: req.status === "DITOLAK" ? req.rejectedAt : null,
+          rejectionReason:
+            req.status === "DITOLAK" ? (req.rejectionReason ?? null) : null,
           namaPerusahaan: req.namaPerusahaan,
           alamatPerusahaan: req.alamatPerusahaan,
           teleponPerusahaan: req.teleponPerusahaan,
@@ -378,33 +490,55 @@ export class SuratPermohonanService {
           tanggalMulai: req.tanggalMulai,
           tanggalSelesai: req.tanggalSelesai,
         };
-      })
+      }),
     );
 
-    console.info('[SuratPermohonanService.getRequestsForDosen] done', {
+    console.info("[SuratPermohonanService.getRequestsForDosen] done", {
       count: enrichedRequests.length,
-      unknownMahasiswaCount: enrichedRequests.filter((item) => item.namaMahasiswa === 'Unknown').length,
+      unknownMahasiswaCount: enrichedRequests.filter(
+        (item) => item.namaMahasiswa === "Unknown",
+      ).length,
     });
-    
+
     return enrichedRequests;
   }
 
-  async approveSingleRequest(requestId: string, dosenId: string, sessionId: string) {
-    const dosenSigningContext = await this.getDosenSigningContext(dosenId, sessionId);
-    return await this.approveAndSignRequest(requestId, dosenId, dosenSigningContext,sessionId);
+  async approveSingleRequest(
+    requestId: string,
+    dosenId: string,
+    sessionId: string,
+  ) {
+    const dosenSigningContext = await this.getDosenSigningContext(
+      dosenId,
+      sessionId,
+    );
+    return await this.approveAndSignRequest(
+      requestId,
+      dosenId,
+      dosenSigningContext,
+      sessionId,
+    );
   }
 
-  async approveBulkRequests(requestIds: string[], dosenId: string, sessionId: string) {
+  async approveBulkRequests(
+    requestIds: string[],
+    dosenId: string,
+    sessionId: string,
+  ) {
     const failed: BulkApproveFailure[] = [];
     let approvedCount = 0;
 
     let dosenSigningContext: DosenSigningContext;
     try {
-      dosenSigningContext = await this.getDosenSigningContext(dosenId, sessionId);
+      dosenSigningContext = await this.getDosenSigningContext(
+        dosenId,
+        sessionId,
+      );
     } catch (error: unknown) {
-      const reason = error instanceof Error && error.message
-        ? error.message
-        : 'Gagal memuat e-signature dosen.';
+      const reason =
+        error instanceof Error && error.message
+          ? error.message
+          : "Gagal memuat e-signature dosen.";
       return {
         approvedCount,
         failed: requestIds.map((requestId) => ({ requestId, reason })),
@@ -413,14 +547,20 @@ export class SuratPermohonanService {
 
     for (const requestId of requestIds) {
       try {
-        await this.approveAndSignRequest(requestId, dosenId, dosenSigningContext,sessionId);
+        await this.approveAndSignRequest(
+          requestId,
+          dosenId,
+          dosenSigningContext,
+          sessionId,
+        );
         approvedCount += 1;
       } catch (error: unknown) {
         failed.push({
           requestId,
-          reason: error instanceof Error && error.message
-            ? error.message
-            : 'Gagal menyetujui pengajuan.',
+          reason:
+            error instanceof Error && error.message
+              ? error.message
+              : "Gagal menyetujui pengajuan.",
         });
       }
     }
@@ -434,33 +574,39 @@ export class SuratPermohonanService {
   async rejectRequest(requestId: string, dosenId: string, reason: string) {
     const request = await this.suratPermohonanRepo.findById(requestId);
     if (!request) {
-      const error: Error = new Error('Pengajuan tidak ditemukan.');
+      const error: Error = new Error("Pengajuan tidak ditemukan.");
       error.statusCode = 404;
       throw error;
     }
 
     if (request.dosenId !== dosenId) {
-      const error: Error = new Error('Anda tidak berhak mengubah pengajuan ini.');
+      const error: Error = new Error(
+        "Anda tidak berhak mengubah pengajuan ini.",
+      );
       error.statusCode = 403;
       throw error;
     }
 
-    if (request.status !== 'MENUNGGU') {
-      const error: Error = new Error('Pengajuan sudah diproses.');
+    if (request.status !== "MENUNGGU") {
+      const error: Error = new Error("Pengajuan sudah diproses.");
       error.statusCode = 409;
       throw error;
     }
 
-    const updated = await this.suratPermohonanRepo.rejectPending(requestId, dosenId, reason.trim());
+    const updated = await this.suratPermohonanRepo.rejectPending(
+      requestId,
+      dosenId,
+      reason.trim(),
+    );
     if (!updated) {
-      const error: Error = new Error('Pengajuan sudah diproses.');
+      const error: Error = new Error("Pengajuan sudah diproses.");
       error.statusCode = 409;
       throw error;
     }
 
     return {
       requestId: updated.id,
-      status: 'DITOLAK' as const,
+      status: "DITOLAK" as const,
       rejectionReason: updated.rejectionReason ?? null,
       rejectedAt: updated.approvedAt,
     };
@@ -470,41 +616,61 @@ export class SuratPermohonanService {
    * Mahasiswa ajukan ulang request surat permohonan yang ditolak.
    * Requirement: update existing row, bukan create row baru.
    */
-  async reapplyRequest(requestId: string, memberMahasiswaId: string, mahasiswaId: string, sessionId:string) {
+  async reapplyRequest(
+    requestId: string,
+    memberMahasiswaId: string,
+    mahasiswaId: string,
+    sessionId: string,
+  ) {
     if (memberMahasiswaId !== mahasiswaId) {
-      const error: Error = new Error('Anda tidak memiliki akses untuk request ini.');
+      const error: Error = new Error(
+        "Anda tidak memiliki akses untuk request ini.",
+      );
       error.statusCode = 403;
       throw error;
     }
 
     const request = await this.suratPermohonanRepo.findById(requestId);
     if (!request) {
-      const error: Error = new Error('Request tidak ditemukan.');
+      const error: Error = new Error("Request tidak ditemukan.");
       error.statusCode = 404;
       throw error;
     }
 
     if (request.memberMahasiswaId !== memberMahasiswaId) {
-      const error: Error = new Error('Anda tidak memiliki akses untuk request ini.');
+      const error: Error = new Error(
+        "Anda tidak memiliki akses untuk request ini.",
+      );
       error.statusCode = 403;
       throw error;
     }
 
-    const normalizedStatus = String(request.status || '').toUpperCase();
-    if (normalizedStatus !== 'DITOLAK' && normalizedStatus !== 'REJECTED') {
-      const error: Error = new Error('Ajuan ulang hanya diperbolehkan untuk request yang ditolak.');
+    const normalizedStatus = String(request.status || "").toUpperCase();
+    if (normalizedStatus !== "DITOLAK" && normalizedStatus !== "REJECTED") {
+      const error: Error = new Error(
+        "Ajuan ulang hanya diperbolehkan untuk request yang ditolak.",
+      );
       error.statusCode = 409;
       throw error;
     }
 
-    const mahasiswaEsignatureUrl = await this.resolveMahasiswaEsignatureUrl(memberMahasiswaId, sessionId);
+    const mahasiswaEsignatureUrl = await this.resolveMahasiswaEsignatureUrl(
+      memberMahasiswaId,
+      sessionId,
+    );
 
-    const updated = await this.suratPermohonanRepo.reapplyRejected(requestId, memberMahasiswaId, {
-      mahasiswaEsignatureUrl,
-      mahasiswaEsignatureSnapshotAt: new Date(),
-    });
+    const updated = await this.suratPermohonanRepo.reapplyRejected(
+      requestId,
+      memberMahasiswaId,
+      {
+        mahasiswaEsignatureUrl,
+        mahasiswaEsignatureSnapshotAt: new Date(),
+      },
+    );
     if (!updated) {
-      const error: Error = new Error('Ajuan ulang hanya diperbolehkan untuk request yang ditolak.');
+      const error: Error = new Error(
+        "Ajuan ulang hanya diperbolehkan untuk request yang ditolak.",
+      );
       error.statusCode = 409;
       throw error;
     }
@@ -519,30 +685,33 @@ export class SuratPermohonanService {
     requestId: string,
     dosenId: string,
     dosenSigningContext: DosenSigningContext,
-    sessionId:string
+    sessionId: string,
   ) {
     const request = await this.suratPermohonanRepo.findById(requestId);
     if (!request) {
-      const error: Error = new Error('Pengajuan tidak ditemukan.');
+      const error: Error = new Error("Pengajuan tidak ditemukan.");
       error.statusCode = 404;
       throw error;
     }
 
     if (request.dosenId !== dosenId) {
-      const error: Error = new Error('Anda tidak berhak mengubah pengajuan ini.');
+      const error: Error = new Error(
+        "Anda tidak berhak mengubah pengajuan ini.",
+      );
       error.statusCode = 403;
       throw error;
     }
 
-    if (request.status !== 'MENUNGGU') {
-      const error: Error = new Error('Pengajuan sudah diproses.');
+    if (request.status !== "MENUNGGU") {
+      const error: Error = new Error("Pengajuan sudah diproses.");
       error.statusCode = 409;
       throw error;
     }
 
-    const requestDetails = await this.suratPermohonanRepo.findByIdWithDetails(requestId);
+    const requestDetails =
+      await this.suratPermohonanRepo.findByIdWithDetails(requestId);
     if (!requestDetails) {
-      const error: Error = new Error('Detail pengajuan tidak ditemukan.');
+      const error: Error = new Error("Detail pengajuan tidak ditemukan.");
       error.statusCode = 404;
       throw error;
     }
@@ -551,42 +720,55 @@ export class SuratPermohonanService {
     const endDate = this.toDate(requestDetails.endDate);
 
     if (!requestDetails.companyName || !startDate || !endDate) {
-      const error: Error = new Error('Data submission tidak lengkap untuk generate surat permohonan.');
+      const error: Error = new Error(
+        "Data submission tidak lengkap untuk generate surat permohonan.",
+      );
       error.statusCode = 422;
       throw error;
     }
 
-    const mahasiswaRequestProfile = await this.resolveMahasiswaRequestProfile(requestDetails, sessionId);
-    const mahasiswaSigningContext = await this.getMahasiswaSigningContext(requestDetails, sessionId);
+    const mahasiswaRequestProfile = await this.resolveMahasiswaRequestProfile(
+      requestDetails,
+      sessionId,
+    );
+    const mahasiswaSigningContext = await this.getMahasiswaSigningContext(
+      requestDetails,
+      sessionId,
+    );
 
     const signedPdfBuffer = await this.generateSignedPdf(
       requestDetails,
       mahasiswaRequestProfile,
       dosenSigningContext,
-      mahasiswaSigningContext
+      mahasiswaSigningContext,
     );
     const signedFileName = `surat-permohonan-signed-${requestId}.pdf`;
 
-    const { url: signedFileUrl, key: signedFileKey } = await this.storageService.uploadFile(
-      signedPdfBuffer,
-      signedFileName,
-      'surat-permohonan/signed',
-      'application/pdf'
-    );
+    const { url: signedFileUrl, key: signedFileKey } =
+      await this.storageService.uploadFile(
+        signedPdfBuffer,
+        signedFileName,
+        "surat-permohonan/signed",
+        "application/pdf",
+      );
 
     if (!signedFileUrl || !signedFileKey) {
-      const error: Error = new Error('Upload signed PDF gagal.');
+      const error: Error = new Error("Upload signed PDF gagal.");
       error.statusCode = 500;
       throw error;
     }
 
     const approvedAt = new Date();
-    const updatedRequest = await this.suratPermohonanRepo.approveWithSignedFile(requestId, dosenId, {
-      approvedByDosenId: dosenId,
-      approvedAt,
-      signedFileUrl,
-      signedFileKey,
-    });
+    const updatedRequest = await this.suratPermohonanRepo.approveWithSignedFile(
+      requestId,
+      dosenId,
+      {
+        approvedByDosenId: dosenId,
+        approvedAt,
+        signedFileUrl,
+        signedFileKey,
+      },
+    );
 
     if (!updatedRequest) {
       try {
@@ -595,7 +777,7 @@ export class SuratPermohonanService {
         // no-op best effort cleanup
       }
 
-      const error: Error = new Error('Pengajuan sudah diproses.');
+      const error: Error = new Error("Pengajuan sudah diproses.");
       error.statusCode = 409;
       throw error;
     }
@@ -607,24 +789,31 @@ export class SuratPermohonanService {
         // no-op best effort cleanup
       }
 
-      const error: Error = new Error('Gagal menyimpan metadata file signed ke database.');
+      const error: Error = new Error(
+        "Gagal menyimpan metadata file signed ke database.",
+      );
       error.statusCode = 500;
       throw error;
     }
 
     return {
       requestId,
-      status: 'DISETUJUI' as const,
+      status: "DISETUJUI" as const,
       approvedAt,
       signedFileUrl,
     };
   }
 
-  private async resolveFixedTeamForRequest(memberMahasiswaId: string, mahasiswaId: string) {
-    const memberTeams = (await this.teamRepo.findTeamsByMahasiswaId(memberMahasiswaId)).filter((team) => team.status === 'FIXED');
+  private async resolveFixedTeamForRequest(
+    memberMahasiswaId: string,
+    mahasiswaId: string,
+  ) {
+    const memberTeams = (
+      await this.teamRepo.findTeamsByMahasiswaId(memberMahasiswaId)
+    ).filter((team) => team.status === "FIXED");
 
     if (memberTeams.length === 0) {
-      const error: Error = new Error('Mahasiswa belum menetapkan tim.');
+      const error: Error = new Error("Mahasiswa belum menetapkan tim.");
       error.statusCode = 422;
       throw error;
     }
@@ -635,13 +824,15 @@ export class SuratPermohonanService {
 
     const authTeamIds = new Set(
       (await this.teamRepo.findTeamsByMahasiswaId(mahasiswaId))
-        .filter((team) => team.status === 'FIXED')
-        .map((team) => team.id)
+        .filter((team) => team.status === "FIXED")
+        .map((team) => team.id),
     );
 
     const sharedTeam = memberTeams.find((team) => authTeamIds.has(team.id));
     if (!sharedTeam) {
-      const error: Error = new Error('Anda hanya dapat mengajukan untuk diri sendiri atau anggota tim FIXED yang valid.');
+      const error: Error = new Error(
+        "Anda hanya dapat mengajukan untuk diri sendiri atau anggota tim FIXED yang valid.",
+      );
       error.statusCode = 403;
       throw error;
     }
@@ -654,7 +845,7 @@ export class SuratPermohonanService {
     const submission = teamSubmissions[0];
 
     if (!submission) {
-      const error: Error = new Error('Submission tim belum tersedia.');
+      const error: Error = new Error("Submission tim belum tersedia.");
       error.statusCode = 422;
       throw error;
     }
@@ -662,27 +853,36 @@ export class SuratPermohonanService {
     return submission;
   }
 
-  private async resolveMahasiswaEsignatureUrl(memberMahasiswaId: string, sessionId: string): Promise<string> {
+  private async resolveMahasiswaEsignatureUrl(
+    memberMahasiswaId: string,
+    sessionId: string,
+  ): Promise<string> {
     const [mahasiswaProfile, activeSignature] = await Promise.all([
       this.mahasiswaService.getMahasiswaById(memberMahasiswaId, sessionId),
       this.ssoSignatureProxyService.getActiveSignature(sessionId),
     ]);
 
     if (!mahasiswaProfile) {
-      const error: Error = new Error('Profil mahasiswa tidak ditemukan.');
+      const error: Error = new Error("Profil mahasiswa tidak ditemukan.");
       error.statusCode = 404;
       throw error;
     }
 
     if (!activeSignature) {
-      const error: Error = new Error('Mahasiswa belum memiliki tanda tangan digital di SSO. Silakan lengkapi di halaman profil SSO.');
+      const error: Error = new Error(
+        "Mahasiswa belum memiliki tanda tangan digital di SSO. Silakan lengkapi di halaman profil SSO.",
+      );
       error.statusCode = 422;
       throw error;
     }
 
-    const signatureSource = this.getSignatureSource(activeSignature as unknown as Record<string, unknown>);
+    const signatureSource = this.getSignatureSource(
+      activeSignature as unknown as Record<string, unknown>,
+    );
     if (!signatureSource) {
-      const error: Error = new Error('File e-signature mahasiswa tidak tersedia. Silakan lengkapi di halaman profil SSO.');
+      const error: Error = new Error(
+        "File e-signature mahasiswa tidak tersedia. Silakan lengkapi di halaman profil SSO.",
+      );
       error.statusCode = 422;
       throw error;
     }
@@ -691,30 +891,37 @@ export class SuratPermohonanService {
     const imageBuffer = await this.resolveSignatureBuffer(signatureSource);
 
     if (imageBuffer.length === 0) {
-      const error: Error = new Error('File e-signature mahasiswa kosong atau rusak.');
+      const error: Error = new Error(
+        "File e-signature mahasiswa kosong atau rusak.",
+      );
       error.statusCode = 422;
       throw error;
     }
 
-    const ext = activeSignature.mimeType === 'image/svg+xml' ? 'svg' : (activeSignature.mimeType.split('/')[1] || 'png');
+    const ext =
+      activeSignature.mimeType === "image/svg+xml"
+        ? "svg"
+        : activeSignature.mimeType.split("/")[1] || "png";
     const fileName = `mahasiswa-signature-${memberMahasiswaId}-${Date.now()}.${ext}`;
-    
+
     const { url } = await this.storageService.uploadFile(
       imageBuffer,
       fileName,
-      'esignatures/mahasiswa',
-      activeSignature.mimeType
+      "esignatures/mahasiswa",
+      activeSignature.mimeType,
     );
 
     return url;
   }
 
   private async resolveMahasiswaEsignatureUrlForApproval(
-    requestDetails: Awaited<ReturnType<SuratPermohonanRepository['findByIdWithDetails']>>,
-    sessionId:string
+    requestDetails: Awaited<
+      ReturnType<SuratPermohonanRepository["findByIdWithDetails"]>
+    >,
+    sessionId: string,
   ): Promise<string> {
     if (!requestDetails) {
-      const error: Error = new Error('Detail pengajuan tidak ditemukan.');
+      const error: Error = new Error("Detail pengajuan tidak ditemukan.");
       error.statusCode = 404;
       throw error;
     }
@@ -723,37 +930,61 @@ export class SuratPermohonanService {
       return requestDetails.mahasiswaEsignatureUrl;
     }
 
-    const error: Error = new Error('Gagal mengakses file e-signature mahasiswa. Tanda tangan mahasiswa tidak ditemukan pada data pengajuan. Silakan minta mahasiswa untuk membatalkan dan mengajukan ulang.');
+    const error: Error = new Error(
+      "Gagal mengakses file e-signature mahasiswa. Tanda tangan mahasiswa tidak ditemukan pada data pengajuan. Silakan minta mahasiswa untuk membatalkan dan mengajukan ulang.",
+    );
     error.statusCode = 422;
     throw error;
   }
 
   private async getMahasiswaSigningContext(
-    requestDetails: Awaited<ReturnType<SuratPermohonanRepository['findByIdWithDetails']>>,
-    sessionId:string
+    requestDetails: Awaited<
+      ReturnType<SuratPermohonanRepository["findByIdWithDetails"]>
+    >,
+    sessionId: string,
   ): Promise<MahasiswaSigningContext> {
     if (!requestDetails) {
-      const error: Error = new Error('Detail pengajuan tidak ditemukan.');
+      const error: Error = new Error("Detail pengajuan tidak ditemukan.");
       error.statusCode = 404;
       throw error;
     }
 
-    const mahasiswaEsignatureUrl = await this.resolveMahasiswaEsignatureUrlForApproval(requestDetails, sessionId);
-    const mahasiswaProfile = await this.mahasiswaService.getMahasiswaById(requestDetails.memberMahasiswaId, sessionId);
-    
-    // Download snapshot from R2
-    const { imageBuffer, mimeType } = await this.downloadAndValidateSignatureImage(
-      mahasiswaEsignatureUrl,
-      'mahasiswa'
+    const mahasiswaEsignatureUrl =
+      await this.resolveMahasiswaEsignatureUrlForApproval(
+        requestDetails,
+        sessionId,
+      );
+    const mahasiswaProfile = await this.mahasiswaService.getMahasiswaById(
+      requestDetails.memberMahasiswaId,
+      sessionId,
     );
 
+    // Download snapshot from R2
+    const { imageBuffer, mimeType } =
+      await this.downloadAndValidateSignatureImage(
+        mahasiswaEsignatureUrl,
+        "mahasiswa",
+      );
+
     return {
-      mahasiswaNama: mahasiswaProfile?.profile?.fullName || requestDetails.mahasiswaNama || '-',
-      mahasiswaNim: mahasiswaProfile?.nim || requestDetails.mahasiswaNim || null,
-      mahasiswaProdi: mahasiswaProfile?.prodi?.nama || requestDetails.mahasiswaProdi || null,
-      mahasiswaSemester: mahasiswaProfile?.semesterAktif ?? requestDetails.mahasiswaSemester ?? null,
-      mahasiswaAngkatan: mahasiswaProfile?.angkatan ?? requestDetails.mahasiswaAngkatan ?? null,
-      mahasiswaJumlahSksSelesai: mahasiswaProfile?.jumlahSksLulus ?? requestDetails.mahasiswaJumlahSksSelesai ?? null,
+      mahasiswaNama:
+        mahasiswaProfile?.profile?.fullName ||
+        requestDetails.mahasiswaNama ||
+        "-",
+      mahasiswaNim:
+        mahasiswaProfile?.nim || requestDetails.mahasiswaNim || null,
+      mahasiswaProdi:
+        mahasiswaProfile?.prodi?.nama || requestDetails.mahasiswaProdi || null,
+      mahasiswaSemester:
+        mahasiswaProfile?.semesterAktif ??
+        requestDetails.mahasiswaSemester ??
+        null,
+      mahasiswaAngkatan:
+        mahasiswaProfile?.angkatan ?? requestDetails.mahasiswaAngkatan ?? null,
+      mahasiswaJumlahSksSelesai:
+        mahasiswaProfile?.jumlahSksLulus ??
+        requestDetails.mahasiswaJumlahSksSelesai ??
+        null,
       signatureImageBuffer: imageBuffer,
       signatureMimeType: mimeType,
       signatureSourceUrl: mahasiswaEsignatureUrl,
@@ -761,65 +992,102 @@ export class SuratPermohonanService {
   }
 
   private async resolveMahasiswaRequestProfile(
-    requestDetails: Awaited<ReturnType<SuratPermohonanRepository['findByIdWithDetails']>>,
-    sessionId: string
+    requestDetails: Awaited<
+      ReturnType<SuratPermohonanRepository["findByIdWithDetails"]>
+    >,
+    sessionId: string,
   ): Promise<MahasiswaRequestProfile> {
-    const mahasiswaProfile = await this.mahasiswaService.getMahasiswaById(requestDetails.memberMahasiswaId, sessionId);
+    const mahasiswaProfile = await this.mahasiswaService.getMahasiswaById(
+      requestDetails.memberMahasiswaId,
+      sessionId,
+    );
 
     return {
-      nama: mahasiswaProfile?.profile?.fullName || requestDetails.mahasiswaNama || '-',
+      nama:
+        mahasiswaProfile?.profile?.fullName ||
+        requestDetails.mahasiswaNama ||
+        "-",
       nim: mahasiswaProfile?.nim || requestDetails.mahasiswaNim || null,
-      prodi: mahasiswaProfile?.prodi?.nama || requestDetails.mahasiswaProdi || null,
-      semester: mahasiswaProfile?.semesterAktif ?? requestDetails.mahasiswaSemester ?? null,
-      angkatan: mahasiswaProfile?.angkatan ?? requestDetails.mahasiswaAngkatan ?? null,
-      jumlahSks: mahasiswaProfile?.jumlahSksLulus ?? requestDetails.mahasiswaJumlahSksSelesai ?? null,
+      prodi:
+        mahasiswaProfile?.prodi?.nama || requestDetails.mahasiswaProdi || null,
+      semester:
+        mahasiswaProfile?.semesterAktif ??
+        requestDetails.mahasiswaSemester ??
+        null,
+      angkatan:
+        mahasiswaProfile?.angkatan ?? requestDetails.mahasiswaAngkatan ?? null,
+      jumlahSks:
+        mahasiswaProfile?.jumlahSksLulus ??
+        requestDetails.mahasiswaJumlahSksSelesai ??
+        null,
     };
   }
 
-  private async getDosenSigningContext(dosenId: string, sessionId: string): Promise<DosenSigningContext> {
-    console.log(`[SuratPermohonanService.getDosenSigningContext] Fetching context dosenId=${dosenId}`);
-    
+  private async getDosenSigningContext(
+    dosenId: string,
+    sessionId: string,
+  ): Promise<DosenSigningContext> {
+    console.log(
+      `[SuratPermohonanService.getDosenSigningContext] Fetching context dosenId=${dosenId}`,
+    );
+
     const [dosenProfile, activeSignature] = await Promise.all([
       this.dosenService.getDosenById(dosenId, sessionId),
       this.ssoSignatureProxyService.getActiveSignature(sessionId),
     ]);
 
     if (!dosenProfile) {
-      const error: Error = new Error('Profil dosen tidak ditemukan.');
+      const error: Error = new Error("Profil dosen tidak ditemukan.");
       error.statusCode = 404;
       throw error;
     }
 
     if (!activeSignature) {
-      console.error(`[SuratPermohonanService.getDosenSigningContext] SSO returned null activeSignature. sessionId=${sessionId}`);
-      const error: Error = new Error('E-signature dosen belum tersedia. Silakan lengkapi di halaman profil SSO.');
+      console.error(
+        `[SuratPermohonanService.getDosenSigningContext] SSO returned null activeSignature. sessionId=${sessionId}`,
+      );
+      const error: Error = new Error(
+        "E-signature dosen belum tersedia. Silakan lengkapi di halaman profil SSO.",
+      );
       error.statusCode = 422;
       throw error;
     }
 
-    console.log(`[SuratPermohonanService.getDosenSigningContext] Active signature found: ${activeSignature.signatureId} (${activeSignature.mimeType})`);
+    console.log(
+      `[SuratPermohonanService.getDosenSigningContext] Active signature found: ${activeSignature.signatureId} (${activeSignature.mimeType})`,
+    );
 
     // Handle SVG or other image types
     let imageBuffer: Buffer;
-    if (activeSignature.mimeType === 'image/svg+xml') {
+    if (activeSignature.mimeType === "image/svg+xml") {
       imageBuffer = Buffer.from(activeSignature.svg);
     } else {
-      const isBase64 = activeSignature.svg.startsWith('data:') || /^[A-Za-z0-9+/=]+$/.test(activeSignature.svg.substring(0, 100));
-      imageBuffer = isBase64 
-        ? Buffer.from(activeSignature.svg.replace(/^data:image\/\w+;base64,/, ''), 'base64')
+      const isBase64 =
+        activeSignature.svg.startsWith("data:") ||
+        /^[A-Za-z0-9+/=]+$/.test(activeSignature.svg.substring(0, 100));
+      imageBuffer = isBase64
+        ? Buffer.from(
+            activeSignature.svg.replace(/^data:image\/\w+;base64,/, ""),
+            "base64",
+          )
         : Buffer.from(activeSignature.svg);
     }
 
     if (imageBuffer.length === 0) {
-      const error: Error = new Error('File e-signature dosen kosong atau rusak.');
+      const error: Error = new Error(
+        "File e-signature dosen kosong atau rusak.",
+      );
       error.statusCode = 422;
       throw error;
     }
 
     return {
-      dosenNama: dosenProfile.profile?.fullName || '-',
+      dosenNama: dosenProfile.profile?.fullName || "-",
       dosenNip: dosenProfile.nip || null,
-      dosenJabatan: dosenProfile.jabatanStruktural?.join(', ') || dosenProfile.jabatanFungsional || null,
+      dosenJabatan:
+        dosenProfile.jabatanStruktural?.join(", ") ||
+        dosenProfile.jabatanFungsional ||
+        null,
       signatureImageBuffer: imageBuffer,
       signatureMimeType: activeSignature.mimeType,
     };
@@ -827,29 +1095,37 @@ export class SuratPermohonanService {
 
   private async downloadAndValidateSignatureImage(
     esignatureUrl: string,
-    ownerLabel: 'dosen' | 'mahasiswa'
+    ownerLabel: "dosen" | "mahasiswa",
   ) {
-    let mimeType = '';
+    let mimeType = "";
     let imageArrayBuffer: ArrayBuffer | undefined;
 
-    const r2Domain = (this.env.R2_DOMAIN || '').replace(/\/$/, '');
+    const r2Domain = (this.env.R2_DOMAIN || "").replace(/\/$/, "");
     if (r2Domain && esignatureUrl.startsWith(`${r2Domain}/`)) {
       const key = esignatureUrl.slice(r2Domain.length + 1);
       const file = await this.storageService.getFile(key);
       if (file) {
-        mimeType = file.httpMetadata?.contentType || 'application/octet-stream';
-        if (typeof (file as { arrayBuffer?: unknown }).arrayBuffer === 'function') {
-          imageArrayBuffer = await (file as { arrayBuffer: () => Promise<ArrayBuffer> }).arrayBuffer();
+        mimeType = file.httpMetadata?.contentType || "application/octet-stream";
+        if (
+          typeof (file as { arrayBuffer?: unknown }).arrayBuffer === "function"
+        ) {
+          imageArrayBuffer = await (
+            file as { arrayBuffer: () => Promise<ArrayBuffer> }
+          ).arrayBuffer();
         } else if (file.body) {
           if (file.body instanceof ArrayBuffer) {
             imageArrayBuffer = file.body;
           } else if (ArrayBuffer.isView(file.body)) {
             const view = file.body as ArrayBufferView;
-            imageArrayBuffer = Uint8Array.from(new Uint8Array(view.buffer, view.byteOffset, view.byteLength)).buffer;
+            imageArrayBuffer = Uint8Array.from(
+              new Uint8Array(view.buffer, view.byteOffset, view.byteLength),
+            ).buffer;
           } else if (file.body instanceof Blob) {
             imageArrayBuffer = await file.body.arrayBuffer();
           } else {
-            imageArrayBuffer = await new Response(file.body as BodyInit).arrayBuffer();
+            imageArrayBuffer = await new Response(
+              file.body as BodyInit,
+            ).arrayBuffer();
           }
         }
       }
@@ -860,29 +1136,40 @@ export class SuratPermohonanService {
       try {
         response = await fetch(esignatureUrl);
       } catch {
-        const error: Error = new Error(`Gagal mengakses file e-signature ${ownerLabel}.`);
+        const error: Error = new Error(
+          `Gagal mengakses file e-signature ${ownerLabel}.`,
+        );
         error.statusCode = 422;
         throw error;
       }
 
       if (!response.ok) {
-        const error: Error = new Error(`File e-signature ${ownerLabel} tidak dapat diakses.`);
+        const error: Error = new Error(
+          `File e-signature ${ownerLabel} tidak dapat diakses.`,
+        );
         error.statusCode = 422;
         throw error;
       }
 
-      mimeType = (response.headers.get('content-type') || '').split(';')[0].trim().toLowerCase();
+      mimeType = (response.headers.get("content-type") || "")
+        .split(";")[0]
+        .trim()
+        .toLowerCase();
       imageArrayBuffer = await response.arrayBuffer();
     }
 
     if (!ALLOWED_SIGNATURE_MIME_TYPES.includes(mimeType)) {
-      const error: Error = new Error(`Format file e-signature ${ownerLabel} tidak valid. Gunakan PNG/JPG/JPEG.`);
+      const error: Error = new Error(
+        `Format file e-signature ${ownerLabel} tidak valid. Gunakan PNG/JPG/JPEG.`,
+      );
       error.statusCode = 422;
       throw error;
     }
 
     if (imageArrayBuffer.byteLength === 0) {
-      const error: Error = new Error(`File e-signature ${ownerLabel} kosong atau rusak.`);
+      const error: Error = new Error(
+        `File e-signature ${ownerLabel} kosong atau rusak.`,
+      );
       error.statusCode = 422;
       throw error;
     }
@@ -894,13 +1181,15 @@ export class SuratPermohonanService {
   }
 
   private async generateSignedPdf(
-    requestDetails: Awaited<ReturnType<SuratPermohonanRepository['findByIdWithDetails']>>,
+    requestDetails: Awaited<
+      ReturnType<SuratPermohonanRepository["findByIdWithDetails"]>
+    >,
     mahasiswaRequestProfile: MahasiswaRequestProfile,
     dosenSigningContext: DosenSigningContext,
-    mahasiswaSigningContext: MahasiswaSigningContext
+    mahasiswaSigningContext: MahasiswaSigningContext,
   ): Promise<Buffer> {
     if (!requestDetails) {
-      throw new Error('Detail pengajuan tidak ditemukan untuk pembuatan PDF.');
+      throw new Error("Detail pengajuan tidak ditemukan untuk pembuatan PDF.");
     }
 
     const startDate = this.toDate(requestDetails.startDate) || new Date();
@@ -924,7 +1213,13 @@ export class SuratPermohonanService {
 
     const drawLine = (
       text: string,
-      options?: { x?: number; size?: number; bold?: boolean; italic?: boolean; lineGap?: number }
+      options?: {
+        x?: number;
+        size?: number;
+        bold?: boolean;
+        italic?: boolean;
+        lineGap?: number;
+      },
     ) => {
       const x = options?.x ?? marginX;
       const size = options?.size ?? bodySize;
@@ -947,11 +1242,11 @@ export class SuratPermohonanService {
       text: string,
       maxWidth: number,
       activeFont: typeof font,
-      size: number
+      size: number,
     ) => {
-      const words = text.split(' ');
+      const words = text.split(" ");
       const lines: string[] = [];
-      let line = '';
+      let line = "";
 
       for (const word of words) {
         const testLine = line ? `${line} ${word}` : word;
@@ -976,11 +1271,17 @@ export class SuratPermohonanService {
       maxWidth: number = 500,
       lineGap: number = 14,
       startX: number = marginX,
-      activeFont: typeof font = font
+      activeFont: typeof font = font,
     ) => {
       const lines = wrapText(text, maxWidth, activeFont, bodySize);
       for (const line of lines) {
-        page.drawText(line, { x: startX, y, size: bodySize, font: activeFont, color: rgb(0, 0, 0) });
+        page.drawText(line, {
+          x: startX,
+          y,
+          size: bodySize,
+          font: activeFont,
+          color: rgb(0, 0, 0),
+        });
         y -= lineGap;
       }
     };
@@ -1018,9 +1319,9 @@ export class SuratPermohonanService {
       label: string,
       value: string,
       lineGap: number = 15,
-      offsets?: { colonX?: number; valueX?: number }
+      offsets?: { colonX?: number; valueX?: number },
     ) => {
-      const safeValue = value && value.trim() ? value : '-';
+      const safeValue = value && value.trim() ? value : "-";
       const activeColonX = offsets?.colonX ?? colonX;
       const activeValueX = offsets?.valueX ?? valueX;
       page.drawText(label, {
@@ -1030,7 +1331,7 @@ export class SuratPermohonanService {
         font,
         color: rgb(0, 0, 0),
       });
-      page.drawText(':', {
+      page.drawText(":", {
         x: activeColonX,
         y,
         size: bodySize,
@@ -1038,7 +1339,12 @@ export class SuratPermohonanService {
         color: rgb(0, 0, 0),
       });
 
-      const wrappedValues = wrapText(safeValue, pageWidth - activeValueX - 50, font, bodySize);
+      const wrappedValues = wrapText(
+        safeValue,
+        pageWidth - activeValueX - 50,
+        font,
+        bodySize,
+      );
       for (let index = 0; index < wrappedValues.length; index += 1) {
         page.drawText(wrappedValues[index], {
           x: activeValueX,
@@ -1055,60 +1361,71 @@ export class SuratPermohonanService {
       drawLine(text, { italic: true, lineGap: 17 });
     };
 
-    const title = 'FORM PERMOHONAN KERJA PRAKTIK';
+    const title = "FORM PERMOHONAN KERJA PRAKTIK";
     const titleWidth = fontBold.widthOfTextAtSize(title, titleSize);
     const titleX = (pageWidth - titleWidth) / 2;
     drawLine(title, { x: titleX, size: titleSize, bold: true, lineGap: 48 });
 
-    drawSectionHeading('Saya yang bertanda tangan di bawah ini');
+    drawSectionHeading("Saya yang bertanda tangan di bawah ini");
     y -= 12;
 
-    drawLabelValue('Nama Mahasiswa', mahasiswaRequestProfile.nama || '-');
-    drawLabelValue('NIM', mahasiswaRequestProfile.nim || '-');
-    drawLabelValue('Program Studi', mahasiswaRequestProfile.prodi || '-');
-    drawLabelValue('Semester', mahasiswaRequestProfile.semester != null ? String(mahasiswaRequestProfile.semester) : '-');
-    drawLabelValue('Tahun Ajaran', this.getAcademicYear(requestDetails.requestedAt));
+    drawLabelValue("Nama Mahasiswa", mahasiswaRequestProfile.nama || "-");
+    drawLabelValue("NIM", mahasiswaRequestProfile.nim || "-");
+    drawLabelValue("Program Studi", mahasiswaRequestProfile.prodi || "-");
     drawLabelValue(
-      'Jumlah SKS yang sudah diselesaikan',
+      "Semester",
+      mahasiswaRequestProfile.semester != null
+        ? String(mahasiswaRequestProfile.semester)
+        : "-",
+    );
+    drawLabelValue(
+      "Tahun Ajaran",
+      this.getAcademicYear(requestDetails.requestedAt),
+    );
+    drawLabelValue(
+      "Jumlah SKS yang sudah diselesaikan",
       `${mahasiswaRequestProfile.jumlahSks ?? 0} sks`,
       15,
-      { colonX: colonX + 28, valueX: colonX + 28 + 15 }
+      { colonX: colonX + 28, valueX: colonX + 28 + 15 },
     );
 
     y -= 10;
 
-    drawSectionHeading('Memohon untuk melakukan Kerja Praktik pada :');
+    drawSectionHeading("Memohon untuk melakukan Kerja Praktik pada :");
     y -= 10;
-    drawLabelValue('Nama Perusahaan', requestDetails.companyName || '-');
-    drawLabelValue('Alamat Perusahaan', requestDetails.companyAddress || '-');
-    drawLabelValue('Telepon Perusahaan', requestDetails.companyPhone || '-');
-    drawLabelValue('Jenis Produk / Usaha', requestDetails.companyBusinessType || '-');
-    drawLabelValue('Unit/Bagian Tempat KP', requestDetails.division || '-');
+    drawLabelValue("Nama Perusahaan", requestDetails.companyName || "-");
+    drawLabelValue("Alamat Perusahaan", requestDetails.companyAddress || "-");
+    drawLabelValue("Telepon Perusahaan", requestDetails.companyPhone || "-");
+    drawLabelValue(
+      "Jenis Produk / Usaha",
+      requestDetails.companyBusinessType || "-",
+    );
+    drawLabelValue("Unit/Bagian Tempat KP", requestDetails.division || "-");
 
     y -= 10;
 
-    drawSectionHeading('Dengan perincian sebagai berikut :');
+    drawSectionHeading("Dengan perincian sebagai berikut :");
     y -= 10;
-    drawLabelValue('Lama Kerja Praktik', `(${lamaKp}) bulan`);
-    drawLabelValue('Mulai Tanggal', this.formatDateSlashIndo(startDate));
-    drawLabelValue('Selesai Tanggal', this.formatDateSlashIndo(endDate));
+    drawLabelValue("Lama Kerja Praktik", `(${lamaKp}) bulan`);
+    drawLabelValue("Mulai Tanggal", this.formatDateSlashIndo(startDate));
+    drawLabelValue("Selesai Tanggal", this.formatDateSlashIndo(endDate));
 
     y -= 10;
 
-    drawSectionHeading('Dan menyatakan bersedia :');
+    drawSectionHeading("Dan menyatakan bersedia :");
     y -= 6;
 
     drawNumberedItem(
-      '1.',
-      'Menaati semua peraturan Kerja Praktik yang telah ditetapkan oleh Fakultas dan Perusahaan untuk pelaksanaan Kerja Praktik'
+      "1.",
+      "Menaati semua peraturan Kerja Praktik yang telah ditetapkan oleh Fakultas dan Perusahaan untuk pelaksanaan Kerja Praktik",
     );
     drawNumberedItem(
-      '2.',
-      'Tidak akan melakukan hal-hal yang dapat merugikan pihak lain serta mencemarkan nama baik diri sendiri, keluarga, pihak Fakultas serta perusahaan tempat melakukan Kerja Praktik'
+      "2.",
+      "Tidak akan melakukan hal-hal yang dapat merugikan pihak lain serta mencemarkan nama baik diri sendiri, keluarga, pihak Fakultas serta perusahaan tempat melakukan Kerja Praktik",
     );
     drawNumberedItem(
-      '3.',
-      'Tidak akan menuntut atau meminta ganti rugi kepada pihak Fakultas dan Perusahaan apabila terjadi hal-hal yang tidak diinginkan saat Kerja Praktik (kehilangan, kecelakaan, dsb.) yang disebabkan oleh kecerobohan saya sendiri.'
+      "3.",
+      "Tidak akan menuntut atau meminta ganti rugi kepada pihak Fakultas dan Perusahaan apabila terjadi hal-hal yang tidak diinginkan saat Kerja Praktik (kehilangan, kecelakaan, dsb.) yang disebabkan oleh kecerobohan saya sendiri.",
     );
 
     y -= 14;
@@ -1125,14 +1442,14 @@ export class SuratPermohonanService {
     const dateLine = `Palembang, ${signedDate}`;
     drawLine(dateLine, { x: rightSignX, lineGap: 16 });
     const signLabelY = y;
-    page.drawText('Dosen Pembimbing,', {
+    page.drawText("Dosen Pembimbing,", {
       x: leftSignX,
       y: signLabelY,
       size: bodySize,
       font: fontBold,
       color: rgb(0, 0, 0),
     });
-    page.drawText('Pemohon,', {
+    page.drawText("Pemohon,", {
       x: rightSignX,
       y: signLabelY,
       size: bodySize,
@@ -1147,49 +1464,90 @@ export class SuratPermohonanService {
     const signerTextY = y - 68;
 
     try {
-      const dosenImageBytes = new Uint8Array(dosenSigningContext.signatureImageBuffer);
-      if (dosenSigningContext.signatureMimeType === 'image/svg+xml') {
-        const svgText = Buffer.from(dosenImageBytes).toString('utf8');
-        this.drawSignatureSvg(page, svgText, leftSignX + signatureShiftLeft, signatureY + signatureShiftY, signatureWidth, signatureHeight);
+      const dosenImageBytes = new Uint8Array(
+        dosenSigningContext.signatureImageBuffer,
+      );
+      if (dosenSigningContext.signatureMimeType === "image/svg+xml") {
+        const svgText = Buffer.from(dosenImageBytes).toString("utf8");
+        this.drawSignatureSvg(
+          page,
+          svgText,
+          leftSignX + signatureShiftLeft,
+          signatureY + signatureShiftY,
+          signatureWidth,
+          signatureHeight,
+        );
       } else {
         // For raster images, embed and draw centered and slightly larger for clarity
-        const isPng = dosenSigningContext.signatureMimeType === 'image/png';
-        const embedded = isPng ? await pdfDoc.embedPng(dosenImageBytes) : await pdfDoc.embedJpg(dosenImageBytes);
+        const isPng = dosenSigningContext.signatureMimeType === "image/png";
+        const embedded = isPng
+          ? await pdfDoc.embedPng(dosenImageBytes)
+          : await pdfDoc.embedJpg(dosenImageBytes);
         const enlargeW = signatureWidth * 1.12;
         const enlargeH = signatureHeight * 1.18;
-        const drawX = leftSignX + signatureShiftLeft - (enlargeW - signatureWidth) / 2;
-        const drawY = signatureY + signatureShiftY - (enlargeH - signatureHeight) / 2;
-        page.drawImage(embedded, { x: drawX, y: drawY, width: enlargeW, height: enlargeH });
+        const drawX =
+          leftSignX + signatureShiftLeft - (enlargeW - signatureWidth) / 2;
+        const drawY =
+          signatureY + signatureShiftY - (enlargeH - signatureHeight) / 2;
+        page.drawImage(embedded, {
+          x: drawX,
+          y: drawY,
+          width: enlargeW,
+          height: enlargeH,
+        });
       }
 
-      const mahasiswaImageBytes = new Uint8Array(mahasiswaSigningContext.signatureImageBuffer);
-      if (mahasiswaSigningContext.signatureMimeType === 'image/svg+xml') {
-        const svgText = Buffer.from(mahasiswaImageBytes).toString('utf8');
-        this.drawSignatureSvg(page, svgText, rightSignX + signatureShiftRight, signatureY + signatureShiftY, signatureWidth, signatureHeight);
+      const mahasiswaImageBytes = new Uint8Array(
+        mahasiswaSigningContext.signatureImageBuffer,
+      );
+      if (mahasiswaSigningContext.signatureMimeType === "image/svg+xml") {
+        const svgText = Buffer.from(mahasiswaImageBytes).toString("utf8");
+        this.drawSignatureSvg(
+          page,
+          svgText,
+          rightSignX + signatureShiftRight,
+          signatureY + signatureShiftY,
+          signatureWidth,
+          signatureHeight,
+        );
       } else {
-        const isPng = mahasiswaSigningContext.signatureMimeType === 'image/png';
-        const embedded = isPng ? await pdfDoc.embedPng(mahasiswaImageBytes) : await pdfDoc.embedJpg(mahasiswaImageBytes);
+        const isPng = mahasiswaSigningContext.signatureMimeType === "image/png";
+        const embedded = isPng
+          ? await pdfDoc.embedPng(mahasiswaImageBytes)
+          : await pdfDoc.embedJpg(mahasiswaImageBytes);
         const enlargeW = signatureWidth * 1.12;
         const enlargeH = signatureHeight * 1.18;
-        const drawX = rightSignX + signatureShiftRight - (enlargeW - signatureWidth) / 2;
-        const drawY = signatureY + signatureShiftY - (enlargeH - signatureHeight) / 2;
-        page.drawImage(embedded, { x: drawX, y: drawY, width: enlargeW, height: enlargeH });
+        const drawX =
+          rightSignX + signatureShiftRight - (enlargeW - signatureWidth) / 2;
+        const drawY =
+          signatureY + signatureShiftY - (enlargeH - signatureHeight) / 2;
+        page.drawImage(embedded, {
+          x: drawX,
+          y: drawY,
+          width: enlargeW,
+          height: enlargeH,
+        });
       }
     } catch {
-      const error: Error = new Error('Gagal menyisipkan image e-signature ke PDF.');
+      const error: Error = new Error(
+        "Gagal menyisipkan image e-signature ke PDF.",
+      );
       error.statusCode = 422;
       throw error;
     }
 
     const nameY = signerTextY;
-    page.drawText(dosenSigningContext.dosenNama || '-', {
+    page.drawText(dosenSigningContext.dosenNama || "-", {
       x: leftSignX,
       y: nameY,
       size: bodySize,
       font: fontBold,
       color: rgb(0, 0, 0),
     });
-    const mahasiswaNamaText = mahasiswaSigningContext.mahasiswaNama || mahasiswaRequestProfile.nama || '-';
+    const mahasiswaNamaText =
+      mahasiswaSigningContext.mahasiswaNama ||
+      mahasiswaRequestProfile.nama ||
+      "-";
     page.drawText(mahasiswaNamaText, {
       x: rightSignX,
       y: nameY,
@@ -1198,14 +1556,14 @@ export class SuratPermohonanService {
       color: rgb(0, 0, 0),
     });
 
-    page.drawText(`NIP ${dosenSigningContext.dosenNip || '-'}`, {
+    page.drawText(`NIP ${dosenSigningContext.dosenNip || "-"}`, {
       x: leftSignX,
       y: signerTextY - 16,
       size: bodySize,
       font,
       color: rgb(0, 0, 0),
     });
-    const mahasiswaNimText = `NIM ${mahasiswaSigningContext.mahasiswaNim || mahasiswaRequestProfile.nim || '-'}`;
+    const mahasiswaNimText = `NIM ${mahasiswaSigningContext.mahasiswaNim || mahasiswaRequestProfile.nim || "-"}`;
     page.drawText(mahasiswaNimText, {
       x: rightSignX,
       y: signerTextY - 16,
@@ -1238,23 +1596,27 @@ export class SuratPermohonanService {
     return `${year}/${year + 1}`;
   }
 
-  private formatDateOnly(value: string | Date | null | undefined): string | null {
+  private formatDateOnly(
+    value: string | Date | null | undefined,
+  ): string | null {
     const date = this.toDate(value);
     if (!date) return null;
-    return new Intl.DateTimeFormat('sv-SE').format(date);
+    return new Intl.DateTimeFormat("sv-SE").format(date);
   }
 
   private formatTanggalIndonesia(date: Date) {
-    return new Intl.DateTimeFormat('id-ID', {
-      day: '2-digit',
-      month: 'long',
-      year: 'numeric',
+    return new Intl.DateTimeFormat("id-ID", {
+      day: "2-digit",
+      month: "long",
+      year: "numeric",
     }).format(date);
   }
 
   private formatDateSlashIndo(date: Date): string {
-    const day = String(date.getDate()).padStart(2, '0');
-    const monthName = new Intl.DateTimeFormat('id-ID', { month: 'long' }).format(date);
+    const day = String(date.getDate()).padStart(2, "0");
+    const monthName = new Intl.DateTimeFormat("id-ID", {
+      month: "long",
+    }).format(date);
     const year = date.getFullYear();
     return `${day} / ${monthName} / ${year}`;
   }

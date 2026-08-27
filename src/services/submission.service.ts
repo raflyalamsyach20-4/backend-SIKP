@@ -1,14 +1,14 @@
-import { SubmissionRepository } from '@/repositories/submission.repository';
-import { TeamRepository } from '@/repositories/team.repository';
-import { SuratKesediaanRepository } from '@/repositories/surat-kesediaan.repository';
-import { SuratPermohonanRepository } from '@/repositories/surat-permohonan.repository';
-import { StorageService } from './storage.service';
-import { DosenService } from './dosen.service';
-import { generateId } from '@/utils/helpers';
-import { createDbClient } from '@/db';
+import { SubmissionRepository } from "@/repositories/submission.repository";
+import { TeamRepository } from "@/repositories/team.repository";
+import { SuratKesediaanRepository } from "@/repositories/surat-kesediaan.repository";
+import { SuratPermohonanRepository } from "@/repositories/surat-permohonan.repository";
+import { StorageService } from "./storage.service";
+import { DosenService } from "./dosen.service";
+import { generateId } from "@/utils/helpers";
+import { createDbClient } from "@/db";
 
-type LetterDocumentType = 'SURAT_KESEDIAAN' | 'FORM_PERMOHONAN';
-type LetterRequestStatus = 'MENUNGGU' | 'DISETUJUI' | 'DITOLAK' | null;
+type LetterDocumentType = "SURAT_KESEDIAAN" | "FORM_PERMOHONAN";
+type LetterRequestStatus = "MENUNGGU" | "DISETUJUI" | "DITOLAK" | null;
 
 export class SubmissionService {
   private submissionRepo: SubmissionRepository;
@@ -18,9 +18,7 @@ export class SubmissionService {
   private storageService?: StorageService;
   private dosenService: DosenService;
 
-  constructor(
-    private env: CloudflareBindings
-  ) {
+  constructor(private env: CloudflareBindings) {
     const db = createDbClient(env.DATABASE_URL);
     this.submissionRepo = new SubmissionRepository(db);
     this.teamRepo = new TeamRepository(db);
@@ -30,8 +28,15 @@ export class SubmissionService {
     this.dosenService = new DosenService(env);
   }
 
-  private createServiceError(message: string, code: string, statusCode: number) {
-    const error = new Error(message) as Error & { code: string; statusCode: number };
+  private createServiceError(
+    message: string,
+    code: string,
+    statusCode: number,
+  ) {
+    const error = new Error(message) as Error & {
+      code: string;
+      statusCode: number;
+    };
     error.code = code;
     error.statusCode = statusCode;
     return error;
@@ -41,23 +46,25 @@ export class SubmissionService {
     const now = new Date();
     // Format as YYYY-MM-DD using local date values, not UTC
     const year = now.getFullYear();
-    const month = String(now.getMonth() + 1).padStart(2, '0');
-    const day = String(now.getDate()).padStart(2, '0');
+    const month = String(now.getMonth() + 1).padStart(2, "0");
+    const day = String(now.getDate()).padStart(2, "0");
     const today = `${year}-${month}-${day}`;
 
     return {
       letterPurpose: `Belum diisi`,
-      companyName: 'Belum diisi',
-      companyAddress: 'Belum diisi',
+      companyName: "Belum diisi",
+      companyAddress: "Belum diisi",
       companyPhone: null,
       companyBusinessType: null,
-      division: 'Belum diisi',
+      division: "Belum diisi",
       startDate: today,
       endDate: today,
     };
   }
 
-  private toStudentSubmissionView<T extends Record<string, unknown>>(submission: T): T & {
+  private toStudentSubmissionView<T extends Record<string, unknown>>(
+    submission: T,
+  ): T & {
     status: string;
     legacyStatus: string;
     submissionStatus: string;
@@ -67,26 +74,33 @@ export class SubmissionService {
     isAdminApproved: boolean;
     finalSignedFileUrl: string | null;
   } {
-    const legacyStatus = String(submission.status ?? 'DRAFT');
-    const rawWorkflowStage = submission.workflowStage ?? (legacyStatus === 'PENDING_REVIEW' ? 'PENDING_ADMIN_REVIEW' : legacyStatus);
+    const legacyStatus = String(submission.status ?? "DRAFT");
+    const rawWorkflowStage =
+      submission.workflowStage ??
+      (legacyStatus === "PENDING_REVIEW"
+        ? "PENDING_ADMIN_REVIEW"
+        : legacyStatus);
     const adminVerificationStatus =
-      submission.adminVerificationStatus === 'APPROVED' || submission.adminVerificationStatus === 'REJECTED'
+      submission.adminVerificationStatus === "APPROVED" ||
+      submission.adminVerificationStatus === "REJECTED"
         ? submission.adminVerificationStatus
-        : legacyStatus === 'APPROVED'
-          ? 'APPROVED'
-          : legacyStatus === 'REJECTED'
-            ? 'REJECTED'
-            : 'PENDING';
+        : legacyStatus === "APPROVED"
+          ? "APPROVED"
+          : legacyStatus === "REJECTED"
+            ? "REJECTED"
+            : "PENDING";
     const workflowStage =
-      rawWorkflowStage === 'DRAFT' && adminVerificationStatus === 'APPROVED'
-        ? 'PENDING_DOSEN_VERIFICATION'
-        : rawWorkflowStage === 'DRAFT' && adminVerificationStatus === 'REJECTED'
-          ? 'REJECTED_ADMIN'
+      rawWorkflowStage === "DRAFT" && adminVerificationStatus === "APPROVED"
+        ? "PENDING_DOSEN_VERIFICATION"
+        : rawWorkflowStage === "DRAFT" && adminVerificationStatus === "REJECTED"
+          ? "REJECTED_ADMIN"
           : rawWorkflowStage;
-    const dosenVerificationStatus = submission.dosenVerificationStatus ?? 'PENDING';
-    const canSeeFinalLetter = workflowStage === 'COMPLETED'
-      && dosenVerificationStatus === 'APPROVED'
-      && Boolean(submission.finalSignedFileUrl);
+    const dosenVerificationStatus =
+      submission.dosenVerificationStatus ?? "PENDING";
+    const canSeeFinalLetter =
+      workflowStage === "COMPLETED" &&
+      dosenVerificationStatus === "APPROVED" &&
+      Boolean(submission.finalSignedFileUrl);
 
     return {
       ...submission,
@@ -96,9 +110,9 @@ export class SubmissionService {
       submission_status: String(workflowStage),
       adminStatus: adminVerificationStatus,
       admin_status: adminVerificationStatus,
-      isAdminApproved: adminVerificationStatus === 'APPROVED',
+      isAdminApproved: adminVerificationStatus === "APPROVED",
       finalSignedFileUrl:
-        canSeeFinalLetter && typeof submission.finalSignedFileUrl === 'string'
+        canSeeFinalLetter && typeof submission.finalSignedFileUrl === "string"
           ? submission.finalSignedFileUrl
           : null,
     };
@@ -107,20 +121,23 @@ export class SubmissionService {
   async ensureDraftSubmissionForTeam(teamId: string, mahasiswaId: string) {
     const team = await this.teamRepo.findById(teamId);
     if (!team) {
-      throw this.createServiceError('Team not found', 'TEAM_NOT_FOUND', 404);
+      throw this.createServiceError("Team not found", "TEAM_NOT_FOUND", 404);
     }
 
-    if (team.status !== 'FIXED') {
+    if (team.status !== "FIXED") {
       throw this.createServiceError(
-        'Upload dokumen gagal. Tetapkan tim terlebih dahulu.',
-        'TEAM_NOT_FIXED',
-        400
+        "Upload dokumen gagal. Tetapkan tim terlebih dahulu.",
+        "TEAM_NOT_FIXED",
+        400,
       );
     }
 
-    const membership = await this.teamRepo.findMemberByTeamAndMahasiswa(teamId, mahasiswaId);
-    if (!membership || membership.invitationStatus !== 'ACCEPTED') {
-      throw this.createServiceError('Forbidden', 'FORBIDDEN', 403);
+    const membership = await this.teamRepo.findMemberByTeamAndMahasiswa(
+      teamId,
+      mahasiswaId,
+    );
+    if (!membership || membership.invitationStatus !== "ACCEPTED") {
+      throw this.createServiceError("Forbidden", "FORBIDDEN", 403);
     }
 
     const existingSubmissions = await this.submissionRepo.findByTeamId(teamId);
@@ -137,10 +154,10 @@ export class SubmissionService {
       submission = await this.submissionRepo.create({
         id: generateId(),
         teamId,
-        status: 'DRAFT',
-        workflowStage: 'DRAFT',
-        adminVerificationStatus: 'PENDING',
-        dosenVerificationStatus: 'PENDING',
+        status: "DRAFT",
+        workflowStage: "DRAFT",
+        adminVerificationStatus: "PENDING",
+        dosenVerificationStatus: "PENDING",
         ...defaults,
       });
     } catch {
@@ -151,7 +168,11 @@ export class SubmissionService {
           alreadyExists: true,
         };
       }
-      throw this.createServiceError('Failed to create submission', 'INTERNAL_ERROR', 500);
+      throw this.createServiceError(
+        "Failed to create submission",
+        "INTERNAL_ERROR",
+        500,
+      );
     }
 
     return {
@@ -161,7 +182,7 @@ export class SubmissionService {
   }
 
   async createSubmission(
-    teamId: string, 
+    teamId: string,
     mahasiswaId: string,
     data: {
       letterPurpose?: string;
@@ -172,24 +193,27 @@ export class SubmissionService {
       division?: string;
       startDate?: Date;
       endDate?: Date;
-    }
+    },
   ) {
     const team = await this.teamRepo.findById(teamId);
     if (!team) {
-      throw this.createServiceError('Team not found', 'TEAM_NOT_FOUND', 404);
+      throw this.createServiceError("Team not found", "TEAM_NOT_FOUND", 404);
     }
 
-    if (team.status !== 'FIXED') {
+    if (team.status !== "FIXED") {
       throw this.createServiceError(
-        'Upload dokumen gagal. Tetapkan tim terlebih dahulu.',
-        'TEAM_NOT_FIXED',
-        400
+        "Upload dokumen gagal. Tetapkan tim terlebih dahulu.",
+        "TEAM_NOT_FIXED",
+        400,
       );
     }
 
-    const membership = await this.teamRepo.findMemberByTeamAndMahasiswa(teamId, mahasiswaId);
-    if (!membership || membership.invitationStatus !== 'ACCEPTED') {
-      throw this.createServiceError('Forbidden', 'FORBIDDEN', 403);
+    const membership = await this.teamRepo.findMemberByTeamAndMahasiswa(
+      teamId,
+      mahasiswaId,
+    );
+    if (!membership || membership.invitationStatus !== "ACCEPTED") {
+      throw this.createServiceError("Forbidden", "FORBIDDEN", 403);
     }
 
     const existingSubmissions = await this.submissionRepo.findByTeamId(teamId);
@@ -206,29 +230,36 @@ export class SubmissionService {
       submission = await this.submissionRepo.create({
         id: generateId(),
         teamId,
-        status: 'DRAFT',
-        workflowStage: 'DRAFT',
-        adminVerificationStatus: 'PENDING',
-        dosenVerificationStatus: 'PENDING',
+        status: "DRAFT",
+        workflowStage: "DRAFT",
+        adminVerificationStatus: "PENDING",
+        dosenVerificationStatus: "PENDING",
         letterPurpose: data.letterPurpose || defaults.letterPurpose,
         companyName: data.companyName || defaults.companyName,
         companyAddress: data.companyAddress || defaults.companyAddress,
         companyPhone: data.companyPhone ?? defaults.companyPhone,
-        companyBusinessType: data.companyBusinessType ?? defaults.companyBusinessType,
+        companyBusinessType:
+          data.companyBusinessType ?? defaults.companyBusinessType,
         division: data.division || defaults.division,
         startDate: data.startDate
           ? (() => {
               const year = data.startDate.getFullYear();
-              const month = String(data.startDate.getMonth() + 1).padStart(2, '0');
-              const day = String(data.startDate.getDate()).padStart(2, '0');
+              const month = String(data.startDate.getMonth() + 1).padStart(
+                2,
+                "0",
+              );
+              const day = String(data.startDate.getDate()).padStart(2, "0");
               return `${year}-${month}-${day}`;
             })()
           : defaults.startDate,
         endDate: data.endDate
           ? (() => {
               const year = data.endDate.getFullYear();
-              const month = String(data.endDate.getMonth() + 1).padStart(2, '0');
-              const day = String(data.endDate.getDate()).padStart(2, '0');
+              const month = String(data.endDate.getMonth() + 1).padStart(
+                2,
+                "0",
+              );
+              const day = String(data.endDate.getDate()).padStart(2, "0");
               return `${year}-${month}-${day}`;
             })()
           : defaults.endDate,
@@ -241,7 +272,11 @@ export class SubmissionService {
           alreadyExists: true,
         };
       }
-      throw this.createServiceError('Failed to create submission', 'INTERNAL_ERROR', 500);
+      throw this.createServiceError(
+        "Failed to create submission",
+        "INTERNAL_ERROR",
+        500,
+      );
     }
 
     return {
@@ -250,28 +285,32 @@ export class SubmissionService {
     };
   }
 
-  async updateSubmission(submissionId: string, mahasiswaId: string, data: {
-    letterPurpose?: string;
-    companyName?: string;
-    companyAddress?: string;
-    companyPhone?: string;
-    companyBusinessType?: string;
-    division?: string;
-    startDate?: string;
-    endDate?: string;
-  }) {
+  async updateSubmission(
+    submissionId: string,
+    mahasiswaId: string,
+    data: {
+      letterPurpose?: string;
+      companyName?: string;
+      companyAddress?: string;
+      companyPhone?: string;
+      companyBusinessType?: string;
+      division?: string;
+      startDate?: string;
+      endDate?: string;
+    },
+  ) {
     const submission = await this.submissionRepo.findById(submissionId);
     if (!submission) {
-      throw new Error('Pengajuan tidak ditemukan.');
+      throw new Error("Pengajuan tidak ditemukan.");
     }
 
-    if (submission.status !== 'DRAFT') {
-      throw new Error('Pengajuan sudah diajukan dan tidak dapat diubah.');
+    if (submission.status !== "DRAFT") {
+      throw new Error("Pengajuan sudah diajukan dan tidak dapat diubah.");
     }
 
     const team = await this.teamRepo.findById(submission.teamId);
     if (!team || team.leaderMahasiswaId !== mahasiswaId) {
-      throw new Error('Hanya ketua tim yang dapat mengubah pengajuan.');
+      throw new Error("Hanya ketua tim yang dapat mengubah pengajuan.");
     }
 
     return await this.submissionRepo.update(submissionId, data);
@@ -280,32 +319,44 @@ export class SubmissionService {
   async submitForReview(submissionId: string, mahasiswaId: string) {
     const submission = await this.submissionRepo.findById(submissionId);
     if (!submission) {
-      throw this.createServiceError('Pengajuan tidak ditemukan.', 'SUBMISSION_NOT_FOUND', 404);
+      throw this.createServiceError(
+        "Pengajuan tidak ditemukan.",
+        "SUBMISSION_NOT_FOUND",
+        404,
+      );
     }
 
-    if (submission.status !== 'DRAFT') {
-      throw new Error('Pengajuan sudah diajukan dan tidak dapat diubah.');
+    if (submission.status !== "DRAFT") {
+      throw new Error("Pengajuan sudah diajukan dan tidak dapat diubah.");
     }
 
     const team = await this.teamRepo.findById(submission.teamId);
     if (!team || team.leaderMahasiswaId !== mahasiswaId) {
-      throw new Error('Hanya ketua tim yang dapat mengajukan.');
+      throw new Error("Hanya ketua tim yang dapat mengajukan.");
     }
 
-    if (!submission.letterPurpose || !submission.companyName || !submission.companyAddress || 
-        !submission.division || !submission.startDate || !submission.endDate) {
-      throw new Error('Semua kolom wajib diisi sebelum mengajukan untuk ditinjau.');
+    if (
+      !submission.letterPurpose ||
+      !submission.companyName ||
+      !submission.companyAddress ||
+      !submission.division ||
+      !submission.startDate ||
+      !submission.endDate
+    ) {
+      throw new Error(
+        "Semua kolom wajib diisi sebelum mengajukan untuk ditinjau.",
+      );
     }
 
-    return await this.submissionRepo.update(submissionId, { 
-      status: 'PENDING_REVIEW',
-      workflowStage: 'PENDING_ADMIN_REVIEW',
+    return await this.submissionRepo.update(submissionId, {
+      status: "PENDING_REVIEW",
+      workflowStage: "PENDING_ADMIN_REVIEW",
       submittedAt: new Date(),
-      adminVerificationStatus: 'PENDING',
+      adminVerificationStatus: "PENDING",
       adminVerifiedAt: null,
       adminVerifiedByAdminId: null,
       adminRejectionReason: null,
-      dosenVerificationStatus: 'PENDING',
+      dosenVerificationStatus: "PENDING",
       dosenVerifiedAt: null,
       dosenVerifiedByDosenId: null,
       dosenRejectionReason: null,
@@ -315,7 +366,7 @@ export class SubmissionService {
 
   async getMySubmissions(mahasiswaId: string) {
     const teams = await this.teamRepo.findTeamsByMahasiswaId(mahasiswaId);
-    const teamIds = teams.map(t => t.id);
+    const teamIds = teams.map((t) => t.id);
 
     const submissions = [];
     for (const teamId of teamIds) {
@@ -323,97 +374,133 @@ export class SubmissionService {
       submissions.push(...teamSubmissions);
     }
 
-    return submissions.map((submission) => this.toStudentSubmissionView(submission));
+    return submissions.map((submission) =>
+      this.toStudentSubmissionView(submission),
+    );
   }
 
-  async canAccessSubmission(submissionId: string, mahasiswaId: string): Promise<boolean> {
+  async canAccessSubmission(
+    submissionId: string,
+    mahasiswaId: string,
+  ): Promise<boolean> {
     const submission = await this.submissionRepo.findById(submissionId);
     if (!submission) {
       return false;
     }
 
-    const member = await this.teamRepo.findMemberByTeamAndMahasiswa(submission.teamId, mahasiswaId);
-    return Boolean(member && member.invitationStatus === 'ACCEPTED');
+    const member = await this.teamRepo.findMemberByTeamAndMahasiswa(
+      submission.teamId,
+      mahasiswaId,
+    );
+    return Boolean(member && member.invitationStatus === "ACCEPTED");
   }
 
   async uploadDocument(
-    submissionId: string, 
+    submissionId: string,
     uploadedByMahasiswaId: string,
     memberMahasiswaId: string,
     file: File,
-    documentType: 'PROPOSAL_KETUA' | 'SURAT_KESEDIAAN' | 'FORM_PERMOHONAN' | 'KRS_SEMESTER_4' | 'DAFTAR_KUMPULAN_NILAI' | 'BUKTI_PEMBAYARAN_UKT',
-    authMahasiswaId: string
+    documentType:
+      | "PROPOSAL_KETUA"
+      | "SURAT_KESEDIAAN"
+      | "FORM_PERMOHONAN"
+      | "KRS_SEMESTER_4"
+      | "DAFTAR_KUMPULAN_NILAI"
+      | "BUKTI_PEMBAYARAN_UKT",
+    authMahasiswaId: string,
   ) {
     const submission = await this.submissionRepo.findById(submissionId);
     if (!submission) {
       throw this.createServiceError(
-        'Upload dokumen gagal. Tetapkan tim terlebih dahulu.',
-        'SUBMISSION_NOT_FOUND',
-        404
+        "Upload dokumen gagal. Tetapkan tim terlebih dahulu.",
+        "SUBMISSION_NOT_FOUND",
+        404,
       );
     }
 
-    if (submission.status !== 'DRAFT') {
-      throw new Error('Pengajuan sudah diajukan dan tidak dapat diubah.');
+    if (submission.status !== "DRAFT") {
+      throw new Error("Pengajuan sudah diajukan dan tidak dapat diubah.");
     }
 
-    const requesterMembership = await this.teamRepo.findMemberByTeamAndMahasiswa(submission.teamId, authMahasiswaId);
-    if (!requesterMembership || requesterMembership.invitationStatus !== 'ACCEPTED') {
-      const unauthorized: Error = new Error('Unauthorized - not team member');
+    const requesterMembership =
+      await this.teamRepo.findMemberByTeamAndMahasiswa(
+        submission.teamId,
+        authMahasiswaId,
+      );
+    if (
+      !requesterMembership ||
+      requesterMembership.invitationStatus !== "ACCEPTED"
+    ) {
+      const unauthorized: Error = new Error("Unauthorized - not team member");
       unauthorized.statusCode = 403;
       throw unauthorized;
     }
 
-    const member = await this.teamRepo.findMemberByTeamAndMahasiswa(submission.teamId, memberMahasiswaId);
-    if (!member || member.invitationStatus !== 'ACCEPTED') {
-      const invalidMember: Error = new Error('User is not a member of this team');
+    const member = await this.teamRepo.findMemberByTeamAndMahasiswa(
+      submission.teamId,
+      memberMahasiswaId,
+    );
+    if (!member || member.invitationStatus !== "ACCEPTED") {
+      const invalidMember: Error = new Error(
+        "User is not a member of this team",
+      );
       invalidMember.statusCode = 403;
       throw invalidMember;
     }
 
     let finalUploadedByMahasiswaId = uploadedByMahasiswaId || authMahasiswaId;
     if (!finalUploadedByMahasiswaId) {
-      throw new Error('uploadedByMahasiswaId is required');
+      throw new Error("uploadedByMahasiswaId is required");
     }
 
-    const uploaderMembership = await this.teamRepo.findMemberByTeamAndMahasiswa(submission.teamId, finalUploadedByMahasiswaId);
-    if (!uploaderMembership || uploaderMembership.invitationStatus !== 'ACCEPTED') {
-      const unauthorizedUploader: Error = new Error('Unauthorized - uploader is not team member');
+    const uploaderMembership = await this.teamRepo.findMemberByTeamAndMahasiswa(
+      submission.teamId,
+      finalUploadedByMahasiswaId,
+    );
+    if (
+      !uploaderMembership ||
+      uploaderMembership.invitationStatus !== "ACCEPTED"
+    ) {
+      const unauthorizedUploader: Error = new Error(
+        "Unauthorized - uploader is not team member",
+      );
       unauthorizedUploader.statusCode = 403;
       throw unauthorizedUploader;
     }
 
     if (!this.storageService) {
-      throw new Error('Storage service not configured');
+      throw new Error("Storage service not configured");
     }
 
     const existingDoc = await this.submissionRepo.findExistingDocument(
       submissionId,
       documentType,
-      memberMahasiswaId
+      memberMahasiswaId,
     );
 
     if (existingDoc) {
-      if (existingDoc.status === 'REJECTED') {
+      if (existingDoc.status === "REJECTED") {
         try {
           await this.storageService.deleteFile(existingDoc.fileName);
         } catch (err) {
-          console.warn('⚠️ [SubmissionService] Failed to delete old file from storage:', err);
+          console.warn(
+            "⚠️ [SubmissionService] Failed to delete old file from storage:",
+            err,
+          );
         }
         await this.submissionRepo.deleteDocument(existingDoc.id);
-      }
-      else {
+      } else {
         const error: Error = new Error(
-          `Dokumen ${documentType} sudah diupload dengan status ${existingDoc.status}. Tidak dapat upload ulang.`
+          `Dokumen ${documentType} sudah diupload dengan status ${existingDoc.status}. Tidak dapat upload ulang.`,
         );
         error.statusCode = 409;
         throw error;
       }
     }
 
-    const allowedTypes = ['pdf', 'docx', 'doc'];
+    const allowedTypes = ["pdf", "docx", "doc"];
     if (!this.storageService.validateFileType(file.name, allowedTypes)) {
-      throw new Error('Invalid file type. Only PDF and DOCX are allowed');
+      throw new Error("Invalid file type. Only PDF and DOCX are allowed");
     }
 
     const maxSizeMB = 10;
@@ -421,12 +508,18 @@ export class SubmissionService {
       throw new Error(`File size exceeds ${maxSizeMB}MB limit`);
     }
 
-    const uniqueFileName = this.storageService.generateUniqueFileName(file.name);
-    const { url, key } = await this.storageService.uploadFile(file, uniqueFileName, 'submissions');
+    const uniqueFileName = this.storageService.generateUniqueFileName(
+      file.name,
+    );
+    const { url, key } = await this.storageService.uploadFile(
+      file,
+      uniqueFileName,
+      "submissions",
+    );
 
-    let sanitizedFileType = file.type || 'application/octet-stream';
-    if (sanitizedFileType.includes(';')) {
-      sanitizedFileType = sanitizedFileType.split(';')[0].trim();
+    let sanitizedFileType = file.type || "application/octet-stream";
+    if (sanitizedFileType.includes(";")) {
+      sanitizedFileType = sanitizedFileType.split(";")[0].trim();
     }
 
     const newDocument = await this.submissionRepo.addDocument({
@@ -441,21 +534,24 @@ export class SubmissionService {
       fileSize: file.size,
       fileUrl: url,
     });
-    
+
     return newDocument;
   }
 
   async getDocuments(submissionId: string, mahasiswaId: string) {
     const submission = await this.submissionRepo.findById(submissionId);
     if (!submission) {
-      const notFound: Error = new Error('Submission not found');
+      const notFound: Error = new Error("Submission not found");
       notFound.statusCode = 404;
       throw notFound;
     }
 
-    const membership = await this.teamRepo.findMemberByTeamAndMahasiswa(submission.teamId, mahasiswaId);
-    if (!membership || membership.invitationStatus !== 'ACCEPTED') {
-      const unauthorized: Error = new Error('Unauthorized - not team member');
+    const membership = await this.teamRepo.findMemberByTeamAndMahasiswa(
+      submission.teamId,
+      mahasiswaId,
+    );
+    if (!membership || membership.invitationStatus !== "ACCEPTED") {
+      const unauthorized: Error = new Error("Unauthorized - not team member");
       unauthorized.statusCode = 403;
       throw unauthorized;
     }
@@ -463,33 +559,51 @@ export class SubmissionService {
     return await this.submissionRepo.findDocumentsBySubmissionId(submissionId);
   }
 
-  async getLetterRequestStatus(submissionId: string, mahasiswaId: string, sessionId?: string) {
+  async getLetterRequestStatus(
+    submissionId: string,
+    mahasiswaId: string,
+    sessionId?: string,
+  ) {
     const submission = await this.submissionRepo.findById(submissionId);
     if (!submission) {
-      const error: Error = new Error('Submission tidak ditemukan.');
+      const error: Error = new Error("Submission tidak ditemukan.");
       error.statusCode = 404;
       throw error;
     }
 
-    const requesterMembership = await this.teamRepo.findMemberByTeamAndMahasiswa(submission.teamId, mahasiswaId);
-    if (!requesterMembership || requesterMembership.invitationStatus !== 'ACCEPTED') {
-      const error: Error = new Error('Anda tidak memiliki akses ke submission ini');
+    const requesterMembership =
+      await this.teamRepo.findMemberByTeamAndMahasiswa(
+        submission.teamId,
+        mahasiswaId,
+      );
+    if (
+      !requesterMembership ||
+      requesterMembership.invitationStatus !== "ACCEPTED"
+    ) {
+      const error: Error = new Error(
+        "Anda tidak memiliki akses ke submission ini",
+      );
       error.statusCode = 403;
       throw error;
     }
 
-    const teamMembers = await this.teamRepo.findMembersByTeamId(submission.teamId);
+    const teamMembers = await this.teamRepo.findMembersByTeamId(
+      submission.teamId,
+    );
     const acceptedMahasiswaIds = Array.from(
       new Set(
         teamMembers
-          .filter((member) => member.invitationStatus === 'ACCEPTED')
-          .map((member) => member.mahasiswaId)
-      )
+          .filter((member) => member.invitationStatus === "ACCEPTED")
+          .map((member) => member.mahasiswaId),
+      ),
     );
 
     const [kesediaanRows, permohonanRows] = await Promise.all([
       this.suratKesediaanRepo.findLatestByMahasiswaIds(acceptedMahasiswaIds),
-      this.suratPermohonanRepo.findLatestByMahasiswaIds(acceptedMahasiswaIds, submissionId),
+      this.suratPermohonanRepo.findLatestByMahasiswaIds(
+        acceptedMahasiswaIds,
+        submissionId,
+      ),
     ]);
 
     const latestKesediaanByMember = new Map<string, any>();
@@ -506,22 +620,29 @@ export class SubmissionService {
       }
     }
 
-    const documentTypes: LetterDocumentType[] = ['SURAT_KESEDIAAN', 'FORM_PERMOHONAN'];
+    const documentTypes: LetterDocumentType[] = [
+      "SURAT_KESEDIAAN",
+      "FORM_PERMOHONAN",
+    ];
     const response: any[] = [];
     const dosenNameCache = new Map<string, string | null>();
 
     for (const memberMahasiswaId of acceptedMahasiswaIds) {
       for (const documentType of documentTypes) {
-        const latestRequest = documentType === 'SURAT_KESEDIAAN'
-          ? latestKesediaanByMember.get(memberMahasiswaId)
-          : latestPermohonanByMember.get(memberMahasiswaId);
+        const latestRequest =
+          documentType === "SURAT_KESEDIAAN"
+            ? latestKesediaanByMember.get(memberMahasiswaId)
+            : latestPermohonanByMember.get(memberMahasiswaId);
 
         let dosenName = null;
         if (latestRequest && latestRequest.dosenId) {
           if (dosenNameCache.has(latestRequest.dosenId)) {
             dosenName = dosenNameCache.get(latestRequest.dosenId);
           } else {
-            const dosenDetail = await this.dosenService.getDosenById(latestRequest.dosenId, sessionId || '');
+            const dosenDetail = await this.dosenService.getDosenById(
+              latestRequest.dosenId,
+              sessionId || "",
+            );
             dosenName = dosenDetail?.profile.fullName || null;
             dosenNameCache.set(latestRequest.dosenId, dosenName);
           }
@@ -531,7 +652,9 @@ export class SubmissionService {
           memberMahasiswaId,
           documentType,
           isAlreadySubmitted: Boolean(latestRequest),
-          latestStatus: latestRequest ? this.normalizeLetterStatus(latestRequest.status) : null,
+          latestStatus: latestRequest
+            ? this.normalizeLetterStatus(latestRequest.status)
+            : null,
           latestRequestId: latestRequest?.id || null,
           dosenName,
           signedFileUrl: latestRequest?.signedFileUrl || null,
@@ -544,41 +667,56 @@ export class SubmissionService {
     return response;
   }
 
-  private normalizeLetterStatus(status: string | null | undefined): LetterRequestStatus {
+  private normalizeLetterStatus(
+    status: string | null | undefined,
+  ): LetterRequestStatus {
     if (!status) return null;
     const normalized = status.toUpperCase();
-    if (normalized === 'MENUNGGU' || normalized === 'DISETUJUI' || normalized === 'DITOLAK') return normalized;
-    if (normalized === 'PENDING') return 'MENUNGGU';
-    if (normalized === 'APPROVED') return 'DISETUJUI';
-    if (normalized === 'REJECTED') return 'DITOLAK';
+    if (
+      normalized === "MENUNGGU" ||
+      normalized === "DISETUJUI" ||
+      normalized === "DITOLAK"
+    )
+      return normalized;
+    if (normalized === "PENDING") return "MENUNGGU";
+    if (normalized === "APPROVED") return "DISETUJUI";
+    if (normalized === "REJECTED") return "DITOLAK";
     return null;
   }
 
   async deleteDocument(documentId: string, mahasiswaId: string) {
     const document = await this.submissionRepo.findDocumentById(documentId);
     if (!document) {
-      const notFound: Error = new Error('Document not found');
+      const notFound: Error = new Error("Document not found");
       notFound.statusCode = 404;
       throw notFound;
     }
 
-    const submission = await this.submissionRepo.findById(document.submissionId);
+    const submission = await this.submissionRepo.findById(
+      document.submissionId,
+    );
     if (!submission) {
-      const notFound: Error = new Error('Submission not found');
+      const notFound: Error = new Error("Submission not found");
       notFound.statusCode = 404;
       throw notFound;
     }
 
-    const membership = await this.teamRepo.findMemberByTeamAndMahasiswa(submission.teamId, mahasiswaId);
-    if (!membership || membership.invitationStatus !== 'ACCEPTED') {
-      const unauthorized: Error = new Error('Unauthorized - not team member');
+    const membership = await this.teamRepo.findMemberByTeamAndMahasiswa(
+      submission.teamId,
+      mahasiswaId,
+    );
+    if (!membership || membership.invitationStatus !== "ACCEPTED") {
+      const unauthorized: Error = new Error("Unauthorized - not team member");
       unauthorized.statusCode = 403;
       throw unauthorized;
     }
 
-    const canDelete = document.status === 'REJECTED' || submission.status === 'DRAFT';
+    const canDelete =
+      document.status === "REJECTED" || submission.status === "DRAFT";
     if (!canDelete) {
-      const forbidden: Error = new Error(`Cannot delete document with status ${document.status} in ${submission.status} submission`);
+      const forbidden: Error = new Error(
+        `Cannot delete document with status ${document.status} in ${submission.status} submission`,
+      );
       forbidden.statusCode = 403;
       throw forbidden;
     }
@@ -587,12 +725,15 @@ export class SubmissionService {
       try {
         await this.storageService.deleteFile(document.fileName);
       } catch (err) {
-        console.warn('⚠️ [SubmissionService] Failed to delete file from storage:', err);
+        console.warn(
+          "⚠️ [SubmissionService] Failed to delete file from storage:",
+          err,
+        );
       }
     }
 
     await this.submissionRepo.deleteDocument(documentId);
-    return { success: true, message: 'Document deleted successfully' };
+    return { success: true, message: "Document deleted successfully" };
   }
 
   async getSubmissionById(submissionId: string) {
@@ -603,41 +744,55 @@ export class SubmissionService {
 
   async approveSubmission(submissionId: string, adminId: string) {
     const submission = await this.submissionRepo.findById(submissionId);
-    if (!submission) throw new Error('Submission not found');
+    if (!submission) throw new Error("Submission not found");
 
-    const currentStage = submission.workflowStage ?? (submission.status === 'PENDING_REVIEW' ? 'PENDING_ADMIN_REVIEW' : submission.status);
-    if (currentStage !== 'PENDING_ADMIN_REVIEW') throw new Error('Only pending submissions can be approved');
+    const currentStage =
+      submission.workflowStage ??
+      (submission.status === "PENDING_REVIEW"
+        ? "PENDING_ADMIN_REVIEW"
+        : submission.status);
+    if (currentStage !== "PENDING_ADMIN_REVIEW")
+      throw new Error("Only pending submissions can be approved");
 
     return await this.submissionRepo.update(submissionId, {
-      status: 'PENDING_REVIEW',
-      workflowStage: 'PENDING_DOSEN_VERIFICATION',
-      adminVerificationStatus: 'APPROVED',
+      status: "PENDING_REVIEW",
+      workflowStage: "PENDING_DOSEN_VERIFICATION",
+      adminVerificationStatus: "APPROVED",
       adminVerifiedAt: new Date(),
       adminVerifiedByAdminId: adminId,
       adminRejectionReason: null,
-      dosenVerificationStatus: 'PENDING',
+      dosenVerificationStatus: "PENDING",
       dosenVerifiedAt: null,
       dosenVerifiedByDosenId: null,
       dosenRejectionReason: null,
     });
   }
 
-  async rejectSubmission(submissionId: string, adminId: string, rejectionReason: string) {
+  async rejectSubmission(
+    submissionId: string,
+    adminId: string,
+    rejectionReason: string,
+  ) {
     const submission = await this.submissionRepo.findById(submissionId);
-    if (!submission) throw new Error('Submission not found');
+    if (!submission) throw new Error("Submission not found");
 
-    const currentStage = submission.workflowStage ?? (submission.status === 'PENDING_REVIEW' ? 'PENDING_ADMIN_REVIEW' : submission.status);
-    if (currentStage !== 'PENDING_ADMIN_REVIEW') throw new Error('Only pending submissions can be rejected');
+    const currentStage =
+      submission.workflowStage ??
+      (submission.status === "PENDING_REVIEW"
+        ? "PENDING_ADMIN_REVIEW"
+        : submission.status);
+    if (currentStage !== "PENDING_ADMIN_REVIEW")
+      throw new Error("Only pending submissions can be rejected");
 
     return await this.submissionRepo.update(submissionId, {
-      status: 'PENDING_REVIEW',
+      status: "PENDING_REVIEW",
       rejectionReason,
-      workflowStage: 'REJECTED_ADMIN',
-      adminVerificationStatus: 'REJECTED',
+      workflowStage: "REJECTED_ADMIN",
+      adminVerificationStatus: "REJECTED",
       adminVerifiedAt: new Date(),
       adminVerifiedByAdminId: adminId,
       adminRejectionReason: rejectionReason,
-      dosenVerificationStatus: 'PENDING',
+      dosenVerificationStatus: "PENDING",
       dosenVerifiedAt: null,
       dosenVerifiedByDosenId: null,
       dosenRejectionReason: null,
@@ -646,30 +801,54 @@ export class SubmissionService {
 
   async resetToDraft(submissionId: string, mahasiswaId: string) {
     const submission = await this.submissionRepo.findById(submissionId);
-    if (!submission) throw new Error('Pengajuan tidak ditemukan.');
+    if (!submission) throw new Error("Pengajuan tidak ditemukan.");
 
-    const rejectedStages = new Set(['REJECTED', 'REJECTED_ADMIN', 'REJECTED_DOSEN']);
-    if (!rejectedStages.has(submission.status) && !rejectedStages.has(submission.workflowStage)) {
-      throw new Error('Hanya pengajuan yang ditolak yang dapat diajukan ulang.');
+    const rejectedStages = new Set([
+      "REJECTED",
+      "REJECTED_ADMIN",
+      "REJECTED_DOSEN",
+    ]);
+    if (
+      !rejectedStages.has(submission.status) &&
+      !rejectedStages.has(submission.workflowStage)
+    ) {
+      throw new Error(
+        "Hanya pengajuan yang ditolak yang dapat diajukan ulang.",
+      );
     }
 
-    const userMembership = await this.teamRepo.findMemberByTeamAndMahasiswa(submission.teamId, mahasiswaId);
-    if (!userMembership || userMembership.invitationStatus !== 'ACCEPTED') {
-      throw new Error('Anda tidak authorized untuk mengajukan ulang pengajuan ini.');
+    const userMembership = await this.teamRepo.findMemberByTeamAndMahasiswa(
+      submission.teamId,
+      mahasiswaId,
+    );
+    if (!userMembership || userMembership.invitationStatus !== "ACCEPTED") {
+      throw new Error(
+        "Anda tidak authorized untuk mengajukan ulang pengajuan ini.",
+      );
     }
 
     const now = new Date();
-    const currentHistory = Array.isArray(submission.statusHistory) ? submission.statusHistory : [];
-    const newHistory = [...currentHistory, { status: 'DRAFT', date: now.toISOString(), actor: 'SYSTEM', reason: 'User reset rejected submission to draft' }];
+    const currentHistory = Array.isArray(submission.statusHistory)
+      ? submission.statusHistory
+      : [];
+    const newHistory = [
+      ...currentHistory,
+      {
+        status: "DRAFT",
+        date: now.toISOString(),
+        actor: "SYSTEM",
+        reason: "User reset rejected submission to draft",
+      },
+    ];
 
     return await this.submissionRepo.update(submissionId, {
-      status: 'DRAFT',
-      workflowStage: 'DRAFT',
-      adminVerificationStatus: 'PENDING',
+      status: "DRAFT",
+      workflowStage: "DRAFT",
+      adminVerificationStatus: "PENDING",
       adminVerifiedAt: null,
       adminVerifiedByAdminId: null,
       adminRejectionReason: null,
-      dosenVerificationStatus: 'PENDING',
+      dosenVerificationStatus: "PENDING",
       dosenVerifiedAt: null,
       dosenVerifiedByDosenId: null,
       dosenRejectionReason: null,

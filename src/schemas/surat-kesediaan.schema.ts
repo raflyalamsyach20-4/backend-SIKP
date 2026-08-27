@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import { z } from "zod";
 
 export const requestSuratKesediaanSchema = z.object({
   memberMahasiswaId: z.string().min(1),
@@ -9,7 +9,10 @@ export const approveBulkSchema = z.object({
 });
 
 export const rejectRequestSchema = z.object({
-  rejection_reason: z.string().min(1, 'Alasan penolakan wajib diisi.').max(1000),
+  rejection_reason: z
+    .string()
+    .min(1, "Alasan penolakan wajib diisi.")
+    .max(1000),
 });
 
 export const reapplyRequestSchema = z.object({

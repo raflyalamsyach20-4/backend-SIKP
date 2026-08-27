@@ -1,6 +1,11 @@
 // @ts-nocheck
-import { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3';
-import { nanoid } from 'nanoid';
+import {
+  S3Client,
+  PutObjectCommand,
+  GetObjectCommand,
+  DeleteObjectCommand,
+} from "@aws-sdk/client-s3";
+import { nanoid } from "nanoid";
 
 /**
  * S3-compatible R2 upload untuk fallback saat R2 binding tidak tersedia
@@ -10,13 +15,20 @@ export class S3R2Storage {
   private s3Client: S3Client | null = null;
   private bucketName: string;
 
-  constructor(bucketName: string, s3Config?: { accessKeyId: string; secretAccessKey: string; endpoint: string }) {
+  constructor(
+    bucketName: string,
+    s3Config?: {
+      accessKeyId: string;
+      secretAccessKey: string;
+      endpoint: string;
+    },
+  ) {
     this.bucketName = bucketName;
 
     // Only initialize S3 client if credentials provided
     if (s3Config?.accessKeyId && s3Config?.secretAccessKey) {
       this.s3Client = new S3Client({
-        region: 'auto',
+        region: "auto",
         credentials: {
           accessKeyId: s3Config.accessKeyId,
           secretAccessKey: s3Config.secretAccessKey,
@@ -26,11 +38,15 @@ export class S3R2Storage {
     }
   }
 
-  async getFile(fileKey: string): Promise<{ body: any, httpMetadata?: any, httpEtag?: string } | null> {
+  async getFile(
+    fileKey: string,
+  ): Promise<{ body: any; httpMetadata?: any; httpEtag?: string } | null> {
     if (!this.s3Client) return null;
 
     try {
-      console.log(`[S3R2Storage] 📥 Fetching from S3-compatible R2: ${fileKey}`);
+      console.log(
+        `[S3R2Storage] 📥 Fetching from S3-compatible R2: ${fileKey}`,
+      );
       const command = new GetObjectCommand({
         Bucket: this.bucketName,
         Key: fileKey,
@@ -50,22 +66,31 @@ export class S3R2Storage {
     }
   }
 
-  async uploadFile(fileKey: string, fileData: Buffer | File, contentType: string = 'application/octet-stream'): Promise<string> {
+  async uploadFile(
+    fileKey: string,
+    fileData: Buffer | File,
+    contentType: string = "application/octet-stream",
+  ): Promise<string> {
     if (!this.s3Client) {
-      throw new Error('S3 client not configured. Provide S3 credentials to enable S3-compatible uploads.');
+      throw new Error(
+        "S3 client not configured. Provide S3 credentials to enable S3-compatible uploads.",
+      );
     }
 
     try {
       console.log(`[S3R2Storage] 📤 Uploading to S3-compatible R2: ${fileKey}`);
 
-      const buffer = fileData instanceof File ? Buffer.from(await fileData.arrayBuffer()) : fileData;
+      const buffer =
+        fileData instanceof File
+          ? Buffer.from(await fileData.arrayBuffer())
+          : fileData;
 
       const command = new PutObjectCommand({
         Bucket: this.bucketName,
         Key: fileKey,
         Body: buffer,
         ContentType: contentType,
-        ContentDisposition: 'inline',
+        ContentDisposition: "inline",
       });
 
       await this.s3Client.send(command);
@@ -82,7 +107,9 @@ export class S3R2Storage {
     if (!this.s3Client) return;
 
     try {
-      console.log(`[S3R2Storage] 🗑️ Deleting from S3-compatible R2: ${fileKey}`);
+      console.log(
+        `[S3R2Storage] 🗑️ Deleting from S3-compatible R2: ${fileKey}`,
+      );
       const command = new DeleteObjectCommand({
         Bucket: this.bucketName,
         Key: fileKey,

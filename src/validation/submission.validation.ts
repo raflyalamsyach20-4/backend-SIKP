@@ -1,12 +1,12 @@
-import { z } from 'zod';
-import { SubmissionStatus } from '@/constants';
+import { z } from "zod";
+import { SubmissionStatus } from "@/constants";
 
 /**
  * Create Submission Schema
  */
 export const createSubmissionSchema = z.object({
-  teamId: z.string().min(1, 'Team ID is required'),
-  judulKP: z.string().min(1, 'Title is required'),
+  teamId: z.string().min(1, "Team ID is required"),
+  judulKP: z.string().min(1, "Title is required"),
   deskripsi: z.string().optional(),
   tempatKP: z.string().optional(),
   alamatTempatKP: z.string().optional(),
@@ -55,7 +55,9 @@ export const updateSubmissionStatusSchema = z.object({
   rejectionReason: z.string().optional(),
 });
 
-export type UpdateSubmissionStatusInput = z.infer<typeof updateSubmissionStatusSchema>;
+export type UpdateSubmissionStatusInput = z.infer<
+  typeof updateSubmissionStatusSchema
+>;
 
 /**
  * Approve/Reject Submission Schema
@@ -65,13 +67,15 @@ export const approveRejectSubmissionSchema = z.object({
   rejectionReason: z.string().optional(),
 });
 
-export type ApproveRejectSubmissionInput = z.infer<typeof approveRejectSubmissionSchema>;
+export type ApproveRejectSubmissionInput = z.infer<
+  typeof approveRejectSubmissionSchema
+>;
 
 /**
  * Submission ID Parameter Schema
  */
 export const submissionIdParamSchema = z.object({
-  submissionId: z.string().min(1, 'Submission ID is required'),
+  submissionId: z.string().min(1, "Submission ID is required"),
 });
 
 export type SubmissionIdParam = z.infer<typeof submissionIdParamSchema>;

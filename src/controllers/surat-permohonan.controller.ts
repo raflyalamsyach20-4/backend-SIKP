@@ -1,13 +1,13 @@
-import { Context } from 'hono';
-import type { JWTPayload } from '@/types';
-import { SuratPermohonanService } from '@/services/surat-permohonan.service';
-import { createResponse, handleError } from '@/utils/helpers';
+import { Context } from "hono";
+import type { JWTPayload } from "@/types";
+import { SuratPermohonanService } from "@/services/surat-permohonan.service";
+import { createResponse, handleError } from "@/utils/helpers";
 import {
   requestSuratPermohonanSchema,
   approveBulkSchema,
   rejectRequestSchema,
   reapplyRequestSchema,
-} from '@/schemas/surat-permohonan.schema';
+} from "@/schemas/surat-permohonan.schema";
 
 export class SuratPermohonanController {
   private suratPermohonanService: SuratPermohonanService;
@@ -22,17 +22,17 @@ export class SuratPermohonanController {
    */
   requestSuratPermohonan = async () => {
     try {
-      const user = this.c.get('user');
-      const sessionId = this.c.get('sessionId');
+      const user = this.c.get("user");
+      const sessionId = this.c.get("sessionId");
       const body = await this.c.req.json();
 
       const validationResult = requestSuratPermohonanSchema.safeParse(body);
       if (!validationResult.success) {
         return this.c.json(
-          createResponse(false, 'Validation failed', {
+          createResponse(false, "Validation failed", {
             errors: validationResult.error.issues,
           }),
-          400
+          400,
         );
       }
 
@@ -41,16 +41,20 @@ export class SuratPermohonanController {
       const result = await this.suratPermohonanService.requestSuratPermohonan(
         memberMahasiswaId,
         user.mahasiswaId || user.userId,
-        sessionId
+        sessionId,
       );
 
       return this.c.json(
-        createResponse(true, 'Pengajuan surat permohonan berhasil dikirim ke dosen', {
-          requestId: result.requestId,
-        })
+        createResponse(
+          true,
+          "Pengajuan surat permohonan berhasil dikirim ke dosen",
+          {
+            requestId: result.requestId,
+          },
+        ),
       );
     } catch (error) {
-      return handleError(this.c, error, 'Failed to request surat permohonan');
+      return handleError(this.c, error, "Failed to request surat permohonan");
     }
   };
 
@@ -60,17 +64,21 @@ export class SuratPermohonanController {
    */
   getRequests = async () => {
     try {
-      const user = this.c.get('user');
-      const sessionId = this.c.get('sessionId');
+      const user = this.c.get("user");
+      const sessionId = this.c.get("sessionId");
       const requests = await this.suratPermohonanService.getRequestsForDosen(
         user.dosenId || user.userId,
         user.role,
-        sessionId
+        sessionId,
       );
 
-      return this.c.json(createResponse(true, 'OK', requests));
+      return this.c.json(createResponse(true, "OK", requests));
     } catch (error) {
-      return handleError(this.c, error, 'Failed to get surat permohonan requests');
+      return handleError(
+        this.c,
+        error,
+        "Failed to get surat permohonan requests",
+      );
     }
   };
 
@@ -80,26 +88,30 @@ export class SuratPermohonanController {
    */
   approveSingle = async () => {
     try {
-      const user = this.c.get('user');
-      const sessionId = this.c.get('sessionId');
-      const requestId = this.c.req.param('requestId');
+      const user = this.c.get("user");
+      const sessionId = this.c.get("sessionId");
+      const requestId = this.c.req.param("requestId");
 
       const result = await this.suratPermohonanService.approveSingleRequest(
         requestId,
         user.dosenId || user.userId,
-        sessionId
+        sessionId,
       );
 
       return this.c.json(
-        createResponse(true, 'Pengajuan surat permohonan berhasil disetujui', {
+        createResponse(true, "Pengajuan surat permohonan berhasil disetujui", {
           requestId: result.requestId,
           status: result.status,
           approvedAt: result.approvedAt,
           signedFileUrl: result.signedFileUrl,
-        })
+        }),
       );
     } catch (error) {
-      return handleError(this.c, error, 'Failed to approve surat permohonan request');
+      return handleError(
+        this.c,
+        error,
+        "Failed to approve surat permohonan request",
+      );
     }
   };
 
@@ -109,17 +121,17 @@ export class SuratPermohonanController {
    */
   approveBulk = async () => {
     try {
-      const user = this.c.get('user');
-      const sessionId = this.c.get('sessionId');
+      const user = this.c.get("user");
+      const sessionId = this.c.get("sessionId");
       const body = await this.c.req.json();
 
       const validationResult = approveBulkSchema.safeParse(body);
       if (!validationResult.success) {
         return this.c.json(
-          createResponse(false, 'Validation failed', {
+          createResponse(false, "Validation failed", {
             errors: validationResult.error.issues,
           }),
-          400
+          400,
         );
       }
 
@@ -127,17 +139,25 @@ export class SuratPermohonanController {
       const result = await this.suratPermohonanService.approveBulkRequests(
         requestIds,
         user.dosenId || user.userId,
-        sessionId
+        sessionId,
       );
 
       return this.c.json(
-        createResponse(true, `${result.approvedCount} pengajuan berhasil disetujui`, {
-          approvedCount: result.approvedCount,
-          failed: result.failed,
-        })
+        createResponse(
+          true,
+          `${result.approvedCount} pengajuan berhasil disetujui`,
+          {
+            approvedCount: result.approvedCount,
+            failed: result.failed,
+          },
+        ),
       );
     } catch (error) {
-      return handleError(this.c, error, 'Failed to approve bulk surat permohonan requests');
+      return handleError(
+        this.c,
+        error,
+        "Failed to approve bulk surat permohonan requests",
+      );
     }
   };
 
@@ -147,31 +167,39 @@ export class SuratPermohonanController {
    */
   reject = async () => {
     try {
-      const user = this.c.get('user');
-      const requestId = this.c.req.param('requestId');
+      const user = this.c.get("user");
+      const requestId = this.c.req.param("requestId");
       const body = await this.c.req.json().catch(() => ({}));
 
       const validationResult = rejectRequestSchema.safeParse(body);
       if (!validationResult.success) {
         return this.c.json(
-          createResponse(false, 'Validation failed', {
+          createResponse(false, "Validation failed", {
             errors: validationResult.error.issues,
           }),
-          400
+          400,
         );
       }
 
       const result = await this.suratPermohonanService.rejectRequest(
         requestId,
         user.dosenId || user.userId,
-        validationResult.data.rejection_reason
+        validationResult.data.rejection_reason,
       );
 
       return this.c.json(
-        createResponse(true, 'Pengajuan surat permohonan berhasil ditolak', result)
+        createResponse(
+          true,
+          "Pengajuan surat permohonan berhasil ditolak",
+          result,
+        ),
       );
     } catch (error) {
-      return handleError(this.c, error, 'Failed to reject surat permohonan request');
+      return handleError(
+        this.c,
+        error,
+        "Failed to reject surat permohonan request",
+      );
     }
   };
 
@@ -181,29 +209,42 @@ export class SuratPermohonanController {
    */
   reapplyRequest = async () => {
     try {
-      const user = this.c.get('user');
-      const sessionId = this.c.get('sessionId');
-      const requestId = this.c.req.param('requestId');
+      const user = this.c.get("user");
+      const sessionId = this.c.get("sessionId");
+      const requestId = this.c.req.param("requestId");
       const body = await this.c.req.json().catch(() => ({}));
 
       const validationResult = reapplyRequestSchema.safeParse(body);
       if (!validationResult.success) {
         return this.c.json(
-          createResponse(false, 'Validation failed', {
+          createResponse(false, "Validation failed", {
             errors: validationResult.error.issues,
           }),
-          400
+          400,
         );
       }
 
       const { memberMahasiswaId } = validationResult.data;
-      const result = await this.suratPermohonanService.reapplyRequest(requestId, memberMahasiswaId, user.mahasiswaId || user.userId, sessionId);
+      const result = await this.suratPermohonanService.reapplyRequest(
+        requestId,
+        memberMahasiswaId,
+        user.mahasiswaId || user.userId,
+        sessionId,
+      );
 
       return this.c.json(
-        createResponse(true, 'Pengajuan ulang surat permohonan berhasil.', result)
+        createResponse(
+          true,
+          "Pengajuan ulang surat permohonan berhasil.",
+          result,
+        ),
       );
     } catch (error) {
-      return handleError(this.c, error, 'Failed to reapply surat permohonan request');
+      return handleError(
+        this.c,
+        error,
+        "Failed to reapply surat permohonan request",
+      );
     }
   };
 }

@@ -1,13 +1,16 @@
-import { and, desc, eq, inArray, sql } from 'drizzle-orm';
-import type { DbClient } from '@/db';
-import { suratPermohonanRequests, submissions } from '@/db/schema';
+import { and, desc, eq, inArray, sql } from "drizzle-orm";
+import type { DbClient } from "@/db";
+import { suratPermohonanRequests, submissions } from "@/db/schema";
 
-type SuratPermohonanCreateInput = typeof suratPermohonanRequests.$inferInsert & {
-  mahasiswaEsignatureUrl?: string | null;
-  mahasiswaEsignatureSnapshotAt?: Date | null;
-};
+type SuratPermohonanCreateInput =
+  typeof suratPermohonanRequests.$inferInsert & {
+    mahasiswaEsignatureUrl?: string | null;
+    mahasiswaEsignatureSnapshotAt?: Date | null;
+  };
 
-type SuratPermohonanUpdateInput = Partial<typeof suratPermohonanRequests.$inferInsert>;
+type SuratPermohonanUpdateInput = Partial<
+  typeof suratPermohonanRequests.$inferInsert
+>;
 
 export class SuratPermohonanRepository {
   constructor(private db: DbClient) {}
@@ -22,7 +25,8 @@ export class SuratPermohonanRepository {
       signedFileUrl: suratPermohonanRequests.signedFileUrl,
       signedFileKey: suratPermohonanRequests.signedFileKey,
       mahasiswaEsignatureUrl: suratPermohonanRequests.mahasiswaEsignatureUrl,
-      mahasiswaEsignatureSnapshotAt: suratPermohonanRequests.mahasiswaEsignatureSnapshotAt,
+      mahasiswaEsignatureSnapshotAt:
+        suratPermohonanRequests.mahasiswaEsignatureSnapshotAt,
       requestedAt: suratPermohonanRequests.requestedAt,
       approvedAt: suratPermohonanRequests.approvedAt,
       approvedByDosenId: suratPermohonanRequests.approvedByDosenId,
@@ -67,7 +71,10 @@ export class SuratPermohonanRepository {
         endDate: submissions.endDate,
       })
       .from(suratPermohonanRequests)
-      .innerJoin(submissions, eq(suratPermohonanRequests.submissionId, submissions.id))
+      .innerJoin(
+        submissions,
+        eq(suratPermohonanRequests.submissionId, submissions.id),
+      )
       .where(eq(suratPermohonanRequests.id, id))
       .limit(1);
 
@@ -91,7 +98,8 @@ export class SuratPermohonanRepository {
         jenisSurat: sql<string>`'Surat Permohonan'`,
         status: suratPermohonanRequests.status,
         mahasiswaEsignatureUrl: suratPermohonanRequests.mahasiswaEsignatureUrl,
-        mahasiswaEsignatureSnapshotAt: suratPermohonanRequests.mahasiswaEsignatureSnapshotAt,
+        mahasiswaEsignatureSnapshotAt:
+          suratPermohonanRequests.mahasiswaEsignatureSnapshotAt,
         signedFileUrl: suratPermohonanRequests.signedFileUrl,
         approvedAt: suratPermohonanRequests.approvedAt,
         rejectedAt: suratPermohonanRequests.approvedAt,
@@ -109,7 +117,10 @@ export class SuratPermohonanRepository {
         tanggalSelesai: submissions.endDate,
       })
       .from(suratPermohonanRequests)
-      .innerJoin(submissions, eq(suratPermohonanRequests.submissionId, submissions.id))
+      .innerJoin(
+        submissions,
+        eq(suratPermohonanRequests.submissionId, submissions.id),
+      )
       .where(eq(suratPermohonanRequests.dosenId, dosenId))
       .orderBy(desc(suratPermohonanRequests.requestedAt));
   }
@@ -131,7 +142,8 @@ export class SuratPermohonanRepository {
         jenisSurat: sql<string>`'Surat Permohonan'`,
         status: suratPermohonanRequests.status,
         mahasiswaEsignatureUrl: suratPermohonanRequests.mahasiswaEsignatureUrl,
-        mahasiswaEsignatureSnapshotAt: suratPermohonanRequests.mahasiswaEsignatureSnapshotAt,
+        mahasiswaEsignatureSnapshotAt:
+          suratPermohonanRequests.mahasiswaEsignatureSnapshotAt,
         signedFileUrl: suratPermohonanRequests.signedFileUrl,
         approvedAt: suratPermohonanRequests.approvedAt,
         rejectedAt: suratPermohonanRequests.approvedAt,
@@ -149,7 +161,10 @@ export class SuratPermohonanRepository {
         tanggalSelesai: submissions.endDate,
       })
       .from(suratPermohonanRequests)
-      .innerJoin(submissions, eq(suratPermohonanRequests.submissionId, submissions.id))
+      .innerJoin(
+        submissions,
+        eq(suratPermohonanRequests.submissionId, submissions.id),
+      )
       .orderBy(desc(suratPermohonanRequests.requestedAt));
   }
 
@@ -161,8 +176,8 @@ export class SuratPermohonanRepository {
         and(
           eq(suratPermohonanRequests.memberMahasiswaId, memberMahasiswaId),
           eq(suratPermohonanRequests.dosenId, dosenId),
-          eq(suratPermohonanRequests.status, 'MENUNGGU')
-        )
+          eq(suratPermohonanRequests.status, "MENUNGGU"),
+        ),
       )
       .limit(1);
 
@@ -170,7 +185,10 @@ export class SuratPermohonanRepository {
   }
 
   async create(data: SuratPermohonanCreateInput) {
-    const result = await this.db.insert(suratPermohonanRequests).values(data).returning();
+    const result = await this.db
+      .insert(suratPermohonanRequests)
+      .values(data)
+      .returning();
     return result[0];
   }
 
@@ -192,12 +210,12 @@ export class SuratPermohonanRepository {
       approvedAt: Date;
       signedFileUrl: string;
       signedFileKey: string;
-    }
+    },
   ) {
     const result = await this.db
       .update(suratPermohonanRequests)
       .set({
-        status: 'DISETUJUI',
+        status: "DISETUJUI",
         approvedByDosenId: data.approvedByDosenId,
         approvedAt: data.approvedAt,
         signedFileUrl: data.signedFileUrl,
@@ -209,8 +227,8 @@ export class SuratPermohonanRepository {
         and(
           eq(suratPermohonanRequests.id, id),
           eq(suratPermohonanRequests.dosenId, dosenId),
-          eq(suratPermohonanRequests.status, 'MENUNGGU')
-        )
+          eq(suratPermohonanRequests.status, "MENUNGGU"),
+        ),
       )
       .returning();
 
@@ -221,7 +239,7 @@ export class SuratPermohonanRepository {
     const result = await this.db
       .update(suratPermohonanRequests)
       .set({
-        status: 'DITOLAK',
+        status: "DITOLAK",
         approvedByDosenId: dosenId,
         approvedAt: new Date(),
         rejectionReason: reason,
@@ -231,8 +249,8 @@ export class SuratPermohonanRepository {
         and(
           eq(suratPermohonanRequests.id, id),
           eq(suratPermohonanRequests.dosenId, dosenId),
-          eq(suratPermohonanRequests.status, 'MENUNGGU')
-        )
+          eq(suratPermohonanRequests.status, "MENUNGGU"),
+        ),
       )
       .returning();
 
@@ -245,13 +263,13 @@ export class SuratPermohonanRepository {
     data?: {
       mahasiswaEsignatureUrl?: string | null;
       mahasiswaEsignatureSnapshotAt?: Date | null;
-    }
+    },
   ) {
     const result = await this.db
       .update(suratPermohonanRequests)
       .set({
         ...data,
-        status: 'MENUNGGU',
+        status: "MENUNGGU",
         rejectionReason: null,
         approvedByDosenId: null,
         approvedAt: null,
@@ -264,8 +282,8 @@ export class SuratPermohonanRepository {
         and(
           eq(suratPermohonanRequests.id, id),
           eq(suratPermohonanRequests.memberMahasiswaId, memberMahasiswaId),
-          sql`${suratPermohonanRequests.status}::text in ('DITOLAK', 'REJECTED')`
-        )
+          sql`${suratPermohonanRequests.status}::text in ('DITOLAK', 'REJECTED')`,
+        ),
       )
       .returning();
 
@@ -281,10 +299,15 @@ export class SuratPermohonanRepository {
       .where(inArray(suratPermohonanRequests.id, ids));
   }
 
-  async findLatestByMahasiswaIds(memberMahasiswaIds: string[], submissionId?: string) {
+  async findLatestByMahasiswaIds(
+    memberMahasiswaIds: string[],
+    submissionId?: string,
+  ) {
     if (memberMahasiswaIds.length === 0) return [];
 
-    const conditions = [inArray(suratPermohonanRequests.memberMahasiswaId, memberMahasiswaIds)];
+    const conditions = [
+      inArray(suratPermohonanRequests.memberMahasiswaId, memberMahasiswaIds),
+    ];
     if (submissionId) {
       conditions.push(eq(suratPermohonanRequests.submissionId, submissionId));
     }

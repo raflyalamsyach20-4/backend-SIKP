@@ -1,35 +1,55 @@
-import { eq, and, inArray } from 'drizzle-orm';
-import type { DbClient } from '@/db';
-import { teams, teamMembers, submissions } from '@/db/schema';
+import { eq, and, inArray } from "drizzle-orm";
+import type { DbClient } from "@/db";
+import { teams, teamMembers, submissions } from "@/db/schema";
 
 export class TeamRepository {
   constructor(private db: DbClient) {}
 
   async findById(id: string) {
-    const result = await this.db.select().from(teams).where(eq(teams.id, id)).limit(1);
+    const result = await this.db
+      .select()
+      .from(teams)
+      .where(eq(teams.id, id))
+      .limit(1);
     return result[0] || null;
   }
 
   async findByCode(code: string) {
-    const result = await this.db.select().from(teams).where(eq(teams.code, code)).limit(1);
+    const result = await this.db
+      .select()
+      .from(teams)
+      .where(eq(teams.code, code))
+      .limit(1);
     return result[0] || null;
   }
 
   async findByLeaderMahasiswaId(leaderMahasiswaId: string) {
-    return await this.db.select().from(teams).where(eq(teams.leaderMahasiswaId, leaderMahasiswaId));
+    return await this.db
+      .select()
+      .from(teams)
+      .where(eq(teams.leaderMahasiswaId, leaderMahasiswaId));
   }
 
   async findByDosenKpId(dosenKpId: string) {
-    return await this.db.select().from(teams).where(eq(teams.dosenKpId, dosenKpId));
+    return await this.db
+      .select()
+      .from(teams)
+      .where(eq(teams.dosenKpId, dosenKpId));
   }
 
   async countFixedTeams() {
-    const result = await this.db.select().from(teams).where(eq(teams.status, 'FIXED'));
+    const result = await this.db
+      .select()
+      .from(teams)
+      .where(eq(teams.status, "FIXED"));
     return result.length;
   }
 
   async countDistinctDosenKpInFixedTeams() {
-    const fixedTeams = await this.db.select().from(teams).where(eq(teams.status, 'FIXED'));
+    const fixedTeams = await this.db
+      .select()
+      .from(teams)
+      .where(eq(teams.status, "FIXED"));
     const uniqueDosen = new Set<string>();
 
     fixedTeams.forEach((team) => {
@@ -61,7 +81,10 @@ export class TeamRepository {
   }
 
   async findMembersByTeamId(teamId: string) {
-    return await this.db.select().from(teamMembers).where(eq(teamMembers.teamId, teamId));
+    return await this.db
+      .select()
+      .from(teamMembers)
+      .where(eq(teamMembers.teamId, teamId));
   }
 
   /**
@@ -98,7 +121,12 @@ export class TeamRepository {
     const result = await this.db
       .select()
       .from(teamMembers)
-      .where(and(eq(teamMembers.teamId, teamId), eq(teamMembers.mahasiswaId, mahasiswaId)))
+      .where(
+        and(
+          eq(teamMembers.teamId, teamId),
+          eq(teamMembers.mahasiswaId, mahasiswaId),
+        ),
+      )
       .limit(1);
     return result[0] || null;
   }
@@ -120,7 +148,11 @@ export class TeamRepository {
     return result[0] || null;
   }
 
-  async updateMemberStatus(id: string, status: 'PENDING' | 'ACCEPTED' | 'REJECTED', respondedAt?: Date) {
+  async updateMemberStatus(
+    id: string,
+    status: "PENDING" | "ACCEPTED" | "REJECTED",
+    respondedAt?: Date,
+  ) {
     const result = await this.db
       .update(teamMembers)
       .set({ invitationStatus: status, respondedAt: respondedAt || new Date() })
@@ -130,7 +162,10 @@ export class TeamRepository {
   }
 
   async findMembershipByMahasiswaId(mahasiswaId: string) {
-    return await this.db.select().from(teamMembers).where(eq(teamMembers.mahasiswaId, mahasiswaId));
+    return await this.db
+      .select()
+      .from(teamMembers)
+      .where(eq(teamMembers.mahasiswaId, mahasiswaId));
   }
 
   async findAcceptedMembersByTeamIds(teamIds: string[]) {
@@ -144,18 +179,25 @@ export class TeamRepository {
       .where(
         and(
           inArray(teamMembers.teamId, teamIds),
-          eq(teamMembers.invitationStatus, 'ACCEPTED')
-        )
+          eq(teamMembers.invitationStatus, "ACCEPTED"),
+        ),
       );
   }
 
   async deleteTeam(id: string) {
-    const result = await this.db.delete(teams).where(eq(teams.id, id)).returning();
+    const result = await this.db
+      .delete(teams)
+      .where(eq(teams.id, id))
+      .returning();
     return result[0] || null;
   }
 
   async hasSubmissions(teamId: string): Promise<boolean> {
-    const result = await this.db.select().from(submissions).where(eq(submissions.teamId, teamId)).limit(1);
+    const result = await this.db
+      .select()
+      .from(submissions)
+      .where(eq(submissions.teamId, teamId))
+      .limit(1);
     return !!result[0];
   }
 
@@ -163,7 +205,12 @@ export class TeamRepository {
     return await this.db
       .select()
       .from(teamMembers)
-      .where(and(eq(teamMembers.mahasiswaId, mahasiswaId), eq(teamMembers.invitationStatus, 'PENDING')));
+      .where(
+        and(
+          eq(teamMembers.mahasiswaId, mahasiswaId),
+          eq(teamMembers.invitationStatus, "PENDING"),
+        ),
+      );
   }
 
   async findTeamsByMahasiswaId(mahasiswaId: string) {
@@ -173,13 +220,15 @@ export class TeamRepository {
       .where(
         and(
           eq(teamMembers.mahasiswaId, mahasiswaId),
-          eq(teamMembers.invitationStatus, 'ACCEPTED')
-        )
+          eq(teamMembers.invitationStatus, "ACCEPTED"),
+        ),
       );
 
     if (memberRecords.length === 0) return [];
-    const teamIds = memberRecords.map(m => m.teamId);
-    const teamsList = await Promise.all(teamIds.map(teamId => this.findById(teamId)));
-    return teamsList.filter(team => team !== null);
+    const teamIds = memberRecords.map((m) => m.teamId);
+    const teamsList = await Promise.all(
+      teamIds.map((teamId) => this.findById(teamId)),
+    );
+    return teamsList.filter((team) => team !== null);
   }
 }

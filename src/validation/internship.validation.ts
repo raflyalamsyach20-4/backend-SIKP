@@ -1,9 +1,9 @@
-import { z } from 'zod';
+import { z } from "zod";
 
 export const createLogbookSchema = z.object({
-  date: z.string().min(1, 'Tanggal harus diisi'),
-  activity: z.string().min(1, 'Aktivitas harus diisi'),
-  description: z.string().min(1, 'Deskripsi harus diisi'),
+  date: z.string().min(1, "Tanggal harus diisi"),
+  activity: z.string().min(1, "Aktivitas harus diisi"),
+  description: z.string().min(1, "Deskripsi harus diisi"),
   hours: z.number().optional(),
 });
 
@@ -15,8 +15,8 @@ export const updateLogbookSchema = z.object({
 });
 
 export const submitMentorApprovalRequestSchema = z.object({
-  mentorName: z.string().min(1, 'Nama mentor harus diisi'),
-  mentorEmail: z.string().email('Email mentor tidak valid'),
+  mentorName: z.string().min(1, "Nama mentor harus diisi"),
+  mentorEmail: z.string().email("Email mentor tidak valid"),
   mentorPhone: z.string().optional(),
   companyName: z.string().optional(),
   position: z.string().optional(),
@@ -32,11 +32,11 @@ export const mentorProfileSchema = z.object({
 });
 
 export const mentorSignatureSchema = z.object({
-  signature: z.string().min(1, 'Data tanda tangan (Base64) diperlukan'),
+  signature: z.string().min(1, "Data tanda tangan (Base64) diperlukan"),
 });
 
 export const rejectLogbookSchema = z.object({
-  rejectionReason: z.string().min(1, 'Alasan penolakan harus diisi'),
+  rejectionReason: z.string().min(1, "Alasan penolakan harus diisi"),
 });
 
 export const createAssessmentSchema = z.object({

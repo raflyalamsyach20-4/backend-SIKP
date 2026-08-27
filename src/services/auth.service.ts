@@ -54,9 +54,7 @@ export class AuthService {
   private jwks?: ReturnType<typeof createRemoteJWKSet>;
   private authSessionRepo: AuthSessionRepository;
 
-  constructor(
-    private env: CloudflareBindings
-  ) {
+  constructor(private env: CloudflareBindings) {
     const dbClient = createDbClient(this.env.DATABASE_URL);
     this.authSessionRepo = new AuthSessionRepository(dbClient);
   }
@@ -68,7 +66,9 @@ export class AuthService {
    * Return access token for given sessionId, or null if not available.
    * Optimized to query database directly and avoid full session context load (SSO fetch).
    */
-  async getSessionAccessToken(sessionId?: string | null): Promise<string | null> {
+  async getSessionAccessToken(
+    sessionId?: string | null,
+  ): Promise<string | null> {
     if (!sessionId) return null;
     try {
       const session = await this.authSessionRepo.findSessionById(sessionId);
@@ -77,11 +77,13 @@ export class AuthService {
       }
       return session.accessToken;
     } catch (err) {
-      console.warn('[AuthService.getSessionAccessToken] failed to fetch session from DB', { sessionId, err });
+      console.warn(
+        "[AuthService.getSessionAccessToken] failed to fetch session from DB",
+        { sessionId, err },
+      );
       return null;
     }
   }
-
 
   /**
    * Get a service-level access token using client credentials grant.
@@ -95,39 +97,42 @@ export class AuthService {
     }
 
     // exchange client credentials
-    const tokenUrl = this.env.SSO_TOKEN_URL || `${this.env.SSO_BASE_URL}/oauth/token`;
+    const tokenUrl =
+      this.env.SSO_TOKEN_URL || `${this.env.SSO_BASE_URL}/oauth/token`;
     const form = new URLSearchParams({
-      grant_type: 'client_credentials',
-      client_id: this.env.SSO_CLIENT_ID || '',
-      client_secret: this.env.SSO_CLIENT_SECRET || '',
+      grant_type: "client_credentials",
+      client_id: this.env.SSO_CLIENT_ID || "",
+      client_secret: this.env.SSO_CLIENT_SECRET || "",
     });
 
     const resp = await fetch(tokenUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
       body: form.toString(),
     });
 
     if (!resp.ok) {
-      const body = await resp.text().catch(() => '');
-      console.warn(`[AuthService.getServiceAccessToken] client_credentials failed (${resp.status}): ${body}. Falling back to active ADMIN session token.`);
-      
+      const body = await resp.text().catch(() => "");
+      console.warn(
+        `[AuthService.getServiceAccessToken] client_credentials failed (${resp.status}): ${body}. Falling back to active ADMIN session token.`,
+      );
+
       // Fallback to an active ADMIN session token if client_credentials is not supported/configured
       const db = createDbClient(this.env.DATABASE_URL);
       const sessions = await db.query.authSessions.findMany({
-        where: (s, { and, eq, gt }) => and(
-          eq(s.activeIdentity, 'ADMIN'),
-          gt(s.expiresAt, new Date())
-        ),
+        where: (s, { and, eq, gt }) =>
+          and(eq(s.activeIdentity, "ADMIN"), gt(s.expiresAt, new Date())),
         orderBy: (s, { desc }) => [desc(s.updatedAt)],
-        limit: 1
+        limit: 1,
       });
 
       if (sessions.length > 0 && sessions[0].accessToken) {
         return sessions[0].accessToken;
       }
 
-      throw new Error(`Failed to obtain service token from SSO (${resp.status}): ${body}`);
+      throw new Error(
+        `Failed to obtain service token from SSO (${resp.status}): ${body}`,
+      );
     }
 
     const payload = (await resp.json()) as any;
@@ -140,7 +145,9 @@ export class AuthService {
   private getJwks() {
     if (!this.jwks) {
       this.assertSsoConfiguration();
-      const jwksUrl = this.env.SSO_JWKS_URL || `${this.env.SSO_BASE_URL}/.well-known/jwks.json`;
+      const jwksUrl =
+        this.env.SSO_JWKS_URL ||
+        `${this.env.SSO_BASE_URL}/.well-known/jwks.json`;
       this.jwks = createRemoteJWKSet(new URL(jwksUrl));
     }
 
@@ -223,14 +230,15 @@ export class AuthService {
   private async exchangeAuthorizationCode(
     payload: CallbackPayload,
   ): Promise<TokenExchangeResponse> {
-    const tokenUrl = this.env.SSO_TOKEN_URL || `${this.env.SSO_BASE_URL}/oauth/token`;
+    const tokenUrl =
+      this.env.SSO_TOKEN_URL || `${this.env.SSO_BASE_URL}/oauth/token`;
     const form = new URLSearchParams({
       grant_type: "AUTHORIZATION_CODE",
       code: payload.code,
       code_verifier: payload.codeVerifier,
       redirect_uri: payload.redirectUri,
-      client_id: this.env.SSO_CLIENT_ID || '',
-      client_secret: this.env.SSO_CLIENT_SECRET || '',
+      client_id: this.env.SSO_CLIENT_ID || "",
+      client_secret: this.env.SSO_CLIENT_SECRET || "",
     });
 
     const response = await fetch(tokenUrl, {
@@ -253,62 +261,44 @@ export class AuthService {
     return (await response.json()) as TokenExchangeResponse;
   }
 
-  private normalizeProfile(profile: SsoEnvelope['data']) {
-    if (!profile) return profile;
-
-    const raw = (profile as unknown) as Record<string, unknown> & {
-      fullName?: string | null;
-      name?: string | null;
-      nama?: string | null;
-      full_name?: string | null;
-      emails?: Array<{ email: string }> | null;
-      email?: string | null;
-    };
-
-    const fullName = raw.fullName || raw.name || raw.nama || raw.full_name || '';
-    const emails = Array.isArray(raw.emails)
-      ? raw.emails
-      : raw.email
-        ? [{ email: raw.email }]
-        : [];
-
-    return {
-      ...raw,
-      fullName,
-      emails,
-    } as SsoEnvelope['data'];
-  }
-
   private async fetchProfileAndIdentities(accessToken: string) {
     const headers = {
       Authorization: `Bearer ${accessToken}`,
       Accept: "application/json",
     };
 
-    let profileUrl = this.env.SSO_USERINFO_URL || this.env.SSO_PROFILE_URL || `${this.env.SSO_BASE_URL}/profile`;
-    console.log(`[AuthService.fetchProfileAndIdentities] Fetching from: ${profileUrl}`);
-    
+    let profileUrl =
+      this.env.SSO_USERINFO_URL ||
+      this.env.SSO_PROFILE_URL ||
+      `${this.env.SSO_BASE_URL}/profile`;
+    console.log(
+      `[AuthService.fetchProfileAndIdentities] Fetching from: ${profileUrl}`,
+    );
+
     let profileResp = await fetch(profileUrl, { headers });
-    
+
     // If it fails with 404 or 410 or returns the specific "legacy route" message, try fallback
     if (!profileResp.ok) {
       const body = await profileResp.clone().text();
-      const isLegacyError = profileResp.status === 410 || 
-                          profileResp.status === 404 || 
-                          body.includes("legacy identity route") || 
-                          body.includes("big-bang cutover") ||
-                          body.includes("Endpoint not found");
-      
+      const isLegacyError =
+        profileResp.status === 410 ||
+        profileResp.status === 404 ||
+        body.includes("legacy identity route") ||
+        body.includes("big-bang cutover") ||
+        body.includes("Endpoint not found");
+
       if (isLegacyError) {
         let fallbackUrl: string | null = null;
-        if (profileUrl.endsWith('/profile')) {
+        if (profileUrl.endsWith("/profile")) {
           fallbackUrl = `${this.env.SSO_BASE_URL}/me`;
-        } else if (profileUrl.endsWith('/me')) {
+        } else if (profileUrl.endsWith("/me")) {
           fallbackUrl = `${this.env.SSO_BASE_URL}/profile`;
         }
 
         if (fallbackUrl) {
-          console.warn(`[AuthService.fetchProfileAndIdentities] Profile URL (${profileUrl}) failed or legacy detected. Trying fallback: ${fallbackUrl}`);
+          console.warn(
+            `[AuthService.fetchProfileAndIdentities] Profile URL (${profileUrl}) failed or legacy detected. Trying fallback: ${fallbackUrl}`,
+          );
           profileResp = await fetch(fallbackUrl, { headers });
         }
       }
@@ -316,7 +306,10 @@ export class AuthService {
 
     if (!profileResp.ok) {
       const body = await profileResp.text();
-      console.error(`[AuthService.fetchProfileAndIdentities] SSO Error (${profileResp.status}):`, body);
+      console.error(
+        `[AuthService.fetchProfileAndIdentities] SSO Error (${profileResp.status}):`,
+        body,
+      );
       const error = new Error(
         `Failed to fetch user profile from SSO (${profileResp.status}): ${body}`,
       ) as Error & { statusCode?: number };
@@ -325,18 +318,7 @@ export class AuthService {
     }
 
     const payload = (await profileResp.json()) as SsoEnvelope;
-    const profile = this.normalizeProfile(payload.data);
-
-    // 🔍 DEBUG: Log raw SSO profile to diagnose name mismatch
-    console.warn('[DEBUG][SSO_PROFILE_RAW]', JSON.stringify({
-      fullName: profile?.fullName,
-      id: profile?.id,
-      authUserId: profile?.authUserId,
-      emails: profile?.emails?.map((e) => e.email),
-      mahasiswaNim: profile?.identities?.mahasiswa?.nim,
-      allKeys: profile ? Object.keys(profile) : [],
-      rawPayloadKeys: Object.keys(payload),
-    }, null, 2));
+    const profile = payload.data;
 
     if (!profile) {
       throw new Error("Empty profile data from SSO");
@@ -388,7 +370,7 @@ export class AuthService {
   ): string {
     this.assertSsoConfiguration();
 
-    const effectiveRedirectUri = redirectUri || this.env.SSO_REDIRECT_URI || '';
+    const effectiveRedirectUri = redirectUri || this.env.SSO_REDIRECT_URI || "";
     if (effectiveRedirectUri !== this.env.SSO_REDIRECT_URI) {
       const error = new Error(
         "redirectUri does not match configured SSO_REDIRECT_URI",
@@ -399,7 +381,7 @@ export class AuthService {
 
     const url = new URL(`${this.env.SSO_BASE_URL}/oauth/authorize`);
     url.searchParams.set("response_type", "code");
-    url.searchParams.set("client_id", this.env.SSO_CLIENT_ID || '');
+    url.searchParams.set("client_id", this.env.SSO_CLIENT_ID || "");
     url.searchParams.set("redirect_uri", effectiveRedirectUri);
     url.searchParams.set("scope", "OPENID PROFILE EMAIL");
     url.searchParams.set("state", state);
@@ -436,31 +418,38 @@ export class AuthService {
 
     // ✅ CACHE-FIRST: Use profileSnapshot stored at callback time.
     // Only fallback to SSO /profile if snapshot is missing (e.g., old sessions).
-    let profile: SsoEnvelope['data'];
+    let profile: SsoEnvelope["data"];
     let identities: AuthIdentity[];
 
-    const snapshot = session.profileSnapshot as SsoEnvelope['data'] | null;
+    const snapshot = session.profileSnapshot as SsoEnvelope["data"] | null;
     if (snapshot) {
       // Fast path: read from DB cache — zero SSO network calls
-      profile = this.normalizeProfile(snapshot);
+      profile = snapshot;
       identities = [];
-      const rawIds = profile?.identities;
+      const rawIds = profile.identities;
       if (Array.isArray(rawIds)) {
-        identities = rawIds.map((id: any) => ({ ...id, identityType: id.role || id.identityType }));
+        identities = rawIds.map((id: any) => ({
+          ...id,
+          identityType: id.role || id.identityType,
+        }));
       } else if (rawIds) {
-        if (rawIds.mahasiswa) identities.push({ ...rawIds.mahasiswa, identityType: 'MAHASISWA' });
-        if (rawIds.dosen) identities.push({ ...rawIds.dosen, identityType: 'DOSEN' });
-        if (rawIds.admin) identities.push({ ...rawIds.admin, identityType: 'ADMIN' });
-        if (rawIds.mentor) identities.push({ ...rawIds.mentor, identityType: 'MENTOR' });
+        if (rawIds.mahasiswa)
+          identities.push({ ...rawIds.mahasiswa, identityType: "MAHASISWA" });
+        if (rawIds.dosen)
+          identities.push({ ...rawIds.dosen, identityType: "DOSEN" });
+        if (rawIds.admin)
+          identities.push({ ...rawIds.admin, identityType: "ADMIN" });
+        if (rawIds.mentor)
+          identities.push({ ...rawIds.mentor, identityType: "MENTOR" });
       }
     } else {
       // Slow path: old session without snapshot — hit SSO /profile once, then cache
       console.warn(
-        '[AuthService.loadSessionContext] profileSnapshot missing, fetching from SSO and caching.',
+        "[AuthService.loadSessionContext] profileSnapshot missing, fetching from SSO and caching.",
         { sessionId },
       );
       const fetched = await this.fetchProfileAndIdentities(session.accessToken);
-      profile = this.normalizeProfile(fetched.profile);
+      profile = fetched.profile;
       identities = fetched.identities;
 
       // Persist snapshot so future requests skip this path
@@ -480,7 +469,9 @@ export class AuthService {
     const availableIdentities = identities;
     const activeIdentity =
       availableIdentities.find(
-        (item) => item.identityType?.toLowerCase() === session.activeIdentity?.toLowerCase(),
+        (item) =>
+          item.identityType?.toLowerCase() ===
+          session.activeIdentity?.toLowerCase(),
       ) || null;
 
     const primaryRole = this.pickPrimaryRole(effectiveRoles);
@@ -488,31 +479,31 @@ export class AuthService {
 
     // SSO Gateway may return identities as an array or an object depending on the version.
     const getIdentityObj = (role: string) => {
-      const ids = profile?.identities as any;
+      const ids = profile.identities as any;
       if (Array.isArray(ids)) {
         return ids.find((i: any) => i.role === role || i.identityType === role);
       }
       return ids?.[role.toLowerCase()];
     };
 
-    const mhs = getIdentityObj('MAHASISWA');
-    const dsn = getIdentityObj('DOSEN');
-    const adm = getIdentityObj('ADMIN');
-    const mnt = getIdentityObj('MENTOR');
+    const mhs = getIdentityObj("MAHASISWA");
+    const dsn = getIdentityObj("DOSEN");
+    const adm = getIdentityObj("ADMIN");
+    const mnt = getIdentityObj("MENTOR");
 
     const userPayload: JWTPayload = {
       sub: session.authUserId,
       userId: session.authUserId,
       authUserId: session.authUserId,
       sessionId: session.sessionId,
-      email: inferredEmail || '',
+      email: inferredEmail || "",
       role: primaryRole,
       effectiveRoles,
       effectivePermissions,
       activeIdentity,
       availableIdentities,
-      nama: profile?.fullName || '',
-      profileId: profile?.id,
+      nama: profile.fullName,
+      profileId: profile.id,
       mahasiswaId: mhs?.id,
       dosenId: dsn?.id,
       adminId: adm?.id,
@@ -535,10 +526,12 @@ export class AuthService {
       fakultasId: mhs?.fakultas?.id,
     };
 
-    // ⚠️ Note: Strict dosenPAId validation removed per migration docs. 
+    // ⚠️ Note: Strict dosenPAId validation removed per migration docs.
     // This allows students to progress even if SSO data is incomplete.
-    if (primaryRole === 'mahasiswa' && !userPayload.dosenPAId) {
-       console.warn(`[loadSessionContext] ⚠️ Mahasiswa missing dosenPAId: ${session.authUserId}. Continuing as per migration policy.`);
+    if (primaryRole === "mahasiswa" && !userPayload.dosenPAId) {
+      console.warn(
+        `[loadSessionContext] ⚠️ Mahasiswa missing dosenPAId: ${session.authUserId}. Continuing as per migration policy.`,
+      );
     }
 
     return {
@@ -631,7 +624,9 @@ export class AuthService {
     const activeIdentity = identities.length === 1 ? identities[0] : null;
 
     const sessionId = generateId();
-    const expiresAt = new Date(Date.now() + Number(this.env.AUTH_SESSION_TTL_SECONDS) * 1000);
+    const expiresAt = new Date(
+      Date.now() + Number(this.env.AUTH_SESSION_TTL_SECONDS) * 1000,
+    );
 
     await this.authSessionRepo.createSession({
       sessionId,
@@ -647,13 +642,28 @@ export class AuthService {
       updatedAt: new Date(),
     });
 
-    // ✅ OPTION A: Delete all OTHER sessions for this user so stale profileSnapshots
-    // (which may contain outdated names/data from SSO) are immediately invalidated.
-    // The new session above always has a fresh profileSnapshot fetched moments ago.
-    await this.authSessionRepo.deleteOtherSessionsByAuthUserId(
-      String(authUserId),
-      sessionId,
-    );
+    // Sync signature if the user has a signature-capable role
+    // This cleans up any previously corrupted signatures and ensures we have the latest one.
+    if (
+      activeIdentity &&
+      ["DOSEN", "KAPRODI", "MENTOR", "ADMIN"].includes(
+        activeIdentity.identityType,
+      )
+    ) {
+      try {
+        const { MentorService } = await import("./mentor.service");
+        const mentorService = new MentorService(this.env);
+        const identityId = activeIdentity.id;
+        if (identityId) {
+          await mentorService.syncSignatureFromSso(identityId, sessionId);
+        }
+      } catch (err) {
+        console.warn(
+          "[AuthService.handleCallback] Failed to sync signature during login:",
+          err,
+        );
+      }
+    }
 
     console.info("[AUTH][SSO_CALLBACK]", {
       authUserId,
@@ -795,7 +805,7 @@ export class AuthService {
 
   async getSessionAccessTokenOrThrow(sessionId: string): Promise<string> {
     const session = await this.authSessionRepo.findSessionById(sessionId);
-    
+
     if (!session || session.expiresAt.getTime() <= Date.now()) {
       const error = new Error("Session not found or expired") as Error & {
         statusCode?: number;
@@ -815,17 +825,17 @@ export class AuthService {
     return session.accessToken;
   }
 
-
   async logout(sessionId: string) {
     const session = await this.authSessionRepo.findSessionById(sessionId);
 
     if (session?.refreshToken) {
       try {
-        const revokeUrl = this.env.SSO_REVOKE_URL || `${this.env.SSO_BASE_URL}/oauth/revoke`;
+        const revokeUrl =
+          this.env.SSO_REVOKE_URL || `${this.env.SSO_BASE_URL}/oauth/revoke`;
         const revokeBody = new URLSearchParams({
           token: session.refreshToken,
-          client_id: this.env.SSO_CLIENT_ID || '',
-          client_secret: this.env.SSO_CLIENT_SECRET || '',
+          client_id: this.env.SSO_CLIENT_ID || "",
+          client_secret: this.env.SSO_CLIENT_SECRET || "",
         });
 
         await fetch(revokeUrl, {

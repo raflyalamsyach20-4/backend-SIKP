@@ -1,10 +1,10 @@
-import { Context } from 'hono';
-import type { ApiResponse } from '@/types';
+import { Context } from "hono";
+import type { ApiResponse } from "@/types";
 
 export const createResponse = <T = any>(
   success: boolean,
   message: string,
-  data?: T
+  data?: T,
 ): ApiResponse<T> => {
   return {
     success,
@@ -13,12 +13,16 @@ export const createResponse = <T = any>(
   };
 };
 
-export const handleError = (c: Context, error: any, defaultMessage: string = 'Internal server error') => {
-  console.error('Error:', error);
-  
+export const handleError = (
+  c: Context,
+  error: any,
+  defaultMessage: string = "Internal server error",
+) => {
+  console.error("Error:", error);
+
   const message = error.message || defaultMessage;
   const statusCode = error.statusCode || 500;
-  
+
   return c.json(createResponse(false, message), statusCode);
 };
 
@@ -27,18 +31,21 @@ export const generateId = (): string => {
 };
 
 export const generateTeamCode = (): string => {
-  const prefix = 'TEAM';
+  const prefix = "TEAM";
   const timestamp = Date.now().toString(36).toUpperCase();
   const random = Math.random().toString(36).substr(2, 6).toUpperCase();
   return `${prefix}-${timestamp}-${random}`;
 };
 
 export const formatDate = (date: Date): string => {
-  return date.toISOString().split('T')[0];
+  return date.toISOString().split("T")[0];
 };
 
-export const validateFileType = (fileName: string, allowedTypes: string[]): boolean => {
-  const ext = fileName.split('.').pop()?.toLowerCase();
+export const validateFileType = (
+  fileName: string,
+  allowedTypes: string[],
+): boolean => {
+  const ext = fileName.split(".").pop()?.toLowerCase();
   return ext ? allowedTypes.includes(ext) : false;
 };
 

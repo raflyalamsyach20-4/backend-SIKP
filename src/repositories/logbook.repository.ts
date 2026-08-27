@@ -1,7 +1,7 @@
-import { eq, and, desc } from 'drizzle-orm';
-import type { DbClient } from '@/db';
-import { logbooks, internships } from '@/db/schema';
-import { generateId } from '@/utils/helpers';
+import { eq, and, desc } from "drizzle-orm";
+import type { DbClient } from "@/db";
+import { logbooks, internships } from "@/db/schema";
+import { generateId } from "@/utils/helpers";
 
 export interface CreateLogbookData {
   internshipId: string;
@@ -42,13 +42,13 @@ export class LogbookRepository {
         .where(
           and(
             eq(internships.mahasiswaId, userId),
-            eq(internships.status, 'AKTIF')
-          )
+            eq(internships.status, "AKTIF"),
+          ),
         )
         .limit(1);
       return result[0]?.internshipId ?? null;
     } catch (error) {
-      console.error('[LogbookRepository.getActiveInternshipId] Error:', error);
+      console.error("[LogbookRepository.getActiveInternshipId] Error:", error);
       throw error;
     }
   }
@@ -67,7 +67,7 @@ export class LogbookRepository {
         activity: data.activity,
         description: data.description,
         hours: data.hours ?? 0,
-        status: 'PENDING',
+        status: "PENDING",
         createdAt: now,
         updatedAt: now,
       };
@@ -82,7 +82,7 @@ export class LogbookRepository {
       await this.db.insert(logbooks).values(values);
       return this.findById(id);
     } catch (error) {
-      console.error('[LogbookRepository.create] Error:', error);
+      console.error("[LogbookRepository.create] Error:", error);
       throw error;
     }
   }
@@ -116,7 +116,7 @@ export class LogbookRepository {
         .where(eq(logbooks.internshipId, internshipId))
         .orderBy(desc(logbooks.date));
     } catch (error) {
-      console.error('[LogbookRepository.findByInternshipId] Error:', error);
+      console.error("[LogbookRepository.findByInternshipId] Error:", error);
       throw error;
     }
   }
@@ -151,7 +151,7 @@ export class LogbookRepository {
         .limit(1);
       return result[0] ?? null;
     } catch (error) {
-      console.error('[LogbookRepository.findById] Error:', error);
+      console.error("[LogbookRepository.findById] Error:", error);
       throw error;
     }
   }
@@ -170,14 +170,17 @@ export class LogbookRepository {
       if (data.fileUrl !== undefined) fields.fileUrl = data.fileUrl;
       if (data.fileType !== undefined) fields.fileType = data.fileType;
       if (data.fileSize !== undefined) fields.fileSize = data.fileSize;
-      if (data.originalName !== undefined) fields.originalName = data.originalName;
-      if ((data as any).status !== undefined) fields.status = (data as any).status;
-      if ((data as any).rejectionReason !== undefined) fields.rejectionReason = (data as any).rejectionReason;
+      if (data.originalName !== undefined)
+        fields.originalName = data.originalName;
+      if ((data as any).status !== undefined)
+        fields.status = (data as any).status;
+      if ((data as any).rejectionReason !== undefined)
+        fields.rejectionReason = (data as any).rejectionReason;
 
       await this.db.update(logbooks).set(fields).where(eq(logbooks.id, id));
       return this.findById(id);
     } catch (error) {
-      console.error('[LogbookRepository.update] Error:', error);
+      console.error("[LogbookRepository.update] Error:", error);
       throw error;
     }
   }
@@ -189,7 +192,7 @@ export class LogbookRepository {
     try {
       await this.db.delete(logbooks).where(eq(logbooks.id, id));
     } catch (error) {
-      console.error('[LogbookRepository.delete] Error:', error);
+      console.error("[LogbookRepository.delete] Error:", error);
       throw error;
     }
   }
@@ -217,14 +220,16 @@ export class LogbookRepository {
       for (const entry of all) {
         const h = entry.hours ?? 0;
         totalHours += h;
-        if (entry.status === 'APPROVED') { approved++; approvedHours += h; }
-        else if (entry.status === 'PENDING') pending++;
-        else if (entry.status === 'REJECTED') rejected++;
+        if (entry.status === "APPROVED") {
+          approved++;
+          approvedHours += h;
+        } else if (entry.status === "PENDING") pending++;
+        else if (entry.status === "REJECTED") rejected++;
       }
 
       return { total, approved, pending, rejected, totalHours, approvedHours };
     } catch (error) {
-      console.error('[LogbookRepository.getStats] Error:', error);
+      console.error("[LogbookRepository.getStats] Error:", error);
       throw error;
     }
   }
@@ -240,10 +245,10 @@ export class LogbookRepository {
       await this.db
         .update(logbooks)
         .set({ updatedAt: new Date() })
-        .where(and(eq(logbooks.id, id), eq(logbooks.status, 'PENDING')));
+        .where(and(eq(logbooks.id, id), eq(logbooks.status, "PENDING")));
       return this.findById(id);
     } catch (error) {
-      console.error('[LogbookRepository.submit] Error:', error);
+      console.error("[LogbookRepository.submit] Error:", error);
       throw error;
     }
   }
@@ -256,11 +261,16 @@ export class LogbookRepository {
       const now = new Date();
       await this.db
         .update(logbooks)
-        .set({ status: 'APPROVED', verifiedBy, verifiedAt: now, updatedAt: now })
+        .set({
+          status: "APPROVED",
+          verifiedBy,
+          verifiedAt: now,
+          updatedAt: now,
+        })
         .where(eq(logbooks.id, id));
       return this.findById(id);
     } catch (error) {
-      console.error('[LogbookRepository.approve] Error:', error);
+      console.error("[LogbookRepository.approve] Error:", error);
       throw error;
     }
   }
@@ -273,11 +283,17 @@ export class LogbookRepository {
       const now = new Date();
       await this.db
         .update(logbooks)
-        .set({ status: 'REJECTED', rejectionReason, verifiedBy, verifiedAt: now, updatedAt: now })
+        .set({
+          status: "REJECTED",
+          rejectionReason,
+          verifiedBy,
+          verifiedAt: now,
+          updatedAt: now,
+        })
         .where(eq(logbooks.id, id));
       return this.findById(id);
     } catch (error) {
-      console.error('[LogbookRepository.reject] Error:', error);
+      console.error("[LogbookRepository.reject] Error:", error);
       throw error;
     }
   }
@@ -290,10 +306,20 @@ export class LogbookRepository {
       const now = new Date();
       await this.db
         .update(logbooks)
-        .set({ status: 'APPROVED', verifiedBy, verifiedAt: now, updatedAt: now })
-        .where(and(eq(logbooks.internshipId, internshipId), eq(logbooks.status, 'PENDING')));
+        .set({
+          status: "APPROVED",
+          verifiedBy,
+          verifiedAt: now,
+          updatedAt: now,
+        })
+        .where(
+          and(
+            eq(logbooks.internshipId, internshipId),
+            eq(logbooks.status, "PENDING"),
+          ),
+        );
     } catch (error) {
-      console.error('[LogbookRepository.approveAll] Error:', error);
+      console.error("[LogbookRepository.approveAll] Error:", error);
       throw error;
     }
   }
@@ -305,16 +331,22 @@ export class LogbookRepository {
     try {
       return await this.findByInternshipId(internshipId);
     } catch (error) {
-      console.error('[LogbookRepository.findByInternshipIdForMentor] Error:', error);
+      console.error(
+        "[LogbookRepository.findByInternshipIdForMentor] Error:",
+        error,
+      );
       throw error;
     }
   }
 
   /**
-   * Get internship by mahasiswa userId and mentor id 
+   * Get internship by mahasiswa userId and mentor id
    * (ensures mentor can only view their own mentees' logbooks)
    */
-  async getInternshipForMentee(menteeUserId: string, mentorId: string): Promise<string | null> {
+  async getInternshipForMentee(
+    menteeUserId: string,
+    mentorId: string,
+  ): Promise<string | null> {
     try {
       const result = await this.db
         .select({ id: internships.id })
@@ -322,13 +354,13 @@ export class LogbookRepository {
         .where(
           and(
             eq(internships.mahasiswaId, menteeUserId),
-            eq(internships.pembimbingLapanganId, mentorId)
-          )
+            eq(internships.pembimbingLapanganId, mentorId),
+          ),
         )
         .limit(1);
       return result[0]?.id ?? null;
     } catch (error) {
-      console.error('[LogbookRepository.getInternshipForMentee] Error:', error);
+      console.error("[LogbookRepository.getInternshipForMentee] Error:", error);
       throw error;
     }
   }

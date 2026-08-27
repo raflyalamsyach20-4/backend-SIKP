@@ -1,6 +1,11 @@
-import { nanoid } from 'nanoid';
-import { S3R2Storage } from './s3-r2-storage';
-import { getFileSize, getUploadBody, resolveContentType, type UploadableFile } from '@/utils/file-utils';
+import { nanoid } from "nanoid";
+import { S3R2Storage } from "./s3-r2-storage";
+import {
+  getFileSize,
+  getUploadBody,
+  resolveContentType,
+  type UploadableFile,
+} from "@/utils/file-utils";
 
 export class StorageService {
   private r2Domain: string;
@@ -11,13 +16,17 @@ export class StorageService {
 
   constructor(env: CloudflareBindings) {
     // Get from parameters (passed from index.ts) or fall back to environment variables
-    this.r2Domain = env.R2_DOMAIN || '';
-    this.r2BucketName = env.R2_BUCKET_NAME || '';
-    this.apiBaseUrl = (env.API_BASE_URL || '').replace(/\/$/, '');
+    this.r2Domain = env.R2_DOMAIN || "";
+    this.r2BucketName = env.R2_BUCKET_NAME || "";
+    this.apiBaseUrl = (env.API_BASE_URL || "").replace(/\/$/, "");
     this.r2Bucket = env.R2_BUCKET || null;
 
     // Initialize S3 fallback if credentials available (usually in local .env)
-    if (env.R2_ACCESS_KEY_ID && env.R2_SECRET_ACCESS_KEY && env.R2_S3_ENDPOINT) {
+    if (
+      env.R2_ACCESS_KEY_ID &&
+      env.R2_SECRET_ACCESS_KEY &&
+      env.R2_S3_ENDPOINT
+    ) {
       this.s3Fallback = new S3R2Storage(this.r2BucketName, {
         accessKeyId: env.R2_ACCESS_KEY_ID,
         secretAccessKey: env.R2_SECRET_ACCESS_KEY,
@@ -26,50 +35,67 @@ export class StorageService {
     }
 
     if (!this.r2Domain) {
-      throw new Error('R2_DOMAIN is not set. Please set R2_DOMAIN in wrangler.jsonc or environment variables');
+      throw new Error(
+        "R2_DOMAIN is not set. Please set R2_DOMAIN in wrangler.jsonc or environment variables",
+      );
     }
     if (!this.r2BucketName) {
-      throw new Error('R2_BUCKET_NAME is not set. Please set R2_BUCKET_NAME in wrangler.jsonc or environment variables');
+      throw new Error(
+        "R2_BUCKET_NAME is not set. Please set R2_BUCKET_NAME in wrangler.jsonc or environment variables",
+      );
     }
     if (!this.apiBaseUrl) {
-      throw new Error('API_BASE_URL is not set. Please set API_BASE_URL in wrangler.jsonc or environment variables');
+      throw new Error(
+        "API_BASE_URL is not set. Please set API_BASE_URL in wrangler.jsonc or environment variables",
+      );
     }
 
     // In production, ensure R2 bucket binding exists to avoid silent mock usage
-    if (!this.r2Bucket && !this.s3Fallback && process.env.NODE_ENV !== 'development') {
-      throw new Error('R2_BUCKET binding is missing. Deploy to Cloudflare Workers or set USE_MOCK_R2=true for local dev');
+    if (
+      !this.r2Bucket &&
+      !this.s3Fallback &&
+      process.env.NODE_ENV !== "development"
+    ) {
+      throw new Error(
+        "R2_BUCKET binding is missing. Deploy to Cloudflare Workers or set USE_MOCK_R2=true for local dev",
+      );
     }
   }
 
   async uploadFile(
     file: UploadableFile,
     fileName: string,
-    folder: string = 'documents',
-    contentType?: string
+    folder: string = "documents",
+    contentType?: string,
   ): Promise<{ url: string; key: string }> {
     const fileKey = `${folder}/${Date.now()}-${nanoid(10)}-${fileName}`;
-    
+
     try {
       console.log(`[StorageService] 📤 Uploading file to R2: ${fileKey}`);
       const guessedSize = getFileSize(file);
       if (guessedSize !== undefined) {
         console.log(`[StorageService] File size: ${guessedSize} bytes`);
       }
-      console.log(`[StorageService] R2_BUCKET available: ${this.r2Bucket ? 'YES' : 'NO'}`);
-      
+      console.log(
+        `[StorageService] R2_BUCKET available: ${this.r2Bucket ? "YES" : "NO"}`,
+      );
+
       // ✅ Use S3 if configured (Fallback or Primary)
       if (this.s3Fallback) {
-        console.log('[StorageService] 🔄 Using S3 storage...');
+        console.log("[StorageService] 🔄 Using S3 storage...");
         const resolvedContentType = resolveContentType(file, contentType);
-        
+
         // Convert UploadableFile to Buffer/File for S3 fallback
         const uploadBody = await getUploadBody(file);
-        const buffer = uploadBody instanceof ReadableStream 
-          ? await new Response(uploadBody).arrayBuffer().then(ab => Buffer.from(ab))
-          : Buffer.from(uploadBody as any);
+        const buffer =
+          uploadBody instanceof ReadableStream
+            ? await new Response(uploadBody)
+                .arrayBuffer()
+                .then((ab) => Buffer.from(ab))
+            : Buffer.from(uploadBody as any);
 
         await this.s3Fallback.uploadFile(fileKey, buffer, resolvedContentType);
-        
+
         const url = `${this.r2Domain}/${fileKey}`;
         console.log(`[StorageService] ✅ Uploaded via S3. URL: ${url}`);
         return { url, key: fileKey };
@@ -77,20 +103,24 @@ export class StorageService {
 
       // ✅ Fallback to R2 binding if no S3 fallback or we are in remote mode
       if (!this.r2Bucket) {
-        console.error('[StorageService] ❌ R2_BUCKET is not initialized and no S3 fallback found');
-        throw new Error('R2_BUCKET is not available and S3 fallback is not configured.');
+        console.error(
+          "[StorageService] ❌ R2_BUCKET is not initialized and no S3 fallback found",
+        );
+        throw new Error(
+          "R2_BUCKET is not available and S3 fallback is not configured.",
+        );
       }
 
       const body = await getUploadBody(file);
       const resolvedContentType = resolveContentType(file, contentType);
 
       // Upload to R2
-      console.log('[StorageService] Calling r2Bucket.put()...');
+      console.log("[StorageService] Calling r2Bucket.put()...");
       console.log(`[StorageService] Content-Type: ${resolvedContentType}`);
       const uploadResult = await this.r2Bucket.put(fileKey, body, {
         httpMetadata: {
           contentType: resolvedContentType,
-          contentDisposition: 'inline',
+          contentDisposition: "inline",
         },
       });
 
@@ -100,10 +130,14 @@ export class StorageService {
       // Verify upload exists when API supports head()
       const head = await this.r2Bucket.head(fileKey);
       if (!head) {
-        console.error('[StorageService] ❌ Uploaded file not found on R2 after put');
-        throw new Error('Upload verification failed: file not present in R2');
+        console.error(
+          "[StorageService] ❌ Uploaded file not found on R2 after put",
+        );
+        throw new Error("Upload verification failed: file not present in R2");
       }
-      console.log(`[StorageService] ✅ Upload verified. Stored size: ${head.size} bytes`);
+      console.log(
+        `[StorageService] ✅ Upload verified. Stored size: ${head.size} bytes`,
+      );
 
       // ✅ Generate public URL from environment variables
       const url = `${this.r2Domain}/${fileKey}`;
@@ -113,7 +147,69 @@ export class StorageService {
       return { url, key: fileKey };
     } catch (error) {
       console.error(`[StorageService] ❌ Upload failed:`, error);
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      const errorMessage =
+        error instanceof Error ? error.message : "Unknown error";
+      throw new Error(`Failed to upload file to R2: ${errorMessage}`);
+    }
+  }
+
+  async uploadBuffer(
+    buffer: Buffer | Uint8Array | ArrayBuffer,
+    fileName: string,
+    folder: string = "documents",
+    contentType: string = "application/octet-stream",
+  ): Promise<{ url: string; key: string }> {
+    const fileKey = `${folder}/${Date.now()}-${nanoid(10)}-${fileName}`;
+
+    try {
+      console.log(`[StorageService] 📤 Uploading buffer to R2: ${fileKey}`);
+
+      const resolvedBuffer =
+        buffer instanceof ArrayBuffer ? Buffer.from(buffer) : Buffer.from(buffer);
+
+      if (this.s3Fallback) {
+        console.log("[StorageService] 🔄 Using S3 storage...");
+        await this.s3Fallback.uploadFile(fileKey, resolvedBuffer, contentType);
+        const url = `${this.r2Domain}/${fileKey}`;
+        console.log(`[StorageService] ✅ Uploaded via S3. URL: ${url}`);
+        return { url, key: fileKey };
+      }
+
+      if (!this.r2Bucket) {
+        console.error(
+          "[StorageService] ❌ R2_BUCKET is not initialized and no S3 fallback found",
+        );
+        throw new Error(
+          "R2_BUCKET is not available and S3 fallback is not configured.",
+        );
+      }
+
+      console.log("[StorageService] Calling r2Bucket.put()...");
+      const uploadResult = await this.r2Bucket.put(fileKey, resolvedBuffer, {
+        httpMetadata: {
+          contentType,
+          contentDisposition: "inline",
+        },
+      });
+
+      console.log(`[StorageService] ✅ File uploaded successfully to R2`);
+      console.log(`[StorageService] Upload result:`, uploadResult);
+
+      const head = await this.r2Bucket.head(fileKey);
+      if (!head) {
+        console.error(
+          "[StorageService] ❌ Uploaded file not found on R2 after put",
+        );
+        throw new Error("Upload verification failed: file not present in R2");
+      }
+
+      const url = `${this.r2Domain}/${fileKey}`;
+      console.log(`[StorageService] 🔗 Generated URL: ${url}`);
+      return { url, key: fileKey };
+    } catch (error) {
+      console.error(`[StorageService] ❌ Upload failed:`, error);
+      const errorMessage =
+        error instanceof Error ? error.message : "Unknown error";
       throw new Error(`Failed to upload file to R2: ${errorMessage}`);
     }
   }
@@ -121,7 +217,7 @@ export class StorageService {
   private isRemoteR2(): boolean {
     // If we have an R2 bucket binding, we're in "Remote R2" mode.
     // However, if we're in development, we might still prefer S3 fallback if available.
-    if (process.env.NODE_ENV === 'production') {
+    if (process.env.NODE_ENV === "production") {
       return !!this.r2Bucket;
     }
     return false;
@@ -148,7 +244,7 @@ export class StorageService {
   getAssetProxyUrl(publicUrl: string | null | undefined): string | null {
     if (!publicUrl) return null;
 
-    const normalizedDomain = this.r2Domain.replace(/\/$/, '');
+    const normalizedDomain = this.r2Domain.replace(/\/$/, "");
     if (!publicUrl.startsWith(`${normalizedDomain}/`)) {
       return publicUrl;
     }
@@ -166,12 +262,14 @@ export class StorageService {
     return `${this.apiBaseUrl}/api/assets/r2/${encodedKey}`;
   }
 
-  getEsignatureAssetProxyUrlFromPublicUrl(publicUrl: string | null | undefined): string | null {
+  getEsignatureAssetProxyUrlFromPublicUrl(
+    publicUrl: string | null | undefined,
+  ): string | null {
     return this.getAssetProxyUrl(publicUrl);
   }
 
   validateFileType(fileName: string, allowedTypes: string[]): boolean {
-    const ext = fileName.split('.').pop()?.toLowerCase();
+    const ext = fileName.split(".").pop()?.toLowerCase();
     return ext ? allowedTypes.includes(ext) : false;
   }
 
@@ -197,9 +295,9 @@ export class StorageService {
   }
 
   generateUniqueFileName(originalName: string): string {
-    const ext = originalName.split('.').pop();
-    const nameWithoutExt = originalName.replace(`.${ext}`, '');
-    const sanitized = nameWithoutExt.replace(/[^a-zA-Z0-9]/g, '-');
+    const ext = originalName.split(".").pop();
+    const nameWithoutExt = originalName.replace(`.${ext}`, "");
+    const sanitized = nameWithoutExt.replace(/[^a-zA-Z0-9]/g, "-");
     return `${sanitized}-${Date.now()}-${nanoid(8)}.${ext}`;
   }
 }

@@ -1,59 +1,75 @@
-import { Hono } from 'hono';
-import { authMiddleware, dosenOnly, roleMiddleware } from '@/middlewares/auth.middleware';
-import { createDosenSuratKesediaanRoutes } from './surat-kesediaan.route';
-import { createDosenSuratPermohonanRoutes } from './surat-permohonan.route';
-import { createDosenSuratPengantarRoutes } from './surat-pengantar-dosen.route';
-import { zValidator } from '@hono/zod-validator';
-import { emptyFormSchema, emptyQuerySchema } from '@/schemas/common.schema';
-import { updateDosenProfileSchema } from '@/validation';
-import { DosenController } from '@/controllers/dosen.controller';
+import { Hono } from "hono";
+import {
+  authMiddleware,
+  dosenOnly,
+  roleMiddleware,
+} from "@/middlewares/auth.middleware";
+import { createDosenSuratKesediaanRoutes } from "./surat-kesediaan.route";
+import { createDosenSuratPermohonanRoutes } from "./surat-permohonan.route";
+import { createDosenSuratPengantarRoutes } from "./surat-pengantar-dosen.route";
+import { zValidator } from "@hono/zod-validator";
+import { emptyFormSchema, emptyQuerySchema } from "@/schemas/common.schema";
+import { updateDosenProfileSchema } from "@/validation";
+import { DosenController } from "@/controllers/dosen.controller";
 
 export const createDosenRoutes = () => {
   const dosen = new Hono<{ Bindings: CloudflareBindings }>()
-    .use('*', authMiddleware)
-    .use('/me/*', dosenOnly)
-    .use('/me', dosenOnly)
-    .use('/dashboard', dosenOnly)
-    .use('/dashboard/wakdek', roleMiddleware(['dosen', 'wakil_dekan']))
-    .get(
-      '/dashboard',
-      zValidator('query', emptyQuerySchema),
-      async (c) => new DosenController(c).dashboard()
+    .use("*", authMiddleware)
+    .use("/me/*", dosenOnly)
+    .use("/me", dosenOnly)
+    .use("/dashboard", dosenOnly)
+    .use("/dashboard/wakdek", roleMiddleware(["dosen", "wakil_dekan"]))
+    .get("/dashboard", zValidator("query", emptyQuerySchema), async (c) =>
+      new DosenController(c).dashboard(),
     )
     .get(
-      '/dashboard/wakdek',
-      zValidator('query', emptyQuerySchema),
-      async (c) => new DosenController(c).wakdekDashboard()
+      "/dashboard/wakdek",
+      zValidator("query", emptyQuerySchema),
+      async (c) => new DosenController(c).wakdekDashboard(),
     )
-    .get(
-      '/me',
-      zValidator('query', emptyQuerySchema),
-      async (c) => new DosenController(c).me()
+    .get("/me", zValidator("query", emptyQuerySchema), async (c) =>
+      new DosenController(c).me(),
     )
     .put(
-      '/me/profile',
-      zValidator('json', updateDosenProfileSchema),
-      async (c) => new DosenController(c).updateProfile()
+      "/me/profile",
+      zValidator("json", updateDosenProfileSchema),
+      async (c) => new DosenController(c).updateProfile(),
     )
-    .put(
-      '/me/esignature',
-      zValidator('form', emptyFormSchema),
-      async (c) => new DosenController(c).updateESignature()
+    .put("/me/esignature", zValidator("form", emptyFormSchema), async (c) =>
+      new DosenController(c).updateESignature(),
     )
     .delete(
-      '/me/esignature',
-      zValidator('query', emptyQuerySchema),
-      async (c) => new DosenController(c).deleteESignature()
+      "/me/esignature",
+      zValidator("query", emptyQuerySchema),
+      async (c) => new DosenController(c).deleteESignature(),
     )
     // Surat Kesediaan Routes (nested)
-    .route('/surat-kesediaan', createDosenSuratKesediaanRoutes())
-    .route('/surat-permohonan', createDosenSuratPermohonanRoutes())
-    .route('/surat-pengantar', createDosenSuratPengantarRoutes())
+    .route("/surat-kesediaan", createDosenSuratKesediaanRoutes())
+    .route("/surat-permohonan", createDosenSuratPermohonanRoutes())
+    .route("/surat-pengantar", createDosenSuratPengantarRoutes())
 
     // Email Change Requests
-    .get('/mentor-email-change-requests', async (c) => new (require('../controllers/mentor-workflow.controller').MentorWorkflowController)(c).listMentorEmailChangeRequests())
-    .post('/mentor-email-change-requests/:id/approve', async (c) => new (require('../controllers/mentor-workflow.controller').MentorWorkflowController)(c).approveMentorEmailChangeRequest())
-    .post('/mentor-email-change-requests/:id/reject', zValidator('json', require('zod').z.object({ reason: require('zod').z.string() })), async (c) => new (require('../controllers/mentor-workflow.controller').MentorWorkflowController)(c).rejectMentorEmailChangeRequest(c.req.valid('json')));
+    .get("/mentor-email-change-requests", async (c) =>
+      new (require("../controllers/mentor-workflow.controller").MentorWorkflowController)(
+        c,
+      ).listMentorEmailChangeRequests(),
+    )
+    .post("/mentor-email-change-requests/:id/approve", async (c) =>
+      new (require("../controllers/mentor-workflow.controller").MentorWorkflowController)(
+        c,
+      ).approveMentorEmailChangeRequest(),
+    )
+    .post(
+      "/mentor-email-change-requests/:id/reject",
+      zValidator(
+        "json",
+        require("zod").z.object({ reason: require("zod").z.string() }),
+      ),
+      async (c) =>
+        new (require("../controllers/mentor-workflow.controller").MentorWorkflowController)(
+          c,
+        ).rejectMentorEmailChangeRequest(c.req.valid("json")),
+    );
 
   return dosen;
 };

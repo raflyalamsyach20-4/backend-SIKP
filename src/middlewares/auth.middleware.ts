@@ -1,8 +1,8 @@
-import { Context, Next } from 'hono';
-import { getCookie } from 'hono/cookie';
-import type { JWTPayload, RbacRole } from '@/types';
-import { createRuntime } from '@/runtime';
-import { AuthService } from '@/services';
+import { Context, Next } from "hono";
+import { getCookie } from "hono/cookie";
+import type { JWTPayload, RbacRole } from "@/types";
+import { createRuntime } from "@/runtime";
+import { AuthService } from "@/services";
 
 export interface AuthContext {
   user: JWTPayload;
@@ -10,15 +10,15 @@ export interface AuthContext {
 }
 
 const getSessionIdFromRequest = (c: Context): string | null => {
-  const cookieName = c.env.AUTH_SESSION_COOKIE_NAME || 'sikp_session';
+  const cookieName = c.env.AUTH_SESSION_COOKIE_NAME || "sikp_session";
   const cookieSession = getCookie(c, cookieName);
 
   if (cookieSession) {
     return cookieSession;
   }
 
-  const authHeader = c.req.header('Authorization');
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+  const authHeader = c.req.header("Authorization");
+  if (!authHeader || !authHeader.startsWith("Bearer ")) {
     return null;
   }
 
@@ -29,45 +29,68 @@ export const authMiddleware = async (c: Context, next: Next) => {
   try {
     const sessionId = getSessionIdFromRequest(c);
     if (!sessionId) {
-      return c.json({ success: false, message: 'Unauthorized: No active session found' }, 401);
+      return c.json(
+        { success: false, message: "Unauthorized: No active session found" },
+        401,
+      );
     }
 
     const authService = new AuthService(c.env);
     const user = await authService.authenticateSession(sessionId);
 
-    const isAuthNamespaceRoute = c.req.path.startsWith('/api/auth/');
+    const isAuthNamespaceRoute = c.req.path.startsWith("/api/auth/");
     if (!isAuthNamespaceRoute && !user.activeIdentity) {
-      return c.json({ success: false, message: 'Identity selection is required before accessing this endpoint' }, 403);
+      return c.json(
+        {
+          success: false,
+          message:
+            "Identity selection is required before accessing this endpoint",
+        },
+        403,
+      );
     }
 
-    c.set('user', user);
-    c.set('sessionId', sessionId);
+    c.set("user", user);
+    c.set("sessionId", sessionId);
 
     await next();
   } catch (error) {
-    return c.json({ success: false, message: 'Unauthorized: Invalid or expired session' }, 401);
+    return c.json(
+      { success: false, message: "Unauthorized: Invalid or expired session" },
+      401,
+    );
   }
 };
 
 export const roleMiddleware = (allowedRoles: RbacRole[]) => {
   return async (c: Context, next: Next) => {
-    const user = c.get('user') as JWTPayload;
-    
+    const user = c.get("user") as JWTPayload;
+
     if (!user) {
-      return c.json({ success: false, message: 'Unauthorized' }, 401);
+      return c.json({ success: false, message: "Unauthorized" }, 401);
     }
 
-    const effectiveRoles = user.effectiveRoles && user.effectiveRoles.length > 0
-      ? user.effectiveRoles
-      : [];
+    const effectiveRoles =
+      user.effectiveRoles && user.effectiveRoles.length > 0
+        ? user.effectiveRoles
+        : [];
 
     if (effectiveRoles.length === 0) {
-      return c.json({ success: false, message: 'Forbidden: Missing effective roles in auth context' }, 403);
+      return c.json(
+        {
+          success: false,
+          message: "Forbidden: Missing effective roles in auth context",
+        },
+        403,
+      );
     }
 
     const allowed = allowedRoles.some((role) => effectiveRoles.includes(role));
     if (!allowed) {
-      return c.json({ success: false, message: 'Forbidden: Insufficient permissions' }, 403);
+      return c.json(
+        { success: false, message: "Forbidden: Insufficient permissions" },
+        403,
+      );
     }
 
     await next();
@@ -76,23 +99,35 @@ export const roleMiddleware = (allowedRoles: RbacRole[]) => {
 
 export const permissionMiddleware = (requiredPermissions: string[]) => {
   return async (c: Context, next: Next) => {
-    const user = c.get('user') as JWTPayload;
+    const user = c.get("user") as JWTPayload;
 
     if (!user) {
-      return c.json({ success: false, message: 'Unauthorized' }, 401);
+      return c.json({ success: false, message: "Unauthorized" }, 401);
     }
 
-    const effectivePermissions = user.effectivePermissions && user.effectivePermissions.length > 0
-      ? user.effectivePermissions
-      : [];
+    const effectivePermissions =
+      user.effectivePermissions && user.effectivePermissions.length > 0
+        ? user.effectivePermissions
+        : [];
 
     if (effectivePermissions.length === 0) {
-      return c.json({ success: false, message: 'Forbidden: Missing effective permissions in auth context' }, 403);
+      return c.json(
+        {
+          success: false,
+          message: "Forbidden: Missing effective permissions in auth context",
+        },
+        403,
+      );
     }
 
-    const allowed = requiredPermissions.some((permission) => effectivePermissions.includes(permission));
+    const allowed = requiredPermissions.some((permission) =>
+      effectivePermissions.includes(permission),
+    );
     if (!allowed) {
-      return c.json({ success: false, message: 'Forbidden: Missing required permission' }, 403);
+      return c.json(
+        { success: false, message: "Forbidden: Missing required permission" },
+        403,
+      );
     }
 
     await next();
@@ -100,9 +135,14 @@ export const permissionMiddleware = (requiredPermissions: string[]) => {
 };
 
 // Helper middleware untuk role spesifik
-export const mahasiswaOnly = roleMiddleware(['mahasiswa']);
-export const adminOnly = roleMiddleware(['admin', 'kaprodi', 'wakil_dekan']);
-export const dosenOnly = roleMiddleware(['dosen']);
-export const staffOnly = roleMiddleware(['admin', 'kaprodi', 'wakil_dekan', 'dosen']);
-export const mentorOnly = roleMiddleware(['mentor']);
-export const pembimbingLapanganOnly = roleMiddleware(['mentor']);
+export const mahasiswaOnly = roleMiddleware(["mahasiswa"]);
+export const adminOnly = roleMiddleware(["admin", "kaprodi", "wakil_dekan"]);
+export const dosenOnly = roleMiddleware(["dosen"]);
+export const staffOnly = roleMiddleware([
+  "admin",
+  "kaprodi",
+  "wakil_dekan",
+  "dosen",
+]);
+export const mentorOnly = roleMiddleware(["mentor"]);
+export const pembimbingLapanganOnly = roleMiddleware(["mentor"]);

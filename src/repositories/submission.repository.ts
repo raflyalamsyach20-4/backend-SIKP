@@ -1,6 +1,13 @@
-import { asc, eq, desc, inArray, and, isNull } from 'drizzle-orm';
-import type { DbClient } from '@/db';
-import { submissions, submissionDocuments, generatedLetters, teams, teamMembers, internships } from '@/db/schema';
+import { asc, eq, desc, inArray, and, isNull } from "drizzle-orm";
+import type { DbClient } from "@/db";
+import {
+  submissions,
+  submissionDocuments,
+  generatedLetters,
+  teams,
+  teamMembers,
+  internships,
+} from "@/db/schema";
 
 type TeamMemberRow = {
   id: string;
@@ -23,7 +30,7 @@ type TeamMemberWithUser = TeamMemberRow & {
 };
 
 export class SubmissionRepository {
-  constructor(private db: DbClient) { }
+  constructor(private db: DbClient) {}
 
   async findWakilDekanSignature(): Promise<{
     id: string;
@@ -34,15 +41,17 @@ export class SubmissionRepository {
   } | null> {
     // Default placeholder preview surat pengantar wakdek
     return {
-      id: 'official-wakdek-1',
-      name: 'Wakil Dekan 1',
-      nip: '197802012005011002',
-      position: 'Wakil Dekan Bidang Akademik',
-      esignatureUrl: 'https://api.dicebear.com/7.x/initials/png?seed=WD' // Placeholder signature (PNG for jsPDF compatibility)
+      id: "official-wakdek-1",
+      name: "Wakil Dekan 1",
+      nip: "197802012005011002",
+      position: "Wakil Dekan Bidang Akademik",
+      esignatureUrl: "https://api.dicebear.com/7.x/initials/png?seed=WD", // Placeholder signature (PNG for jsPDF compatibility)
     };
   }
 
-  async resolveAcademicSupervisorByLeaderMahasiswaId(leaderMahasiswaId?: string | null) {
+  async resolveAcademicSupervisorByLeaderMahasiswaId(
+    leaderMahasiswaId?: string | null,
+  ) {
     return null;
   }
 
@@ -63,15 +72,27 @@ export class SubmissionRepository {
   }
 
   async findById(id: string) {
-    const result = await this.db.select().from(submissions).where(eq(submissions.id, id)).limit(1);
+    const result = await this.db
+      .select()
+      .from(submissions)
+      .where(eq(submissions.id, id))
+      .limit(1);
     return result[0] || null;
   }
 
-  async findInternshipBySubmissionAndMahasiswa(submissionId: string, mahasiswaId: string) {
+  async findInternshipBySubmissionAndMahasiswa(
+    submissionId: string,
+    mahasiswaId: string,
+  ) {
     const rows = await this.db
       .select()
       .from(internships)
-      .where(and(eq(internships.submissionId, submissionId), eq(internships.mahasiswaId, mahasiswaId)))
+      .where(
+        and(
+          eq(internships.submissionId, submissionId),
+          eq(internships.mahasiswaId, mahasiswaId),
+        ),
+      )
       .limit(1);
     return rows[0] || null;
   }
@@ -108,7 +129,10 @@ export class SubmissionRepository {
 
     if (team) {
       // Resolve real dosen PA from team leader's mahasiswa profile
-      academicSupervisor = await this.resolveAcademicSupervisorByLeaderMahasiswaId(team.leaderMahasiswaId);
+      academicSupervisor =
+        await this.resolveAcademicSupervisorByLeaderMahasiswaId(
+          team.leaderMahasiswaId,
+        );
       dosenKpName = await this.resolveTeamKpSupervisorByTeamId(team.id);
 
       // Get team members with user info
@@ -141,23 +165,23 @@ export class SubmissionRepository {
     const docs = await this.findDocumentsBySubmissionId(submission.id);
 
     // Filter out invalid documents
-    const validDocs = docs.filter(doc => doc.documentType);
+    const validDocs = docs.filter((doc) => doc.documentType);
 
     return {
       ...submission, // ✅ This includes documentReviews from submissions table
       wakilDekanSignature,
       team: team
         ? {
-          ...team,
-          dosenKpName,
-          academicSupervisor,
-          members: teamMembers_list.map((m) => ({
-            id: m.id,
-            user: m.user,
-            role: m.role,
-            status: m.status,
-          })),
-        }
+            ...team,
+            dosenKpName,
+            academicSupervisor,
+            members: teamMembers_list.map((m) => ({
+              id: m.id,
+              user: m.user,
+              role: m.role,
+              status: m.status,
+            })),
+          }
         : null,
       documents: validDocs,
     };
@@ -172,7 +196,9 @@ export class SubmissionRepository {
     return await this.db
       .select()
       .from(submissions)
-      .where(and(eq(submissions.teamId, teamId), isNull(submissions.archivedAt)));
+      .where(
+        and(eq(submissions.teamId, teamId), isNull(submissions.archivedAt)),
+      );
   }
 
   /**
@@ -180,30 +206,43 @@ export class SubmissionRepository {
    * Used by admin/dosen to view full history of a team's KP attempts.
    */
   async findAllByTeamId(teamId: string) {
-    return await this.db.select().from(submissions).where(eq(submissions.teamId, teamId));
+    return await this.db
+      .select()
+      .from(submissions)
+      .where(eq(submissions.teamId, teamId));
   }
 
   async findAll() {
     return await this.db.select().from(submissions);
   }
 
-  async findByStatus(status: 'DRAFT' | 'PENDING_REVIEW' | 'REJECTED' | 'APPROVED') {
-    return await this.db.select().from(submissions).where(eq(submissions.status, status));
-  }
-
-  async findByWorkflowStage(
-    workflowStage:
-      | 'DRAFT'
-      | 'PENDING_ADMIN_REVIEW'
-      | 'PENDING_DOSEN_VERIFICATION'
-      | 'COMPLETED'
-      | 'REJECTED_ADMIN'
-      | 'REJECTED_DOSEN'
+  async findByStatus(
+    status: "DRAFT" | "PENDING_REVIEW" | "REJECTED" | "APPROVED",
   ) {
     return await this.db
       .select()
       .from(submissions)
-      .where(and(eq(submissions.workflowStage, workflowStage), isNull(submissions.archivedAt)));
+      .where(eq(submissions.status, status));
+  }
+
+  async findByWorkflowStage(
+    workflowStage:
+      | "DRAFT"
+      | "PENDING_ADMIN_REVIEW"
+      | "PENDING_DOSEN_VERIFICATION"
+      | "COMPLETED"
+      | "REJECTED_ADMIN"
+      | "REJECTED_DOSEN",
+  ) {
+    return await this.db
+      .select()
+      .from(submissions)
+      .where(
+        and(
+          eq(submissions.workflowStage, workflowStage),
+          isNull(submissions.archivedAt),
+        ),
+      );
   }
 
   async create(data: typeof submissions.$inferInsert) {
@@ -317,7 +356,10 @@ export class SubmissionRepository {
   }
 
   // ✅ NEW: Update document status
-  async updateDocumentStatus(documentId: string, newStatus: 'PENDING' | 'APPROVED' | 'REJECTED') {
+  async updateDocumentStatus(
+    documentId: string,
+    newStatus: "PENDING" | "APPROVED" | "REJECTED",
+  ) {
     const result = await this.db
       .update(submissionDocuments)
       .set({
@@ -333,7 +375,7 @@ export class SubmissionRepository {
   async findExistingDocument(
     submissionId: string,
     documentType: typeof submissionDocuments.$inferSelect.documentType,
-    memberMahasiswaId: string
+    memberMahasiswaId: string,
   ) {
     const result = await this.db
       .select({
@@ -356,8 +398,8 @@ export class SubmissionRepository {
         and(
           eq(submissionDocuments.submissionId, submissionId),
           eq(submissionDocuments.documentType, documentType),
-          eq(submissionDocuments.memberMahasiswaId, memberMahasiswaId)
-        )
+          eq(submissionDocuments.memberMahasiswaId, memberMahasiswaId),
+        ),
       )
       .limit(1);
     return result[0] || null;
@@ -373,16 +415,26 @@ export class SubmissionRepository {
   }
 
   async addGeneratedLetter(data: typeof generatedLetters.$inferInsert) {
-    const result = await this.db.insert(generatedLetters).values(data).returning();
+    const result = await this.db
+      .insert(generatedLetters)
+      .values(data)
+      .returning();
     return result[0];
   }
 
   async findLettersBySubmissionId(submissionId: string) {
-    return await this.db.select().from(generatedLetters).where(eq(generatedLetters.submissionId, submissionId));
+    return await this.db
+      .select()
+      .from(generatedLetters)
+      .where(eq(generatedLetters.submissionId, submissionId));
   }
 
   async findLetterByNumber(letterNumber: string) {
-    const result = await this.db.select().from(generatedLetters).where(eq(generatedLetters.letterNumber, letterNumber)).limit(1);
+    const result = await this.db
+      .select()
+      .from(generatedLetters)
+      .where(eq(generatedLetters.letterNumber, letterNumber))
+      .limit(1);
     return result[0] || null;
   }
 
@@ -404,20 +456,26 @@ export class SubmissionRepository {
     return await this.db
       .select()
       .from(submissions)
-      .where(inArray(submissions.status, ['PENDING_REVIEW', 'APPROVED', 'REJECTED']))
+      .where(
+        inArray(submissions.status, ["PENDING_REVIEW", "APPROVED", "REJECTED"]),
+      )
       .orderBy(desc(submissions.submittedAt));
   }
 
   /**
    * Create dummy SURAT_PENGANTAR document when admin approves submission
    * Called automatically by AdminService.updateSubmissionStatus when status = APPROVED
-   * 
+   *
    * @param submissionId - The submission ID
    * @param adminId - The admin user ID who approved
    * @param teamId - The team ID (for generating team code in filename)
    * @returns Created document
    */
-  async createCoverLetterDocument(submissionId: string, adminId: string, teamId: string) {
+  async createCoverLetterDocument(
+    submissionId: string,
+    adminId: string,
+    teamId: string,
+  ) {
     // Get team to include team code in filename
     const teamData = await this.db
       .select()
@@ -426,42 +484,52 @@ export class SubmissionRepository {
       .limit(1);
 
     const team = teamData[0];
-    const teamCode = team?.code || 'UNKNOWN';
+    const teamCode = team?.code || "UNKNOWN";
     const timestamp = Date.now();
 
     // If a cover letter for this submission has already been generated by the system
     // (identified by submissionId + documentType + memberMahasiswaId), return it
     // to make this operation idempotent and avoid unique constraint failures.
     try {
-      const existing = await this.findExistingDocument(submissionId, 'SURAT_PENGANTAR', adminId);
+      const existing = await this.findExistingDocument(
+        submissionId,
+        "SURAT_PENGANTAR",
+        adminId,
+      );
       if (existing) {
-        console.log('[createCoverLetterDocument] Found existing SURAT_PENGANTAR, returning existing document', existing.id);
+        console.log(
+          "[createCoverLetterDocument] Found existing SURAT_PENGANTAR, returning existing document",
+          existing.id,
+        );
         return existing;
       }
     } catch (err) {
-      console.warn('[createCoverLetterDocument] Error checking existing document', err);
+      console.warn(
+        "[createCoverLetterDocument] Error checking existing document",
+        err,
+      );
     }
 
     // Generate dummy document data
     const documentData = {
       id: `doc-${timestamp}`,
       submissionId,
-      documentType: 'SURAT_PENGANTAR' as const,
+      documentType: "SURAT_PENGANTAR" as const,
       memberMahasiswaId: adminId, // System-generated, uploaded by admin
       uploadedByMahasiswaId: adminId,
       originalName: `Surat_Pengantar_Kerja_Praktik_${teamCode}.pdf`,
       fileName: `Surat_Pengantar_Kerja_Praktik_${teamCode}_${timestamp}.pdf`,
-      fileType: 'application/pdf',
+      fileType: "application/pdf",
       fileSize: 1024000, // Dummy size ~1MB
       fileUrl: `/uploads/submissions/${submissionId}/Surat_Pengantar_Kerja_Praktik_${teamCode}_${timestamp}.pdf`,
       createdAt: new Date(),
     };
 
-    console.log('[createCoverLetterDocument] Creating dummy SURAT_PENGANTAR:', {
+    console.log("[createCoverLetterDocument] Creating dummy SURAT_PENGANTAR:", {
       submissionId,
       adminId,
       teamCode,
-      fileName: documentData.fileName
+      fileName: documentData.fileName,
     });
 
     return await this.addDocument(documentData);
@@ -472,7 +540,7 @@ export class SubmissionRepository {
    */
   async updateResponseLetterStatus(
     submissionId: string,
-    status: 'pending' | 'submitted' | 'verified'
+    status: "pending" | "submitted" | "verified",
   ) {
     return await this.update(submissionId, {
       responseLetterStatus: status,

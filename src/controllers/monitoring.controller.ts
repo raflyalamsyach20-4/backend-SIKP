@@ -1,7 +1,7 @@
-import { Context } from 'hono';
-import { createResponse, handleError } from '@/utils/helpers';
-import { MonitoringService } from '@/services/monitoring.service';
-import type { JWTPayload } from '@/types';
+import { Context } from "hono";
+import { createResponse, handleError } from "@/utils/helpers";
+import { MonitoringService } from "@/services/monitoring.service";
+import type { JWTPayload } from "@/types";
 
 export class MonitoringController {
   private monitoringService: MonitoringService;
@@ -11,9 +11,9 @@ export class MonitoringController {
   }
 
   private getUser(): JWTPayload {
-    const user = this.c.get('user') as JWTPayload;
+    const user = this.c.get("user") as JWTPayload;
     if (!user || !user.profileId) {
-      throw new Error('Unauthorized: Missing profileId');
+      throw new Error("Unauthorized: Missing profileId");
     }
     return user;
   }
@@ -28,8 +28,14 @@ export class MonitoringController {
       const sessionId = user.sessionId!;
       const lecturerId = user.profileId!; // Guaranteed by getUser() check
 
-      const data = await this.monitoringService.getMenteesProgress(lecturerId, sessionId);
-      return this.c.json(createResponse(true, 'Mentees progress retrieved', data), 200);
+      const data = await this.monitoringService.getMenteesProgress(
+        lecturerId,
+        sessionId,
+      );
+      return this.c.json(
+        createResponse(true, "Mentees progress retrieved", data),
+        200,
+      );
     } catch (error) {
       return handleError(this.c, error);
     }
@@ -44,10 +50,17 @@ export class MonitoringController {
       const user = this.getUser();
       const lecturerId = user.profileId!;
       const sessionId = user.sessionId!;
-      const studentId = this.c.req.param('studentId');
+      const studentId = this.c.req.param("studentId");
 
-      const data = await this.monitoringService.getStudentLogbooks(lecturerId, studentId, sessionId);
-      return this.c.json(createResponse(true, 'Student logbooks retrieved', data), 200);
+      const data = await this.monitoringService.getStudentLogbooks(
+        lecturerId,
+        studentId,
+        sessionId,
+      );
+      return this.c.json(
+        createResponse(true, "Student logbooks retrieved", data),
+        200,
+      );
     } catch (error) {
       return handleError(this.c, error);
     }
@@ -61,10 +74,18 @@ export class MonitoringController {
     try {
       const user = this.getUser();
       const lecturerId = user.profileId!;
-      const threshold = parseInt(this.c.req.query('threshold') || '3');
+      const sessionId = user.sessionId!;
+      const threshold = parseInt(this.c.req.query("threshold") || "3");
 
-      const data = await this.monitoringService.getInactiveStudents(lecturerId, threshold);
-      return this.c.json(createResponse(true, 'Inactive students identified', data), 200);
+      const data = await this.monitoringService.getInactiveStudents(
+        lecturerId,
+        sessionId,
+        threshold,
+      );
+      return this.c.json(
+        createResponse(true, "Inactive students identified", data),
+        200,
+      );
     } catch (error) {
       return handleError(this.c, error);
     }
@@ -80,8 +101,36 @@ export class MonitoringController {
       const sessionId = user.sessionId!;
       const lecturerId = user.profileId!;
 
-      const data = await this.monitoringService.syncMenteesProgress(lecturerId, sessionId);
-      return this.c.json(createResponse(true, 'Synchronization completed', data), 200);
+      const data = await this.monitoringService.syncMenteesProgress(
+        lecturerId,
+        sessionId,
+      );
+      return this.c.json(
+        createResponse(true, "Synchronization completed", data),
+        200,
+      );
+    } catch (error) {
+      return handleError(this.c, error);
+    }
+  };
+
+  /**
+   * GET /api/internship-monitoring/logbooks/export
+   * Export logbook ZIP for all supervised students
+   */
+  exportLogbookZip = async () => {
+    try {
+      const user = this.getUser();
+      const sessionId = user.sessionId!;
+      const lecturerId = user.profileId!;
+
+      const { buffer, fileName } =
+        await this.monitoringService.exportLogbookZip(lecturerId, sessionId);
+
+      return this.c.body(buffer as any, 200, {
+        "Content-Type": "application/zip",
+        "Content-Disposition": `attachment; filename="${fileName}"`,
+      });
     } catch (error) {
       return handleError(this.c, error);
     }

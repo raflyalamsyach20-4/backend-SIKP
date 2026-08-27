@@ -1,12 +1,12 @@
-import { Context } from 'hono';
-import { ResponseLetterService } from '@/services/response-letter.service';
-import { createResponse, handleError } from '@/utils/helpers';
+import { Context } from "hono";
+import { ResponseLetterService } from "@/services/response-letter.service";
+import { createResponse, handleError } from "@/utils/helpers";
 import {
   submitResponseLetterSchema,
   verifyResponseLetterSchema,
   responseLetterIdParamSchema,
-} from '@/validation/response-letter.validation';
-import type { JWTPayload } from '@/types';
+} from "@/validation/response-letter.validation";
+import type { JWTPayload } from "@/types";
 
 export class ResponseLetterController {
   private responseLetterService: ResponseLetterService;
@@ -21,13 +21,13 @@ export class ResponseLetterController {
    */
   submitResponseLetter = async () => {
     try {
-      const user = this.c.get('user') as JWTPayload;
-      const sessionId = this.c.get('sessionId');
+      const user = this.c.get("user") as JWTPayload;
+      const sessionId = this.c.get("sessionId");
       const formData = await this.c.req.formData();
-      
-      const file = formData.get('file') as File | null;
-      const submissionId = formData.get('submissionId') as string;
-      const letterStatus = formData.get('letterStatus') as string | null;
+
+      const file = formData.get("file") as File | null;
+      const submissionId = formData.get("submissionId") as string;
+      const letterStatus = formData.get("letterStatus") as string | null;
 
       // Validate request data
       const validationResult = submitResponseLetterSchema.safeParse({
@@ -38,28 +38,33 @@ export class ResponseLetterController {
 
       if (!validationResult.success) {
         return this.c.json(
-          createResponse(false, 'Validation failed', {
+          createResponse(false, "Validation failed", {
             errors: validationResult.error.issues,
           }),
-          400
+          400,
         );
       }
 
       const data = validationResult.data;
-      const responseLetter = await this.responseLetterService.submitResponseLetter(
-        data.submissionId,
-        user.mahasiswaId!,
-        data.file as File,
-        data.letterStatus,
-        sessionId
-      );
+      const responseLetter =
+        await this.responseLetterService.submitResponseLetter(
+          data.submissionId,
+          user.mahasiswaId!,
+          data.file as File,
+          data.letterStatus,
+          sessionId,
+        );
 
       return this.c.json(
-        createResponse(true, 'Response letter submitted successfully', responseLetter),
-        201
+        createResponse(
+          true,
+          "Response letter submitted successfully",
+          responseLetter,
+        ),
+        201,
       );
     } catch (error) {
-      return handleError(this.c, error, 'Failed to submit response letter');
+      return handleError(this.c, error, "Failed to submit response letter");
     }
   };
 
@@ -69,42 +74,54 @@ export class ResponseLetterController {
    */
   getAllResponseLetters = async () => {
     try {
-      const user = this.c.get('user') as JWTPayload;
+      const user = this.c.get("user") as JWTPayload;
 
       // Only admin can access
-      if (user.role !== 'admin') {
+      if (user.role !== "admin") {
         return this.c.json(
-          createResponse(false, 'You are not authorized to access this resource'),
-          403
+          createResponse(
+            false,
+            "You are not authorized to access this resource",
+          ),
+          403,
         );
       }
 
       const query = this.c.req.query();
-      
+
       // Map query parameters to service filter format
-      let status: 'all' | 'approved' | 'rejected' | 'verified' | 'unverified' = 'all';
-      
-      if (query.letterStatus === 'approved' || query.letterStatus === 'rejected') {
+      let status: "all" | "approved" | "rejected" | "verified" | "unverified" =
+        "all";
+
+      if (
+        query.letterStatus === "approved" ||
+        query.letterStatus === "rejected"
+      ) {
         status = query.letterStatus;
-      } else if (query.verified === 'true') {
-        status = 'verified';
-      } else if (query.verified === 'false') {
-        status = 'unverified';
+      } else if (query.verified === "true") {
+        status = "verified";
+      } else if (query.verified === "false") {
+        status = "unverified";
       }
 
       const filters = {
         status,
-        sort: (query.sort as 'date' | 'name') || 'date',
+        sort: (query.sort as "date" | "name") || "date",
         limit: query.limit ? parseInt(query.limit) : 50,
         offset: query.offset ? parseInt(query.offset) : 0,
       };
 
-      const sessionId = this.c.get('sessionId');
-      const result = await this.responseLetterService.getAllResponseLetters(filters, sessionId);
+      const sessionId = this.c.get("sessionId");
+      const result = await this.responseLetterService.getAllResponseLetters(
+        filters,
+        sessionId,
+      );
 
-      return this.c.json(createResponse(true, 'Response letters retrieved successfully', result));
+      return this.c.json(
+        createResponse(true, "Response letters retrieved successfully", result),
+      );
     } catch (error) {
-      return handleError(this.c, error, 'Failed to retrieve response letters');
+      return handleError(this.c, error, "Failed to retrieve response letters");
     }
   };
 
@@ -114,29 +131,40 @@ export class ResponseLetterController {
    */
   getMyResponseLetter = async () => {
     try {
-      const user = this.c.get('user') as JWTPayload;
+      const user = this.c.get("user") as JWTPayload;
 
       if (!user || !user.mahasiswaId) {
         return this.c.json(
-          createResponse(false, 'Unauthorized or student identity not selected'),
-          401
+          createResponse(
+            false,
+            "Unauthorized or student identity not selected",
+          ),
+          401,
         );
       }
 
-      const sessionId = this.c.get('sessionId');
-      const responseLetter = await this.responseLetterService.getMyResponseLetter(user.mahasiswaId, sessionId);
+      const sessionId = this.c.get("sessionId");
+      const responseLetter =
+        await this.responseLetterService.getMyResponseLetter(
+          user.mahasiswaId,
+          sessionId,
+        );
 
       if (!responseLetter) {
         return this.c.json(
-          createResponse(true, 'No response letter found', null)
+          createResponse(true, "No response letter found", null),
         );
       }
 
       return this.c.json(
-        createResponse(true, 'Response letter retrieved successfully', responseLetter)
+        createResponse(
+          true,
+          "Response letter retrieved successfully",
+          responseLetter,
+        ),
       );
     } catch (error) {
-      return handleError(this.c, error, 'Failed to retrieve response letter');
+      return handleError(this.c, error, "Failed to retrieve response letter");
     }
   };
 
@@ -146,26 +174,31 @@ export class ResponseLetterController {
    */
   getResponseLetterBySubmissionId = async () => {
     try {
-      const user = this.c.get('user') as JWTPayload;
-      const submissionId = this.c.req.param('submissionId');
-      const sessionId = this.c.get('sessionId');
+      const user = this.c.get("user") as JWTPayload;
+      const submissionId = this.c.req.param("submissionId");
+      const sessionId = this.c.get("sessionId");
 
       if (!user) {
-        return this.c.json(createResponse(false, 'Unauthorized'), 401);
+        return this.c.json(createResponse(false, "Unauthorized"), 401);
       }
 
-      const responseLetter = await this.responseLetterService.getResponseLetterBySubmissionId(
-        submissionId,
-        user.mahasiswaId || user.userId,
-        user.role as string,
-        sessionId
-      );
+      const responseLetter =
+        await this.responseLetterService.getResponseLetterBySubmissionId(
+          submissionId,
+          user.mahasiswaId || user.userId,
+          user.role as string,
+          sessionId,
+        );
 
       return this.c.json(
-        createResponse(true, 'Response letter retrieved successfully', responseLetter)
+        createResponse(
+          true,
+          "Response letter retrieved successfully",
+          responseLetter,
+        ),
       );
     } catch (error) {
-      return handleError(this.c, error, 'Failed to retrieve response letter');
+      return handleError(this.c, error, "Failed to retrieve response letter");
     }
   };
 
@@ -176,32 +209,37 @@ export class ResponseLetterController {
    */
   getResponseLetterById = async () => {
     try {
-      const user = this.c.get('user') as JWTPayload;
-      const id = this.c.req.param('id');
+      const user = this.c.get("user") as JWTPayload;
+      const id = this.c.req.param("id");
 
       // Validate parameter
       const validationResult = responseLetterIdParamSchema.safeParse({ id });
       if (!validationResult.success) {
         return this.c.json(
-          createResponse(false, 'Validation failed', {
+          createResponse(false, "Validation failed", {
             errors: validationResult.error.issues,
           }),
-          400
+          400,
         );
       }
 
-      const responseLetter = await this.responseLetterService.getResponseLetterById(
-        id,
-        user.mahasiswaId || user.userId,
-        user.role as string,
-        this.c.get('sessionId')
-      );
+      const responseLetter =
+        await this.responseLetterService.getResponseLetterById(
+          id,
+          user.mahasiswaId || user.userId,
+          user.role as string,
+          this.c.get("sessionId"),
+        );
 
       return this.c.json(
-        createResponse(true, 'Response letter retrieved successfully', responseLetter)
+        createResponse(
+          true,
+          "Response letter retrieved successfully",
+          responseLetter,
+        ),
       );
     } catch (error) {
-      return handleError(this.c, error, 'Failed to retrieve response letter');
+      return handleError(this.c, error, "Failed to retrieve response letter");
     }
   };
 
@@ -211,27 +249,30 @@ export class ResponseLetterController {
    */
   verifyResponseLetter = async () => {
     try {
-      const user = this.c.get('user') as JWTPayload;
+      const user = this.c.get("user") as JWTPayload;
 
       // Only admin can verify
-      if (user.role !== 'admin') {
+      if (user.role !== "admin") {
         return this.c.json(
-          createResponse(false, 'You are not authorized to verify response letters'),
-          403
+          createResponse(
+            false,
+            "You are not authorized to verify response letters",
+          ),
+          403,
         );
       }
 
-      const id = this.c.req.param('id');
+      const id = this.c.req.param("id");
       const body = await this.c.req.json();
 
       // Validate parameter
       const paramValidation = responseLetterIdParamSchema.safeParse({ id });
       if (!paramValidation.success) {
         return this.c.json(
-          createResponse(false, 'Invalid ID parameter', {
+          createResponse(false, "Invalid ID parameter", {
             errors: paramValidation.error.issues,
           }),
-          400
+          400,
         );
       }
 
@@ -239,31 +280,31 @@ export class ResponseLetterController {
       const bodyValidation = verifyResponseLetterSchema.safeParse(body);
       if (!bodyValidation.success) {
         return this.c.json(
-          createResponse(false, 'Validation failed', {
+          createResponse(false, "Validation failed", {
             errors: bodyValidation.error.issues,
           }),
-          400
+          400,
         );
       }
 
       const data = bodyValidation.data;
-      const sessionId = this.c.get('sessionId');
+      const sessionId = this.c.get("sessionId");
       const result = await this.responseLetterService.verifyResponseLetter(
         id,
         user.adminId || user.userId!,
         data.letterStatus,
-        sessionId
+        sessionId,
       );
 
       return this.c.json(
-        createResponse(true, 'Response letter verified successfully', {
+        createResponse(true, "Response letter verified successfully", {
           ...result.responseLetter,
           resetTeam: result.resetTeam,
-          resetReason: result.resetTeam ? 'rejected' : null,
-        })
+          resetReason: result.resetTeam ? "rejected" : null,
+        }),
       );
     } catch (error) {
-      return handleError(this.c, error, 'Failed to verify response letter');
+      return handleError(this.c, error, "Failed to verify response letter");
     }
   };
 
@@ -273,36 +314,39 @@ export class ResponseLetterController {
    */
   deleteResponseLetter = async () => {
     try {
-      const user = this.c.get('user') as JWTPayload;
+      const user = this.c.get("user") as JWTPayload;
 
       // Only admin can delete
-      if (user.role !== 'admin') {
+      if (user.role !== "admin") {
         return this.c.json(
-          createResponse(false, 'You are not authorized to delete response letters'),
-          403
+          createResponse(
+            false,
+            "You are not authorized to delete response letters",
+          ),
+          403,
         );
       }
 
-      const id = this.c.req.param('id');
+      const id = this.c.req.param("id");
 
       // Validate parameter
       const validationResult = responseLetterIdParamSchema.safeParse({ id });
       if (!validationResult.success) {
         return this.c.json(
-          createResponse(false, 'Validation failed', {
+          createResponse(false, "Validation failed", {
             errors: validationResult.error.issues,
           }),
-          400
+          400,
         );
       }
 
       await this.responseLetterService.deleteResponseLetter(id);
 
       return this.c.json(
-        createResponse(true, 'Response letter deleted successfully', null)
+        createResponse(true, "Response letter deleted successfully", null),
       );
     } catch (error) {
-      return handleError(this.c, error, 'Failed to delete response letter');
+      return handleError(this.c, error, "Failed to delete response letter");
     }
   };
 
@@ -313,31 +357,39 @@ export class ResponseLetterController {
    */
   getResponseLetterStatus = async () => {
     try {
-      const user = this.c.get('user') as JWTPayload;
-      const id = this.c.req.param('id');
+      const user = this.c.get("user") as JWTPayload;
+      const id = this.c.req.param("id");
 
       // Validate parameter
       const validationResult = responseLetterIdParamSchema.safeParse({ id });
       if (!validationResult.success) {
         return this.c.json(
-          createResponse(false, 'Validation failed', {
+          createResponse(false, "Validation failed", {
             errors: validationResult.error.issues,
           }),
-          400
+          400,
         );
       }
 
       const status = await this.responseLetterService.getResponseLetterStatus(
         id,
         user.mahasiswaId || user.userId,
-        user.role as string
+        user.role as string,
       );
 
       return this.c.json(
-        createResponse(true, 'Response letter status retrieved successfully', status)
+        createResponse(
+          true,
+          "Response letter status retrieved successfully",
+          status,
+        ),
       );
     } catch (error) {
-      return handleError(this.c, error, 'Failed to retrieve response letter status');
+      return handleError(
+        this.c,
+        error,
+        "Failed to retrieve response letter status",
+      );
     }
   };
 }

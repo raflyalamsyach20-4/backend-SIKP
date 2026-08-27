@@ -1,20 +1,29 @@
-import { createDbClient } from '@/db';
-import { TeamRepository } from '@/repositories/team.repository';
-import { SubmissionRepository } from '@/repositories/submission.repository';
-import { ResponseLetterRepository } from '@/repositories/response-letter.repository';
-import { StorageService } from '@/services/storage.service';
-import { AuthService } from './auth.service';
-import { DosenService } from './dosen.service';
-import { AuthSessionRepository } from '@/repositories/auth-session.repository';
-import type { SsoMahasiswaDetail, SsoMahasiswaResponse, SsoMahasiswaSearchResponse } from '@/types';
+import { createDbClient } from "@/db";
+import { TeamRepository } from "@/repositories/team.repository";
+import { SubmissionRepository } from "@/repositories/submission.repository";
+import { ResponseLetterRepository } from "@/repositories/response-letter.repository";
+import { MentorWorkflowRepository } from "@/repositories/mentor-workflow.repository";
+import { StorageService } from "@/services/storage.service";
+import { AuthService } from "./auth.service";
+import { DosenService } from "./dosen.service";
+import { AuthSessionRepository } from "@/repositories/auth-session.repository";
+import type {
+  SsoMahasiswaDetail,
+  SsoMahasiswaResponse,
+  SsoMahasiswaSearchResponse,
+} from "@/types";
 
-type TeamRecord = NonNullable<Awaited<ReturnType<TeamRepository['findById']>>>;
-type SubmissionRecord = NonNullable<Awaited<ReturnType<SubmissionRepository['findById']>>>;
-type ResponseLetterRecord = NonNullable<Awaited<ReturnType<ResponseLetterRepository['findBySubmissionId']>>>;
+type TeamRecord = NonNullable<Awaited<ReturnType<TeamRepository["findById"]>>>;
+type SubmissionRecord = NonNullable<
+  Awaited<ReturnType<SubmissionRepository["findById"]>>
+>;
+type ResponseLetterRecord = NonNullable<
+  Awaited<ReturnType<ResponseLetterRepository["findBySubmissionId"]>>
+>;
 
 type DashboardPayload = {
   kerjaPraktik: {
-    code: 'not_started' | 'on_going' | 'finished';
+    code: "not_started" | "on_going" | "finished";
     label: string;
     description: string;
   };
@@ -26,7 +35,7 @@ type DashboardPayload = {
     actionUrl?: string;
   };
   statusPengajuan: {
-    code: 'draft' | 'pending_review' | 'approved' | 'rejected';
+    code: "draft" | "pending_review" | "approved" | "rejected";
     submitted: boolean;
     label: string;
     description?: string;
@@ -47,9 +56,10 @@ export class MahasiswaService {
   private teamRepository: TeamRepository;
   private submissionRepository: SubmissionRepository;
   private responseLetterRepository: ResponseLetterRepository;
+  private mentorWorkflowRepository: MentorWorkflowRepository;
   private storageService: StorageService;
   private authService: AuthService;
-  
+
   private _dosenService?: DosenService;
 
   constructor(private env: CloudflareBindings) {
@@ -57,6 +67,7 @@ export class MahasiswaService {
     this.teamRepository = new TeamRepository(db);
     this.submissionRepository = new SubmissionRepository(db);
     this.responseLetterRepository = new ResponseLetterRepository(db);
+    this.mentorWorkflowRepository = new MentorWorkflowRepository(db);
     this.storageService = new StorageService(this.env);
     this.authService = new AuthService(this.env);
   }
@@ -68,35 +79,22 @@ export class MahasiswaService {
     return this._dosenService;
   }
 
-  private normalizeSsoProfile(profile: any) {
-    if (!profile) return profile;
-
-    const fullName = profile.fullName || profile.name || profile.nama || profile.full_name || '';
-    const emails = Array.isArray(profile.emails)
-      ? profile.emails
-      : profile.email
-        ? [{ email: profile.email }]
-        : [];
-
-    return {
-      ...profile,
-      fullName,
-      emails,
-    };
-  }
-
   /**
    * Fetch Mahasiswa detail from SSO by ID
    */
-  async getMahasiswaById(mahasiswaId: string, sessionId: string): Promise<SsoMahasiswaDetail | null> {
+  async getMahasiswaById(
+    mahasiswaId: string,
+    sessionId: string,
+  ): Promise<SsoMahasiswaDetail | null> {
     try {
       let token = await this.authService.getSessionAccessToken(sessionId);
-      let usedServiceToken = false;
       if (!token) {
         // fallback to service token
         token = await this.authService.getServiceAccessToken();
-        usedServiceToken = true;
-        console.warn('[MahasiswaService.getMahasiswaById] Using service token fallback for mahasiswa lookup', { mahasiswaId });
+        console.warn(
+          "[MahasiswaService.getMahasiswaById] Using service token fallback for mahasiswa lookup",
+          { mahasiswaId },
+        );
       }
       const baseUrl = this.env.SSO_BASE_URL;
       const url = `${baseUrl}/api/mahasiswa/${mahasiswaId}`;
@@ -104,115 +102,83 @@ export class MahasiswaService {
       let response = await fetch(url, {
         headers: {
           Authorization: `Bearer ${token}`,
-          Accept: 'application/json',
+          Accept: "application/json",
         },
       });
 
-      if (!response.ok && (response.status === 401 || response.status === 403)) {
-        console.warn(`[MahasiswaService.getMahasiswaById] Session token rejected (${response.status}), falling back to service token`);
+      if (
+        !response.ok &&
+        (response.status === 401 || response.status === 403)
+      ) {
+        console.warn(
+          `[MahasiswaService.getMahasiswaById] Session token rejected (${response.status}), falling back to service token`,
+        );
         const serviceToken = await this.authService.getServiceAccessToken();
         response = await fetch(url, {
           headers: {
             Authorization: `Bearer ${serviceToken}`,
-            Accept: 'application/json',
+            Accept: "application/json",
           },
         });
       }
 
       if (!response.ok) {
-        if (response.status === 404) {
-          console.warn(`[MahasiswaService.getMahasiswaById] Mahasiswa ID ${mahasiswaId} not found in SSO`);
-        } else if (response.status === 400) {
-          console.warn(`[MahasiswaService.getMahasiswaById] SSO Gateway rejected ID ${mahasiswaId} (likely non-UUID). Falling back to local cache.`);
-        } else {
-          throw new Error(`Failed to fetch mahasiswa from SSO (${response.status})`);
-        }
-        
+        console.warn(
+          `[MahasiswaService.getMahasiswaById] SSO returned error ${response.status} for ${mahasiswaId}. Attempting local fallback.`,
+        );
+
         // Fallback to local auth_sessions table
-        const authSessionRepo = new AuthSessionRepository(createDbClient(this.env.DATABASE_URL));
-        const snapshot = await authSessionRepo.findProfileSnapshotByMahasiswaId(mahasiswaId);
-        
-        if (snapshot) {
-          console.info(`[MahasiswaService.getMahasiswaById] Found snapshot fallback for ${mahasiswaId}`);
+        const authSessionRepo = new AuthSessionRepository(
+          createDbClient(this.env.DATABASE_URL),
+        );
+        const snapshot =
+          await authSessionRepo.findProfileSnapshotByMahasiswaId(mahasiswaId);
 
-          const normalizedSnapshot = this.normalizeSsoProfile(snapshot);
-          
+        if (snapshot) {
+          console.info(
+            `[MahasiswaService.getMahasiswaById] Found snapshot fallback for ${mahasiswaId}`,
+          );
+
           // Map snapshot to SsoMahasiswaDetail format
-          // The snapshot is the 'profile' object from SSO
-          const mhsIdentity = Array.isArray(normalizedSnapshot.identities) 
-            ? normalizedSnapshot.identities.find((i: any) => i.role === 'MAHASISWA' || i.identityType === 'MAHASISWA')
-            : normalizedSnapshot.identities?.mahasiswa;
+          const mhsIdentity = Array.isArray(snapshot.identities)
+            ? snapshot.identities.find(
+                (i: any) =>
+                  i.role === "MAHASISWA" || i.identityType === "MAHASISWA",
+              )
+            : snapshot.identities?.mahasiswa;
 
           return {
-            id: mhsIdentity?.id || normalizedSnapshot.id, // Use the actual Mahasiswa Identity ID if found
-            nim: mhsIdentity?.nim || '-',
+            id: mhsIdentity?.id || snapshot.id,
+            nim: mhsIdentity?.nim || "-",
             angkatan: mhsIdentity?.angkatan || 0,
-            status: mhsIdentity?.status || 'aktif',
-            prodi: mhsIdentity?.prodi || null,
-            fakultas: mhsIdentity?.fakultas || null,
+            status: mhsIdentity?.status || "aktif",
+            prodi:
+              typeof mhsIdentity?.prodi === "string"
+                ? { nama: mhsIdentity.prodi }
+                : mhsIdentity?.prodi || null,
+            fakultas:
+              typeof mhsIdentity?.fakultas === "string"
+                ? { nama: mhsIdentity.fakultas }
+                : mhsIdentity?.fakultas || null,
             dosenPA: mhsIdentity?.dosenPA || null,
             profile: {
-              id: normalizedSnapshot.authUserId, // The SSO UUID
-              fullName: normalizedSnapshot.fullName,
-              emails: normalizedSnapshot.emails || [],
-            }
-          } as any;
-        }
-        
-        return null;
-      }
-
-      let payload = (await response.json()) as SsoMahasiswaResponse;
-
-      if ((!payload?.data || payload.success === false) && !usedServiceToken) {
-        console.warn(`[MahasiswaService.getMahasiswaById] Empty payload with session token for ${mahasiswaId}. Retrying with service token.`);
-        const serviceToken = await this.authService.getServiceAccessToken();
-        usedServiceToken = true;
-        const retryResp = await fetch(url, {
-          headers: {
-            Authorization: `Bearer ${serviceToken}`,
-            Accept: 'application/json',
-          },
-        });
-
-        if (retryResp.ok) {
-          payload = (await retryResp.json()) as SsoMahasiswaResponse;
-        }
-      }
-
-      if (!payload.data) {
-        const authSessionRepo = new AuthSessionRepository(createDbClient(this.env.DATABASE_URL));
-        const snapshot = await authSessionRepo.findProfileSnapshotByMahasiswaId(mahasiswaId);
-        if (snapshot) {
-          console.info(`[MahasiswaService.getMahasiswaById] Using snapshot fallback after empty payload for ${mahasiswaId}`);
-          const normalizedSnapshot = this.normalizeSsoProfile(snapshot);
-          const mhsIdentity = Array.isArray(normalizedSnapshot.identities) 
-            ? normalizedSnapshot.identities.find((i: any) => i.role === 'MAHASISWA' || i.identityType === 'MAHASISWA')
-            : normalizedSnapshot.identities?.mahasiswa;
-
-          return {
-            id: mhsIdentity?.id || normalizedSnapshot.id,
-            nim: mhsIdentity?.nim || '-',
-            angkatan: mhsIdentity?.angkatan || 0,
-            status: mhsIdentity?.status || 'aktif',
-            prodi: mhsIdentity?.prodi || null,
-            fakultas: mhsIdentity?.fakultas || null,
-            dosenPA: mhsIdentity?.dosenPA || null,
-            profile: {
-              id: normalizedSnapshot.authUserId,
-              fullName: normalizedSnapshot.fullName,
-              emails: normalizedSnapshot.emails || [],
+              id: snapshot.authUserId,
+              fullName: snapshot.fullName,
+              emails: snapshot.emails || [],
             },
           } as any;
         }
+
+        return null;
       }
 
-      if (payload.data?.profile) {
-        payload.data.profile = this.normalizeSsoProfile(payload.data.profile);
-      }
-      return payload.data || null;
+      const payload = (await response.json()) as SsoMahasiswaResponse;
+      return payload.data;
     } catch (error) {
-      console.error(`[MahasiswaService.getMahasiswaById] Error fetching from SSO:`, error);
+      console.error(
+        `[MahasiswaService.getMahasiswaById] Error fetching from SSO:`,
+        error,
+      );
       return null;
     }
   }
@@ -220,86 +186,57 @@ export class MahasiswaService {
   /**
    * Fetch Mahasiswa detail from SSO by NIM
    */
-  async getMahasiswaByNim(nim: string, sessionId: string): Promise<SsoMahasiswaDetail | null> {
+  async getMahasiswaByNim(
+    nim: string,
+    sessionId: string,
+  ): Promise<SsoMahasiswaDetail | null> {
     try {
       const token = await this.authService.getSessionAccessToken(sessionId);
-      let usedServiceToken = false;
       const baseUrl = this.env.SSO_BASE_URL;
       const url = `${baseUrl}/api/mahasiswa/nim/${nim}`;
 
       let response = await fetch(url, {
         headers: {
           Authorization: `Bearer ${token}`,
-          Accept: 'application/json',
+          Accept: "application/json",
         },
       });
 
-      if (!response.ok && (response.status === 401 || response.status === 403)) {
-        console.warn(`[MahasiswaService.getMahasiswaByNim] Session token rejected (${response.status}), falling back to service token`);
+      if (
+        !response.ok &&
+        (response.status === 401 || response.status === 403)
+      ) {
+        console.warn(
+          `[MahasiswaService.getMahasiswaByNim] Session token rejected (${response.status}), falling back to service token`,
+        );
         const serviceToken = await this.authService.getServiceAccessToken();
-        usedServiceToken = true;
         response = await fetch(url, {
           headers: {
             Authorization: `Bearer ${serviceToken}`,
-            Accept: 'application/json',
+            Accept: "application/json",
           },
         });
       }
 
       if (!response.ok) {
         if (response.status === 404) {
-          console.warn(`[MahasiswaService.getMahasiswaByNim] Mahasiswa NIM ${nim} not found in SSO`);
+          console.warn(
+            `[MahasiswaService.getMahasiswaByNim] Mahasiswa NIM ${nim} not found in SSO`,
+          );
           return null;
         }
-        throw new Error(`Failed to fetch mahasiswa from SSO (${response.status})`);
+        throw new Error(
+          `Failed to fetch mahasiswa from SSO (${response.status})`,
+        );
       }
 
-      let payload = (await response.json()) as SsoMahasiswaResponse;
-
-      if ((!payload?.data || payload.success === false) && !usedServiceToken) {
-        console.warn(`[MahasiswaService.getMahasiswaByNim] Empty payload with session token for ${nim}. Retrying with service token.`);
-        const serviceToken = await this.authService.getServiceAccessToken();
-        const retryResp = await fetch(url, {
-          headers: {
-            Authorization: `Bearer ${serviceToken}`,
-            Accept: 'application/json',
-          },
-        });
-        if (retryResp.ok) {
-          payload = (await retryResp.json()) as SsoMahasiswaResponse;
-        }
-      }
-
-      if (!payload.data) {
-        const authSessionRepo = new AuthSessionRepository(createDbClient(this.env.DATABASE_URL));
-        const snapshot = await authSessionRepo.findProfileSnapshotByMahasiswaId(nim);
-        if (snapshot) {
-          console.info(`[MahasiswaService.getMahasiswaByNim] Using snapshot fallback after empty payload for ${nim}`);
-          const normalizedSnapshot = this.normalizeSsoProfile(snapshot);
-          const mhsIdentity = Array.isArray(normalizedSnapshot.identities) 
-            ? normalizedSnapshot.identities.find((i: any) => i.role === 'MAHASISWA' || i.identityType === 'MAHASISWA')
-            : normalizedSnapshot.identities?.mahasiswa;
-
-          return {
-            id: mhsIdentity?.id || normalizedSnapshot.id,
-            nim: mhsIdentity?.nim || nim,
-            angkatan: mhsIdentity?.angkatan || 0,
-            status: mhsIdentity?.status || 'aktif',
-            prodi: mhsIdentity?.prodi || null,
-            fakultas: mhsIdentity?.fakultas || null,
-            dosenPA: mhsIdentity?.dosenPA || null,
-            profile: {
-              id: normalizedSnapshot.authUserId,
-              fullName: normalizedSnapshot.fullName,
-              emails: normalizedSnapshot.emails || [],
-            },
-          } as any;
-        }
-      }
-
-      return payload.data || null;
+      const payload = (await response.json()) as SsoMahasiswaResponse;
+      return payload.data;
     } catch (error) {
-      console.error(`[MahasiswaService.getMahasiswaByNim] Error fetching from SSO:`, error);
+      console.error(
+        `[MahasiswaService.getMahasiswaByNim] Error fetching from SSO:`,
+        error,
+      );
       return null;
     }
   }
@@ -309,10 +246,10 @@ export class MahasiswaService {
     let parsed: Date;
     if (value instanceof Date) {
       parsed = value;
-    } else if (typeof value === 'string') {
+    } else if (typeof value === "string") {
       // For DATE-only strings (YYYY-MM-DD), parse without timezone
       if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
-        const [year, month, day] = value.split('-').map(Number);
+        const [year, month, day] = value.split("-").map(Number);
         parsed = new Date(year, month - 1, day);
       } else {
         parsed = new Date(value);
@@ -330,14 +267,18 @@ export class MahasiswaService {
   private formatDate(value: Date): string {
     // Format as YYYY-MM-DD using local date values, not UTC
     const year = value.getFullYear();
-    const month = String(value.getMonth() + 1).padStart(2, '0');
-    const day = String(value.getDate()).padStart(2, '0');
+    const month = String(value.getMonth() + 1).padStart(2, "0");
+    const day = String(value.getDate()).padStart(2, "0");
     return `${year}-${month}-${day}`;
   }
 
-  private async resolvePrimaryTeam(mahasiswaId: string): Promise<TeamRecord | null> {
-    const memberTeams = await this.teamRepository.findTeamsByMahasiswaId(mahasiswaId);
-    const leaderTeams = await this.teamRepository.findByLeaderMahasiswaId(mahasiswaId);
+  private async resolvePrimaryTeam(
+    mahasiswaId: string,
+  ): Promise<TeamRecord | null> {
+    const memberTeams =
+      await this.teamRepository.findTeamsByMahasiswaId(mahasiswaId);
+    const leaderTeams =
+      await this.teamRepository.findByLeaderMahasiswaId(mahasiswaId);
 
     const allTeamsMap = new Map<string, TeamRecord>();
     [...memberTeams, ...leaderTeams].forEach((team) => {
@@ -348,7 +289,7 @@ export class MahasiswaService {
 
     const allTeams = Array.from(allTeamsMap.values()).sort((a, b) => {
       if (a.status === b.status) return 0;
-      return a.status === 'FIXED' ? -1 : 1;
+      return a.status === "FIXED" ? -1 : 1;
     });
 
     if (allTeams.length === 0) return null;
@@ -361,25 +302,32 @@ export class MahasiswaService {
     return allTeams[0];
   }
 
-  private async resolveCurrentSubmission(teamId: string): Promise<SubmissionRecord | null> {
+  private async resolveCurrentSubmission(
+    teamId: string,
+  ): Promise<SubmissionRecord | null> {
     const submissions = await this.submissionRepository.findByTeamId(teamId);
     if (submissions.length === 0) return null;
 
     const ordered = [...submissions].sort((a, b) => {
-      const aDate = this.normalizeDate(a.updatedAt || a.createdAt)?.getTime() || 0;
-      const bDate = this.normalizeDate(b.updatedAt || b.createdAt)?.getTime() || 0;
+      const aDate =
+        this.normalizeDate(a.updatedAt || a.createdAt)?.getTime() || 0;
+      const bDate =
+        this.normalizeDate(b.updatedAt || b.createdAt)?.getTime() || 0;
       return bDate - aDate;
     });
 
     return ordered[0] as SubmissionRecord;
   }
 
-  private resolveKerjaPraktik(submission: SubmissionRecord | null) {
+  private resolveKerjaPraktik(
+    submission: SubmissionRecord | null,
+    responseLetter: ResponseLetterRecord | null,
+  ) {
     if (!submission) {
       return {
-        code: 'not_started' as const,
-        label: 'Belum Dimulai',
-        description: 'Segera lakukan pengajuan kerja praktik.',
+        code: "not_started" as const,
+        label: "Belum Dimulai",
+        description: "Segera lakukan pengajuan kerja praktik.",
       };
     }
 
@@ -388,9 +336,29 @@ export class MahasiswaService {
 
     if (!startDate || !endDate) {
       return {
-        code: 'not_started' as const,
-        label: 'Belum Dimulai',
-        description: 'Tanggal pelaksanaan kerja praktik belum diisi.',
+        code: "not_started" as const,
+        label: "Belum Dimulai",
+        description: "Tanggal pelaksanaan kerja praktik belum diisi.",
+      };
+    }
+
+    // Pemicu Status Pelaksanaan: Harus upload balasan & diverifikasi admin
+    if (!responseLetter) {
+      return {
+        code: "not_started" as const,
+        label: "Belum Dimulai",
+        description: "Menunggu Anda mengunggah surat balasan.",
+      };
+    }
+
+    if (
+      !responseLetter.verified ||
+      responseLetter.letterStatus !== "approved"
+    ) {
+      return {
+        code: "not_started" as const,
+        label: "Belum Dimulai",
+        description: "Menunggu verifikasi surat balasan oleh Admin.",
       };
     }
 
@@ -398,33 +366,43 @@ export class MahasiswaService {
     const start = this.toDateOnly(startDate);
     const end = this.toDateOnly(endDate);
 
-    
-
     if (today > end) {
       return {
-        code: 'finished' as const,
-        label: 'Selesai',
+        code: "finished" as const,
+        label: "Selesai",
         description: `Periode: ${this.formatDate(start)} - ${this.formatDate(end)}`,
       };
     }
 
     if (today >= start && today <= end) {
       return {
-        code: 'on_going' as const,
-        label: 'Sedang Berlangsung',
+        code: "on_going" as const,
+        label: "Sedang Berlangsung",
         description: `Periode: ${this.formatDate(start)} - ${this.formatDate(end)}`,
       };
     }
 
     return {
-      code: 'not_started' as const,
-      label: 'Belum Dimulai',
+      code: "not_started" as const,
+      label: "Belum Dimulai",
       description: `Periode dimulai pada ${this.formatDate(start)}.`,
     };
   }
 
-  private resolveHariTersisa(submission: SubmissionRecord | null): number | null {
+  private resolveHariTersisa(
+    submission: SubmissionRecord | null,
+    responseLetter: ResponseLetterRecord | null,
+  ): number | null {
     if (!submission) return null;
+
+    // Jangan tampilkan sisa hari jika belum diverifikasi admin
+    if (
+      !responseLetter ||
+      !responseLetter.verified ||
+      responseLetter.letterStatus !== "approved"
+    ) {
+      return null;
+    }
 
     const endDate = this.normalizeDate(submission.endDate);
     if (!endDate) return null;
@@ -432,47 +410,53 @@ export class MahasiswaService {
     const today = this.toDateOnly(new Date());
     const end = this.toDateOnly(endDate);
     const msInDay = 24 * 60 * 60 * 1000;
-    const daysRemaining = Math.floor((end.getTime() - today.getTime()) / msInDay);
+    const daysRemaining = Math.floor(
+      (end.getTime() - today.getTime()) / msInDay,
+    );
     return daysRemaining < 0 ? 0 : daysRemaining;
   }
 
   private resolveStatusPengajuan(submission: SubmissionRecord | null) {
-    if (!submission || submission.status === 'DRAFT') {
+    if (!submission || submission.status === "DRAFT") {
       return {
-        code: 'draft' as const,
+        code: "draft" as const,
         submitted: false,
-        label: 'Segera lakukan pengajuan',
+        label: "Segera lakukan pengajuan",
       };
     }
 
     const workflowStage = submission.workflowStage;
 
     if (
-      submission.status === 'REJECTED' ||
-      workflowStage === 'REJECTED_ADMIN' ||
-      workflowStage === 'REJECTED_DOSEN'
+      submission.status === "REJECTED" ||
+      workflowStage === "REJECTED_ADMIN" ||
+      workflowStage === "REJECTED_DOSEN"
     ) {
       return {
-        code: 'rejected' as const,
+        code: "rejected" as const,
         submitted: true,
-        label: 'Pengajuan ditolak. Lihat alasannya.',
+        label: "Pengajuan ditolak. Lihat alasannya.",
         description: submission.rejectionReason || undefined,
       };
     }
 
-    if (submission.status === 'APPROVED' || workflowStage === 'COMPLETED') {
+    if (submission.status === "APPROVED" || workflowStage === "COMPLETED") {
       return {
-        code: 'approved' as const,
+        code: "approved" as const,
         submitted: true,
-        label: 'Pengajuan Surat Pengantar disetujui.',
+        label: "Pengajuan Surat Pengantar disetujui.",
       };
     }
 
-    if (submission.status === 'PENDING_REVIEW' || workflowStage === 'PENDING_ADMIN_REVIEW' || workflowStage === 'PENDING_DOSEN_VERIFICATION') {
+    if (
+      submission.status === "PENDING_REVIEW" ||
+      workflowStage === "PENDING_ADMIN_REVIEW" ||
+      workflowStage === "PENDING_DOSEN_VERIFICATION"
+    ) {
       return {
-        code: 'pending_review' as const,
+        code: "pending_review" as const,
         submitted: true,
-        label: 'Pengajuan telah dikirimkan',
+        label: "Pengajuan telah dikirimkan",
         description: submission.submittedAt
           ? `Waktu submit: ${this.formatDate(this.normalizeDate(submission.submittedAt) || new Date())}`
           : undefined,
@@ -480,135 +464,189 @@ export class MahasiswaService {
     }
 
     return {
-      code: 'pending_review' as const,
+      code: "pending_review" as const,
       submitted: true,
-      label: 'Pengajuan telah dikirimkan',
+      label: "Pengajuan telah dikirimkan",
     };
   }
 
   private resolveTahapBerikutnya(
     team: TeamRecord | null,
     submission: SubmissionRecord | null,
-    responseLetter: ResponseLetterRecord | null
+    responseLetter: ResponseLetterRecord | null,
   ) {
-    if (!team || team.status === 'PENDING' || !submission) {
+    if (!team || team.status === "PENDING" || !submission) {
       return {
-        title: 'Finalisasi Tim',
-        description: 'Tim Anda belum ditetapkan. Segera lakukan finalisasi.',
-        actionLabel: 'Ke Pembentukan Tim',
-        actionUrl: '/mahasiswa/kp/buat-tim',
+        title: "Finalisasi Tim",
+        description: "Tim Anda belum ditetapkan. Segera lakukan finalisasi.",
+        actionLabel: "Ke Pembentukan Tim",
+        actionUrl: "/mahasiswa/kp/buat-tim",
       };
     }
 
-    if (submission.status === 'DRAFT') {
+    if (submission.status === "DRAFT") {
       return {
-        title: 'Lengkapi Pengajuan',
-        description: 'Lengkapi data pengajuan agar proses KP dapat dilanjutkan.',
-        actionLabel: 'Ke Pengajuan KP',
-        actionUrl: '/mahasiswa/kp/pengajuan',
+        title: "Lengkapi Pengajuan",
+        description:
+          "Lengkapi data pengajuan agar proses KP dapat dilanjutkan.",
+        actionLabel: "Ke Pengajuan KP",
+        actionUrl: "/mahasiswa/kp/pengajuan",
       };
     }
 
     if (
-      submission.status === 'PENDING_REVIEW' ||
-      submission.workflowStage === 'PENDING_ADMIN_REVIEW' ||
-      submission.workflowStage === 'PENDING_DOSEN_VERIFICATION'
+      submission.status === "PENDING_REVIEW" ||
+      submission.workflowStage === "PENDING_ADMIN_REVIEW" ||
+      submission.workflowStage === "PENDING_DOSEN_VERIFICATION"
     ) {
       return {
-        title: 'Menunggu review pengajuan',
-        description: 'Pengajuan Anda sedang direview. Silakan tunggu hasil verifikasi.',
-        actionLabel: 'Lihat Pengajuan',
-        actionUrl: '/mahasiswa/kp/pengajuan',
+        title: "Menunggu review pengajuan",
+        description:
+          "Pengajuan Anda sedang direview. Silakan tunggu hasil verifikasi.",
+        actionLabel: "Lihat Pengajuan",
+        actionUrl: "/mahasiswa/kp/pengajuan",
       };
     }
 
-    if (responseLetter?.verified && responseLetter.letterStatus === 'rejected') {
+    if (
+      responseLetter?.verified &&
+      responseLetter.letterStatus === "rejected"
+    ) {
       return {
-        title: 'Lakukan pengajuan ulang',
-        description: 'Surat balasan ditolak. Silakan mulai ulang proses dari pembentukan tim.',
-        actionLabel: 'Ke Pembentukan Tim',
-        actionUrl: '/mahasiswa/kp/buat-tim',
+        title: "Lakukan pengajuan ulang",
+        description:
+          "Surat balasan ditolak. Silakan mulai ulang proses dari pembentukan tim.",
+        actionLabel: "Ke Pembentukan Tim",
+        actionUrl: "/mahasiswa/kp/buat-tim",
       };
     }
 
-    if (responseLetter?.verified && responseLetter.letterStatus === 'approved') {
+    if (
+      responseLetter?.verified &&
+      responseLetter.letterStatus === "approved"
+    ) {
       return {
-        title: 'Pelaksanaan kerja praktik',
-        description: 'Surat balasan telah diverifikasi. Lanjutkan pelaksanaan kerja praktik.',
-        actionLabel: 'Ke Saat Magang',
-        actionUrl: '/mahasiswa/kp/saat-magang',
+        title: "Pelaksanaan kerja praktik",
+        description:
+          "Surat balasan telah diverifikasi. Lanjutkan pelaksanaan kerja praktik.",
+        actionLabel: "Ke Pelaksanaan Kerja Praktik",
+        actionUrl: "/mahasiswa/kp/saat-magang",
       };
     }
 
-    if ((submission.workflowStage === 'COMPLETED' || submission.status === 'APPROVED') && !responseLetter) {
+    if (
+      (submission.workflowStage === "COMPLETED" ||
+        submission.status === "APPROVED") &&
+      !responseLetter
+    ) {
       return {
-        title: 'Unggah surat balasan',
-        description: 'Unggah surat balasan dari perusahaan untuk melanjutkan proses.',
-        actionLabel: 'Unggah Surat Balasan',
-        actionUrl: '/mahasiswa/kp/surat-balasan',
+        title: "Unggah surat balasan",
+        description:
+          "Unggah surat balasan dari perusahaan untuk melanjutkan proses.",
+        actionLabel: "Unggah Surat Balasan",
+        actionUrl: "/mahasiswa/kp/surat-balasan",
       };
     }
 
-    if ((responseLetter && !responseLetter.verified) || submission.responseLetterStatus === 'submitted') {
+    if (
+      (responseLetter && !responseLetter.verified) ||
+      submission.responseLetterStatus === "submitted"
+    ) {
       return {
-        title: 'Menunggu verifikasi surat balasan',
-        description: 'Surat balasan sudah dikirim dan sedang menunggu verifikasi.',
-        actionLabel: 'Ke Surat Balasan',
-        actionUrl: '/mahasiswa/kp/surat-balasan',
+        title: "Menunggu verifikasi surat balasan",
+        description:
+          "Surat balasan sudah dikirim dan sedang menunggu verifikasi.",
+        actionLabel: "Ke Surat Balasan",
+        actionUrl: "/mahasiswa/kp/surat-balasan",
       };
     }
 
     return {
-      title: 'Pelaksanaan kerja praktik',
-      description: 'Lanjutkan aktivitas kerja praktik sesuai timeline.',
-      actionLabel: 'Ke Saat Magang',
-      actionUrl: '/mahasiswa/kp/saat-magang',
+      title: "Pelaksanaan kerja praktik",
+      description: "Lanjutkan aktivitas kerja praktik sesuai timeline.",
+      actionLabel: "Ke Pelaksanaan Kerja Praktik",
+      actionUrl: "/mahasiswa/kp/saat-magang",
     };
   }
 
-  private async resolveTeamInfo(team: TeamRecord | null, sessionId: string): Promise<DashboardPayload['teamInfo']> {
+  private async resolveTeamInfo(
+    team: TeamRecord | null,
+    mahasiswaId: string,
+    sessionId: string,
+  ): Promise<DashboardPayload["teamInfo"]> {
     if (!team) return null;
 
     const members = await this.teamRepository.findMembersByTeamId(team.id);
-    const acceptedMembers = members.filter((m) => m.invitationStatus === 'ACCEPTED');
+    const acceptedMembers = members.filter(
+      (m) => m.invitationStatus === "ACCEPTED",
+    );
 
     const enrichedMembers = await Promise.all(
       acceptedMembers.map(async (m) => {
         const student = await this.getMahasiswaById(m.mahasiswaId, sessionId);
         return {
-          name: student?.profile.fullName || 'Tanpa Nama',
+          name: student?.profile.fullName || "Tanpa Nama",
           nim: student?.nim || null,
-          role: m.role === 'KETUA' ? 'Ketua' : 'Anggota',
+          role: m.role === "KETUA" ? "Ketua" : "Anggota",
         };
-      })
+      }),
     );
 
-    const dosenSsoData = team.dosenKpId ? await this.dosenService.getDosenById(team.dosenKpId, sessionId) : null;
+    const dosenSsoData = team.dosenKpId
+      ? await this.dosenService.getDosenById(team.dosenKpId, sessionId)
+      : null;
+
+    // Fetch approved mentor approval request for this student
+    const mentorRequests =
+      await this.mentorWorkflowRepository.listMentorApprovalRequestsByStudent(
+        mahasiswaId,
+      );
+    const approvedMentor = mentorRequests.find(
+      (r) => r.status === "APPROVED",
+    ) || mentorRequests[0] || null;
+
+    const mentorName =
+      approvedMentor?.status === "APPROVED"
+        ? approvedMentor.mentorName
+        : null;
+    const mentorEmail =
+      approvedMentor?.status === "APPROVED"
+        ? approvedMentor.mentorEmail
+        : null;
 
     return {
       teamId: team.id,
       teamName: team.code,
       members: enrichedMembers,
-      mentorName: null,
-      mentorEmail: null,
+      mentorName,
+      mentorEmail,
       dosenName: dosenSsoData?.profile.fullName || null,
       dosenNip: dosenSsoData?.nip || null,
     };
   }
 
-  async getDashboard(mahasiswaId: string, sessionId: string): Promise<DashboardPayload> {
+  async getDashboard(
+    mahasiswaId: string,
+    sessionId: string,
+  ): Promise<DashboardPayload> {
     const team = await this.resolvePrimaryTeam(mahasiswaId);
-    const submission = team ? await this.resolveCurrentSubmission(team.id) : null;
+    const submission = team
+      ? await this.resolveCurrentSubmission(team.id)
+      : null;
     const responseLetter = submission
       ? await this.responseLetterRepository.findBySubmissionId(submission.id)
       : null;
 
     return {
-      kerjaPraktik: this.resolveKerjaPraktik(submission),
-      hariTersisa: this.resolveHariTersisa(submission),
-      tahapBerikutnya: this.resolveTahapBerikutnya(team, submission, responseLetter),
+      kerjaPraktik: this.resolveKerjaPraktik(submission, responseLetter),
+      hariTersisa: this.resolveHariTersisa(submission, responseLetter),
+      tahapBerikutnya: this.resolveTahapBerikutnya(
+        team,
+        submission,
+        responseLetter,
+      ),
       statusPengajuan: this.resolveStatusPengajuan(submission),
-      teamInfo: await this.resolveTeamInfo(team, sessionId),
+      teamInfo: await this.resolveTeamInfo(team, mahasiswaId, sessionId),
       activities: [],
     };
   }
@@ -616,46 +654,58 @@ export class MahasiswaService {
   /**
    * Search Mahasiswa from SSO
    */
-  async searchMahasiswa(params: {
-    search?: string;
-    prodiId?: string | null;
-    fakultasId?: string | null;
-    page?: string;
-    limit?: string;
-  }, sessionId: string): Promise<SsoMahasiswaSearchResponse> {
+  async searchMahasiswa(
+    params: {
+      search?: string;
+      prodiId?: string | null;
+      fakultasId?: string | null;
+      page?: string;
+      limit?: string;
+    },
+    sessionId: string,
+  ): Promise<SsoMahasiswaSearchResponse> {
     try {
       const token = await this.authService.getSessionAccessToken(sessionId);
       const baseUrl = this.env.SSO_BASE_URL;
-      
+
       // Use URL constructor for safe parameter appending
       const url = new URL(`${baseUrl}/api/mahasiswa`);
-      
-      if (params.search) url.searchParams.set('search', params.search);
-      if (params.prodiId) url.searchParams.set('prodiId', params.prodiId);
-      if (params.fakultasId) url.searchParams.set('fakultasId', params.fakultasId);
-      if (params.page) url.searchParams.set('page', params.page);
-      if (params.limit) url.searchParams.set('limit', params.limit);
-      url.searchParams.set('isLinked', 'true');
+
+      if (params.search) url.searchParams.set("search", params.search);
+      if (params.prodiId) url.searchParams.set("prodiId", params.prodiId);
+      if (params.fakultasId)
+        url.searchParams.set("fakultasId", params.fakultasId);
+      if (params.page) url.searchParams.set("page", params.page);
+      if (params.limit) url.searchParams.set("limit", params.limit);
+      url.searchParams.set("isLinked", "true");
 
       const response = await fetch(url.toString(), {
         headers: {
           Authorization: `Bearer ${token}`,
-          Accept: 'application/json',
+          Accept: "application/json",
         },
       });
 
       if (!response.ok) {
-        throw new Error(`Failed to search mahasiswa from SSO (${response.status})`);
+        throw new Error(
+          `Failed to search mahasiswa from SSO (${response.status})`,
+        );
       }
 
-      return await response.json() as SsoMahasiswaSearchResponse;
+      return (await response.json()) as SsoMahasiswaSearchResponse;
     } catch (error) {
-      console.error(`[MahasiswaService.searchMahasiswa] Error fetching from SSO:`, error);
+      console.error(
+        `[MahasiswaService.searchMahasiswa] Error fetching from SSO:`,
+        error,
+      );
       throw error;
     }
   }
 
-  async fetchMahasiswaCountBySemester(semester: number, sessionId: string): Promise<number> {
+  async fetchMahasiswaCountBySemester(
+    semester: number,
+    sessionId: string,
+  ): Promise<number> {
     try {
       const token = await this.authService.getSessionAccessToken(sessionId);
       const baseUrl = this.env.SSO_BASE_URL;
@@ -664,19 +714,27 @@ export class MahasiswaService {
       const response = await fetch(url, {
         headers: {
           Authorization: `Bearer ${token}`,
-          Accept: 'application/json',
+          Accept: "application/json",
         },
       });
 
       if (!response.ok) {
-        console.warn(`[MahasiswaService.fetchMahasiswaCountBySemester] Failed to fetch count from SSO: ${response.status}`);
+        console.warn(
+          `[MahasiswaService.fetchMahasiswaCountBySemester] Failed to fetch count from SSO: ${response.status}`,
+        );
         return 0;
       }
 
-      const payload = await response.json() as { success: boolean; data: { count: number } };
+      const payload = (await response.json()) as {
+        success: boolean;
+        data: { count: number };
+      };
       return payload.data.count;
     } catch (error) {
-      console.error(`[AdminService.fetchMahasiswaCountBySemester] Error:`, error);
+      console.error(
+        `[AdminService.fetchMahasiswaCountBySemester] Error:`,
+        error,
+      );
       return 0;
     }
   }

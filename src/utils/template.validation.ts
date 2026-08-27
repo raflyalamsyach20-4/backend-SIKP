@@ -1,11 +1,12 @@
-import { z } from 'zod';
+import { z } from "zod";
 
 // Create Template Schema
 export const createTemplateSchema = z.object({
-  name: z.string()
-    .min(3, 'Nama template minimal 3 karakter')
-    .max(255, 'Nama template maksimal 255 karakter'),
-  type: z.string().default('standard'),
+  name: z
+    .string()
+    .min(3, "Nama template minimal 3 karakter")
+    .max(255, "Nama template maksimal 255 karakter"),
+  type: z.string().default("standard"),
   description: z.string().optional(),
 });
 
@@ -36,7 +37,7 @@ export const validateTemplateInput = (data: unknown) => {
     if (error instanceof z.ZodError) {
       return {
         valid: false,
-        errors: error.issues.map((e) => `${e.path.join('.')}: ${e.message}`),
+        errors: error.issues.map((e) => `${e.path.join(".")}: ${e.message}`),
       };
     }
     throw error;
@@ -53,7 +54,7 @@ export const validateTemplateUpdate = (data: unknown) => {
     if (error instanceof z.ZodError) {
       return {
         valid: false,
-        errors: error.issues.map((e) => `${e.path.join('.')}: ${e.message}`),
+        errors: error.issues.map((e) => `${e.path.join(".")}: ${e.message}`),
       };
     }
     throw error;
@@ -70,7 +71,7 @@ export const validateTemplateFilters = (data: unknown) => {
     if (error instanceof z.ZodError) {
       return {
         valid: false,
-        errors: error.issues.map((e) => `${e.path.join('.')}: ${e.message}`),
+        errors: error.issues.map((e) => `${e.path.join(".")}: ${e.message}`),
       };
     }
     throw error;

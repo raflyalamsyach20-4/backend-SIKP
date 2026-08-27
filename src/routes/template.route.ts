@@ -1,8 +1,12 @@
-import { Hono } from 'hono';
-import { authMiddleware, adminOnly } from '@/middlewares/auth.middleware';
-import { zValidator } from '@hono/zod-validator';
-import { emptyFormSchema, emptyQuerySchema, nonEmptyStringParamsSchema } from '@/schemas/common.schema';
-import { TemplateController } from '@/controllers';
+import { Hono } from "hono";
+import { authMiddleware, adminOnly } from "@/middlewares/auth.middleware";
+import { zValidator } from "@hono/zod-validator";
+import {
+  emptyFormSchema,
+  emptyQuerySchema,
+  nonEmptyStringParamsSchema,
+} from "@/schemas/common.schema";
+import { TemplateController } from "@/controllers";
 
 /**
  * Template Routes
@@ -11,57 +15,48 @@ import { TemplateController } from '@/controllers';
 export const createTemplateRoutes = () => {
   const router = new Hono<{ Bindings: CloudflareBindings }>()
     // Apply auth middleware to all template routes
-    .use('*', authMiddleware)
-    .get(
-      '/',
-      zValidator('query', emptyQuerySchema),
-      async (c) => {
-        return new TemplateController(c).getAll();
-      }
-    )
+    .use("*", authMiddleware)
+    .get("/", zValidator("query", emptyQuerySchema), async (c) => {
+      return new TemplateController(c).getAll();
+    })
     // Admin-only write routes
-    .post(
-      '/',
-      adminOnly,
-      zValidator('form', emptyFormSchema),
-      async (c) => {
-        return new TemplateController(c).create();
-      }
-    )
+    .post("/", adminOnly, zValidator("form", emptyFormSchema), async (c) => {
+      return new TemplateController(c).create();
+    })
     .put(
-      '/:id',
+      "/:id",
       adminOnly,
-      zValidator('param', nonEmptyStringParamsSchema),
-      zValidator('form', emptyFormSchema),
+      zValidator("param", nonEmptyStringParamsSchema),
+      zValidator("form", emptyFormSchema),
       async (c) => {
         return new TemplateController(c).update();
-      }
+      },
     )
     .delete(
-      '/:id',
+      "/:id",
       adminOnly,
-      zValidator('param', nonEmptyStringParamsSchema),
-      zValidator('query', emptyQuerySchema),
+      zValidator("param", nonEmptyStringParamsSchema),
+      zValidator("query", emptyQuerySchema),
       async (c) => {
         return new TemplateController(c).delete();
-      }
+      },
     )
     // Public read routes (by ID and download)
     .get(
-      '/:id/download',
-      zValidator('param', nonEmptyStringParamsSchema),
-      zValidator('query', emptyQuerySchema),
+      "/:id/download",
+      zValidator("param", nonEmptyStringParamsSchema),
+      zValidator("query", emptyQuerySchema),
       async (c) => {
         return new TemplateController(c).download();
-      }
+      },
     )
     .get(
-      '/:id',
-      zValidator('param', nonEmptyStringParamsSchema),
-      zValidator('query', emptyQuerySchema),
+      "/:id",
+      zValidator("param", nonEmptyStringParamsSchema),
+      zValidator("query", emptyQuerySchema),
       async (c) => {
         return new TemplateController(c).getById();
-      }
+      },
     );
 
   return router;
