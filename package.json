@@ -13,6 +13,7 @@
     "prepare": "husky",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
+    "db:reset": "tsx src/db/reset.ts",
     "db:backfill:workflow": "tsx src/db/backfill-submission-workflow.ts",
     "db:backfill:final-status": "tsx src/db/backfill-final-status-ownership.ts",
     "db:rollback:wakdek": "tsx src/db/rollback-wakdek-approval.ts",

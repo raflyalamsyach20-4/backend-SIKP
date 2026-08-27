@@ -254,7 +254,12 @@ export class StorageService {
       return publicUrl;
     }
 
-    return `${this.apiBaseUrl}/api/assets/r2/${encodeURIComponent(key)}`;
+    const encodedKey = key
+      .split('/')
+      .map((segment) => encodeURIComponent(segment))
+      .join('/');
+
+    return `${this.apiBaseUrl}/api/assets/r2/${encodedKey}`;
   }
 
   getEsignatureAssetProxyUrlFromPublicUrl(

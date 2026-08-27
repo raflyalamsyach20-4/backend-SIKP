@@ -529,7 +529,7 @@ export class MahasiswaService {
         title: "Pelaksanaan kerja praktik",
         description:
           "Surat balasan telah diverifikasi. Lanjutkan pelaksanaan kerja praktik.",
-        actionLabel: "Ke Saat Magang",
+        actionLabel: "Ke Pelaksanaan Kerja Praktik",
         actionUrl: "/mahasiswa/kp/saat-magang",
       };
     }
@@ -564,7 +564,7 @@ export class MahasiswaService {
     return {
       title: "Pelaksanaan kerja praktik",
       description: "Lanjutkan aktivitas kerja praktik sesuai timeline.",
-      actionLabel: "Ke Saat Magang",
+      actionLabel: "Ke Pelaksanaan Kerja Praktik",
       actionUrl: "/mahasiswa/kp/saat-magang",
     };
   }
